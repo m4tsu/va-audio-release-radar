@@ -37,6 +37,15 @@ describe("useFollowStore", () => {
     expect(useFollowStore.getState().follows).toEqual([]);
   });
 
+  /** 未読の印はこの値との比較で決まる (設計書 §10)。保存できない環境でも表示は動かす */
+  test("フィードを見た日時は保存先が使えなくても状態に残る", async () => {
+    await useFollowStore.getState().init();
+    expect(useFollowStore.getState().lastSeenFeedAt).toBeNull();
+
+    await useFollowStore.getState().markFeedSeen("2026-09-18T00:00:00.000Z");
+    expect(useFollowStore.getState().lastSeenFeedAt).toBe("2026-09-18T00:00:00.000Z");
+  });
+
   test("同じ声優を二重にフォローしても 1 件のまま", async () => {
     const actor = { voiceActorId: "va_a", slug: "a", canonicalName: "あ" };
     await useFollowStore.getState().follow(actor);

@@ -30,7 +30,6 @@ test("フォローするとトップがフィードに変わり、/following に
 
   // トップの主役が「フォロー中の新着」に入れ替わる
   await expect(page.getByRole("heading", { level: 1, name: "フォロー中の新着" })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: NAME })).toBeVisible();
   await expect(page.getByRole("link", { name: "テスト用ASMR作品アルファ" })).toBeVisible();
 
   await page.getByRole("link", { name: "フォロー中", exact: true }).click();
@@ -44,6 +43,27 @@ test("フォローするとトップがフィードに変わり、/following に
   // 解除はトップにも効く
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "最近の新着 (全声優)" })).toBeVisible();
+});
+
+/**
+ * フィードは 発売予定 / 30 日以内 / それ以前 の 3 段 (設計書 §10)。
+ * seed.sql の 4 件目が 14 日後の発売なので、先頭に「今後の発売」が出る
+ */
+test("フィードは段に分かれ、発売予定の作品が先頭の段に出る", async ({ page }) => {
+  await page.goto("/voice-actors/e2e-alpha");
+  await page.getByRole("button", { name: "フォロー", exact: true }).click();
+  await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1, name: "フォロー中の新着" })).toBeVisible();
+
+  const upcoming = page.getByRole("heading", { level: 2, name: /今後の発売/ });
+  await expect(upcoming).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /30 日以内の新作/ })).toBeVisible();
+
+  // 発売予定の作品は上の段にだけ出て、発売日ではなく「発売予定」として表示される
+  await expect(page.getByRole("link", { name: "テスト用発売予定作品アルファ" })).toBeVisible();
+  await expect(page.getByText(/発売予定 \d+月\d+日/)).toBeVisible();
 });
 
 test("フォローはページをまたいで保持される", async ({ page }) => {

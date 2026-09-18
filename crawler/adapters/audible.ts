@@ -13,9 +13,11 @@ import type {
 /**
  * Audible Japan のアダプタ。手順は設計書 §3 のとおり:
  *
- * 1. `?searchNarrator={名前}` の 1 ページ目 (20 件) だけを取る。
- *    `pageSize` や `sort` を付けると `no-search-results` へ 302 される。robots.txt も
- *    `page=` / `node=` との組み合わせを禁じている
+ * 1. `?searchNarrator={名前}&sort=pubdate-desc-rank` の 1 ページ目 (20 件) だけを取る。
+ *    既定 (sort 無し) は人気順 (popularity-rank) で、20 件を超える声優 (例: 石田彰は 38 件)
+ *    では新作が 1 ページ目に載らないことがある。`sort=pubdate-desc-rank` を単独で付けると
+ *    HTTP 200 のまま発売日降順になる (実測)。`pageSize` や `page` を追加すると
+ *    `no-search-results` へ 302 される。robots.txt も `page=` との組み合わせを禁じている
  * 2. `li.productListItem` から 1 件ずつ取り出す
  *
  * `li.productListItem` の中には flyout (popover) があり、同じ情報が短縮形で重複している。
@@ -28,7 +30,9 @@ const STORE_SLUG = "audible" as const;
 const AUDIBLE_STORE_CATEGORY = "audiobook";
 
 export function buildSearchUrl(narratorName: string): string {
-  return `https://www.audible.co.jp/search?searchNarrator=${encodeURIComponent(narratorName)}`;
+  // sort=pubdate-desc-rank を付けて発売日降順にする (理由は上のコメント参照)。1 ページ目
+  // 20 件の制約は変わらないので、20 件を超える声優は新作以外が漏れる可能性が残る (totalCount 参照)
+  return `https://www.audible.co.jp/search?searchNarrator=${encodeURIComponent(narratorName)}&sort=pubdate-desc-rank`;
 }
 
 /**
@@ -53,6 +57,14 @@ export function isNoSearchResultsLocation(location: string | undefined): boolean
 }
 
 // --- 一覧 HTML の解析 ------------------------------------------------------
+
+/** 「検索結果 38  のうち 1 - 20 件」から総件数 (38) を取る。表示自体が無ければ undefined */
+export function parseTotalCount(html: string): number | undefined {
+  const matched = /検索結果\s*(\d+)\s*のうち/.exec(html);
+  if (matched?.[1] === undefined) return undefined;
+  const value = Number(matched[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
   const $ = cheerio.load(html);
@@ -93,7 +105,16 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
     candidates.push(candidate);
   }
 
-  return validateRawWorks(candidates);
+  const validated = validateRawWorks(candidates);
+  const totalCount = parseTotalCount(html);
+  const warnings = [...validated.warnings];
+  // 1 ページ目 (20 件) しか取れないため、総件数がそれを超える声優は新作以外が漏れうる。
+  // 管理画面で気づけるように警告として積む (企画書 §21)
+  if (totalCount !== undefined && totalCount > 20) {
+    warnings.push(`1 ページ目 20 件のみ取得。総件数 ${totalCount}`);
+  }
+
+  return { ...validated, warnings, totalCount };
 }
 
 /** 選択した要素の文字列を、並び順のまま空文字を除いて集める */

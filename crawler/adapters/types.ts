@@ -36,6 +36,11 @@ export type ParsedWorks = {
   invalidCount: number;
   /** 人が読む警告。捨てた理由や欠けた項目 */
   warnings: string[];
+  /**
+   * 検索結果の総件数 (ストアが表示する場合のみ)。Audible は 1 ページ目 20 件しか
+   * 取れないため、これが 20 を超えると新作以外が漏れている可能性がある (管理画面向け)
+   */
+  totalCount?: number;
 };
 
 /**

@@ -18,7 +18,8 @@ VALUES
 INSERT OR REPLACE INTO voice_actor_aliases (id, voice_actor_id, name, source, verified)
 VALUES (9000001, 'va_e2e-alpha', 'テスト 声優アルファ', 'manual', 1);
 
--- 作品 3 件 ----------------------------------------------------------------
+-- 作品 4 件 ----------------------------------------------------------------
+-- 4 件目は発売日が未来。フィードの「今後の発売」の段が出ることの確認用
 INSERT OR REPLACE INTO audio_works
   (id, title, category, release_date, cover_image_url, duration_seconds, adult, maker_name, created_at, updated_at)
 VALUES
@@ -27,7 +28,9 @@ VALUES
   ('audible:B0E2E00002', 'テスト用朗読作品アルファ', 'audiobook', date('now', '-5 day'), NULL, 29520, 0, 'テスト出版',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-5 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('dlsite:RJ90000003', 'テスト用ボイスドラマ作品ベータ', 'audio_drama', date('now', '-10 day'), NULL, 3600, 0, 'テストサークル',
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('dlsite:RJ90000004', 'テスト用発売予定作品アルファ', 'asmr', date('now', '+14 day'), NULL, 4200, 0, 'テストサークル',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 -- ストアの掲載 ------------------------------------------------------------
 -- 1 件目だけアフィリエイト URL を持たせる (StoreLink がそちらを優先することの確認用)
@@ -50,6 +53,11 @@ VALUES
    'https://www.dlsite.com/home/work/=/product_id/RJ90000003.html', NULL,
    'テスト用ボイスドラマ作品ベータ', 1100, NULL, 1,
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  (9000004, 'dlsite:RJ90000004', 'dlsite', 'RJ90000004',
+   'https://www.dlsite.com/home/work/=/product_id/RJ90000004.html', NULL,
+   'テスト用発売予定作品アルファ', 1320, NULL, 1,
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 -- クレジット --------------------------------------------------------------
@@ -60,7 +68,8 @@ VALUES
   (9000001, 'dlsite:RJ90000001', 'va_e2e-alpha', 'テスト声優アルファ', NULL, 'verified', 'dlsite'),
   (9000002, 'audible:B0E2E00002', 'va_e2e-alpha', 'テスト 声優アルファ', 'ナレーター', 'verified', 'audible'),
   (9000003, 'dlsite:RJ90000003', 'va_e2e-beta', 'テスト声優ベータ', NULL, 'verified', 'dlsite'),
-  (9000004, 'dlsite:RJ90000001', NULL, 'テスト未解決表記', NULL, 'unmatched', 'dlsite');
+  (9000004, 'dlsite:RJ90000001', NULL, 'テスト未解決表記', NULL, 'unmatched', 'dlsite'),
+  (9000005, 'dlsite:RJ90000004', 'va_e2e-alpha', 'テスト声優アルファ', NULL, 'verified', 'dlsite');
 
 -- クロール履歴 ------------------------------------------------------------
 -- audible × アルファ は「前回 12 件 → 今回 0 件」で警告、dlsite × ベータ は失敗で警告になる

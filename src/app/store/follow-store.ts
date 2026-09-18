@@ -23,31 +23,58 @@ export type FollowedActor = {
 /** フォローするときに画面から渡すもの。createdAt はストアが埋める */
 export type FollowTarget = Omit<FollowedActor, "createdAt">;
 
+/** フォロー以外の 1 つきりの値を入れる表。今は「最後にフィードを見た日時」だけ */
+type MetaRow = { key: string; value: string };
+
+/** 最後にフィードを見た日時を入れる行のキー */
+const LAST_SEEN_FEED_KEY = "lastSeenFeedAt";
+
 type FollowState = {
   status: "idle" | "ready";
   /** createdAt の新しい順 */
   follows: FollowedActor[];
+  /**
+   * 最後にフィードを描画した日時 (ISO 8601)。未読の印の基準 (設計書 §10)。
+   * このブラウザで一度も見ていなければ null
+   */
+  lastSeenFeedAt: string | null;
   init: () => Promise<void>;
   follow: (actor: FollowTarget) => Promise<void>;
   unfollow: (voiceActorId: string) => Promise<void>;
   isFollowing: (voiceActorId: string) => boolean;
+  /** フィードを見たことを記録する。描画に使う値は呼ぶ前に控えておくこと */
+  markFeedSeen: (at: string) => Promise<void>;
+};
+
+type Tables = {
+  follows: EntityTable<FollowedActor, "voiceActorId">;
+  meta: EntityTable<MetaRow, "key">;
 };
 
 /**
  * Dexie の読み込みは init() の中でだけ行う。
  * SSR のバンドルに IndexedDB 前提のコードを入れないため、静的 import にしない
  */
-let tablePromise: Promise<EntityTable<FollowedActor, "voiceActorId">> | null = null;
+let tablePromise: Promise<Tables> | null = null;
 
-function followsTable(): Promise<EntityTable<FollowedActor, "voiceActorId">> {
+function tables(): Promise<Tables> {
   tablePromise ??= (async () => {
     const { default: Dexie } = await import("dexie");
     const db = new Dexie(DB_NAME);
     // 主キーは声優 ID。createdAt は並べ替え用の索引
     db.version(1).stores({ follows: "voiceActorId, createdAt" });
-    return db.table<FollowedActor, string>("follows");
+    // 既に version 1 の DB を持っているブラウザがあるので、宣言は足すだけにする
+    db.version(2).stores({ follows: "voiceActorId, createdAt", meta: "key" });
+    return {
+      follows: db.table<FollowedActor, string>("follows"),
+      meta: db.table<MetaRow, string>("meta"),
+    };
   })();
   return tablePromise;
+}
+
+async function followsTable(): Promise<EntityTable<FollowedActor, "voiceActorId">> {
+  return (await tables()).follows;
 }
 
 /** init() の多重実行を防ぐ。ルートの useEffect は開発時の StrictMode で 2 回走る */
@@ -61,15 +88,23 @@ function byNewest(a: FollowedActor, b: FollowedActor): number {
 export const useFollowStore = create<FollowState>((set, get) => ({
   status: "idle",
   follows: [],
+  lastSeenFeedAt: null,
 
   init: async () => {
     // サーバーでは IndexedDB が無い。呼ばれても何もしないでおく (呼び出し側の分岐を減らす)
     if (typeof window === "undefined") return;
     initPromise ??= (async () => {
       try {
-        const table = await followsTable();
-        const rows = await table.toArray();
-        set({ follows: rows.sort(byNewest), status: "ready" });
+        const { follows, meta } = await tables();
+        const [rows, lastSeen] = await Promise.all([
+          follows.toArray(),
+          meta.get(LAST_SEEN_FEED_KEY),
+        ]);
+        set({
+          follows: rows.sort(byNewest),
+          lastSeenFeedAt: lastSeen?.value ?? null,
+          status: "ready",
+        });
       } catch {
         // プライベートモードなどで IndexedDB が使えない場合。
         // 読めないだけなので、フォロー 0 件として画面は動かす
@@ -104,6 +139,16 @@ export const useFollowStore = create<FollowState>((set, get) => ({
   },
 
   isFollowing: (voiceActorId) => get().follows.some((f) => f.voiceActorId === voiceActorId),
+
+  markFeedSeen: async (at) => {
+    set({ lastSeenFeedAt: at });
+    try {
+      const { meta } = await tables();
+      await meta.put({ key: LAST_SEEN_FEED_KEY, value: at });
+    } catch {
+      // 保存できない環境では未読の印が毎回出るだけ。画面は動かす
+    }
+  },
 }));
 
 /** 1 人分の購読。`follows` 全体を購読すると無関係な増減でも再描画されるため分けている */
@@ -115,5 +160,5 @@ export function useIsFollowing(voiceActorId: string): boolean {
 export function resetFollowStoreForTest(): void {
   tablePromise = null;
   initPromise = null;
-  useFollowStore.setState({ status: "idle", follows: [] });
+  useFollowStore.setState({ status: "idle", follows: [], lastSeenFeedAt: null });
 }

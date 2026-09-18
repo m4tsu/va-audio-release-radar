@@ -5,11 +5,16 @@
 -- FK 制約があるので子 (credits/listings) → 親 (works/aliases/actors) の順に消す。
 -- crawl_runs は他テーブルから参照されないので順不同でよい。
 
-DELETE FROM audio_credits WHERE id IN (9000001, 9000002, 9000003, 9000004);
+DELETE FROM audio_credits WHERE id IN (9000001, 9000002, 9000003, 9000004, 9000005);
 
-DELETE FROM store_listings WHERE id IN (9000001, 9000002, 9000003);
+DELETE FROM store_listings WHERE id IN (9000001, 9000002, 9000003, 9000004);
 
-DELETE FROM audio_works WHERE id IN ('dlsite:RJ90000001', 'audible:B0E2E00002', 'dlsite:RJ90000003');
+DELETE FROM audio_works WHERE id IN (
+  'dlsite:RJ90000001',
+  'audible:B0E2E00002',
+  'dlsite:RJ90000003',
+  'dlsite:RJ90000004'
+);
 
 DELETE FROM voice_actor_aliases WHERE id IN (9000001);
 

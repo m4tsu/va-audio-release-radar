@@ -5,9 +5,9 @@ import { dedupeCredits } from "@/app/lib/dedupe-credits";
 import {
   categoryLabel,
   formatDuration,
+  formatMonthDay,
   formatPrice,
   formatReleaseDate,
-  isNewWork,
 } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkWithListings } from "@/app/lib/view-types";
@@ -20,10 +20,16 @@ import type { WorkWithListings } from "@/app/lib/view-types";
 export function WorkCard({
   item,
   actors,
+  unread = false,
 }: {
   item: WorkWithListings;
   /** フィードで「フォロー中の誰で引っかかったか」を出すとき。声優ページでは省く */
   actors?: Array<{ id: string; slug: string; name: string }>;
+  /**
+   * 前回フィードを見たとき以降の作品。ブラウザにしか無い状態なので SSR では常に false で、
+   * ハイドレーション後にだけ印が付く (設計書 §10)
+   */
+  unread?: boolean;
 }) {
   const { work, listings } = item;
   // 表記違いで同じ声優に複数の credit が解決されていると、ここも同じ声優が重複して出るので排除する
@@ -31,14 +37,18 @@ export function WorkCard({
   const dedupedActors = actors
     ? dedupeCredits(actors, (actor) => ({ voiceActorId: actor.id, creditedName: actor.name }))
     : undefined;
-  const earliestSeen = listings
-    .map((listing) => listing.firstSeenAt)
-    .sort()
-    .at(0);
-  const isNew = isNewWork(work, earliestSeen);
+  const upcoming = item.freshness === "upcoming";
 
   return (
-    <article className="flex gap-4 rounded-xl border bg-card p-3 text-card-foreground shadow-sm">
+    <article className="relative flex gap-4 rounded-xl border bg-card p-3 text-card-foreground shadow-sm">
+      {unread ? (
+        // 未読は「前回見たとき以降に出た / 見つかった」の合図。色だけに頼らないよう
+        // 読み上げ用のラベルを中に置く (live region にはしない。並んだ枚数だけ読み上げてしまう)
+        <span className="absolute top-3 left-1 h-6 w-1 rounded-full bg-primary">
+          <span className="sr-only">未読</span>
+        </span>
+      ) : null}
+
       <Link
         to="/works/$id"
         params={{ id: work.id }}
@@ -55,7 +65,10 @@ export function WorkCard({
             <StoreBadge key={listing.storeSlug} store={listing.storeSlug} />
           ))}
           <Badge variant="secondary">{categoryLabel(work.category)}</Badge>
-          {isNew ? <Badge>NEW</Badge> : null}
+          {item.isNew ? <Badge>NEW</Badge> : null}
+          {upcoming && work.releaseDate ? (
+            <Badge variant="outline">発売予定 {formatMonthDay(work.releaseDate)}</Badge>
+          ) : null}
         </div>
 
         <h3 className="font-medium leading-snug">
@@ -86,7 +99,8 @@ export function WorkCard({
               <dd className="truncate">{work.makerName}</dd>
             </div>
           ) : null}
-          {work.releaseDate ? (
+          {/* 発売予定の作品は上のバッジで日付を出しているので、ここには重ねて出さない */}
+          {work.releaseDate && !upcoming ? (
             <div className="flex gap-1">
               <dt className="sr-only">発売日</dt>
               <dd>{formatReleaseDate(work.releaseDate)}</dd>

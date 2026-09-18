@@ -1,17 +1,28 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActorSearch } from "@/app/components/actor-search";
 import { EmptyState } from "@/app/components/empty-state";
 import { Badge } from "@/app/components/ui/badge";
 import { WorkCard } from "@/app/components/work-card";
+import { isUnreadSince } from "@/app/lib/format";
 import type { ActorSummary, FeedItem } from "@/app/lib/view-types";
 import { fetchAllActors } from "@/app/server-fns/actors";
 import { fetchFeed, fetchLatestWorks } from "@/app/server-fns/works";
 import { useFollowStore } from "@/app/store/follow-store";
 
-/** 新着として扱う期間 (企画書 §5 の「new release radar」)。過去の在庫は見せない */
-const FEED_SINCE_DAYS = 30;
+/**
+ * フィードが遡る期間 (設計書 §10)。3 段目「それ以前」の下限でもある。
+ * 段分け (今後の発売 / 30 日以内 / それ以前) はサーバーが `freshness` として付けてくる
+ */
+const FEED_SINCE_DAYS = 90;
+/**
+ * 2 段目の見出しに出す日数。判定そのものはサーバー (`RECENT_DAYS`) が持っているので、
+ * ここは表示用の写し。サーバーはクライアントから import できない (D1 に触るため)
+ */
+const FEED_RECENT_DAYS = 30;
 const FEED_LIMIT = 60;
+/** フォロー 0 件のときの「最近の新着」。こちらは見出しどおり直近 30 日に絞る */
+const LATEST_SINCE_DAYS = 30;
 const LATEST_LIMIT = 24;
 
 /**
@@ -23,7 +34,7 @@ const LATEST_LIMIT = 24;
 export const Route = createFileRoute("/")({
   loader: async () => {
     const [latest, actors] = await Promise.all([
-      fetchLatestWorks({ data: { sinceDays: FEED_SINCE_DAYS, limit: LATEST_LIMIT } }),
+      fetchLatestWorks({ data: { sinceDays: LATEST_SINCE_DAYS, limit: LATEST_LIMIT } }),
       fetchAllActors(),
     ]);
     return { latest, actors };
@@ -152,7 +163,7 @@ function FollowingFeed() {
     <section className="space-y-4">
       <h1 className="font-semibold text-2xl tracking-tight">フォロー中の新着</h1>
       <p className="text-muted-foreground text-sm">
-        フォロー中 {follows.length} 人の、直近 {FEED_SINCE_DAYS} 日の音声作品。
+        フォロー中 {follows.length} 人の、発売日が直近 {FEED_SINCE_DAYS} 日 / 発売予定の音声作品。
       </p>
 
       {state.phase === "loading" ? (
@@ -164,19 +175,50 @@ function FollowingFeed() {
           description="時間をおいて再読み込みすること。"
         />
       ) : null}
-      {state.phase === "ready" ? <FeedGroups items={state.items} /> : null}
+      {state.phase === "ready" ? <FeedTiers items={state.items} /> : null}
     </section>
   );
 }
 
 /**
- * 声優ごとにまとめて出す。1 つの作品に複数のフォロー中声優が出ていれば、
- * その人数ぶん見出しの下に現れる (誰の新着として見たいかは読み手によるため)
+ * 未読の基準になる「前回フィードを見た日時」。
+ *
+ * 描画に使うのは更新前の値。先に保存してしまうと、開いた瞬間に全件が既読になって
+ * 印が一度も出ない。初回 (null) は印を出さずに今の時刻だけ保存する (設計書 §10)
  */
-function FeedGroups({ items }: { items: FeedItem[] }) {
-  const groups = groupByActor(items);
+function useFeedSeenBaseline(ready: boolean): string | null {
+  const status = useFollowStore((state) => state.status);
+  const lastSeenFeedAt = useFollowStore((state) => state.lastSeenFeedAt);
+  const markFeedSeen = useFollowStore((state) => state.markFeedSeen);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const captured = useRef(false);
 
-  if (groups.length === 0) {
+  useEffect(() => {
+    // Dexie の読み込みが終わり、フィードが描けてから 1 度だけ控える
+    if (!ready || status !== "ready" || captured.current) return;
+    captured.current = true;
+    setBaseline(lastSeenFeedAt);
+    void markFeedSeen(new Date().toISOString());
+  }, [ready, status, lastSeenFeedAt, markFeedSeen]);
+
+  return baseline;
+}
+
+/** 3 段の見出し。サーバーが付けてくる `freshness` と 1 対 1 で対応する */
+const TIER_TITLES = {
+  upcoming: "今後の発売",
+  recent: `${FEED_RECENT_DAYS} 日以内の新作`,
+  older: `それ以前 (直近 ${FEED_SINCE_DAYS} 日)`,
+} as const;
+
+/**
+ * フィードの 3 段 (設計書 §10)。段の判定はサーバー側 (`freshness`) に寄せてあるので、
+ * ここは並んできたものを切り分けるだけ。上 2 段が空でも 3 段目が残り画面が空にならない
+ */
+function FeedTiers({ items }: { items: FeedItem[] }) {
+  const lastSeenFeedAt = useFeedSeenBaseline(items.length > 0);
+
+  if (items.length === 0) {
     return (
       <EmptyState
         title="この期間の新着はありません"
@@ -190,45 +232,111 @@ function FeedGroups({ items }: { items: FeedItem[] }) {
     );
   }
 
+  const upcoming = items.filter((item) => item.freshness === "upcoming");
+  const recent = items.filter((item) => item.freshness === "recent");
+  const older = items.filter((item) => item.freshness === "older");
+
   return (
     <div className="space-y-8">
-      {groups.map((group) => (
-        <div key={group.actor.id} className="space-y-3">
-          <h2 className="font-medium text-lg">
-            <Link
-              to="/voice-actors/$slug"
-              params={{ slug: group.actor.slug }}
-              className="hover:underline"
-            >
-              {group.actor.name}
-            </Link>
-            <span className="ml-2 text-muted-foreground text-sm">{group.items.length} 作品</span>
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {group.items.map((item) => (
-              <WorkCard key={item.work.id} item={item} />
-            ))}
-          </div>
-        </div>
+      {upcoming.length > 0 ? (
+        <FeedTier title={TIER_TITLES.upcoming} items={upcoming} lastSeenFeedAt={lastSeenFeedAt} />
+      ) : null}
+      {recent.length > 0 ? (
+        <FeedTier title={TIER_TITLES.recent} items={recent} lastSeenFeedAt={lastSeenFeedAt} />
+      ) : null}
+      {older.length > 0 ? (
+        <CollapsibleTier
+          title={TIER_TITLES.older}
+          items={older}
+          lastSeenFeedAt={lastSeenFeedAt}
+          // 上 2 段が空なら畳んだままでは画面が空に見える。そのときだけ開いて出す
+          defaultOpen={upcoming.length === 0 && recent.length === 0}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function FeedTier({
+  title,
+  items,
+  lastSeenFeedAt,
+}: {
+  title: string;
+  items: FeedItem[];
+  lastSeenFeedAt: string | null;
+}) {
+  return (
+    <div className="space-y-3">
+      <h2 className="font-medium text-lg">
+        {title}
+        <span className="ml-2 text-muted-foreground text-sm">{items.length} 作品</span>
+      </h2>
+      <FeedCards items={items} lastSeenFeedAt={lastSeenFeedAt} />
+    </div>
+  );
+}
+
+/** 3 段目は件数が多く、目的は「取りこぼしの確認」なので既定では畳んでおく */
+function CollapsibleTier({
+  title,
+  items,
+  lastSeenFeedAt,
+  defaultOpen,
+}: {
+  title: string;
+  items: FeedItem[];
+  lastSeenFeedAt: string | null;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="space-y-3">
+      <h2 className="font-medium text-lg">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="inline-flex items-center gap-2 hover:underline"
+        >
+          {title}
+          <span className="text-muted-foreground text-sm">{items.length} 作品</span>
+          <span aria-hidden="true" className="text-muted-foreground text-sm">
+            {open ? "▲" : "▼"}
+          </span>
+        </button>
+      </h2>
+      {open ? <FeedCards items={items} lastSeenFeedAt={lastSeenFeedAt} /> : null}
+    </div>
+  );
+}
+
+function FeedCards({
+  items,
+  lastSeenFeedAt,
+}: {
+  items: FeedItem[];
+  lastSeenFeedAt: string | null;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {items.map((item) => (
+        <WorkCard
+          key={item.work.id}
+          item={item}
+          actors={item.actors}
+          unread={isUnreadSince(item.work, earliestFirstSeen(item.listings), lastSeenFeedAt)}
+        />
       ))}
     </div>
   );
 }
 
-type FeedGroup = {
-  actor: { id: string; slug: string; name: string };
-  items: FeedItem[];
-};
-
-/** 声優ごとのまとまり。フィード自体が新しい順なので、各声優の最新作が早い順に並ぶ */
-function groupByActor(items: FeedItem[]): FeedGroup[] {
-  const groups = new Map<string, FeedGroup>();
-  for (const item of items) {
-    for (const actor of item.actors) {
-      const group = groups.get(actor.id);
-      if (group) group.items.push(item);
-      else groups.set(actor.id, { actor, items: [item] });
-    }
-  }
-  return [...groups.values()];
+/** その作品をどのストアであれ最初に見つけた日時。未読判定の材料 */
+function earliestFirstSeen(listings: FeedItem["listings"]): string | undefined {
+  return listings
+    .map((listing) => listing.firstSeenAt)
+    .sort()
+    .at(0);
 }

@@ -51,25 +51,32 @@ export function formatDateTime(iso: string): string {
   }).format(parsed);
 }
 
-/** NEW バッジを出す日数。企画書 §6 の「今週の新着」に合わせて 7 日 */
-export const NEW_WORK_DAYS = 7;
+/** 発売予定日。"2026-10-01" → "10月1日"。年は出さない (先の予定でも数か月先までしか無い) */
+export function formatMonthDay(date: string): string {
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  if (Number.isNaN(month) || Number.isNaN(day)) return date;
+  return `${month}月${day}日`;
+}
 
 /**
- * 新着扱いかどうか。発売日があればそれを、無ければストアで最初に見つけた日時で判定する。
- * DLsite の一覧には発売日が載らない作品があるため、初出でも救えるようにしてある
+ * 前回フィードを見たとき以降に「発売された / 見つかった」作品か (設計書 §10 の未読)。
+ *
+ * 発売日が未来の作品まで発売日で比べると、発売日が来るまで永久に未読のままになる。
+ * まだ発売していないものは「見つかった日時」で比べる (設計書 §10 の「発売 / 発見」)。
+ * `lastSeenFeedAt` が無い = このブラウザで初めて見るときは、全件に印が付くのを避けて何も出さない
  */
-export function isNewWork(
+export function isUnreadSince(
   work: { releaseDate?: string },
   firstSeenAt: string | undefined,
-  now: number = Date.now(),
+  lastSeenFeedAt: string | null,
+  now: string = new Date().toISOString(),
 ): boolean {
-  const threshold = now - NEW_WORK_DAYS * 24 * 60 * 60 * 1000;
+  if (!lastSeenFeedAt) return false;
   // 発売日は日付だけなので、その日の始まり (UTC) として比べる
-  const basis = work.releaseDate ? Date.parse(`${work.releaseDate}T00:00:00Z`) : undefined;
-  if (basis !== undefined && !Number.isNaN(basis)) return basis >= threshold;
-  if (!firstSeenAt) return false;
-  const seen = Date.parse(firstSeenAt);
-  return !Number.isNaN(seen) && seen >= threshold;
+  const released = work.releaseDate ? `${work.releaseDate}T00:00:00.000Z` : undefined;
+  if (released && released <= now && released > lastSeenFeedAt) return true;
+  return firstSeenAt !== undefined && firstSeenAt > lastSeenFeedAt;
 }
 
 const CATEGORY_LABELS: Record<WorkCategory, string> = {

@@ -149,6 +149,261 @@ describe("feedForActors", () => {
   });
 });
 
+/** NOW から前後した日付 ("YYYY-MM-DD")。発売日の境界を書くのに使う */
+function dateFromNow(days: number): string {
+  return new Date(Date.parse(NOW) + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** 作品 id → freshness の対応表。並び順を見ない検証を短く書くため */
+function freshnessById(items: Array<{ work: { id: string }; freshness: string }>) {
+  return Object.fromEntries(items.map((item) => [item.work.id, item.freshness]));
+}
+
+describe("feedForActors の段 (設計書 §10)", () => {
+  it("発売日で upcoming / recent / older を分け、90 日より前は落とす", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "FUTURE", releaseDate: dateFromNow(1) }),
+          rawWork({ storeProductId: "TODAY", releaseDate: dateFromNow(0) }),
+          rawWork({ storeProductId: "D30", releaseDate: dateFromNow(-30) }),
+          rawWork({ storeProductId: "D31", releaseDate: dateFromNow(-31) }),
+          rawWork({ storeProductId: "D90", releaseDate: dateFromNow(-90) }),
+          rawWork({ storeProductId: "D91", releaseDate: dateFromNow(-91) }),
+        ],
+      }),
+      NOW,
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    expect(freshnessById(feed)).toEqual({
+      "dlsite:FUTURE": "upcoming",
+      "dlsite:TODAY": "recent",
+      "dlsite:D30": "recent",
+      "dlsite:D31": "older",
+      "dlsite:D90": "older",
+    });
+  });
+
+  it("upcoming は発売日の近い順、残りは発売日の新しい順に並べる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "SOON", releaseDate: dateFromNow(3) }),
+          rawWork({ storeProductId: "LATER", releaseDate: dateFromNow(20) }),
+          rawWork({ storeProductId: "D2", releaseDate: dateFromNow(-2) }),
+          rawWork({ storeProductId: "D20", releaseDate: dateFromNow(-20) }),
+          rawWork({ storeProductId: "D40", releaseDate: dateFromNow(-40) }),
+        ],
+      }),
+      NOW,
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    expect(feed.map((item) => item.work.id)).toEqual([
+      "dlsite:SOON",
+      "dlsite:LATER",
+      "dlsite:D2",
+      "dlsite:D20",
+      "dlsite:D40",
+    ]);
+  });
+
+  it("発売日が 7 日以内なら isNew、発売予定には付けない", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "FUTURE", releaseDate: dateFromNow(5) }),
+          rawWork({ storeProductId: "D7", releaseDate: dateFromNow(-7) }),
+          rawWork({ storeProductId: "D8", releaseDate: dateFromNow(-8) }),
+        ],
+      }),
+      NOW,
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+    const isNewById = Object.fromEntries(feed.map((item) => [item.work.id, item.isNew]));
+
+    expect(isNewById).toEqual({
+      "dlsite:FUTURE": false,
+      "dlsite:D7": true,
+      "dlsite:D8": false,
+    });
+  });
+
+  /**
+   * 初回クロールは既存の全作品を一度に見つける。ここを新着にすると、声優を追加するたびに
+   * その人の過去作が丸ごとフィードに流れ込む (設計書 §10)
+   */
+  it("発売日が無い作品は、初回クロールで見つかった分を older にする", async () => {
+    const db = await setupDb();
+    // 初回クロール。ここで見つかった作品は発見日時がベースラインと同じになる
+    await ingest(db, payload({ works: [rawWork({ storeProductId: "INITIAL" })] }), daysAgo(40));
+    // 2 回目以降に現れた作品だけが新着
+    await ingest(
+      db,
+      payload({ runId: "run-2", works: [rawWork({ storeProductId: "FOUND" })] }),
+      daysAgo(5),
+    );
+    // ベースラインより後だが 30 日より前に見つかった作品は 3 段目
+    await ingest(
+      db,
+      payload({ runId: "run-3", works: [rawWork({ storeProductId: "STALE" })] }),
+      daysAgo(35),
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    expect(freshnessById(feed)).toEqual({
+      "dlsite:INITIAL": "older",
+      "dlsite:FOUND": "recent",
+      "dlsite:STALE": "older",
+    });
+    // 初回クロールで見つかった分は、発見から何日経っていても NEW にしない
+    const initial = feed.find((item) => item.work.id === "dlsite:INITIAL");
+    expect(initial?.isNew).toBe(false);
+  });
+
+  it("発売日が無い作品は、ベースラインより後 7 日以内の発見で isNew", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ storeProductId: "INITIAL" })] }), daysAgo(40));
+    await ingest(
+      db,
+      payload({ runId: "run-2", works: [rawWork({ storeProductId: "FRESH" })] }),
+      daysAgo(3),
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+    const fresh = feed.find((item) => item.work.id === "dlsite:FRESH");
+
+    expect(fresh?.freshness).toBe("recent");
+    expect(fresh?.isNew).toBe(true);
+  });
+
+  /** 失敗した run はベースラインにしない。取得できなかった日を「見た」ことにはできない */
+  it("失敗した run は初回成功クロールの基準にしない", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({ runId: "run-error", works: [], error: "取得に失敗した" }),
+      daysAgo(60),
+    );
+    await ingest(db, payload({ works: [rawWork({ storeProductId: "INITIAL" })] }), daysAgo(40));
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    expect(freshnessById(feed)).toEqual({ "dlsite:INITIAL": "older" });
+  });
+
+  it("発売日が無い作品は、発売日のある作品と同じ並びに混ざる", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ storeProductId: "INITIAL" })] }), daysAgo(40));
+    await ingest(
+      db,
+      payload({
+        runId: "run-2",
+        works: [
+          rawWork({ storeProductId: "NODATE" }),
+          rawWork({ storeProductId: "DATED", releaseDate: dateFromNow(-1) }),
+        ],
+      }),
+      daysAgo(3),
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    // NODATE の発見は 3 日前、DATED の発売は 1 日前。新しい順に並ぶ
+    expect(feed.map((item) => item.work.id)).toEqual([
+      "dlsite:DATED",
+      "dlsite:NODATE",
+      "dlsite:INITIAL",
+    ]);
+  });
+
+  it("limit は段ごとではなく全体にかかる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "FUTURE", releaseDate: dateFromNow(2) }),
+          rawWork({ storeProductId: "D1", releaseDate: dateFromNow(-1) }),
+          rawWork({ storeProductId: "D2", releaseDate: dateFromNow(-2) }),
+        ],
+      }),
+      NOW,
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW, limit: 2 });
+
+    expect(feed.map((item) => item.work.id)).toEqual(["dlsite:FUTURE", "dlsite:D1"]);
+  });
+});
+
+describe("latestWorks / worksByActor の段", () => {
+  it("latestWorks もフィードと同じ段と並びになる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "FUTURE", releaseDate: dateFromNow(4) }),
+          rawWork({ storeProductId: "D3", releaseDate: dateFromNow(-3) }),
+          rawWork({ storeProductId: "D40", releaseDate: dateFromNow(-40) }),
+        ],
+      }),
+      NOW,
+    );
+
+    const works = await latestWorks(db, { now: NOW });
+
+    expect(works.map((item) => item.work.id)).toEqual(["dlsite:FUTURE", "dlsite:D3", "dlsite:D40"]);
+    expect(freshnessById(works)).toEqual({
+      "dlsite:FUTURE": "upcoming",
+      "dlsite:D3": "recent",
+      "dlsite:D40": "older",
+    });
+  });
+
+  it("worksByActor は発売日の降順のまま freshness を付ける", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "FUTURE", releaseDate: dateFromNow(4) }),
+          rawWork({ storeProductId: "D3", releaseDate: dateFromNow(-3) }),
+          rawWork({ storeProductId: "NODATE" }),
+        ],
+      }),
+      NOW,
+    );
+
+    const works = await worksByActor(db, UEDA.id, { now: NOW });
+
+    // 発売日が無い作品は末尾のまま (声優ページは全作品を出すので段で並べ替えない)
+    expect(works.map((item) => item.work.id)).toEqual([
+      "dlsite:FUTURE",
+      "dlsite:D3",
+      "dlsite:NODATE",
+    ]);
+    expect(freshnessById(works)).toEqual({
+      "dlsite:FUTURE": "upcoming",
+      "dlsite:D3": "recent",
+      // 初回クロールで見つかった発売日無しの作品は新着にしない
+      "dlsite:NODATE": "older",
+    });
+  });
+});
+
 describe("getWorkById", () => {
   it("listing と credit を付けて返す", async () => {
     const db = await setupDb();

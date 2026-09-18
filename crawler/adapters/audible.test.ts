@@ -12,6 +12,7 @@ import {
   parsePrice,
   parseRuntimeSeconds,
   parseSearchHtml,
+  parseTotalCount,
   toIsoDate,
 } from "./audible.ts";
 
@@ -28,10 +29,11 @@ const FETCHED_AT = "2026-09-18T00:00:00.000Z";
 const searchHtml = readFileSync(path.join(FIXTURES_DIR, "audible-search-ueda-reina.html"), "utf8");
 
 describe("buildSearchUrl", () => {
-  it("searchNarrator だけを付ける", () => {
-    // pageSize / sort を足すと no-search-results へ 302 された (設計書 §3)
+  it("sort=pubdate-desc-rank を付けて発売日降順にする", () => {
+    // 既定 (sort 無し) は人気順で、20 件を超える声優は新作が 1 ページ目に載らない。
+    // pageSize / page を足すと no-search-results へ 302 されるが、sort 単独なら 200 (実測、設計書 §3)
     expect(buildSearchUrl("上田麗奈")).toBe(
-      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88",
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88&sort=pubdate-desc-rank",
     );
   });
 });
@@ -124,6 +126,44 @@ describe("parseSearchHtml", () => {
     }
   });
 });
+
+describe("parseTotalCount", () => {
+  // 実測 HTML 断片 (石田彰の検索結果、38 件中 20 件表示)。フィクスチャ
+  // (audible-search-ueda-reina.html) は sort 無しで取得したもので、この表示自体が無い
+  const summaryHtml =
+    '<span class="bc-text\n    resultsSummarySubheading \n    \n    \n    bc-color-secondary"  >検索結果 38  のうち 1 - 20 件</span>';
+
+  it("「検索結果 N のうち」から総件数を取る", () => {
+    expect(parseTotalCount(summaryHtml)).toBe(38);
+  });
+
+  it("表示が無ければ undefined", () => {
+    expect(parseTotalCount(searchHtml)).toBeUndefined();
+    expect(parseTotalCount("<html></html>")).toBeUndefined();
+  });
+});
+
+describe("parseSearchHtml の totalCount / warnings", () => {
+  const summaryHtml = '<span class="resultsSummarySubheading">検索結果 38  のうち 1 - 20 件</span>';
+
+  it("総件数が 20 を超えると警告を積む", () => {
+    const html = `${summaryHtml}${htmlWithOneWorkFixture("B000000009")}`;
+    const parsed = parseSearchHtml(html, FETCHED_AT);
+    expect(parsed.totalCount).toBe(38);
+    expect(parsed.warnings).toContain("1 ページ目 20 件のみ取得。総件数 38");
+  });
+
+  it("総件数の表示が無ければ totalCount は undefined で警告も積まない", () => {
+    const parsed = parseSearchHtml(searchHtml, FETCHED_AT);
+    expect(parsed.totalCount).toBeUndefined();
+    expect(parsed.warnings).toEqual([]);
+  });
+});
+
+/** 1 件の productListItem だけを持つ最小限の HTML (検証を通す最小項目だけ埋める) */
+function htmlWithOneWorkFixture(asin: string): string {
+  return `<li class="productListItem" id="product-list-item-${asin}"><h3><a href="/pd/x/${asin}">Title ${asin}</a></h3></li>`;
+}
 
 describe("toIsoDate", () => {
   it("YYYY/MM/DD を YYYY-MM-DD にする", () => {

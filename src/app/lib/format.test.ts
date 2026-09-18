@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { categoryLabel, formatDuration, formatPrice, formatReleaseDate, isNewWork } from "./format";
+import {
+  categoryLabel,
+  formatDuration,
+  formatMonthDay,
+  formatPrice,
+  formatReleaseDate,
+  isUnreadSince,
+} from "./format";
 
 describe("formatPrice", () => {
   test("3 桁区切りで円記号を付ける", () => {
@@ -30,18 +37,38 @@ describe("formatReleaseDate", () => {
   });
 });
 
-describe("isNewWork", () => {
-  const now = Date.parse("2026-09-18T00:00:00Z");
+describe("formatMonthDay", () => {
+  test("年を落として月日だけにする", () => {
+    expect(formatMonthDay("2026-10-01")).toBe("10月1日");
+  });
+});
 
-  test("発売日が 7 日以内なら新着", () => {
-    expect(isNewWork({ releaseDate: "2026-09-15" }, undefined, now)).toBe(true);
-    expect(isNewWork({ releaseDate: "2026-09-01" }, undefined, now)).toBe(false);
+describe("isUnreadSince", () => {
+  const now = "2026-09-18T00:00:00.000Z";
+  const lastSeen = "2026-09-10T00:00:00.000Z";
+  const oldSeen = "2026-01-01T00:00:00.000Z";
+
+  test("前回見たとき以降に発売された作品は未読", () => {
+    expect(isUnreadSince({ releaseDate: "2026-09-15" }, oldSeen, lastSeen, now)).toBe(true);
+    expect(isUnreadSince({ releaseDate: "2026-09-05" }, oldSeen, lastSeen, now)).toBe(false);
   });
 
-  test("発売日が無ければ初出日時で判定する", () => {
-    expect(isNewWork({}, "2026-09-17T00:00:00Z", now)).toBe(true);
-    expect(isNewWork({}, "2026-08-17T00:00:00Z", now)).toBe(false);
-    expect(isNewWork({}, undefined, now)).toBe(false);
+  test("発売日が無ければ見つけた日時で判定する", () => {
+    expect(isUnreadSince({}, "2026-09-15T00:00:00.000Z", lastSeen, now)).toBe(true);
+    expect(isUnreadSince({}, "2026-09-05T00:00:00.000Z", lastSeen, now)).toBe(false);
+    expect(isUnreadSince({}, undefined, lastSeen, now)).toBe(false);
+  });
+
+  /** 未来の発売日で比べると、発売日が来るまでずっと未読のままになってしまう */
+  test("発売前の作品は見つけた日時で判定する", () => {
+    expect(isUnreadSince({ releaseDate: "2026-10-01" }, oldSeen, lastSeen, now)).toBe(false);
+    expect(
+      isUnreadSince({ releaseDate: "2026-10-01" }, "2026-09-15T00:00:00.000Z", lastSeen, now),
+    ).toBe(true);
+  });
+
+  test("このブラウザで初めて見るときは印を出さない", () => {
+    expect(isUnreadSince({ releaseDate: "2026-09-17" }, undefined, null, now)).toBe(false);
   });
 });
 
