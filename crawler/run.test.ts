@@ -3,6 +3,7 @@ import type { StoreSlug } from "../src/domain/index.ts";
 import type { AdapterStatus } from "./adapters/types.ts";
 import type { ActorSeed } from "./lib/ingest.ts";
 import {
+  buildSearchNames,
   filterActors,
   formatOutcomeTable,
   loadActorSeeds,
@@ -29,8 +30,9 @@ function outcome(
   workCount = 0,
   newCount = 0,
   unmatchedCount = 0,
+  queryUsed?: string,
 ): RunOutcome {
-  return { actor, storeSlug, status, workCount, newCount, unmatchedCount };
+  return { actor, storeSlug, status, workCount, newCount, unmatchedCount, queryUsed };
 }
 
 describe("summarize", () => {
@@ -74,6 +76,15 @@ describe("formatOutcomeTable", () => {
     const table = formatOutcomeTable([outcome(KAJI, "dlsite", "ok", 3, 3)]);
     expect(table.split("\n")[1]).toMatch(/^梶裕貴\s+3\s+3\s+-\s+-$/);
   });
+
+  it("空白入り別名で確定したときは queryUsed を備考に出す (T8)", () => {
+    // status が ok でも canonicalName と違う語で確定したことは分かるようにする
+    const table = formatOutcomeTable([
+      outcome(UEDA, "audible", "ok", 7, 1, 0, "上田 麗奈"),
+      outcome(UEDA, "dlsite", "ok", 30, 7, 0, "上田麗奈"),
+    ]);
+    expect(table.split("\n")[1]).toMatch(/^上田麗奈\s+30\s+7\s+7\s+1\s+audible:query=上田 麗奈$/);
+  });
 });
 
 describe("filterActors", () => {
@@ -91,6 +102,33 @@ describe("filterActors", () => {
 
   it("どれにも当たらなければ空", () => {
     expect(filterActors(actors, "居ない人")).toEqual([]);
+  });
+});
+
+describe("buildSearchNames", () => {
+  it("空白入りの検証済み alias を canonicalName より先に置く", () => {
+    // T8: Audible は「石見舞菜香」だと該当なしになり、「石見 舞菜香」だと見つかる
+    expect(
+      buildSearchNames({
+        id: "va_iwami-manaka",
+        slug: "iwami-manaka",
+        canonicalName: "石見舞菜香",
+        aliases: [{ name: "石見 舞菜香", source: "manual", verified: true }],
+      }),
+    ).toEqual(["石見 舞菜香", "石見舞菜香"]);
+  });
+
+  it("空白入り alias が無ければ canonicalName だけ", () => {
+    expect(buildSearchNames(KAJI)).toEqual(["梶裕貴"]);
+  });
+
+  it("未検証の alias は候補に入れない", () => {
+    expect(
+      buildSearchNames({
+        ...UEDA,
+        aliases: [{ name: "上田 麗奈", source: "manual", verified: false }],
+      }),
+    ).toEqual(["上田麗奈"]);
   });
 });
 

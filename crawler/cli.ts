@@ -5,8 +5,10 @@ import { parseArgs } from "node:util";
 import type { RawWork, StoreSlug } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
-import type { AdapterResult, SourceAdapter } from "./adapters/types.ts";
+import type { ActorQuery, AdapterResult, SourceAdapter } from "./adapters/types.ts";
+import { type ActorSeed, spacedVerifiedAliasNames } from "./lib/ingest.ts";
 import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
+import { loadActorSeeds } from "./run.ts";
 
 /**
  * 企画書 §34 の技術スパイク用 CLI。
@@ -57,6 +59,27 @@ const OPTION_SPEC = {
   help: { type: "boolean", short: "h" },
 } as const;
 
+/**
+ * 入力した声優名を検索候補に組み立てる (T8)。
+ *
+ * `actors.json` に canonicalName / slug / alias のどれかで一致する声優がいれば、
+ * その検証済みの空白入り alias を Audible 向けの先頭候補として使う (`buildSearchNames` と同じ考え方)。
+ * 見つからなければ入力した文字列だけで検索する。DLsite は canonicalName だけを見るので、
+ * どちらの場合も canonicalName には入力した文字列をそのまま使う (これまでの挙動を変えないため)
+ */
+async function buildActorQuery(actorName: string): Promise<ActorQuery> {
+  const seeds = await loadActorSeeds().catch(() => [] as ActorSeed[]);
+  const matched = seeds.find(
+    (seed) =>
+      seed.canonicalName === actorName ||
+      seed.slug === actorName ||
+      (seed.aliases ?? []).some((alias) => alias.name === actorName),
+  );
+  const spaced = matched === undefined ? [] : spacedVerifiedAliasNames(matched);
+  const searchNames = spaced.length > 0 ? [...spaced, actorName] : [actorName];
+  return { canonicalName: actorName, searchNames };
+}
+
 /** 引数の形が不正なら使い方を出して undefined を返す */
 function parseCliArgs(argv: readonly string[]) {
   try {
@@ -101,13 +124,14 @@ export async function main(argv: readonly string[]): Promise<number> {
       .filter((id) => id !== ""),
   );
 
+  const query = await buildActorQuery(actorName);
   const results: AdapterResult[] = [];
   for (const store of stores) {
     const adapter = ADAPTERS[store];
     // ストアをまたいで直列に回す。レートリミッタはホストごとなので並行にしても速くはならず、
     // 失敗したときにどのストアまで進んだかが分かりにくくなるだけ
     results.push(
-      await adapter.fetchByActor(actorName, {
+      await adapter.fetchByActor(query, {
         skipKnownIds,
         snapshot: values["no-snapshot"] !== true,
       }),

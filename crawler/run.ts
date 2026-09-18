@@ -5,8 +5,13 @@ import { parseArgs } from "node:util";
 import type { IngestPayload, StoreSlug } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
-import type { AdapterResult, AdapterStatus, SourceAdapter } from "./adapters/types.ts";
-import { type ActorSeed, AdminApiClient, AdminApiError } from "./lib/ingest.ts";
+import type { ActorQuery, AdapterResult, AdapterStatus, SourceAdapter } from "./adapters/types.ts";
+import {
+  type ActorSeed,
+  AdminApiClient,
+  AdminApiError,
+  spacedVerifiedAliasNames,
+} from "./lib/ingest.ts";
 import { CRAWLER_DIR } from "./lib/paths.ts";
 
 /**
@@ -72,6 +77,8 @@ export type RunOutcome = {
   unmatchedCount: number;
   /** empty / error の理由、または送信そのものに失敗した理由 */
   reason?: string;
+  /** 実際に検索に使った語。Audible は空白入り別名フォールバックがあるため canonicalName と違うことがある (T8) */
+  queryUsed?: string;
 };
 
 export type RunSummary = {
@@ -114,9 +121,15 @@ export function formatOutcomeTable(outcomes: readonly RunOutcome[]): string {
   }
 
   const rows = [...byActor.values()].map((group) => {
-    const notes = group
-      .filter((outcome) => outcome.status !== "ok")
-      .map((outcome) => `${outcome.storeSlug}:${outcome.status}`);
+    const notes = group.flatMap((outcome) => {
+      const parts: string[] = [];
+      if (outcome.status !== "ok") parts.push(`${outcome.storeSlug}:${outcome.status}`);
+      // canonicalName のまま確定した場合は自明なので出さない。空白入り別名で確定したときだけ出す
+      if (outcome.queryUsed !== undefined && outcome.queryUsed !== outcome.actor.canonicalName) {
+        parts.push(`${outcome.storeSlug}:query=${outcome.queryUsed}`);
+      }
+      return parts;
+    });
     return [
       group[0]?.actor.canonicalName ?? "",
       cell(group, "dlsite", (outcome) => String(outcome.workCount)),
@@ -173,6 +186,15 @@ export async function loadActorSeeds(file: string = ACTORS_JSON): Promise<ActorS
   if (!Array.isArray(parsed)) throw new Error(`${file} が配列ではない`);
   // 中身の検証はサーバー側の zod に任せる。二重に持つと片方だけ古くなるため
   return parsed as ActorSeed[];
+}
+
+/**
+ * Audible 向けの検索候補。空白入りの検証済み alias を先に試し、無ければ canonicalName だけ (T8)。
+ * DLsite adapter はこの配列を無視して canonicalName の完全一致検索だけを行う
+ */
+export function buildSearchNames(actor: ActorSeed): string[] {
+  const spaced = spacedVerifiedAliasNames(actor);
+  return spaced.length > 0 ? [...spaced, actor.canonicalName] : [actor.canonicalName];
 }
 
 /** `--only` の値で絞る。canonicalName と slug のどちらでも書けるようにする */
@@ -255,8 +277,14 @@ export async function main(argv: readonly string[]): Promise<number> {
   for (const actor of actors) {
     index += 1;
     const forActor: RunOutcome[] = [];
+    // searchNames は Audible のためのもの。DLsite adapter は canonicalName しか見ないので
+    // ストアを問わず同じ ActorQuery を渡す
+    const query: ActorQuery = {
+      canonicalName: actor.canonicalName,
+      searchNames: buildSearchNames(actor),
+    };
     for (const storeSlug of stores) {
-      const result = await ADAPTERS[storeSlug].fetchByActor(actor.canonicalName, {
+      const result = await ADAPTERS[storeSlug].fetchByActor(query, {
         skipKnownIds: knownIds.get(storeSlug),
         snapshot,
       });
@@ -315,6 +343,7 @@ async function send(
     newCount: 0,
     unmatchedCount: 0,
     ...(result.reason === undefined ? {} : { reason: result.reason }),
+    ...(result.queryUsed === undefined ? {} : { queryUsed: result.queryUsed }),
   } satisfies RunOutcome;
 
   if (client === undefined) return base;

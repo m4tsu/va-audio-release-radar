@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FetchResult } from "../lib/fetch.ts";
+import { fetchText } from "../lib/fetch.ts";
 import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
+  audibleAdapter,
   buildProductUrl,
   buildSearchUrl,
   isNoSearchResultsLocation,
@@ -11,6 +14,10 @@ import {
   parseSearchHtml,
   toIsoDate,
 } from "./audible.ts";
+
+// fetchText (ネットワーク / レート制限を持つ) を差し替え、search-{名前} ごとに応答を固定する。
+// T8: searchNames のフォールバック順序を、実際の Audible にアクセスせず検証する
+vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
 
 /**
  * 実際に取得した HTML (crawler/fixtures/) に対する固定テスト。
@@ -139,5 +146,113 @@ describe("parsePrice", () => {
   it("全角円記号付きの価格を数値にする", () => {
     expect(parsePrice("￥2,690 で購入、またはプレミアムプラン30日間無料体験で試す")).toBe(2690);
     expect(parsePrice("プレミアムプラン聴き放題対象")).toBeUndefined();
+  });
+});
+
+describe("fetchByActor", () => {
+  const fetchTextMock = vi.mocked(fetchText);
+
+  afterEach(() => {
+    fetchTextMock.mockReset();
+  });
+
+  /** 1 件の productListItem だけを持つ最小限の HTML。検証 (rawWorkSchema) を通る最小項目だけ埋める */
+  function htmlWithOneWork(asin: string): string {
+    return `<li class="productListItem" id="product-list-item-${asin}"><h3><a href="/pd/x/${asin}">Title ${asin}</a></h3></li>`;
+  }
+
+  function ok(body: string): FetchResult {
+    return { ok: true, status: 200, url: "https://www.audible.co.jp/search", body };
+  }
+
+  function emptyRedirect(): FetchResult {
+    // 存在しない名前でも 302 で no-search-results に飛ばされる。isNoSearchResultsLocation が拾う形
+    return {
+      ok: false,
+      url: "https://www.audible.co.jp/search",
+      status: 302,
+      location: "/no-search-results?keywords=null",
+      reason: "リダイレクト (302) → /no-search-results?keywords=null",
+    };
+  }
+
+  function networkError(): FetchResult {
+    return {
+      ok: false,
+      url: "https://www.audible.co.jp/search",
+      reason: "AbortError: The operation was aborted",
+    };
+  }
+
+  it("1 つ目が該当なしでも、2 つ目で 1 件見つかれば確定する", async () => {
+    // 実測どおり: 空白なし (石見舞菜香) が該当なし、空白あり (石見 舞菜香) で見つかる
+    fetchTextMock.mockResolvedValueOnce(emptyRedirect());
+    fetchTextMock.mockResolvedValueOnce(ok(htmlWithOneWork("B000000001")));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "石見舞菜香", searchNames: ["石見舞菜香", "石見 舞菜香"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("ok");
+    expect(result.works).toHaveLength(1);
+    expect(result.queryUsed).toBe("石見 舞菜香");
+  });
+
+  it("全候補が該当なしなら empty で確定する", async () => {
+    fetchTextMock.mockResolvedValueOnce(emptyRedirect());
+    fetchTextMock.mockResolvedValueOnce(emptyRedirect());
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "水瀬いのり", searchNames: ["水瀬 いのり", "水瀬いのり"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("empty");
+    expect(result.works).toHaveLength(0);
+    expect(result.queryUsed).toBe("水瀬 いのり");
+  });
+
+  it("error と empty が混ざっても他の候補を試し、empty があれば empty で確定する", async () => {
+    fetchTextMock.mockResolvedValueOnce(networkError());
+    fetchTextMock.mockResolvedValueOnce(emptyRedirect());
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "テスト太郎", searchNames: ["テスト 太郎", "テスト太郎"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("empty");
+    expect(result.queryUsed).toBe("テスト太郎");
+  });
+
+  it("全候補が失敗 (error) したときだけ error で確定する", async () => {
+    fetchTextMock.mockResolvedValueOnce(networkError());
+    fetchTextMock.mockResolvedValueOnce(networkError());
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "テスト太郎", searchNames: ["テスト 太郎", "テスト太郎"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("error");
+    expect(result.queryUsed).toBe("テスト太郎");
+  });
+
+  it("searchNames が空なら canonicalName だけで検索する", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(htmlWithOneWork("B000000002")));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "上田麗奈", searchNames: [] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.queryUsed).toBe("上田麗奈");
+    expect(result.status).toBe("ok");
   });
 });

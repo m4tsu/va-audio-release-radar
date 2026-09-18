@@ -35,6 +35,17 @@ export type ActorSeed = {
   aliases?: Array<{ name: string; source: string; verified: boolean }>;
 };
 
+/**
+ * 検証済みの空白入り alias 名を、`actors.json` に書かれた順番のまま返す (T8)。
+ * Audible はナレーター検索が空白の有無で結果が変わる名前があるため、
+ * `crawler/run.ts` と `crawler/cli.ts` がこれを検索候補の先頭に置く
+ */
+export function spacedVerifiedAliasNames(actor: Pick<ActorSeed, "aliases">): string[] {
+  return (actor.aliases ?? [])
+    .filter((alias) => alias.verified && /\s/.test(alias.name))
+    .map((alias) => alias.name);
+}
+
 export class AdminApiError extends Error {}
 
 export class AdminApiClient {

@@ -2,7 +2,13 @@ import * as cheerio from "cheerio";
 import type { RawWork } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { validateRawWorks } from "./raw-work.ts";
-import type { AdapterResult, FetchByActorOptions, ParsedWorks, SourceAdapter } from "./types.ts";
+import type {
+  ActorQuery,
+  AdapterResult,
+  FetchByActorOptions,
+  ParsedWorks,
+  SourceAdapter,
+} from "./types.ts";
 
 /**
  * DLsite (全年齢サイト = /home/) のアダプタ。手順は設計書 §3 のとおり:
@@ -251,9 +257,12 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 // --- 取得 ------------------------------------------------------------------
 
 async function fetchByActor(
-  actorName: string,
+  actor: ActorQuery,
   options: FetchByActorOptions = {},
 ): Promise<AdapterResult> {
+  // DLsite は表記揺れの影響を受けない (空白の有無で結果が変わらない) ので、
+  // searchNames の候補は使わず canonicalName の完全一致検索だけを行う (設計書 §3 / T8)
+  const actorName = actor.canonicalName;
   const fetchedAt = new Date().toISOString();
   const base = {
     storeSlug: STORE_SLUG,
@@ -262,6 +271,7 @@ async function fetchByActor(
     works: [] as RawWork[],
     invalidCount: 0,
     warnings: [] as string[],
+    queryUsed: actorName,
   } satisfies AdapterResult;
 
   const searchResult = await fetchText(buildSearchUrl(actorName), {

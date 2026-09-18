@@ -82,6 +82,7 @@ src/
 - `/no-search-results?keywords=null` への 302 は**「ナレーター検索に該当なし」の意味** (T2 が確認: 存在しない名前でも同じ 302、直後に別名で 200。頻度制限ではなかった)。adapter はこれを `status: "empty"` (成功・0 件) として返し、ingest 側は `crawl_runs.work_count = 0` で記録する。既存の listing / credit は消さないので、制限と混同しても被害は出ない。前回 > 0 から 0 への急減は管理画面の警告で拾う (§21)
 - ブラウザ相当の `User-Agent` と `Accept-Language: ja-JP` を送り、リクエスト間隔は 6 秒
 - ナレーター表記は作品ごとに「上田 麗奈」「上田麗奈」と揺れる。表記のまま `creditedNames` に入れ、名寄せ (`normalizeName`) で吸収する
+- `searchNarrator=` 自体も検索語の空白の有無で結果が変わる名前がある (実測: 「石見舞菜香」は空白なしだと `no-search-results` へ 302、空白ありの「石見 舞菜香」だと 2 件)。crawler は `actors.json` の検証済み空白入り alias を先に試し、無ければ canonicalName で検索する (T8)
 - 本文側の `li` には `narratorLabel` / `authorLabel` / `runtimeLabel` / `releaseDateLabel` クラスが付く。flyout 側には付かず「、その他」で省略されるため、本文側だけを使う
 - ポッドキャストが混ざることがあり、配信日・再生時間が無い。除外せず保存する (releaseDate なし)
 - 一覧 HTML: `li.productListItem[id="product-list-item-{ASIN}"]` (`aria-label` にタイトル)

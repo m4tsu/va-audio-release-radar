@@ -9,13 +9,26 @@ import type { RawWork, StoreSlug } from "../../src/domain/index.ts";
  */
 export interface SourceAdapter {
   readonly storeSlug: StoreSlug;
-  fetchByActor(actorName: string, options?: FetchByActorOptions): Promise<AdapterResult>;
+  fetchByActor(actor: ActorQuery, options?: FetchByActorOptions): Promise<AdapterResult>;
   /**
    * 検索結果 1 ページ目の HTML を解析する。
    * @param fetchedAt RawWork.fetchedAt に入れる ISO 8601 文字列 (呼び出し側が決める)
    */
   parseSearchHtml(html: string, fetchedAt: string): ParsedWorks;
 }
+
+/**
+ * `fetchByActor` に渡す検索対象 (T8)。
+ *
+ * Audible は名前によって空白の有無で検索結果が変わる (例: 「石見舞菜香」は 302、
+ * 「石見 舞菜香」は 2 件) ため、試す順序付きの候補を `searchNames` として渡す。
+ * DLsite は表記揺れの影響を受けないので `canonicalName` の完全一致検索だけを使い、
+ * `searchNames` は無視する
+ */
+export type ActorQuery = {
+  canonicalName: string;
+  searchNames: string[];
+};
 
 export type ParsedWorks = {
   works: RawWork[];
@@ -44,6 +57,8 @@ export type AdapterResult = ParsedWorks & {
   status: AdapterStatus;
   /** `empty` / `error` の理由。人が読む 1 行 */
   reason?: string;
+  /** 実際に検索に使った語 (T8)。Audible は候補を順に試すので、確定した語をここに残す */
+  queryUsed?: string;
 };
 
 export type FetchByActorOptions = {

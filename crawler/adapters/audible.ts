@@ -2,7 +2,13 @@ import * as cheerio from "cheerio";
 import type { RawWork } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { validateRawWorks } from "./raw-work.ts";
-import type { AdapterResult, FetchByActorOptions, ParsedWorks, SourceAdapter } from "./types.ts";
+import type {
+  ActorQuery,
+  AdapterResult,
+  FetchByActorOptions,
+  ParsedWorks,
+  SourceAdapter,
+} from "./types.ts";
 
 /**
  * Audible Japan のアダプタ。手順は設計書 §3 のとおり:
@@ -134,40 +140,87 @@ export function parsePrice(text: string): number | undefined {
 
 // --- 取得 ------------------------------------------------------------------
 
+/**
+ * Audible は名前によって空白の有無で結果が変わる (実測: 「石見舞菜香」は空白なしだと
+ * `no-search-results` へ 302、空白ありの「石見 舞菜香」だと 2 件返る。上田麗奈は両方 7 件)。
+ * `actor.searchNames` を先頭から順に試し、1 件以上の結果 (`status: "ok"`) が返った時点で確定する。
+ * 個々の候補が `error` になっても他の候補は試す。全滅したときだけ全体を `error` にする (T8)
+ */
 async function fetchByActor(
-  actorName: string,
+  actor: ActorQuery,
   options: FetchByActorOptions = {},
 ): Promise<AdapterResult> {
   const fetchedAt = new Date().toISOString();
   const base = {
     storeSlug: STORE_SLUG,
-    actorName,
+    actorName: actor.canonicalName,
     status: "ok" as const,
     works: [] as RawWork[],
     invalidCount: 0,
     warnings: [] as string[],
   } satisfies AdapterResult;
 
-  const result = await fetchText(buildSearchUrl(actorName), {
-    store: STORE_SLUG,
-    requestKey: `search-${actorName}`,
-    kind: "html",
-    snapshot: options.snapshot,
-  });
-  if (!result.ok) {
-    // 2026-09-18 の実測: 存在しない名前でも `/no-search-results` へ 302 され、その直後に
-    // 別の名前を投げると 200 が返る。つまりこの 302 は「ナレーター検索に該当なし」であって
-    // アクセス制限ではない。よって失敗ではなく empty (成功・0 件) として返す (設計書 §3)。
-    // 取り込み側は 0 件でも既存の listing / credit を消さないので、将来ここに制限が混ざっても
-    // データが失われることはない。件数の急減は管理画面の警告で拾う
-    if (isNoSearchResultsLocation(result.location)) {
-      return { ...base, status: "empty", reason: "ナレーター検索に該当なし (no-search-results)" };
+  // searchNames が空のときは canonicalName だけで検索する (呼び出し側の作り忘れに対する保険)
+  const names = actor.searchNames.length > 0 ? actor.searchNames : [actor.canonicalName];
+  const attempts: AdapterResult[] = [];
+
+  for (const name of names) {
+    const result = await fetchText(buildSearchUrl(name), {
+      store: STORE_SLUG,
+      requestKey: `search-${name}`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+
+    if (!result.ok) {
+      // 2026-09-18 の実測: 存在しない名前でも `/no-search-results` へ 302 され、その直後に
+      // 別の名前を投げると 200 が返る。つまりこの 302 は「ナレーター検索に該当なし」であって
+      // アクセス制限ではない。よって失敗ではなく empty (成功・0 件) として返す (設計書 §3)。
+      // 取り込み側は 0 件でも既存の listing / credit を消さないので、将来ここに制限が混ざっても
+      // データが失われることはない。件数の急減は管理画面の警告で拾う
+      if (isNoSearchResultsLocation(result.location)) {
+        attempts.push({
+          ...base,
+          status: "empty",
+          queryUsed: name,
+          reason: "ナレーター検索に該当なし (no-search-results)",
+        });
+        continue;
+      }
+      attempts.push({
+        ...base,
+        status: "error",
+        queryUsed: name,
+        reason: `検索ページの取得に失敗: ${result.reason}`,
+      });
+      continue;
     }
-    return { ...base, status: "error", reason: `検索ページの取得に失敗: ${result.reason}` };
+
+    const parsed = parseSearchHtml(result.body, fetchedAt);
+    const attemptResult: AdapterResult = { ...base, ...parsed, queryUsed: name };
+    if (parsed.works.length > 0) return attemptResult;
+    // 取得はできたが 0 件。空白なしで先に 200 が返り中身が空、ということは実測では起きていないが、
+    // 起きた場合も「まだ確定していない」ものとして次の候補を試す
+    attempts.push(attemptResult);
   }
 
-  const parsed = parseSearchHtml(result.body, fetchedAt);
-  return { ...base, ...parsed };
+  return pickFallback(base, attempts);
+}
+
+/**
+ * 全候補が「1 件以上の ok」にならなかったときの確定結果を選ぶ。
+ * - `ok` (0 件) があれば最後に取得できたものを使う (取得自体は成功しているため)
+ * - なければ `empty` を優先する。1 つでも `no-search-results` が確認できれば、他の候補が
+ *   `error` でも「作品が無い」と判断できる (石見舞菜香: 空白なし→302、空白あり→2件 のように
+ *   候補ごとに結果が割れるため、`empty` を `error` より弱いとは見なさない)
+ * - 全滅 (すべて `error`) のときだけ `error` を返す
+ */
+function pickFallback(base: AdapterResult, attempts: readonly AdapterResult[]): AdapterResult {
+  const lastOk = [...attempts].reverse().find((attempt) => attempt.status === "ok");
+  if (lastOk !== undefined) return lastOk;
+  const firstEmpty = attempts.find((attempt) => attempt.status === "empty");
+  if (firstEmpty !== undefined) return firstEmpty;
+  return attempts[attempts.length - 1] ?? { ...base, status: "error", reason: "検索候補が 0 件" };
 }
 
 export const audibleAdapter: SourceAdapter = {
