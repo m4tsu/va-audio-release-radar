@@ -38,6 +38,20 @@ describe("buildSearchUrl", () => {
   });
 });
 
+describe("buildSearchUrl", () => {
+  it("既定は新しい順 (pubdate-desc-rank)", () => {
+    expect(buildSearchUrl("上田 麗奈")).toBe(
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&sort=pubdate-desc-rank",
+    );
+  });
+
+  it("古い順は sort だけが変わる", () => {
+    expect(buildSearchUrl("上田 麗奈", "pubdate-asc-rank")).toBe(
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&sort=pubdate-asc-rank",
+    );
+  });
+});
+
 describe("buildProductUrl", () => {
   it("スラッグを含まない正規 URL を作る", () => {
     // 一覧の href は /pd/{slug}/{ASIN} だが、スラッグはタイトル変更で変わりうる (設計書 §3)
@@ -143,17 +157,18 @@ describe("parseTotalCount", () => {
   });
 });
 
-describe("parseSearchHtml の totalCount / warnings", () => {
+describe("parseSearchHtml の totalCount", () => {
   const summaryHtml = '<span class="resultsSummarySubheading">検索結果 38  のうち 1 - 20 件</span>';
 
-  it("総件数が 20 を超えると警告を積む", () => {
+  it("総件数を totalCount に載せる。取りこぼしの判断はここではしない", () => {
+    // 並び順違いの 1 ページ目を足した後でないと網羅率は決まらないので、警告は fetchByActor 側 (T12)
     const html = `${summaryHtml}${htmlWithOneWorkFixture("B000000009")}`;
     const parsed = parseSearchHtml(html, FETCHED_AT);
     expect(parsed.totalCount).toBe(38);
-    expect(parsed.warnings).toContain("1 ページ目 20 件のみ取得。総件数 38");
+    expect(parsed.warnings).toEqual([]);
   });
 
-  it("総件数の表示が無ければ totalCount は undefined で警告も積まない", () => {
+  it("総件数の表示が無ければ totalCount は undefined", () => {
     const parsed = parseSearchHtml(searchHtml, FETCHED_AT);
     expect(parsed.totalCount).toBeUndefined();
     expect(parsed.warnings).toEqual([]);
@@ -294,5 +309,80 @@ describe("fetchByActor", () => {
     expect(fetchTextMock).toHaveBeenCalledTimes(1);
     expect(result.queryUsed).toBe("上田麗奈");
     expect(result.status).toBe("ok");
+  });
+
+  // --- 網羅率と古い順での補完 (T12) ---------------------------------------
+
+  /** 「検索結果 N のうち」の表示。総件数はここからしか取れない */
+  function summary(total: number): string {
+    return `<span class="resultsSummarySubheading">検索結果 ${total}  のうち 1 - 20 件</span>`;
+  }
+
+  const ACTOR = { canonicalName: "上田麗奈", searchNames: ["上田麗奈"] };
+
+  it("総件数が 20 件以下なら古い順の追加リクエストを出さない", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(`${summary(7)}${htmlWithOneWork("B000000010")}`));
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.coverage).toEqual({ fetched: 1, total: 7, complete: false, pages: 1 });
+  });
+
+  it("総件数が 20 件を超えると古い順を 1 回足して和集合を取る", async () => {
+    fetchTextMock
+      .mockResolvedValueOnce(
+        ok(`${summary(21)}${htmlWithOneWork("B000000011")}${htmlWithOneWork("B000000012")}`),
+      )
+      .mockResolvedValueOnce(
+        // 重複 (B000000012) を含む古い順。ASIN で束ねるので 3 件になる
+        ok(`${summary(21)}${htmlWithOneWork("B000000012")}${htmlWithOneWork("B000000013")}`),
+      );
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(fetchTextMock.mock.calls[1]?.[0]).toBe(buildSearchUrl("上田麗奈", "pubdate-asc-rank"));
+    expect(result.works.map((work) => work.storeProductId)).toEqual([
+      "B000000011",
+      "B000000012",
+      "B000000013",
+    ]);
+    expect(result.coverage).toEqual({ fetched: 3, total: 21, complete: false, pages: 2 });
+    expect(result.warnings).toContain("網羅率 3/21");
+  });
+
+  it("古い順の取得に失敗しても新しい順の結果で続行する", async () => {
+    fetchTextMock
+      .mockResolvedValueOnce(ok(`${summary(21)}${htmlWithOneWork("B000000014")}`))
+      .mockResolvedValueOnce(networkError());
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(result.status).toBe("ok");
+    expect(result.works).toHaveLength(1);
+    expect(result.coverage).toEqual({ fetched: 1, total: 21, complete: false, pages: 1 });
+    expect(result.warnings.some((warning) => warning.startsWith("古い順での補完に失敗"))).toBe(
+      true,
+    );
+  });
+
+  it("総件数の表示が無ければ complete を立てず、追加リクエストも出さない", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(htmlWithOneWork("B000000015")));
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.coverage).toEqual({ fetched: 1, pages: 1 });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("該当なし (empty) でも網羅率は 0/0 として残す", async () => {
+    fetchTextMock.mockResolvedValueOnce(emptyRedirect());
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(result.status).toBe("empty");
+    expect(result.coverage).toEqual({ fetched: 0, total: 0, complete: true, pages: 1 });
   });
 });

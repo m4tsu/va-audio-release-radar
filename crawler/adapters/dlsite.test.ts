@@ -1,14 +1,23 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { FetchResult } from "../lib/fetch.ts";
 import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
   applyProductDetail,
   buildProductJsonUrl,
   buildSearchUrl,
+  dlsiteAdapter,
+  parsePagerCount,
   parseProductJson,
   parseSearchHtml,
 } from "./dlsite.ts";
+
+// fetchByActor の分岐 (古い順での補完) だけをネットワーク無しで確かめるための差し替え。
+// 解析そのものは上のフィクスチャ側のテストで見ている (設計書 §8: 素の fetch は呼ばない)
+vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
+const { fetchText } = await import("../lib/fetch.ts");
+const fetchTextMock = vi.mocked(fetchText);
 
 /**
  * 実際に取得した HTML / JSON (crawler/fixtures/) に対する固定テスト。
@@ -33,6 +42,41 @@ describe("buildSearchUrl", () => {
         "/work_type_category[0]/audio/order/release_d/page/1",
     );
   });
+
+  it("古い順は order/release だけが変わる", () => {
+    expect(buildSearchUrl("上田麗奈", "release")).toBe(
+      "https://www.dlsite.com/home/fsr/=/language/jp/keyword_creater/" +
+        "%22%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88%22" +
+        "/work_type_category[0]/audio/order/release/page/1",
+    );
+  });
+});
+
+describe("parsePagerCount", () => {
+  it("フィクスチャの埋め込み JSON から総件数を取る", () => {
+    expect(parsePagerCount(searchHtml)).toBe(27);
+  });
+
+  it("count が have_to_paginate より後ろにあっても取れる", () => {
+    // pager の中のキーの並び順は保証されていないので、順序に依存しないことを確かめる
+    expect(parsePagerCount('a = {"pager":{"have_to_paginate":true,"count":42,"page":1}};')).toBe(
+      42,
+    );
+  });
+
+  it("count が先頭にあっても取れる", () => {
+    expect(parsePagerCount('a = {"pager":{"count":3,"have_to_paginate":false}};')).toBe(3);
+  });
+
+  it("pager が無ければ undefined", () => {
+    expect(parsePagerCount("<html><body></body></html>")).toBeUndefined();
+    expect(parsePagerCount('{"count":10}')).toBeUndefined();
+  });
+
+  it("別のオブジェクトの count は拾わない", () => {
+    // pager の { } を閉じた後の count に引きずられないこと
+    expect(parsePagerCount('{"pager":{"page":1},"other":{"count":99}}')).toBeUndefined();
+  });
 });
 
 describe("buildProductJsonUrl", () => {
@@ -50,6 +94,11 @@ describe("parseSearchHtml", () => {
     expect(parsed.works).toHaveLength(27);
     expect(parsed.invalidCount).toBe(0);
     expect(parsed.warnings).toEqual([]);
+  });
+
+  it("埋め込み JSON の総件数を totalCount に載せる", () => {
+    // 上田麗奈は全期間 27 件。1 ページ目だけで取り切れている (設計書 §13)
+    expect(parsed.totalCount).toBe(27);
   });
 
   it("先頭の作品から一覧に載っている項目を取る", () => {
@@ -160,5 +209,113 @@ describe("applyProductDetail", () => {
     });
     expect(merged.creditedNames).toEqual(["上田麗奈"]);
     expect(merged.releaseDate).toBe("2020-01-01");
+  });
+});
+
+// --- fetchByActor の網羅率と補完 --------------------------------------------
+
+/** 検索一覧の最小限の HTML。`total` を渡すと総件数の埋め込み JSON も付ける */
+function searchPage(ids: readonly string[], total?: number): string {
+  const items = ids
+    .map(
+      (id) =>
+        `<li data-list_item_product_id="${id}"><dl><dd class="work_name">` +
+        `<a href="https://www.dlsite.com/home/work/=/product_id/${id}.html" title="作品 ${id}">作品 ${id}</a>` +
+        "</dd></dl></li>",
+    )
+    .join("");
+  const pager =
+    total === undefined
+      ? ""
+      : `<script>window['x'] = {"url":"u","pager":{"have_to_paginate":true,"count":${total},"page":1}};</script>`;
+  return `<html><body><ul id="search_result_img_box">${items}</ul>${pager}</body></html>`;
+}
+
+function ok(body: string): FetchResult {
+  return { ok: true, status: 200, url: "https://www.dlsite.com/", body };
+}
+
+const ACTOR = { canonicalName: "上田麗奈", searchNames: ["上田麗奈"] };
+/** 一覧に出た作品すべてを既知として渡し、product.json の取得を起こさない (検索の回数だけを見る) */
+const skipAll = (ids: readonly string[]) => ({ skipKnownIds: new Set(ids), snapshot: false });
+
+describe("dlsiteAdapter.fetchByActor の網羅率", () => {
+  beforeEach(() => {
+    fetchTextMock.mockReset();
+  });
+
+  it("総件数ぶん取れていれば古い順の追加リクエストを出さない", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(searchPage(["RJ1", "RJ2"], 2)));
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2"]));
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.coverage).toEqual({ fetched: 2, total: 2, complete: true, pages: 1 });
+    expect(result.totalCount).toBe(2);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("総件数に届かなければ古い順の 1 ページ目を足して和集合を取る", async () => {
+    fetchTextMock
+      .mockResolvedValueOnce(ok(searchPage(["RJ1", "RJ2"], 3)))
+      // 古い順は重複 (RJ2) を含む。ID で束ねるので 3 件になる
+      .mockResolvedValueOnce(ok(searchPage(["RJ3", "RJ2"], 3)));
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2", "RJ3"]));
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(fetchTextMock.mock.calls[1]?.[0]).toBe(buildSearchUrl("上田麗奈", "release"));
+    expect(result.works.map((work) => work.storeProductId)).toEqual(["RJ1", "RJ2", "RJ3"]);
+    expect(result.coverage).toEqual({ fetched: 3, total: 3, complete: true, pages: 2 });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("2 通りの並び順でも足りなければ網羅率を警告に積む", async () => {
+    fetchTextMock
+      .mockResolvedValueOnce(ok(searchPage(["RJ1"], 40)))
+      .mockResolvedValueOnce(ok(searchPage(["RJ2"], 40)));
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2"]));
+
+    expect(result.coverage).toEqual({ fetched: 2, total: 40, complete: false, pages: 2 });
+    expect(result.warnings).toContain("網羅率 2/40");
+  });
+
+  it("古い順の取得に失敗しても新しい順の結果で続行する", async () => {
+    fetchTextMock
+      .mockResolvedValueOnce(ok(searchPage(["RJ1"], 40)))
+      .mockResolvedValueOnce({ ok: false, url: "https://www.dlsite.com/", reason: "HTTP 503" });
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
+
+    expect(result.status).toBe("ok");
+    expect(result.works).toHaveLength(1);
+    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 1 });
+    expect(result.warnings).toContain("古い順での補完に失敗 (HTTP 503)。新しい順の結果だけで続行");
+    expect(result.warnings).toContain("網羅率 1/40");
+  });
+
+  it("総件数を読めなければ complete を立てず、追加リクエストも出さない", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(searchPage(["RJ1"])));
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.coverage).toEqual({ fetched: 1, pages: 1 });
+    expect(result.totalCount).toBeUndefined();
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("検索そのものに失敗したら error で coverage は残さない", async () => {
+    fetchTextMock.mockResolvedValueOnce({
+      ok: false,
+      url: "https://www.dlsite.com/",
+      reason: "timeout",
+    });
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll([]));
+
+    expect(result.status).toBe("error");
+    expect(result.coverage).toBeUndefined();
   });
 });

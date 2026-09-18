@@ -6,13 +6,16 @@
 -- 日付は `date('now', ...)` で毎回ずらす。固定日を書くと、時間が経つほど
 -- 「直近 30 日の新着」から外れてテストが落ちるため。
 
--- 声優 2 人 ----------------------------------------------------------------
+-- 声優 3 人 ----------------------------------------------------------------
+-- ガンマは作品を 1 件も持たない。DB には居るが表には出ないことの確認用 (T13)
 INSERT OR REPLACE INTO voice_actors
   (id, slug, canonical_name, name_kana, anilist_staff_id, image_url, status, created_at, updated_at)
 VALUES
   ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'てすとせいゆうあるふぁ', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO voice_actor_aliases (id, voice_actor_id, name, source, verified)
@@ -73,21 +76,24 @@ VALUES
 
 -- クロール履歴 ------------------------------------------------------------
 -- audible × アルファ は「前回 12 件 → 今回 0 件」で警告、dlsite × ベータ は失敗で警告になる
+-- total_count / coverage_complete は網羅率 (設計書 §13)。
+-- dlsite-alpha-2 は取り切れていない run (30/48) として置き、管理画面の「網羅」列を確かめる
 INSERT OR REPLACE INTO crawl_runs
-  (id, store_slug, voice_actor_id, started_at, finished_at, work_count, new_count, status, error)
+  (id, store_slug, voice_actor_id, started_at, finished_at, work_count, new_count, status, error,
+   total_count, coverage_complete)
 VALUES
   ('e2e-run-dlsite-alpha-2', 'dlsite', 'va_e2e-alpha',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-2 hour'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-2 hour'),
-   30, 2, 'ok', NULL),
+   30, 2, 'ok', NULL, 48, 0),
   ('e2e-run-dlsite-alpha-1', 'dlsite', 'va_e2e-alpha',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'),
-   28, 1, 'ok', NULL),
+   28, 1, 'ok', NULL, 28, 1),
   ('e2e-run-audible-alpha-2', 'audible', 'va_e2e-alpha',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 hour'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 hour'),
-   0, 0, 'ok', NULL),
+   0, 0, 'ok', NULL, NULL, NULL),
   ('e2e-run-audible-alpha-1', 'audible', 'va_e2e-alpha',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'),
-   12, 0, 'ok', NULL),
+   12, 0, 'ok', NULL, 12, 1),
   ('e2e-run-dlsite-beta-1', 'dlsite', 'va_e2e-beta',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'),
-   0, 0, 'error', 'E2E 用の失敗記録');
+   0, 0, 'error', 'E2E 用の失敗記録', NULL, NULL);

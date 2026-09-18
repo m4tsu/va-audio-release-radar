@@ -39,6 +39,12 @@ export const Route = createFileRoute("/voice-actors/$slug")({
       })),
     );
 
+    // 追跡対象は AniList 由来の 2,500 人規模 (T13)。DB にはクロール履歴を残すために全員入れるが、
+    // その大半は音声作品を出していない。中身の無いページを 200 で返すと、検索エンジンから見て
+    // 薄いページが 2,000 枚並ぶことになるので、作品が 1 件も無い声優は 404 にする。
+    // 声優そのものは `getActorBySlug` が返し続ける (管理用)
+    if (works.every((section) => section.items.length === 0)) throw notFound();
+
     return { actor, works, origin };
   },
   head: ({ loaderData, params }) => {

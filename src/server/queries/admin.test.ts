@@ -187,6 +187,8 @@ describe("crawlerHealth", () => {
       workCount: number;
       status: "ok" | "error";
       voiceActorId?: string;
+      totalCount?: number;
+      coverageComplete?: boolean;
     },
   ) {
     await db.insert(crawlRuns).values({
@@ -199,6 +201,8 @@ describe("crawlerHealth", () => {
       newCount: 0,
       status: run.status,
       error: null,
+      totalCount: run.totalCount ?? null,
+      coverageComplete: run.coverageComplete ?? null,
     });
   }
 
@@ -245,6 +249,50 @@ describe("crawlerHealth", () => {
 
     expect(health.entries[0]?.warning).toBe(true);
     expect(health.entries[0]?.previousOk?.id).toBe("r1");
+  });
+
+  it("網羅率を直近の run から持ってくる", async () => {
+    const db = await setupDb();
+    await addRun(db, {
+      id: "r1",
+      startedAt: daysAgo(1),
+      workCount: 27,
+      status: "ok",
+      totalCount: 27,
+      coverageComplete: true,
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries[0]?.latest.totalCount).toBe(27);
+    expect(health.entries[0]?.latest.coverageComplete).toBe(true);
+  });
+
+  it("網羅率の記録が無い run は undefined のまま返す", async () => {
+    // 総件数を読めなかった run を「完全」にも「不完全」にも倒さない (設計書 §13)
+    const db = await setupDb();
+    await addRun(db, { id: "r1", startedAt: daysAgo(1), workCount: 27, status: "ok" });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries[0]?.latest.totalCount).toBeUndefined();
+    expect(health.entries[0]?.latest.coverageComplete).toBeUndefined();
+  });
+
+  it("取り切れていない run は coverageComplete が false で返る", async () => {
+    const db = await setupDb();
+    await addRun(db, {
+      id: "r1",
+      startedAt: daysAgo(1),
+      workCount: 30,
+      status: "ok",
+      totalCount: 48,
+      coverageComplete: false,
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries[0]?.latest.coverageComplete).toBe(false);
   });
 
   it("直近 24 時間の成功 / 失敗数を数える", async () => {

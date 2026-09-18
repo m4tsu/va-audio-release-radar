@@ -1,4 +1,4 @@
-import { asc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, like, or, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
 import type { VoiceActor, VoiceActorAlias } from "@/domain/types";
@@ -101,7 +101,13 @@ export async function upsertActors(
   return { actors: actors.length, aliases: aliasCount };
 }
 
-/** 声優一覧 (作品数付き、canonical_name 順) */
+/**
+ * 声優一覧 (作品数付き、canonical_name 順)。
+ *
+ * 作品が 1 件も無い声優は返さない。追跡対象は AniList 由来の 2,500 人規模 (T13) で、
+ * その大半は音声作品を出していない。クロール履歴を残すために DB には全員入れるが、
+ * 中身の無いページへのリンクを並べても利用者の役に立たないため表には出さない
+ */
 export async function listActors(db: AppDb): Promise<ActorSummary[]> {
   const rows = await summaryQuery(db).orderBy(asc(voiceActors.canonicalName));
   return rows.map(toActorSummary);
@@ -132,9 +138,10 @@ export async function getActorBySlug(db: AppDb, slug: string): Promise<ActorDeta
 /**
  * 声優検索。部分一致 (SQL の LIKE) と表記揺れ一致 (`normalizeName`) の和集合を返す。
  *
- * `normalizeName` は空白・中黒などを落とすので SQL では表現できない。追跡する声優は MVP で
- * 数十人なので、名前だけを全件読んで JS 側で突き合わせている (件数が増えたら正規化済みの
- * 列を持たせて索引を張る)
+ * `normalizeName` は空白・中黒などを落とすので SQL では表現できない。名前だけを全件読んで
+ * JS 側で突き合わせている (`matchByNormalizedName`)。T13 で追跡対象が 2,500 人規模になり
+ * 1 回の検索で声優と別名を全件読むようになったので、遅くなったら正規化済みの列を持たせて
+ * 索引を張る。作品が 1 件も無い声優は結果に含めない (`listActors` と同じ理由)
  */
 export async function searchActors(db: AppDb, q: string, limit = 20): Promise<ActorSummary[]> {
   const query = q.trim();
@@ -169,7 +176,7 @@ export async function searchActors(db: AppDb, q: string, limit = 20): Promise<Ac
   // 当たらないよう IN 句を分割し、並べ替えと limit は全チャンクを集めてから JS 側でかける
   const collected = new Map<string, ActorSummaryRow>();
   for (const chunk of chunked([...ids])) {
-    const rows = await summaryQuery(db).where(inArray(voiceActors.id, chunk));
+    const rows = await summaryQuery(db, inArray(voiceActors.id, chunk));
     for (const row of rows) collected.set(row.id, row);
   }
 
@@ -219,7 +226,19 @@ async function matchByNormalizedName(db: AppDb, query: string): Promise<string[]
 /** 1 声優につき何作品に credit があるか。同じ作品に複数 credit が付くので distinct で数える */
 const workCountExpression = sql<number>`count(distinct ${audioCredits.audioWorkId})`;
 
-function summaryQuery(db: AppDb) {
+/**
+ * 作品が 1 件以上ある声優かどうか (T13)。
+ *
+ * EXISTS にするのは、声優 1 人ずつ作品数を引き直すと 2,500 人ぶんのクエリになるため。
+ * 1 件見つかった時点で打ち切られるので、作品数を数えるより安い。
+ * `sitemapEntries` (queries/works.ts) も同じ条件を使う
+ */
+export const hasAnyAudioCredit: SQL = sql`exists (
+  select 1 from ${audioCredits} where ${audioCredits.voiceActorId} = ${voiceActors.id}
+)`;
+
+/** 一覧・検索で共有する select。`extra` は呼び出し側の追加条件 */
+function summaryQuery(db: AppDb, extra?: SQL) {
   return db
     .select({
       id: voiceActors.id,
@@ -232,6 +251,7 @@ function summaryQuery(db: AppDb) {
     })
     .from(voiceActors)
     .leftJoin(audioCredits, eq(audioCredits.voiceActorId, voiceActors.id))
+    .where(extra === undefined ? hasAnyAudioCredit : and(hasAnyAudioCredit, extra))
     .groupBy(voiceActors.id);
 }
 

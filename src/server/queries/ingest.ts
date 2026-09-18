@@ -296,6 +296,10 @@ async function recordRun(
     newCount: result.new,
     status: payload.error ? ("error" as const) : ("ok" as const),
     error: payload.error ?? null,
+    // 網羅率 (設計書 §13)。クローラーが総件数を読めなかったときは NULL のまま残す。
+    // 「分からない」と「全部取れた」を DB の段階で混ぜないため
+    totalCount: payload.totalCount ?? null,
+    coverageComplete: payload.coverageComplete ?? null,
   };
 
   await db

@@ -18,7 +18,7 @@ DELETE FROM audio_works WHERE id IN (
 
 DELETE FROM voice_actor_aliases WHERE id IN (9000001);
 
-DELETE FROM voice_actors WHERE id IN ('va_e2e-alpha', 'va_e2e-beta');
+DELETE FROM voice_actors WHERE id IN ('va_e2e-alpha', 'va_e2e-beta', 'va_e2e-gamma');
 
 DELETE FROM crawl_runs WHERE id IN (
   'e2e-run-dlsite-alpha-2',

@@ -3,6 +3,7 @@ import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
+import { hasAnyAudioCredit } from "./actors";
 
 /**
  * 発売日を基準にした「新しさ」(設計書 §10)。画面の 3 段と NEW バッジはこの値だけで決める。
@@ -304,6 +305,8 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
     db
       .select({ slug: voiceActors.slug, updatedAt: voiceActors.updatedAt })
       .from(voiceActors)
+      // 作品が 1 件も無い声優のページは notFound() を返すので sitemap にも出さない (T13)
+      .where(hasAnyAudioCredit)
       .orderBy(asc(voiceActors.slug)),
     db
       .select({ id: audioWorks.id, updatedAt: audioWorks.updatedAt })

@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { RawWork } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
+import { buildCoverage } from "./coverage.ts";
 import { validateRawWorks } from "./raw-work.ts";
 import type {
   ActorQuery,
@@ -29,10 +30,22 @@ const STORE_SLUG = "audible" as const;
 /** Audible は朗読以外の判定をしないので、ストア固有分類は 1 種類だけ (設計書 §4) */
 const AUDIBLE_STORE_CATEGORY = "audiobook";
 
-export function buildSearchUrl(narratorName: string): string {
-  // sort=pubdate-desc-rank を付けて発売日降順にする (理由は上のコメント参照)。1 ページ目
-  // 20 件の制約は変わらないので、20 件を超える声優は新作以外が漏れる可能性が残る (totalCount 参照)
-  return `https://www.audible.co.jp/search?searchNarrator=${encodeURIComponent(narratorName)}&sort=pubdate-desc-rank`;
+/**
+ * 検索の並び順。`pubdate-desc-rank` が新しい順 (既定)、`pubdate-asc-rank` が古い順。
+ * 1 ページ目 20 件の制約は `sort` を変えても外れないので、20 件を超える声優は
+ * 両方の 1 ページ目を取って和集合にする (40 件まで) (T12)
+ */
+export type AudibleSearchSort = "pubdate-desc-rank" | "pubdate-asc-rank";
+
+/** 1 ページ目に載る件数の上限 (実測)。`pageSize` や `page` を足すと 302 されるので増やせない */
+const PAGE_SIZE = 20;
+
+export function buildSearchUrl(
+  narratorName: string,
+  sort: AudibleSearchSort = "pubdate-desc-rank",
+): string {
+  // sort を単独で付けると HTTP 200 のまま発売日順になる (理由は上のコメント参照)
+  return `https://www.audible.co.jp/search?searchNarrator=${encodeURIComponent(narratorName)}&sort=${sort}`;
 }
 
 /**
@@ -107,14 +120,9 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
 
   const validated = validateRawWorks(candidates);
   const totalCount = parseTotalCount(html);
-  const warnings = [...validated.warnings];
-  // 1 ページ目 (20 件) しか取れないため、総件数がそれを超える声優は新作以外が漏れうる。
-  // 管理画面で気づけるように警告として積む (企画書 §21)
-  if (totalCount !== undefined && totalCount > 20) {
-    warnings.push(`1 ページ目 20 件のみ取得。総件数 ${totalCount}`);
-  }
-
-  return { ...validated, warnings, totalCount };
+  // 取りこぼしの警告はここでは積まない。並び順違いの 1 ページ目を足した後でないと
+  // 網羅率が確定しないため、判断は fetchByActor に集める (T12)
+  return totalCount === undefined ? validated : { ...validated, totalCount };
 }
 
 /** 選択した要素の文字列を、並び順のまま空文字を除いて集める */
@@ -204,6 +212,7 @@ async function fetchByActor(
           ...base,
           status: "empty",
           queryUsed: name,
+          coverage: buildCoverage(0, 0, 1),
           reason: "ナレーター検索に該当なし (no-search-results)",
         });
         continue;
@@ -218,14 +227,73 @@ async function fetchByActor(
     }
 
     const parsed = parseSearchHtml(result.body, fetchedAt);
-    const attemptResult: AdapterResult = { ...base, ...parsed, queryUsed: name };
-    if (parsed.works.length > 0) return attemptResult;
+    const attemptResult = await supplementWithOldest(base, parsed, name, fetchedAt, options);
+    if (attemptResult.works.length > 0) return attemptResult;
     // 取得はできたが 0 件。空白なしで先に 200 が返り中身が空、ということは実測では起きていないが、
     // 起きた場合も「まだ確定していない」ものとして次の候補を試す
     attempts.push(attemptResult);
   }
 
   return pickFallback(base, attempts);
+}
+
+/**
+ * 総件数が 1 ページ (20 件) を超えるときだけ、古い順の 1 ページ目を 1 回だけ足して
+ * 和集合を取る (T12)。新しい順と合わせて 40 件まで覆える。
+ *
+ * 超えていなければ新しい順の 1 ページ目がその声優の全作品なので、追加のリクエストは出さない。
+ * 20 件以下の声優が大半 (実測) なので、無駄打ちを避けるほうが相手サイトへの負荷が軽い
+ */
+async function supplementWithOldest(
+  base: AdapterResult,
+  parsed: ParsedWorks,
+  name: string,
+  fetchedAt: string,
+  options: FetchByActorOptions,
+): Promise<AdapterResult> {
+  const warnings = [...parsed.warnings];
+  let invalidCount = parsed.invalidCount;
+  let pages = 1;
+
+  // 新しい順を先に入れてあるので、古い順で重複した ASIN は捨てる
+  const works = new Map<string, RawWork>();
+  for (const work of parsed.works) works.set(work.storeProductId, work);
+
+  if (parsed.works.length > 0 && parsed.totalCount !== undefined && parsed.totalCount > PAGE_SIZE) {
+    const oldest = await fetchText(buildSearchUrl(name, "pubdate-asc-rank"), {
+      store: STORE_SLUG,
+      requestKey: `search-${name}-pubdate-asc`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+    if (oldest.ok) {
+      pages += 1;
+      const parsedOldest = parseSearchHtml(oldest.body, fetchedAt);
+      invalidCount += parsedOldest.invalidCount;
+      warnings.push(...parsedOldest.warnings);
+      for (const work of parsedOldest.works) {
+        if (!works.has(work.storeProductId)) works.set(work.storeProductId, work);
+      }
+    } else {
+      warnings.push(`古い順での補完に失敗 (${oldest.reason})。新しい順の結果だけで続行`);
+    }
+  }
+
+  const coverage = buildCoverage(works.size, parsed.totalCount, pages);
+  // 並び順 2 通り (最大 40 件) でも総件数に届かない声優。管理画面で気づけるようにする (企画書 §21)
+  if (coverage.complete === false) {
+    warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);
+  }
+
+  return {
+    ...base,
+    works: [...works.values()],
+    invalidCount,
+    warnings,
+    queryUsed: name,
+    coverage,
+    ...(parsed.totalCount === undefined ? {} : { totalCount: parsed.totalCount }),
+  };
 }
 
 /**

@@ -86,6 +86,16 @@ export type IngestPayload = {
   voiceActorId: string; // このクロールの対象声優
   works: RawWork[];
   error?: string; // 取得失敗時 (works は空)
+  /**
+   * ストアが出している検索結果の総件数 (DLsite の `pager.count` / Audible の「検索結果 N のうち」)。
+   * どちらのストアも 1 ページ目しか取れないため、これと取得件数を比べて網羅率を監視する (設計書 §13)
+   */
+  totalCount?: number;
+  /**
+   * 総件数ぶんを取り切れたか。`totalCount` が取れなかったときは undefined のままにする。
+   * 総件数を知らないまま「全部取れた」と記録すると、取りこぼしを見逃す方向に嘘をつくため
+   */
+  coverageComplete?: boolean;
 };
 
 // --- 値配列 --------------------------------------------------------------
@@ -173,4 +183,6 @@ export const ingestPayloadSchema = z.object({
   voiceActorId: z.string(),
   works: z.array(rawWorkSchema),
   error: z.string().optional(),
+  totalCount: z.number().int().nonnegative().optional(),
+  coverageComplete: z.boolean().optional(),
 }) satisfies z.ZodType<IngestPayload>;

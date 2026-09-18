@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import type { RawWork, StoreSlug } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
-import type { ActorQuery, AdapterResult, SourceAdapter } from "./adapters/types.ts";
+import type { ActorQuery, AdapterResult, Coverage, SourceAdapter } from "./adapters/types.ts";
 import { type ActorSeed, spacedVerifiedAliasNames } from "./lib/ingest.ts";
 import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
 import { loadActorSeeds } from "./run.ts";
@@ -139,6 +139,12 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   for (const result of results) {
+    // 網羅率 (設計書 §13)。並び順違いの補完リクエストが出たかどうかも `pages` で分かる
+    if (result.coverage !== undefined) {
+      process.stderr.write(
+        `[網羅] ${STORE_LABELS[result.storeSlug]}: ${formatCoverage(result.coverage)}\n`,
+      );
+    }
     for (const warning of result.warnings) {
       process.stderr.write(`[警告] ${STORE_LABELS[result.storeSlug]}: ${warning}\n`);
     }
@@ -168,6 +174,17 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   // 全ストアが失敗したときだけ異常終了にする。片方だけなら結果は使えるため
   return results.every((result) => result.status === "error") ? 1 : 0;
+}
+
+/**
+ * 網羅率の 1 行。総件数が取れなければ「総件数不明」とだけ書く。
+ * 取れないことと取りこぼしが無いことを言葉の上でも混ぜないため
+ */
+function formatCoverage(coverage: Coverage): string {
+  const pages = `検索 ${coverage.pages} ページ`;
+  if (coverage.total === undefined) return `取得 ${coverage.fetched} 件 / 総件数不明 (${pages})`;
+  const verdict = coverage.complete === true ? "完全" : "取りこぼしあり";
+  return `取得 ${coverage.fetched} 件 / 総件数 ${coverage.total} (${verdict}、${pages})`;
 }
 
 // --- 出力 ------------------------------------------------------------------

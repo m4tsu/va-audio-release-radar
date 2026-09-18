@@ -51,3 +51,17 @@ test("作品が無いストアのセクションも出る", async ({ page }) => 
   await expect(page.getByRole("heading", { level: 2, name: "Audible" })).toBeVisible();
   await expect(page.getByText("まだ見つかっていません")).toBeVisible();
 });
+
+test("作品が 1 件も無い声優は 404 になり、一覧にも sitemap にも出ない", async ({ request }) => {
+  // T13: DB には AniList 由来の 2,500 人が入るが、ページを作るのは作品がある人だけ
+  const page = await request.get("/voice-actors/e2e-gamma");
+  expect(page.status()).toBe(404);
+
+  const top = await request.get("/");
+  expect(await top.text()).not.toContain("テスト声優ガンマ");
+
+  const sitemap = await request.get("/sitemap.xml");
+  const xml = await sitemap.text();
+  expect(xml).toContain("/voice-actors/e2e-alpha");
+  expect(xml).not.toContain("/voice-actors/e2e-gamma");
+});

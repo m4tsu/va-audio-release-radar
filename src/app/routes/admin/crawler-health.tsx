@@ -70,6 +70,7 @@ function CrawlerHealthPage() {
               <TableHead>ストア</TableHead>
               <TableHead>直近の実行</TableHead>
               <TableHead className="text-right">取得件数</TableHead>
+              <TableHead className="text-right">網羅</TableHead>
               <TableHead className="text-right">前回比</TableHead>
               <TableHead className="text-right">新規</TableHead>
               <TableHead>状態</TableHead>
@@ -83,6 +84,25 @@ function CrawlerHealthPage() {
         </Table>
       )}
     </div>
+  );
+}
+
+/**
+ * 網羅率の列 (設計書 §13)。ストアの総件数に対して何件取れたかを出す。
+ *
+ * 分母はストアが出す総件数、分子は保存した件数。成人向けを除いた分だけ分子が小さくなることが
+ * あるので、取りこぼしの判定は数字の比較ではなくクローラーが記録した `coverageComplete` で行う。
+ * 総件数を読めなかった run は「—」にする。完全と取り違えないため
+ */
+function CoverageCell({ latest }: { latest: CrawlerHealthEntry["latest"] }) {
+  const incomplete = latest.coverageComplete === false;
+  return (
+    <TableCell
+      className={cn("text-right tabular-nums", incomplete && "font-medium text-destructive")}
+      title={incomplete ? "検索の 1 ページ目では取り切れていない" : undefined}
+    >
+      {latest.totalCount === undefined ? "—" : `${latest.workCount}/${latest.totalCount}`}
+    </TableCell>
   );
 }
 
@@ -110,6 +130,7 @@ function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
         {formatDateTime(entry.latest.startedAt)}
       </TableCell>
       <TableCell className="text-right tabular-nums">{entry.latest.workCount}</TableCell>
+      <CoverageCell latest={entry.latest} />
       <TableCell
         className={cn(
           "text-right tabular-nums",

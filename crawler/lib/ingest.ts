@@ -41,8 +41,21 @@ export type ActorSeed = {
  * `crawler/run.ts` と `crawler/cli.ts` がこれを検索候補の先頭に置く
  */
 export function spacedVerifiedAliasNames(actor: Pick<ActorSeed, "aliases">): string[] {
+  return spacedAliasNames(actor, true);
+}
+
+/**
+ * 未検証の空白入り alias 名 (T13)。自動生成のリストは「姓を 2 文字で切った形」と
+ * 「3 文字で切った形」を当てずっぽうで持っているので、検証済みとは分けて扱う。
+ * `crawler/run.ts` はこれを canonicalName より後ろの候補に置く
+ */
+export function spacedUnverifiedAliasNames(actor: Pick<ActorSeed, "aliases">): string[] {
+  return spacedAliasNames(actor, false);
+}
+
+function spacedAliasNames(actor: Pick<ActorSeed, "aliases">, verified: boolean): string[] {
   return (actor.aliases ?? [])
-    .filter((alias) => alias.verified && /\s/.test(alias.name))
+    .filter((alias) => alias.verified === verified && /\s/.test(alias.name))
     .map((alias) => alias.name);
 }
 

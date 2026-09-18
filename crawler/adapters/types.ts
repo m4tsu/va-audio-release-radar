@@ -37,8 +37,9 @@ export type ParsedWorks = {
   /** 人が読む警告。捨てた理由や欠けた項目 */
   warnings: string[];
   /**
-   * 検索結果の総件数 (ストアが表示する場合のみ)。Audible は 1 ページ目 20 件しか
-   * 取れないため、これが 20 を超えると新作以外が漏れている可能性がある (管理画面向け)
+   * 検索結果の総件数 (ストアが出している場合のみ)。DLsite は埋め込み JSON の `pager.count`、
+   * Audible は「検索結果 N のうち」の表示から取る。どちらも 1 ページ目しか取れないので、
+   * これが実取得件数を上回っていれば取りこぼしがあると分かる (管理画面向け)
    */
   totalCount?: number;
 };
@@ -56,6 +57,28 @@ export type ParsedWorks = {
  */
 export type AdapterStatus = "ok" | "empty" | "error";
 
+/**
+ * 網羅率 (T12)。どちらのストアも検索の 1 ページ目しか取れないので、
+ * 「その声優の作品を取りこぼしていないか」を数字で残せるようにする。
+ *
+ * `total` はストアが出す総件数 (DLsite の `pager.count` / Audible の「検索結果 N のうち」)。
+ * 表示が無い検索では取れないので undefined になる。そのとき `complete` も undefined にする。
+ * 総件数を知らないまま「全部取れた」と記録すると、取りこぼしを見逃す方向に嘘をつくため
+ */
+export type Coverage = {
+  /** 検索一覧から集めた作品数 (並び順違いの和集合。重複は除く) */
+  fetched: number;
+  /** ストアが表示する総件数。取れなければ undefined */
+  total?: number;
+  /** `total` を取れたときだけ true / false。取れなければ undefined */
+  complete?: boolean;
+  /**
+   * 実際に取った検索ページ数。1 なら並び順違いの補完リクエストは出していない。
+   * 相手サイトへの往復が増えていないことを CLI とログから確かめられるようにするため
+   */
+  pages: number;
+};
+
 export type AdapterResult = ParsedWorks & {
   storeSlug: StoreSlug;
   actorName: string;
@@ -64,6 +87,8 @@ export type AdapterResult = ParsedWorks & {
   reason?: string;
   /** 実際に検索に使った語 (T8)。Audible は候補を順に試すので、確定した語をここに残す */
   queryUsed?: string;
+  /** 網羅率。検索そのものに失敗した (`error`) ときは undefined */
+  coverage?: Coverage;
 };
 
 export type FetchByActorOptions = {

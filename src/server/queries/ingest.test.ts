@@ -261,4 +261,35 @@ describe("ingest", () => {
     expect(run?.newCount).toBe(1);
     expect(run?.voiceActorId).toBe(UEDA.id);
   });
+
+  it("網羅率を受け取れば crawl_runs に残す", async () => {
+    const db = await setupDb();
+
+    await ingest(db, payload({ totalCount: 27, coverageComplete: true }), NOW);
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.totalCount).toBe(27);
+    expect(run?.coverageComplete).toBe(true);
+  });
+
+  it("網羅率が付いていなければ NULL のままにする", async () => {
+    // 総件数を読めなかったことと「全部取れた」ことを DB の段階で混ぜないため (設計書 §13)
+    const db = await setupDb();
+
+    await ingest(db, payload(), NOW);
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.totalCount).toBeNull();
+    expect(run?.coverageComplete).toBeNull();
+  });
+
+  it("取り切れていない run は coverageComplete が false で残る", async () => {
+    const db = await setupDb();
+
+    await ingest(db, payload({ totalCount: 40, coverageComplete: false }), NOW);
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.totalCount).toBe(40);
+    expect(run?.coverageComplete).toBe(false);
+  });
 });

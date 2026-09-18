@@ -1,7 +1,9 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { StoreSlug } from "../src/domain/index.ts";
 import type { AdapterStatus } from "./adapters/types.ts";
 import type { ActorSeed } from "./lib/ingest.ts";
+import { CRAWLER_DIR } from "./lib/paths.ts";
 import {
   buildSearchNames,
   filterActors,
@@ -122,13 +124,30 @@ describe("buildSearchNames", () => {
     expect(buildSearchNames(KAJI)).toEqual(["梶裕貴"]);
   });
 
-  it("未検証の alias は候補に入れない", () => {
+  it("未検証の alias は canonicalName の後ろに置く", () => {
+    // T13: 自動生成のリストは当てずっぽうの切り方で候補を持つ。adapter は 1 件でも取れたら
+    // 打ち切るので、canonicalName を先に試せば大多数の声優で余分な検索が出ない
     expect(
       buildSearchNames({
         ...UEDA,
-        aliases: [{ name: "上田 麗奈", source: "manual", verified: false }],
+        aliases: [
+          { name: "上田 麗奈", source: "manual", verified: false },
+          { name: "上田麗 奈", source: "manual", verified: false },
+        ],
       }),
-    ).toEqual(["上田麗奈"]);
+    ).toEqual(["上田麗奈", "上田 麗奈", "上田麗 奈"]);
+  });
+
+  it("検証済みがあれば未検証の候補は使わない", () => {
+    expect(
+      buildSearchNames({
+        ...UEDA,
+        aliases: [
+          { name: "上田 麗奈", source: "manual", verified: true },
+          { name: "上田麗 奈", source: "manual", verified: false },
+        ],
+      }),
+    ).toEqual(["上田 麗奈", "上田麗奈"]);
   });
 });
 
@@ -157,5 +176,39 @@ describe("actors.json", () => {
         expect(alias.verified).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * 自動生成された対象声優リスト (T13)。`crawler/discovery/build-actors.ts` の出力で、
+ * 生成元の `.cache/discovery/anilist-staff.json` はリポジトリに入らないので
+ * 生成物のほうを検証する。ここが崩れたら ingest の zod が全件を弾く
+ */
+describe("actors.generated.json", () => {
+  const GENERATED = path.join(CRAWLER_DIR, "actors.generated.json");
+
+  it("id は va_{slug} で、slug が重複しない", async () => {
+    const seeds = await loadActorSeeds(GENERATED);
+    expect(seeds.length).toBeGreaterThan(2000);
+    for (const seed of seeds) {
+      expect(seed.id).toBe(`va_${seed.slug}`);
+      // 衝突を人手で解いた slug には AniList の staff id が付くので数字も許す
+      expect(seed.slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+      expect(seed.canonicalName).not.toBe("");
+    }
+    expect(new Set(seeds.map((seed) => seed.slug)).size).toBe(seeds.length);
+  });
+
+  it("空白入り候補が無いのは fullName が 1 語の芸名だけ", async () => {
+    // 2 文字以上の姓名を持つ声優は文字数に応じた切り方 (T14) で必ず候補が付く。
+    // 候補が付かないのは「ゆかな」「麦人」「KENN」のように fullName が 1 語で
+    // 姓と名の境界が無い芸名の人だけ。この集合は build-actors.ts の no-slug 除外だった
+    // 68 人と一致するので、大きく増えたら生成規則の劣化を疑う
+    const withoutCandidate: string[] = [];
+    for (const seed of await loadActorSeeds(GENERATED)) {
+      if (buildSearchNames(seed).some((name) => name.includes(" "))) continue;
+      withoutCandidate.push(seed.canonicalName);
+    }
+    expect(withoutCandidate.length).toBeLessThanOrEqual(70);
   });
 });

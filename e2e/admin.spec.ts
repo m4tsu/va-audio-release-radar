@@ -35,6 +35,9 @@ test("?token= を付けると cookie が立ち、URL からトークンが消え
   // 前回 12 件 → 今回 0 件 の急減を警告として出す
   await expect(table.getByText("前回 12 件だったが 0 件になった")).toBeVisible();
   await expect(table.getByText("E2E 用の失敗記録")).toBeVisible();
+  // 網羅列。取り切れていない run は fetched/total を出す (設計書 §13)
+  await expect(table.getByRole("columnheader", { name: "網羅" })).toBeVisible();
+  await expect(table.getByText("30/48")).toBeVisible();
 
   // cookie は同じブラウザで別の管理画面にも効く。
   // 一覧の中身は件数の多い順で、開発中のローカル DB には実データも入りうるため、

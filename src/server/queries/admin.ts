@@ -41,6 +41,10 @@ export type CrawlRunSummary = {
   newCount: number;
   status: "ok" | "error";
   error?: string;
+  /** ストアが出していた検索結果の総件数 (設計書 §13)。読めなかった run では undefined */
+  totalCount?: number;
+  /** 総件数ぶんを取り切れたか。総件数が読めなければ undefined (不明) */
+  coverageComplete?: boolean;
 };
 
 export type CrawlerHealthEntry = {
@@ -324,6 +328,9 @@ function toRunSummary(run: typeof crawlRuns.$inferSelect): CrawlRunSummary {
     newCount: run.newCount,
     status: run.status,
     ...(run.error ? { error: run.error } : {}),
+    // NULL は「総件数を読めなかった」なので、false や 0 に丸めずに落とす
+    ...(run.totalCount === null ? {} : { totalCount: run.totalCount }),
+    ...(run.coverageComplete === null ? {} : { coverageComplete: run.coverageComplete }),
   };
 }
 

@@ -131,6 +131,14 @@ export const crawlRuns = sqliteTable(
     newCount: integer("new_count").notNull().default(0),
     status: text("status", { enum: CRAWL_RUN_STATUSES }).notNull(),
     error: text("error"),
+    /**
+     * ストアが出している検索結果の総件数 (設計書 §13)。読み取れなければ NULL。
+     * `work_count` は成人向けを除いた保存件数なので、総件数と一致しないことがある。
+     * 網羅できたかどうかの判定には下の `coverage_complete` を使う
+     */
+    totalCount: integer("total_count"),
+    /** 総件数ぶんを取り切れたか。総件数が読めなければ NULL (真偽を決められない) */
+    coverageComplete: integer("coverage_complete", { mode: "boolean" }),
   },
   // 「同じストア × 同じ声優の前回の結果」を引いて件数の急減を検知する (設計書 §5)
   (t) => [index("crawl_runs_store_actor_started_idx").on(t.storeSlug, t.voiceActorId, t.startedAt)],

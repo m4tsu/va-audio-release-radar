@@ -454,6 +454,16 @@ describe("sitemapEntries", () => {
     expect(entries.actors).toEqual([{ slug: UEDA.slug, updatedAt: NOW }]);
     expect(entries.works).toEqual([{ id: "dlsite:RJ01698658", updatedAt: NOW }]);
   });
+
+  it("作品が 1 件も無い声優は出さない", async () => {
+    // そのページは notFound() を返すので、sitemap に載せると 404 を検索エンジンに出す (T13)
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(db, payload(), NOW);
+
+    const entries = await sitemapEntries(db);
+
+    expect(entries.actors).toEqual([{ slug: UEDA.slug, updatedAt: NOW }]);
+  });
 });
 
 describe("knownStoreProductIds", () => {

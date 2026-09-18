@@ -10,6 +10,7 @@ import {
   type ActorSeed,
   AdminApiClient,
   AdminApiError,
+  spacedUnverifiedAliasNames,
   spacedVerifiedAliasNames,
 } from "./lib/ingest.ts";
 import { CRAWLER_DIR } from "./lib/paths.ts";
@@ -20,7 +21,9 @@ import { CRAWLER_DIR } from "./lib/paths.ts";
  *   INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199
  *
  * 手順:
- *   1. `crawler/actors.json` を `POST /api/admin/actors` で upsert する (名寄せの材料を先に揃える)
+ *   1. 声優リスト (既定 `crawler/actors.json`、`--actors` で切り替え) を
+ *      `POST /api/admin/actors` で upsert する (名寄せの材料を先に揃える)。
+ *      自動生成のリスト (`crawler/actors.generated.json`、T13) は 2,500 人規模なので分割して送る
  *   2. 声優 × ストアごとに adapter で取得し、`IngestPayload` を `POST /api/admin/ingest` に送る
  *   3. 集計表を標準出力に出す
  *
@@ -42,6 +45,7 @@ const USAGE = `使い方:
 
 オプション:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
+  --actors <path>           使う声優リスト (既定 crawler/actors.json)
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
   --store <dlsite|audible>  片方のストアだけを対象にする
   --limit <N>               先頭 N 人の声優だけを対象にする (動作確認用)
@@ -52,6 +56,7 @@ const USAGE = `使い方:
 
 const OPTION_SPEC = {
   "base-url": { type: "string" },
+  actors: { type: "string" },
   only: { type: "string" },
   store: { type: "string" },
   limit: { type: "string" },
@@ -189,12 +194,21 @@ export async function loadActorSeeds(file: string = ACTORS_JSON): Promise<ActorS
 }
 
 /**
- * Audible 向けの検索候補。空白入りの検証済み alias を先に試し、無ければ canonicalName だけ (T8)。
- * DLsite adapter はこの配列を無視して canonicalName の完全一致検索だけを行う
+ * Audible 向けの検索候補。DLsite adapter はこの配列を無視して canonicalName の完全一致検索だけを行う。
+ *
+ * 順番は 検証済みの空白入り alias → canonicalName → 未検証の空白入り alias。
+ *
+ * - 検証済みが先頭なのは T8 の結論どおり (「石見舞菜香」は該当なし、「石見 舞菜香」だと 2 件)
+ * - 未検証を canonicalName の後ろに置くのは、自動生成のリスト (T13) では 2,501 人ぶんの
+ *   候補が当てずっぽうの切り方だから。adapter は 1 件以上取れた時点で打ち切るので、
+ *   canonicalName で引ける大多数の声優に対して余分な検索リクエストが出ない
+ * - それでも未検証を候補に含めるのは、含めないと自動生成の声優が
+ *   Audible の空白問題 (石見舞菜香 と同じ形) を一切吸収できないため
  */
 export function buildSearchNames(actor: ActorSeed): string[] {
-  const spaced = spacedVerifiedAliasNames(actor);
-  return spaced.length > 0 ? [...spaced, actor.canonicalName] : [actor.canonicalName];
+  const verified = spacedVerifiedAliasNames(actor);
+  if (verified.length > 0) return [...verified, actor.canonicalName];
+  return [actor.canonicalName, ...spacedUnverifiedAliasNames(actor)];
 }
 
 /** `--only` の値で絞る。canonicalName と slug のどちらでも書けるようにする */
@@ -251,7 +265,8 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
-  const seeds = await loadActorSeeds();
+  const actorsFile = asString(values.actors) ?? ACTORS_JSON;
+  const seeds = await loadActorSeeds(actorsFile);
   let actors = filterActors(seeds, asString(values.only));
   if (limit !== undefined) actors = actors.slice(0, limit);
   if (actors.length === 0) {
@@ -264,8 +279,10 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   if (client !== undefined) {
     // --only で絞っていてもシードは全件入れる。名寄せは他の声優の別名まで見て判定するため
-    const seeded = await client.upsertActors(seeds);
-    process.stdout.write(`声優シードを投入: ${seeded.actors} 人 / alias ${seeded.aliases} 件\n`);
+    const seeded = await upsertAllActors(client, seeds);
+    process.stdout.write(
+      `声優シードを投入: ${seeded.actors} 人 / alias ${seeded.aliases} 件 (${actorsFile})\n`,
+    );
   }
 
   const knownIds = await loadKnownIds(client, stores, values["no-skip-known"] === true);
@@ -355,6 +372,12 @@ async function send(
     voiceActorId: actor.id,
     works: result.works,
     ...(result.status === "error" && result.reason !== undefined ? { error: result.reason } : {}),
+    // 網羅率 (設計書 §13)。総件数を読めなかったストア / 声優では両方とも送らず、
+    // crawl_runs 側を NULL のままにする。「不明」と「全部取れた」を混ぜないため
+    ...(result.coverage?.total === undefined ? {} : { totalCount: result.coverage.total }),
+    ...(result.coverage?.complete === undefined
+      ? {}
+      : { coverageComplete: result.coverage.complete }),
   };
 
   try {
@@ -371,6 +394,28 @@ async function send(
     process.stderr.write(`[エラー] ${actor.canonicalName} ${storeSlug}: ${reason}\n`);
     return { ...base, status: "error", reason };
   }
+}
+
+/**
+ * 1 回の `POST /api/admin/actors` に載せる人数。
+ *
+ * Worker 側は 1 人ずつ insert するので、2,501 人 (T13 の自動生成リスト) を 1 リクエストで
+ * 送ると本文も実行時間も膨らむ。分割しても upsert は冪等なので結果は変わらない
+ */
+const ACTOR_UPSERT_CHUNK = 200;
+
+/** シードを分割して投入し、件数を足し合わせる */
+async function upsertAllActors(
+  client: AdminApiClient,
+  seeds: readonly ActorSeed[],
+): Promise<{ actors: number; aliases: number }> {
+  const total = { actors: 0, aliases: 0 };
+  for (let start = 0; start < seeds.length; start += ACTOR_UPSERT_CHUNK) {
+    const result = await client.upsertActors(seeds.slice(start, start + ACTOR_UPSERT_CHUNK));
+    total.actors += result.actors;
+    total.aliases += result.aliases;
+  }
+  return total;
 }
 
 /**

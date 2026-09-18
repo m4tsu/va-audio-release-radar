@@ -2,6 +2,7 @@ import type { IngestPayload, RawWork } from "@/domain/types";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { type ActorSeed, upsertActors } from "./actors";
+import { ingest } from "./ingest";
 
 /** テストで使う基準時刻。相対日数の計算をこの時点からにして結果を固定する */
 export const NOW = "2026-09-18T00:00:00.000Z";
@@ -26,6 +27,32 @@ export async function setupDb(actors: ActorSeed[] = [UEDA], now: string = NOW): 
   const db = await createMigratedTestDb();
   if (actors.length > 0) await upsertActors(db, actors, now);
   return db;
+}
+
+/**
+ * 指定した声優にそれぞれ作品を 1 件ずつ持たせる。
+ *
+ * T13 以降、一覧・検索・sitemap は作品が 1 件以上ある声優しか返さない。
+ * 「表に出ること」を確かめたいテストは、まずここで作品を持たせる必要がある
+ */
+export async function giveEachActorAWork(db: AppDb, actors: ActorSeed[], now: string = NOW) {
+  for (const [index, actor] of actors.entries()) {
+    await ingest(
+      db,
+      payload({
+        runId: `seed-work-${actor.id}`,
+        voiceActorId: actor.id,
+        works: [
+          rawWork({
+            // 作品 ID は声優ごとに変える (同じ ID だと 1 作品を共有した扱いになる)
+            storeProductId: `RJ9000000${index}`,
+            creditedNames: [actor.canonicalName],
+          }),
+        ],
+      }),
+      now,
+    );
+  }
 }
 
 export function rawWork(overrides: Partial<RawWork> = {}): RawWork {

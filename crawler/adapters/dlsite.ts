@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { RawWork } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
+import { buildCoverage } from "./coverage.ts";
 import { validateRawWorks } from "./raw-work.ts";
 import type {
   ActorQuery,
@@ -11,12 +12,14 @@ import type {
 } from "./types.ts";
 
 /**
- * DLsite (全年齢サイト = /home/) のアダプタ。手順は設計書 §3 のとおり:
+ * DLsite (全年齢サイト = /home/) のアダプタ。手順は設計書 §3 / §13 のとおり:
  *
  * 1. 声優名をダブルクォートで囲んだ完全一致検索の 1 ページ目 (既定 30 件) を取る
- * 2. 一覧から ID・タイトル・サークル・価格・定価・サムネイル・種別を取る (一覧に発売日は無い)
- * 3. ID ごとに product.json を 1 件ずつ取り、発売日・声優全員・年齢区分・ジャンルを補う
- * 4. `age_category !== 1` (全年齢以外) の作品を捨てる
+ * 2. 埋め込み JSON の `pager.count` で総件数を読み、取りこぼしがあるときだけ
+ *    古い順の 1 ページ目を足して和集合を取る (最大 60 件)
+ * 3. 一覧から ID・タイトル・サークル・価格・定価・サムネイル・種別を取る (一覧に発売日は無い)
+ * 4. ID ごとに product.json を 1 件ずつ取り、発売日・声優全員・年齢区分・ジャンルを補う
+ * 5. `age_category !== 1` (全年齢以外) の作品を捨てる
  */
 
 const STORE_SLUG = "dlsite" as const;
@@ -24,15 +27,22 @@ const STORE_SLUG = "dlsite" as const;
 export const DLSITE_GENERAL_AGE_CATEGORY = 1;
 
 /**
- * 検索 URL。robots.txt が `per_page` 付きと 2 ページ目以降を禁じているので 1 ページ目に固定する。
- * `order/release_d` で新着順、`work_type_category[0]/audio` で音声作品に絞る。
+ * 検索の並び順。`release_d` が新しい順 (既定)、`release` が古い順。
+ * `per_page` は無視され 1 ページ目の既定件数しか返らないため (設計書 §13 の実測)、
+ * 件数を伸ばす手段は並び順違いの 1 ページ目を足すことしかない
+ */
+export type DlsiteSearchOrder = "release_d" | "release";
+
+/**
+ * 検索 URL。robots.txt が 2 ページ目以降を禁じているので 1 ページ目に固定する。
+ * `work_type_category[0]/audio` で音声作品に絞る。
  * 名前をダブルクォートで囲むと完全一致になり、部分一致の別人を拾わない
  */
-export function buildSearchUrl(actorName: string): string {
+export function buildSearchUrl(actorName: string, order: DlsiteSearchOrder = "release_d"): string {
   const keyword = encodeURIComponent(`"${actorName}"`);
   return (
     "https://www.dlsite.com/home/fsr/=/language/jp/keyword_creater/" +
-    `${keyword}/work_type_category[0]/audio/order/release_d/page/1`
+    `${keyword}/work_type_category[0]/audio/order/${order}/page/1`
   );
 }
 
@@ -46,6 +56,23 @@ export function buildProductUrl(workno: string): string {
 }
 
 // --- 一覧 HTML の解析 ------------------------------------------------------
+
+/**
+ * 検索結果の総件数。一覧 HTML の `<script>` に
+ * `window['...'] = {"url":"...","pager":{"have_to_paginate":false,"count":27,...},...}`
+ * の形で埋まっているので、そこから `count` を読む (設計書 §13 の実測)。
+ *
+ * `pager` オブジェクトの中でキーの並び順は保証されていないため、`{` から最初の `}` までの
+ * 範囲 (`[^}]*`) に挟まれた `count` を拾う。ページ内に `"pager"` は 1 か所しか出ない
+ * (実測: シード 35 名義すべてで 1 件)。表示が変わって読めなくなったら undefined を返し、
+ * 「総件数が分からない」として扱う。網羅率を偽って完全と記録しないため
+ */
+export function parsePagerCount(html: string): number | undefined {
+  const matched = /"pager"\s*:\s*\{[^}]*?"count"\s*:\s*(\d+)/.exec(html);
+  if (matched?.[1] === undefined) return undefined;
+  const value = Number(matched[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
   const $ = cheerio.load(html);
@@ -89,7 +116,9 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
     candidates.push(candidate);
   }
 
-  return validateRawWorks(candidates);
+  const validated = validateRawWorks(candidates);
+  const totalCount = parsePagerCount(html);
+  return totalCount === undefined ? validated : { ...validated, totalCount };
 }
 
 /**
@@ -274,7 +303,7 @@ async function fetchByActor(
     queryUsed: actorName,
   } satisfies AdapterResult;
 
-  const searchResult = await fetchText(buildSearchUrl(actorName), {
+  const searchResult = await fetchText(buildSearchUrl(actorName, "release_d"), {
     store: STORE_SLUG,
     requestKey: `search-${actorName}`,
     kind: "html",
@@ -286,9 +315,44 @@ async function fetchByActor(
 
   const parsed = parseSearchHtml(searchResult.body, fetchedAt);
   const warnings = [...parsed.warnings];
+  let invalidCount = parsed.invalidCount;
+  let pages = 1;
+
+  // 並び順違いの和集合を ID で取る。新しい順を先に入れてあるので、古い順で重複したものは捨てる
+  const listWorks = new Map<string, RawWork>();
+  for (const work of parsed.works) listWorks.set(work.storeProductId, work);
+
+  // 取りこぼしているときだけ古い順の 1 ページ目を足す。これで最大 60 件まで覆える。
+  // 総件数に届いているなら追加のリクエストは無駄打ちなので出さない (Crawl-delay 10 秒が効く)
+  if (parsed.totalCount !== undefined && listWorks.size < parsed.totalCount) {
+    const oldest = await fetchText(buildSearchUrl(actorName, "release"), {
+      store: STORE_SLUG,
+      requestKey: `search-${actorName}-release-asc`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+    if (oldest.ok) {
+      pages += 1;
+      const parsedOldest = parseSearchHtml(oldest.body, fetchedAt);
+      invalidCount += parsedOldest.invalidCount;
+      warnings.push(...parsedOldest.warnings);
+      for (const work of parsedOldest.works) {
+        if (!listWorks.has(work.storeProductId)) listWorks.set(work.storeProductId, work);
+      }
+    } else {
+      warnings.push(`古い順での補完に失敗 (${oldest.reason})。新しい順の結果だけで続行`);
+    }
+  }
+
+  const coverage = buildCoverage(listWorks.size, parsed.totalCount, pages);
+  // 並び順 2 通りでも総件数に届かない声優。1 ページ 30 件の上限を超えている合図 (設計書 §13)
+  if (coverage.complete === false) {
+    warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);
+  }
+
   const works: RawWork[] = [];
 
-  for (const listWork of parsed.works) {
+  for (const listWork of listWorks.values()) {
     if (options.skipKnownIds?.has(listWork.storeProductId) === true) {
       // 既知の作品は詳細を取り直さない。DLsite への往復を減らすため
       works.push(listWork);
@@ -329,7 +393,14 @@ async function fetchByActor(
     works.push(applyProductDetail(listWork, detail));
   }
 
-  return { ...base, works, invalidCount: parsed.invalidCount, warnings };
+  return {
+    ...base,
+    works,
+    invalidCount,
+    warnings,
+    coverage,
+    ...(coverage.total === undefined ? {} : { totalCount: coverage.total }),
+  };
 }
 
 export const dlsiteAdapter: SourceAdapter = {

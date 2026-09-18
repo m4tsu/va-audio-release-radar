@@ -1,0 +1,404 @@
+{
+  "staff": [
+    {
+      "anilistStaffId": 118602,
+      "nativeName": "上田麗奈",
+      "fullName": "Reina Ueda",
+      "roleCount": 61,
+      "mainRoleCount": 23,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 61,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 121821,
+      "nativeName": "石見舞菜香",
+      "fullName": "Manaka Iwami",
+      "roleCount": 51,
+      "mainRoleCount": 17,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 50,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 119722,
+      "nativeName": "鬼頭明里",
+      "fullName": "Akari Kitou",
+      "roleCount": 56,
+      "mainRoleCount": 28,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 56,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 132768,
+      "nativeName": "長谷川育美",
+      "fullName": "Ikumi Hasegawa",
+      "roleCount": 48,
+      "mainRoleCount": 22,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 48,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95185,
+      "nativeName": "花澤香菜",
+      "fullName": "Kana Hanazawa",
+      "roleCount": 74,
+      "mainRoleCount": 27,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 73,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95869,
+      "nativeName": "早見沙織",
+      "fullName": "Saori Hayami",
+      "roleCount": 72,
+      "mainRoleCount": 23,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 71,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 106622,
+      "nativeName": "佐倉綾音",
+      "fullName": "Ayane Sakura",
+      "roleCount": 50,
+      "mainRoleCount": 21,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 49,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 101686,
+      "nativeName": "悠木碧",
+      "fullName": "Aoi Yuuki",
+      "roleCount": 67,
+      "mainRoleCount": 27,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 62,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 116517,
+      "nativeName": "雨宮天",
+      "fullName": "Sora Amamiya",
+      "roleCount": 47,
+      "mainRoleCount": 17,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 47,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 119331,
+      "nativeName": "高橋李依",
+      "fullName": "Rie Takahashi",
+      "roleCount": 63,
+      "mainRoleCount": 28,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 62,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 106184,
+      "nativeName": "東山奈央",
+      "fullName": "Nao Touyama",
+      "roleCount": 69,
+      "mainRoleCount": 13,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 69,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 106297,
+      "nativeName": "水瀬いのり",
+      "fullName": "Inori Minase",
+      "roleCount": 27,
+      "mainRoleCount": 6,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 26,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 105981,
+      "nativeName": "小倉唯",
+      "fullName": "Yui Ogura",
+      "roleCount": 17,
+      "mainRoleCount": 5,
+      "latestSeason": "2026 SUMMER",
+      "mediaCount": 17,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 121961,
+      "nativeName": "小原好美",
+      "fullName": "Konomi Kohara",
+      "roleCount": 39,
+      "mainRoleCount": 11,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 39,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 124923,
+      "nativeName": "楠木ともり",
+      "fullName": "Tomori Kusunoki",
+      "roleCount": 22,
+      "mainRoleCount": 8,
+      "latestSeason": "2026 SUMMER",
+      "mediaCount": 22,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 124390,
+      "nativeName": "市ノ瀬加那",
+      "fullName": "Kana Ichinose",
+      "roleCount": 47,
+      "mainRoleCount": 21,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 46,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 114884,
+      "nativeName": "大西沙織",
+      "fullName": "Saori Oonishi",
+      "roleCount": 22,
+      "mainRoleCount": 12,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 22,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 112215,
+      "nativeName": "種﨑敦美",
+      "fullName": "Atsumi Tanezaki",
+      "roleCount": 60,
+      "mainRoleCount": 19,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 59,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 119518,
+      "nativeName": "富田美憂",
+      "fullName": "Miyu Tomita",
+      "roleCount": 57,
+      "mainRoleCount": 12,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 56,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 118581,
+      "nativeName": "伊藤美来",
+      "fullName": "Miku Itou",
+      "roleCount": 24,
+      "mainRoleCount": 16,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 24,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 108639,
+      "nativeName": "内田真礼",
+      "fullName": "Maaya Uchida",
+      "roleCount": 50,
+      "mainRoleCount": 15,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 48,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 105765,
+      "nativeName": "茅野愛衣",
+      "fullName": "Ai Kayano",
+      "roleCount": 39,
+      "mainRoleCount": 11,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 39,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 102263,
+      "nativeName": "日笠陽子",
+      "fullName": "Youko Hikasa",
+      "roleCount": 76,
+      "mainRoleCount": 9,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 74,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 107652,
+      "nativeName": "赤﨑千夏",
+      "fullName": "Chinatsu Akasaki",
+      "roleCount": 14,
+      "mainRoleCount": 4,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 14,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95817,
+      "nativeName": "阿澄佳奈",
+      "fullName": "Kana Asumi",
+      "roleCount": 10,
+      "mainRoleCount": 2,
+      "latestSeason": "2026 SUMMER",
+      "mediaCount": 10,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95672,
+      "nativeName": "梶裕貴",
+      "fullName": "Yuuki Kaji",
+      "roleCount": 57,
+      "mainRoleCount": 18,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 54,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95513,
+      "nativeName": "中村悠一",
+      "fullName": "Yuuichi Nakamura",
+      "roleCount": 61,
+      "mainRoleCount": 18,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 61,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95118,
+      "nativeName": "神谷浩史",
+      "fullName": "Hiroshi Kamiya",
+      "roleCount": 38,
+      "mainRoleCount": 13,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 37,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 111635,
+      "nativeName": "花江夏樹",
+      "fullName": "Natsuki Hanae",
+      "roleCount": 48,
+      "mainRoleCount": 15,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 48,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95356,
+      "nativeName": "下野紘",
+      "fullName": "Hiro Shimono",
+      "roleCount": 36,
+      "mainRoleCount": 10,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 36,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 113227,
+      "nativeName": "斉藤壮馬",
+      "fullName": "Souma Saitou",
+      "roleCount": 38,
+      "mainRoleCount": 15,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 37,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 102695,
+      "nativeName": "江口拓也",
+      "fullName": "Takuya Eguchi",
+      "roleCount": 49,
+      "mainRoleCount": 5,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 47,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95017,
+      "nativeName": "石田彰",
+      "fullName": "Akira Ishida",
+      "roleCount": 43,
+      "mainRoleCount": 7,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 40,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95065,
+      "nativeName": "宮野真守",
+      "fullName": "Mamoru Miyano",
+      "roleCount": 30,
+      "mainRoleCount": 11,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 30,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95819,
+      "nativeName": "小野賢章",
+      "fullName": "Kenshou Ono",
+      "roleCount": 59,
+      "mainRoleCount": 25,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 58,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 344277,
+      "nativeName": "三波春香",
+      "fullName": "Haruka Minami",
+      "roleCount": 3,
+      "mainRoleCount": 2,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 3,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 351376,
+      "nativeName": "南波遥海",
+      "fullName": "Haruka Minami",
+      "roleCount": 1,
+      "mainRoleCount": 0,
+      "latestSeason": "2025 SUMMER",
+      "mediaCount": 1,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 272296,
+      "nativeName": "鈴鹿央士",
+      "fullName": "Ouji Suzuka",
+      "roleCount": 1,
+      "mainRoleCount": 0,
+      "latestSeason": "2025 WINTER",
+      "mediaCount": 1,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 359579,
+      "nativeName": "鈴鹿央土",
+      "fullName": "Ouji Suzuka",
+      "roleCount": 1,
+      "mainRoleCount": 1,
+      "latestSeason": "2025 SUMMER",
+      "mediaCount": 1,
+      "ambiguous": false
+    },
+    {
+      "anilistStaffId": 95898,
+      "nativeName": "チョー ",
+      "fullName": "Choo",
+      "roleCount": 23,
+      "mainRoleCount": 3,
+      "latestSeason": "2026 FALL",
+      "mediaCount": 22,
+      "ambiguous": false
+    }
+  ]
+}
