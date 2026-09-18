@@ -1,0 +1,119 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "src/**",
+      "crawler/**",
+      "e2e/**",
+      "*.ts",
+      "*.json",
+      "!src/app/routeTree.gen.ts",
+      "!src/app/components/ui",
+      "!src/index.css",
+      "!worker-configuration.d.ts",
+      "!crawler/fixtures",
+      "!crawler/.cache"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/**/*.test.ts", "src/**/*.test.tsx", "crawler/**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["crawler/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "crawler は react に依存してはならない",
+                  "react-dom": "crawler は react-dom に依存してはならない",
+                  "drizzle-orm": "crawler は DB に直接触らない (ingest エンドポイント経由)"
+                },
+                "patterns": [
+                  {
+                    "group": ["@/app", "@/app/**", "../src/app/**", "../../src/app/**"],
+                    "message": "crawler は src/app に依存してはならない"
+                  },
+                  {
+                    "group": ["@/server", "@/server/**", "../src/server/**", "../../src/server/**"],
+                    "message": "crawler は src/server に依存してはならない"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/domain/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "domain は react に依存してはならない",
+                  "react-dom": "domain は react-dom に依存してはならない",
+                  "zustand": "domain は zustand に依存してはならない",
+                  "dexie": "domain は dexie に依存してはならない",
+                  "drizzle-orm": "domain は drizzle-orm に依存してはならない",
+                  "cheerio": "domain は cheerio に依存してはならない"
+                },
+                "patterns": [
+                  {
+                    "group": ["@/app", "@/app/**"],
+                    "message": "domain は @/app に依存してはならない"
+                  },
+                  {
+                    "group": ["@/server", "@/server/**"],
+                    "message": "domain は @/server に依存してはならない"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

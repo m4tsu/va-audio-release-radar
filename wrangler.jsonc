@@ -1,0 +1,30 @@
+{
+  // Cloudflare Workers の設定。TanStack Start (SSR) を Worker 上で動かす。
+  // main は @tanstack/react-start が用意するサーバーエントリで、
+  // 静的アセットの配置は @cloudflare/vite-plugin がビルド時に書き出す。
+  // ビルド: `npm run build`、デプロイ: `npm run deploy` (事前に `npx wrangler login`)
+  //
+  // 秘匿値 (未設定ならその機能は 503):
+  //   npx wrangler secret put INGEST_TOKEN   クローラーからの取り込み用 Bearer トークン
+  //   npx wrangler secret put ADMIN_TOKEN    管理画面用トークン
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "voice-actor-audio-release-radar",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-09-01",
+  // TanStack Start のサーバーランタイムが Node 互換 API を使う
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // canonical / og:url / sitemap を絶対 URL にするときのオリジン (@/server/site の siteOrigin)。
+  // 空文字なら未設定として、実際に来たリクエストのオリジンを使う。
+  // 本番で正規のホストに固定したくなったらここに "https://example.com" のように入れる
+  "vars": { "SITE_URL": "" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "voice-actor-audio-release-radar",
+      "database_id": "37883037-2925-42e8-831b-847ed1b52dff",
+      // drizzle-kit が生成した SQL をそのまま `wrangler d1 migrations apply` に渡す
+      "migrations_dir": "migrations"
+    }
+  ]
+}

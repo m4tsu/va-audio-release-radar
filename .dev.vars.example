@@ -1,0 +1,7 @@
+# ローカル開発用の秘匿値。このファイルをコピーして .dev.vars を作る (.dev.vars は git 管理外)。
+# 本番は `npx wrangler secret put <名前>` で設定する。未設定なら該当機能は 503 を返す。
+
+# クローラーが POST /api/admin/ingest を叩くときの Bearer トークン
+INGEST_TOKEN=
+# 管理画面 (/admin/*) を開くためのトークン
+ADMIN_TOKEN=

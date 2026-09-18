@@ -1,0 +1,64 @@
+name: 定期クロール
+
+# 声優ごとに DLsite / Audible を巡回し、本番の POST /api/admin/ingest に投げる。
+# クローラーを Worker 内で動かさないのは Cloudflare からの egress とサブリクエスト上限を避けるため
+# (docs/design/architecture.md §1)。必要な Secrets は INGEST_URL と INGEST_TOKEN。
+on:
+  schedule:
+    - cron: "0 20 * * *" # 毎日 05:00 JST
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "対象の声優 (canonicalName か slug をカンマ区切り。空なら全員)"
+        required: false
+        type: string
+      store:
+        description: "対象ストア (空なら両方)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - dlsite
+          - audible
+
+# 前回の実行が終わる前に次の cron が来ても重ねない。
+# 同じストアへ二重にアクセスすると、プロセスをまたぐレート制限が効かないため
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    name: DLsite / Audible を巡回して取り込む
+    runs-on: ubuntu-latest
+    # 声優 35 人 × DLsite の Crawl-delay 10 秒で 1 時間近くかかる。余裕を見て 120 分
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: クロールと取り込み
+        # 入力と秘匿値は env 経由で渡す。run 本文に ${{ }} で埋め込むと、入力の中身が
+        # シェルとして解釈されてしまうため
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          ONLY: ${{ inputs.only }}
+          STORE: ${{ inputs.store }}
+        run: |
+          args=()
+          if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
+          if [ -n "$STORE" ]; then args+=(--store "$STORE"); fi
+          node crawler/run.ts --base-url "$INGEST_URL" "${args[@]}"
+      - name: 取得した生データを残す
+        # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる (企画書 §20)
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: snapshots
+          path: crawler/.cache/snapshots
+          retention-days: 7
+          if-no-files-found: ignore

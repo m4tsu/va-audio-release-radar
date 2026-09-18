@@ -1,0 +1,31 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+node_modules
+dist
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# playwright
+test-results
+playwright-report
+
+# Cloudflare wrangler
+.wrangler
+.dev.vars
+
+# TanStack Router plugin の一時ファイル
+.tanstack
+
+# ビルド時の環境変数
+.env
+
+# crawler が取得した生データ・前回結果
+crawler/.cache/
