@@ -9,6 +9,7 @@ import {
   describeExclusionReason,
   type ExclusionReason,
   type StaffInput,
+  toActorNameEn,
 } from "./actor-entity.ts";
 
 /**
@@ -136,7 +137,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   // この差でしか分からないため (英語表示に出る表記を直す作業の残りがそのまま見える)
   process.stdout.write(
     `  ローマ字付き: ${result.actors.filter((actor) => actor.nameEn !== undefined).length} 人 ` +
-      `(うち手で上書き: ${result.actors.filter((actor) => overrides[actor.canonicalName]?.nameEn !== undefined).length} 人)\n`,
+      `(うち手で上書き: ${result.actors.filter((actor) => toActorNameEn(overrides[actor.canonicalName]?.nameEn) !== undefined).length} 人)\n`,
   );
 
   for (const key of result.unusedOverrideKeys) {

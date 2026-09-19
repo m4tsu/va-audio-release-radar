@@ -181,8 +181,8 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   `Aoi Yuuki` → `yuuki-aoi`。長音を潰して `kito` / `yuki` に寄せない。
   「ou」「uu」が長音とは限らず (井上 = Inoue、松浦 = Matsuura)、潰すと別の名前を壊す。
   本人の公表表記と食い違う人 (日笠陽子 = `Youko Hikasa`) は `crawler/actors-overrides.json` に書いて直す
-- **`name.full` に改行や二重空白が混じっていることがある** ("Makoto\r\n Takahashi")。
-  英語表示に出す前に空白を詰める
+- **`name.full` に改行や二重空白が混じっていることがある** ("Makoto\r\n Takahashi"、
+  2026-09-18 に取得した応答の 2,567 件中 12 件)。英語表示に出す前に空白を詰める
 - **1 語の名義**「ゆかな」「麦人」「KENN」はその語をそのまま slug にする。
   除外すると実在の声優が丸ごと落ちる
 - **3 語以上**「ブリドカット・セーラ・恵美」= Sarah Emi Bridcutt は最後の語を姓、

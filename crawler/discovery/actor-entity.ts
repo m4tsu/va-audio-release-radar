@@ -145,8 +145,8 @@ function isSingleWordFullName(fullName: string | undefined): boolean {
  * `Youko Hikasa` を `Yoko Hikasa` に寄せるのは規則では決められず (`Inoue` / `Matsuura` を壊す)、
  * 正しい表記は人ごとの公表表記でしか決まらないので `ActorOverride.nameEn` で直す。
  *
- * 空白を詰めて何も残らない fullName は英語表記なしとして undefined を返す
- * (`toActorSlug` が slug を作れず除外される人と同じ材料なので、実際にはここまで来ない)
+ * 空白を詰めて何も残らない fullName は英語表記なしとして undefined を返す。
+ * `override.nameEn` もここを通すので、手書き側の書き損じの空白が生成物に残らない
  */
 export function toActorNameEn(fullName: string | undefined): string | undefined {
   if (fullName === undefined) return undefined;
