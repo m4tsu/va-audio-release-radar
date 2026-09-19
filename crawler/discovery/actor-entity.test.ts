@@ -10,6 +10,7 @@ import {
   findSlugCollisions,
   type StaffInput,
   spacedNameCandidates,
+  toActorNameEn,
   toActorSlug,
 } from "./actor-entity.ts";
 
@@ -90,6 +91,29 @@ describe("spacedNameCandidates", () => {
   });
 });
 
+describe("toActorNameEn", () => {
+  it("AniList の表記をそのまま返す", () => {
+    expect(toActorNameEn("Reina Ueda")).toBe("Reina Ueda");
+  });
+
+  it("ワープロ式のつづりを詰めない", () => {
+    // 「ou」「uu」が長音とは限らない (Inoue / Matsuura)。寄せるかどうかは人が overrides で決める
+    expect(toActorNameEn("Youko Hikasa")).toBe("Youko Hikasa");
+    expect(toActorNameEn("Miyu Inoue")).toBe("Miyu Inoue");
+  });
+
+  it("改行と連続した空白を 1 つの空白に詰める", () => {
+    expect(toActorNameEn("Makoto\r\n Takahashi")).toBe("Makoto Takahashi");
+    expect(toActorNameEn("Jun  Kasama")).toBe("Jun Kasama");
+    expect(toActorNameEn("Yui Tsukada ")).toBe("Yui Tsukada");
+  });
+
+  it("fullName が無い / 空白だけなら undefined", () => {
+    expect(toActorNameEn(undefined)).toBeUndefined();
+    expect(toActorNameEn("   ")).toBeUndefined();
+  });
+});
+
 describe("buildAliases", () => {
   it("オーバーライドが無ければ生成候補を未検証で持つ", () => {
     expect(buildAliases("上田麗奈", undefined)).toEqual([
@@ -124,6 +148,7 @@ describe("buildActorEntity", () => {
         id: "va_ueda-reina",
         slug: "ueda-reina",
         canonicalName: "上田麗奈",
+        nameEn: "Reina Ueda",
         anilistStaffId: 118602,
         status: "active",
         aliases: [
@@ -147,6 +172,20 @@ describe("buildActorEntity", () => {
     expect("actor" in result && result.actor.aliases).toEqual([
       { name: "上田 麗奈", source: "manual", verified: true },
     ]);
+  });
+
+  it("オーバーライドの nameEn は AniList の fullName より優先する", () => {
+    const result = buildActorEntity(staff({ nativeName: "日笠陽子", fullName: "Youko Hikasa" }), {
+      日笠陽子: { nameEn: "Yoko Hikasa" },
+    });
+    expect("actor" in result && result.actor.nameEn).toBe("Yoko Hikasa");
+    // 表記を直しても slug は AniList の fullName 由来のまま。URL は後から変えられない
+    expect("actor" in result && result.actor.slug).toBe("hikasa-youko");
+  });
+
+  it("nameEn を書いていない声優は AniList の表記のまま", () => {
+    const result = buildActorEntity(staff(), { 上田麗奈: { nameKana: "うえだれいな" } });
+    expect("actor" in result && result.actor.nameEn).toBe("Reina Ueda");
   });
 
   it("オーバーライドの slug は生成規則より優先する", () => {
@@ -173,11 +212,20 @@ describe("buildActorEntity", () => {
         id: "va_yukana",
         slug: "yukana",
         canonicalName: "ゆかな",
+        nameEn: "Yukana",
         anilistStaffId: 118602,
         status: "active",
         aliases: [],
       },
     });
+  });
+
+  it("fullName が無くても slug を書いてあれば、ローマ字なしで生成する", () => {
+    const result = buildActorEntity(staff({ fullName: undefined }), {
+      上田麗奈: { slug: "ueda-reina" },
+    });
+    expect("actor" in result && result.actor.slug).toBe("ueda-reina");
+    expect("actor" in result && "nameEn" in result.actor).toBe(false);
   });
 
   it("fullName が無ければ除外する", () => {

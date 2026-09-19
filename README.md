@@ -55,7 +55,7 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 `crawler/lib/fetch.ts` の 1 箇所で守る。外部サイトの制約は [`docs/stores/`](./docs/stores/)。
 
 対象声優リストは AniList から生成した `crawler/actors.generated.json`。生成は `crawler/discovery/build-actors.ts`、
-手で持つ情報 (かな、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
+手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
 
 定期実行は `.github/workflows/crawl.yml`。
 

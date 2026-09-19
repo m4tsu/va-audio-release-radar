@@ -157,7 +157,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 |---|:--:|---|
 | staff id | ○ | `voiceActors.id` → `VoiceActor.anilistStaffId` |
 | 日本語表記の名前 | ○ | `name.native` → `canonicalName`。**ストアとの突き合わせに使う唯一の鍵** |
-| ローマ字表記 | ○ | `name.full` ("Reina Ueda") → `slug` の元 |
+| ローマ字表記 | ○ | `name.full` ("Reina Ueda") → `slug` の元、英語表示に出す名前 |
 | 声優の画像 | ○ | `image.medium` |
 | 作品 (アニメ) | ○ | `media.id` / `title.{native,romaji,english}` / `coverImage.large` |
 | キャラクターと役 | ○ | `characters.edges[].node` / `.role` |
@@ -179,7 +179,10 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   解決は人が `crawler/actors-overrides.json` に書く。slug は URL に出て後から変えられない
 - **ワープロ式のローマ字表記をそのまま使う。** `Akari Kitou` → `kitou-akari`、
   `Aoi Yuuki` → `yuuki-aoi`。長音を潰して `kito` / `yuki` に寄せない。
-  「ou」「uu」が長音とは限らず (井上 = Inoue、松浦 = Matsuura)、潰すと別の名前を壊す
+  「ou」「uu」が長音とは限らず (井上 = Inoue、松浦 = Matsuura)、潰すと別の名前を壊す。
+  本人の公表表記と食い違う人 (日笠陽子 = `Youko Hikasa`) は `crawler/actors-overrides.json` に書いて直す
+- **`name.full` に改行や二重空白が混じっていることがある** ("Makoto\r\n Takahashi")。
+  英語表示に出す前に空白を詰める
 - **1 語の名義**「ゆかな」「麦人」「KENN」はその語をそのまま slug にする。
   除外すると実在の声優が丸ごと落ちる
 - **3 語以上**「ブリドカット・セーラ・恵美」= Sarah Emi Bridcutt は最後の語を姓、

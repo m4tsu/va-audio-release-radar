@@ -17,7 +17,7 @@ import {
  *   node crawler/discovery/build-actors.ts
  *
  * 発見スパイクが集めた AniList の staff 集計 (`.cache/discovery/anilist-staff.json`) と、
- * AniList から取れない情報だけを手で持つ `crawler/actors-overrides.json` を合わせて、
+ * AniList から取れない情報と AniList の表記の訂正を手で持つ `crawler/actors-overrides.json` を合わせて、
  * `crawler/actors.generated.json` を作る。ネットワークには出ない。
  *
  * 作品が 1 件も無い声優も含めて全員を出力する。クロール履歴を残しておけば、
@@ -131,6 +131,12 @@ export async function main(argv: readonly string[]): Promise<number> {
   process.stdout.write(
     `  かな付き: ${result.actors.filter((actor) => actor.nameKana !== undefined).length} 人 / ` +
       `検証済み別名: ${result.actors.filter((actor) => actor.aliases.some((alias) => alias.verified)).length} 人\n`,
+  );
+  // 手で上書きした人数を別に出すのは、AniList のワープロ式のまま出ている人が何人残っているかが
+  // この差でしか分からないため (英語表示に出る表記を直す作業の残りがそのまま見える)
+  process.stdout.write(
+    `  ローマ字付き: ${result.actors.filter((actor) => actor.nameEn !== undefined).length} 人 ` +
+      `(うち手で上書き: ${result.actors.filter((actor) => overrides[actor.canonicalName]?.nameEn !== undefined).length} 人)\n`,
   );
 
   for (const key of result.unusedOverrideKeys) {

@@ -306,6 +306,18 @@ describe("actors.generated.json", () => {
     expect(new Set(seeds.map((seed) => seed.slug)).size).toBe(seeds.length);
   });
 
+  it("ローマ字表記が入っていて、前後と途中に余分な空白が無い", async () => {
+    const seeds = await loadActorSeeds(GENERATED);
+    const withNameEn = seeds.filter((seed) => seed.nameEn !== undefined);
+    // AniList の fullName が空の声優はそもそも slug を作れず除外されるので、
+    // 手で slug を書いた人を除けば全員に入る。大きく減ったら生成の取りこぼしを疑う
+    expect(withNameEn.length).toBe(seeds.length);
+    for (const seed of withNameEn) {
+      expect(seed.nameEn).toBe(seed.nameEn?.trim());
+      expect(seed.nameEn).not.toMatch(/\s\s|[\r\n\t]/);
+    }
+  });
+
   it("空白入り候補が無いのは fullName が 1 語の芸名だけ", async () => {
     // 2 文字以上の姓名を持つ声優は文字数に応じた切り方 で必ず候補が付く。
     // 候補が付かないのは「ゆかな」「麦人」「KENN」のように fullName が 1 語で

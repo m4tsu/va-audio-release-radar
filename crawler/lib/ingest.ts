@@ -35,6 +35,7 @@ export type ActorSeed = {
   slug: string;
   canonicalName: string;
   nameKana?: string;
+  nameEn?: string;
   anilistStaffId?: number;
   aliases?: Array<{ name: string; source: string; verified: boolean }>;
 };

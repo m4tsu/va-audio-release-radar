@@ -20,10 +20,15 @@ export type StaffInput = {
 
 /**
  * `crawler/actors-overrides.json` の 1 件。キーは canonicalName (= AniList の nativeName)。
- * AniList から取れない情報 (かな) と、実測で確かめた情報 (別名 / 衝突解決) だけを手で持つ
+ * AniList から取れない情報 (かな) と、実測で確かめた情報 (別名 / 衝突解決 / 英語表記の訂正) だけを手で持つ
  */
 export type ActorOverride = {
   nameKana?: string;
+  /**
+   * 英語表示に出すローマ字表記。AniList の `fullName` より優先する。
+   * AniList はワープロ式で書く ("Youko Hikasa") ので、本人・事務所の公表表記と食い違う人をここで直す
+   */
+  nameEn?: string;
   /**
    * 検証済みの別名。Audible で実際に結果が返ることを確かめた表記だけを書く。
    * 1 件でもあれば自動生成の候補は使わない (当てずっぽうを混ぜると検索回数が増えるだけのため)
@@ -46,6 +51,8 @@ export type ActorEntity = {
   slug: string;
   canonicalName: string;
   nameKana?: string;
+  /** "Reina Ueda"。slug からは姓名の順も大文字も戻せないので別に持つ */
+  nameEn?: string;
   anilistStaffId: number;
   status: "active";
   aliases: ActorAlias[];
@@ -126,6 +133,25 @@ export function toActorSlug(fullName: string | undefined): string | undefined {
 function isSingleWordFullName(fullName: string | undefined): boolean {
   if (fullName === undefined) return false;
   return tokenizeFullName(fullName).length === 1;
+}
+
+// --- 英語表記 --------------------------------------------------------------
+
+/**
+ * 英語表示に出すローマ字表記。AniList の `fullName` ("Reina Ueda") をそのまま使う。
+ *
+ * 直すのは空白だけ。AniList には改行や二重空白が混じった fullName ("Makoto\r\n Takahashi") があり、
+ * そのまま画面に出すと名前が割れて見える。つづりには触らない:
+ * `Youko Hikasa` を `Yoko Hikasa` に寄せるのは規則では決められず (`Inoue` / `Matsuura` を壊す)、
+ * 正しい表記は人ごとの公表表記でしか決まらないので `ActorOverride.nameEn` で直す。
+ *
+ * 空白を詰めて何も残らない fullName は英語表記なしとして undefined を返す
+ * (`toActorSlug` が slug を作れず除外される人と同じ材料なので、実際にはここまで来ない)
+ */
+export function toActorNameEn(fullName: string | undefined): string | undefined {
+  if (fullName === undefined) return undefined;
+  const collapsed = fullName.trim().replace(/\s+/g, " ");
+  return collapsed === "" ? undefined : collapsed;
 }
 
 // --- 別名 ------------------------------------------------------------------
@@ -213,12 +239,16 @@ export function buildActorEntity(
   const slug = override?.slug ?? toActorSlug(staff.fullName);
   if (slug === undefined) return { excluded: { ...base, reason: "no-slug" } };
 
+  // 手で書いた表記が AniList のワープロ式より優先される。書いていない人は AniList のまま
+  const nameEn = override?.nameEn ?? toActorNameEn(staff.fullName);
+
   return {
     actor: {
       id: `va_${slug}`,
       slug,
       canonicalName,
       ...(override?.nameKana === undefined ? {} : { nameKana: override.nameKana }),
+      ...(nameEn === undefined ? {} : { nameEn }),
       anilistStaffId: staff.anilistStaffId,
       status: "active",
       aliases: buildAliases(canonicalName, override, isSingleWordFullName(staff.fullName)),

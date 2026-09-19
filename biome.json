@@ -17,7 +17,8 @@
       "!src/index.css",
       "!worker-configuration.d.ts",
       "!crawler/fixtures",
-      "!crawler/.cache"
+      "!crawler/.cache",
+      "!crawler/*.generated.json"
     ]
   },
   "formatter": {
