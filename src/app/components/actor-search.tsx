@@ -67,7 +67,6 @@ export function ActorSearch() {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={t("search.placeholder")}
           autoComplete="off"
           className="pl-9"
         />

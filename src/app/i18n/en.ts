@@ -79,7 +79,6 @@ export const en: Translations = {
 
   search: {
     label: "Search by voice actor",
-    placeholder: "e.g. 上田麗奈",
     searching: "Searching…",
     noResults: "No voice actor matched “{{query}}”.",
     resultsLabel: "Search results",

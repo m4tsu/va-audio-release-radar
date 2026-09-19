@@ -93,7 +93,6 @@ export const ja = {
 
   search: {
     label: "声優名で検索",
-    placeholder: "例: 上田麗奈",
     searching: "検索中…",
     noResults: "「{{query}}」に一致する声優は見つかりませんでした。",
     resultsLabel: "検索結果",
