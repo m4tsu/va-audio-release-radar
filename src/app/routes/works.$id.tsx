@@ -3,6 +3,8 @@ import { storeLabel } from "@/app/components/store-badge";
 import { StoreLink } from "@/app/components/store-link";
 import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
+import { createTranslator, type Locale, useLocale, useT } from "@/app/i18n";
+import { actorDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
 import {
   categoryLabel,
@@ -32,10 +34,11 @@ export const Route = createFileRoute("/works/$id")({
     if (!detail) throw notFound();
     return { ...detail, origin };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, match }) => {
     if (!loaderData) return {};
-    const title = pageTitle(loaderData);
-    const description = pageDescription(loaderData);
+    const locale = match.context.locale;
+    const title = pageTitle(loaderData, locale);
+    const description = pageDescription(loaderData, locale);
     // 作品 ID は "dlsite:RJ01698658" のようにコロンを含むので符号化してから並べる
     const path = `/works/${encodeURIComponent(loaderData.work.id)}`;
     const canonical = loaderData.origin ? `${loaderData.origin}${path}` : path;
@@ -61,22 +64,37 @@ function decodeWorkId(raw: string): string {
   return raw.includes("%") ? decodeURIComponent(raw) : raw;
 }
 
-function pageTitle(detail: WorkDetail): string {
-  const stores = detail.listings.map((listing) => storeLabel(listing.storeSlug)).join("・");
+function storeList(detail: WorkDetail, locale: Locale): string {
+  const separator = createTranslator(locale)("common.listSeparator");
+  return detail.listings.map((listing) => storeLabel(listing.storeSlug)).join(separator);
+}
+
+/** 作品名もストア名もデータそのもの。訳さずに並べ方だけを言語に合わせる */
+function pageTitle(detail: WorkDetail, locale: Locale): string {
+  const stores = storeList(detail, locale);
   return stores ? `${detail.work.title} | ${stores}` : detail.work.title;
 }
 
-function pageDescription(detail: WorkDetail): string {
+function pageDescription(detail: WorkDetail, locale: Locale): string {
+  const t = createTranslator(locale);
   // 表記違いによる重複を description にも出さないよう、本文と同じ dedupeCredits を通す
   const names = dedupeCredits(detail.credits).map(
     (credit) => credit.voiceActorName ?? credit.creditedName,
   );
-  const cast = names.length > 0 ? `${names.slice(0, 4).join("・")} 出演。` : "";
-  const stores = detail.listings.map((listing) => storeLabel(listing.storeSlug)).join("・");
-  return `${cast}${categoryLabel(detail.work.category)}の音声作品「${detail.work.title}」の価格・発売日・再生時間。${stores} で配信中。`;
+  const cast =
+    names.length > 0
+      ? t("work.metaCast", { names: names.slice(0, 4).join(t("common.listSeparator")) })
+      : "";
+  return `${cast}${t("work.metaDescription", {
+    category: categoryLabel(detail.work.category, locale),
+    title: detail.work.title,
+    stores: storeList(detail, locale),
+  })}`;
 }
 
 function WorkPage() {
+  const t = useT();
+  const locale = useLocale();
   const detail = Route.useLoaderData();
   const { work, listings } = detail;
   // 表記違いで同じ声優に解決された credit が複数残ることがあるので、表示前に重複排除する
@@ -97,7 +115,7 @@ function WorkPage() {
 
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="secondary">{categoryLabel(work.category)}</Badge>
+            <Badge variant="secondary">{categoryLabel(work.category, locale)}</Badge>
             {listings.map((listing) => (
               <Badge key={listing.storeSlug} variant="outline">
                 {storeLabel(listing.storeSlug)}
@@ -110,17 +128,19 @@ function WorkPage() {
           <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
             {work.makerName ? (
               <>
-                <dt className="text-muted-foreground">サークル / 出版社</dt>
+                <dt className="text-muted-foreground">{t("work.makerName")}</dt>
                 <dd>{work.makerName}</dd>
               </>
             ) : null}
-            <dt className="text-muted-foreground">発売日</dt>
-            <dd>{work.releaseDate ? formatReleaseDate(work.releaseDate) : "不明"}</dd>
+            <dt className="text-muted-foreground">{t("work.releaseDate")}</dt>
+            <dd>
+              {work.releaseDate ? formatReleaseDate(work.releaseDate, locale) : t("common.unknown")}
+            </dd>
             {/* DLsite は再生時間を提供せず常に不明になるので、値が無い作品は行ごと出さない */}
             {work.durationSeconds ? (
               <>
-                <dt className="text-muted-foreground">再生時間</dt>
-                <dd>{formatDuration(work.durationSeconds)}</dd>
+                <dt className="text-muted-foreground">{t("work.duration")}</dt>
+                <dd>{formatDuration(work.durationSeconds, locale)}</dd>
               </>
             ) : null}
           </dl>
@@ -130,9 +150,9 @@ function WorkPage() {
       <Separator />
 
       <section className="space-y-3">
-        <h2 className="font-semibold text-xl tracking-tight">出演</h2>
+        <h2 className="font-semibold text-xl tracking-tight">{t("work.castTitle")}</h2>
         {credits.length === 0 ? (
-          <p className="text-muted-foreground text-sm">クレジット情報を取得できていない。</p>
+          <p className="text-muted-foreground text-sm">{t("work.castEmpty")}</p>
         ) : (
           <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
             {credits.map((credit) => (
@@ -148,7 +168,7 @@ function WorkPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-semibold text-xl tracking-tight">購入</h2>
+        <h2 className="font-semibold text-xl tracking-tight">{t("work.purchaseTitle")}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {listings.map((listing) => (
             <ListingCard key={listing.storeSlug} listing={listing} />
@@ -164,6 +184,7 @@ function WorkPage() {
  * 未解決のものはストア上の表記のまま出す (確証の無い同一視をしない。企画書 §7.3)
  */
 function CreditName({ credit }: { credit: WorkCredit }) {
+  const locale = useLocale();
   if (credit.voiceActorSlug) {
     return (
       <Link
@@ -171,14 +192,17 @@ function CreditName({ credit }: { credit: WorkCredit }) {
         params={{ slug: credit.voiceActorSlug }}
         className="font-medium hover:underline"
       >
-        {credit.voiceActorName ?? credit.creditedName}
+        {actorDisplayName({ canonicalName: credit.voiceActorName ?? credit.creditedName }, locale)}
       </Link>
     );
   }
+  // 名寄せできていない表記はストア上の書き方のまま出す (企画書 §7.3)
   return <span>{credit.creditedName}</span>;
 }
 
 function ListingCard({ listing }: { listing: WorkListing }) {
+  const t = useT();
+  const locale = useLocale();
   const onSale = listing.listPrice !== undefined && listing.listPrice !== listing.price;
 
   return (
@@ -187,23 +211,25 @@ function ListingCard({ listing }: { listing: WorkListing }) {
 
       <p className="flex items-baseline gap-2">
         <span className="font-semibold text-xl">
-          {listing.price === undefined ? "価格不明" : formatPrice(listing.price)}
+          {listing.price === undefined
+            ? t("work.priceUnknown")
+            : formatPrice(listing.price, locale)}
         </span>
         {onSale && listing.listPrice !== undefined ? (
           <span className="text-muted-foreground text-sm line-through">
-            {formatPrice(listing.listPrice)}
+            {formatPrice(listing.listPrice, locale)}
           </span>
         ) : null}
       </p>
 
       {listing.available ? null : (
-        <p className="text-muted-foreground text-sm">現在は販売されていない可能性がある。</p>
+        <p className="text-muted-foreground text-sm">{t("work.unavailable")}</p>
       )}
 
       <StoreLink listing={listing} className="w-full" />
 
       <p className="text-muted-foreground text-xs">
-        価格の取得時点: {formatDateTime(listing.lastSeenAt)}
+        {t("work.priceSeenAt", { at: formatDateTime(listing.lastSeenAt, locale) })}
       </p>
     </div>
   );

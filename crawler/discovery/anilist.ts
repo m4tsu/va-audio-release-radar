@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fetchText } from "../lib/fetch.ts";
@@ -56,12 +57,13 @@ export const SEASON_PAGE_QUERY = `query ($season: MediaSeason, $seasonYear: Int,
     pageInfo { currentPage lastPage hasNextPage total }
     media(type: ANIME, season: $season, seasonYear: $seasonYear, sort: POPULARITY_DESC, isAdult: false) {
       id
-      title { native }
+      title { native romaji english }
+      coverImage { large }
       characters(perPage: 25, sort: ROLE) {
         edges {
           role
-          node { id }
-          voiceActors(language: JAPANESE) { id name { native full } }
+          node { id name { native full } image { medium } }
+          voiceActors(language: JAPANESE) { id name { native full } image { medium } }
         }
       }
     }
@@ -70,13 +72,27 @@ export const SEASON_PAGE_QUERY = `query ($season: MediaSeason, $seasonYear: Int,
 
 // --- 応答の解析 (純粋関数) -------------------------------------------------
 
-export type SeasonMediaRef = { id: number; titleNative?: string };
+export type SeasonMediaRef = {
+  id: number;
+  titleNative?: string;
+  /** slug の元。これが無い作品は URL を作れない */
+  titleRomaji?: string;
+  /** null のことが実際にある (2026-09-18 の実応答で確認) */
+  titleEnglish?: string;
+  coverImageUrl?: string;
+};
 
+/** 1 作品 × 1 キャラクター × 1 声優の出演 */
 export type MediaCredit = {
   mediaId: number;
   staffId: number;
+  characterId: number;
   nativeName?: string;
   fullName?: string;
+  characterNameNative?: string;
+  characterNameFull?: string;
+  characterImageUrl?: string;
+  actorImageUrl?: string;
   /** "MAIN" | "SUPPORTING" | "BACKGROUND" など */
   role?: string;
 };
@@ -97,8 +113,18 @@ export function parseSeasonPage(json: unknown): {
     const record = asRecord(raw);
     const mediaId = asNumber(record?.id);
     if (mediaId === undefined) continue;
-    const titleNative = asString(asRecord(record?.title)?.native);
-    media.push({ id: mediaId, ...(titleNative === undefined ? {} : { titleNative }) });
+    const title = asRecord(record?.title);
+    const titleNative = asString(title?.native);
+    const titleRomaji = asString(title?.romaji);
+    const titleEnglish = asString(title?.english);
+    const coverImageUrl = asString(asRecord(record?.coverImage)?.large);
+    media.push({
+      id: mediaId,
+      ...(titleNative === undefined ? {} : { titleNative }),
+      ...(titleRomaji === undefined ? {} : { titleRomaji }),
+      ...(titleEnglish === undefined ? {} : { titleEnglish }),
+      ...(coverImageUrl === undefined ? {} : { coverImageUrl }),
+    });
     credits.push(...parseCharacterEdges(record?.characters, mediaId));
   }
 
@@ -114,6 +140,15 @@ function parseCharacterEdges(characters: unknown, mediaId: number): MediaCredit[
   for (const rawEdge of edges) {
     const edge = asRecord(rawEdge);
     const role = asString(edge?.role);
+    const node = asRecord(edge?.node);
+    // キャラクター id は (作品, キャラ, 声優) の一意キーに使う。
+    // これが無い edge は voiceActors も埋まらない (冒頭の罠) ので落とす
+    const characterId = asNumber(node?.id);
+    if (characterId === undefined) continue;
+    const characterName = asRecord(node?.name);
+    const characterNameNative = asString(characterName?.native);
+    const characterNameFull = asString(characterName?.full);
+    const characterImageUrl = asString(asRecord(node?.image)?.medium);
     // 日本語声優が居ないキャラクターでは null か [] になる
     const actors = Array.isArray(edge?.voiceActors) ? edge.voiceActors : [];
     for (const rawActor of actors) {
@@ -123,11 +158,17 @@ function parseCharacterEdges(characters: unknown, mediaId: number): MediaCredit[
       const name = asRecord(actor?.name);
       const nativeName = asString(name?.native);
       const fullName = asString(name?.full);
+      const actorImageUrl = asString(asRecord(actor?.image)?.medium);
       credits.push({
         mediaId,
         staffId,
+        characterId,
         ...(nativeName === undefined ? {} : { nativeName }),
         ...(fullName === undefined ? {} : { fullName }),
+        ...(characterNameNative === undefined ? {} : { characterNameNative }),
+        ...(characterNameFull === undefined ? {} : { characterNameFull }),
+        ...(characterImageUrl === undefined ? {} : { characterImageUrl }),
+        ...(actorImageUrl === undefined ? {} : { actorImageUrl }),
         ...(role === undefined ? {} : { role }),
       });
     }
@@ -168,6 +209,9 @@ export type StaffRecord = {
 
 /** credit にシーズンを添えたもの。集計の入力 */
 export type SeasonCredit = MediaCredit & { season: SeasonKey };
+
+/** 作品にシーズンを添えたもの。シーズンは AniList の応答に無く、問い合わせた側しか知らない */
+export type SeasonMedia = SeasonMediaRef & { season: SeasonKey };
 
 const MAIN_ROLE = "MAIN";
 
@@ -251,6 +295,8 @@ export type AniListCrawlResult = {
   mediaCountBySeason: Record<string, number>;
   /** 重複を除いた作品数 (続編が複数シーズンに出ることは無いが、念のため) */
   mediaCount: number;
+  /** 取得した作品そのもの。タイトルを集計後に捨てないために持つ */
+  media: SeasonMedia[];
   credits: SeasonCredit[];
   /** 実際にネットワークへ出た GraphQL リクエスト数 */
   requestCount: number;
@@ -264,6 +310,18 @@ export type AniListCrawlResult = {
  * 1,200 件超のリクエストを 1.5 秒間隔で投げるため 30 分かかる。途中で落ちたときに
  * 最初からやり直さずに済むよう、取得済みのものは再取得しない
  */
+/**
+ * クエリの指紋 (先頭 8 桁)。スナップショットの鍵に混ぜる。
+ *
+ * 鍵がシーズンとページだけだと、取得項目を増やしても古い応答が黙って返る。
+ * 2026-09-18 に実際に踏んだ: キャラクター名とローマ字タイトルを足したのに
+ * 「リクエスト 0 回 / キャッシュ 24 回」で通り、新しい項目が 0 件のまま生成まで進んだ。
+ * クエリを変えれば鍵が変わるようにして、取り直しを強制する
+ */
+export function queryFingerprint(query: string): string {
+  return createHash("sha1").update(query).digest("hex").slice(0, 8);
+}
+
 async function readSnapshot(requestKey: string): Promise<string | undefined> {
   try {
     return await readFile(
@@ -318,6 +376,7 @@ export async function crawlAniList(options: {
   snapshot?: boolean;
 }): Promise<AniListCrawlResult> {
   const warnings: string[] = [];
+  const media: SeasonMedia[] = [];
   const credits: SeasonCredit[] = [];
   const mediaCountBySeason: Record<string, number> = {};
   const seenMediaIds = new Set<number>();
@@ -332,7 +391,7 @@ export async function crawlAniList(options: {
       const response = await postGraphql(
         SEASON_PAGE_QUERY,
         { season: season.season, seasonYear: season.year, page },
-        `season-${season.year}-${season.season}-p${page}`,
+        `season-${season.year}-${season.season}-p${page}-${queryFingerprint(SEASON_PAGE_QUERY)}`,
         options.snapshot,
         counters,
       );
@@ -348,7 +407,12 @@ export async function crawlAniList(options: {
       // 上限を超えたぶんは credit ごと落とす (人気順の上位から数えるため)
       const kept = parsed.media.slice(0, options.mediaPerSeason - taken);
       const keptIds = new Set(kept.map((ref) => ref.id));
-      for (const ref of kept) seenMediaIds.add(ref.id);
+      for (const ref of kept) {
+        // 続編が複数シーズンに出ることは無いが、先に見たシーズンを正として重複を除く
+        if (seenMediaIds.has(ref.id)) continue;
+        seenMediaIds.add(ref.id);
+        media.push({ ...ref, season });
+      }
       for (const credit of parsed.credits) {
         if (keptIds.has(credit.mediaId)) credits.push({ ...credit, season });
       }
@@ -365,6 +429,7 @@ export async function crawlAniList(options: {
     seasons: options.seasons,
     mediaCountBySeason,
     mediaCount: seenMediaIds.size,
+    media,
     credits,
     requestCount: counters.network,
     cachedCount: counters.cache,

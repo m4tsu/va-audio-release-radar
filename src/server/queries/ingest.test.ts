@@ -10,7 +10,7 @@ describe("ingest", () => {
 
     const result = await ingest(db, payload(), NOW);
 
-    expect(result).toEqual({ upserted: 1, new: 1, unmatched: 0, skippedAdult: 0 });
+    expect(result).toEqual({ upserted: 1, new: 1, unmatched: 0, skippedByRating: 0 });
 
     const works = await db.select().from(audioWorks);
     expect(works).toHaveLength(1);
@@ -217,20 +217,67 @@ describe("ingest", () => {
     expect(linked).toHaveLength(0);
   });
 
-  it("成人向け作品は保存せず skippedAdult にだけ数える", async () => {
+  it("R18 の作品は保存せず skippedByRating にだけ数える", async () => {
     const db = await setupDb();
 
     const result = await ingest(
       db,
       payload({
-        works: [rawWork(), rawWork({ storeProductId: "RJ00000001", adult: true })],
+        works: [rawWork(), rawWork({ storeProductId: "RJ00000001", ageRating: "r18" })],
       }),
       NOW,
     );
 
-    expect(result).toEqual({ upserted: 1, new: 1, unmatched: 0, skippedAdult: 1 });
+    expect(result).toEqual({ upserted: 1, new: 1, unmatched: 0, skippedByRating: 1 });
     const works = await db.select().from(audioWorks);
     expect(works.map((work) => work.id)).toEqual(["dlsite:RJ01698658"]);
+  });
+
+  // Audible は年齢区分を公開していないので unknown で届く。これを弾くとストアごと落ちる
+  it("年齢区分が unknown の作品は保存する", async () => {
+    const db = await setupDb();
+
+    const result = await ingest(db, payload({ works: [rawWork({ ageRating: "unknown" })] }), NOW);
+
+    expect(result.upserted).toBe(1);
+    const [work] = await db.select().from(audioWorks);
+    expect(work?.ageRating).toBe("unknown");
+  });
+
+  // 「R18 は載せない」は今の判断でしかないので、呼び出し側で覆せることを確かめる
+  it("allowedAgeRatings を渡せば R18 も保存できる", async () => {
+    const db = await setupDb();
+
+    const result = await ingest(
+      db,
+      payload({ works: [rawWork({ storeProductId: "RJ00000001", ageRating: "r18" })] }),
+      NOW,
+      { allowedAgeRatings: ["general", "unknown", "r18"] },
+    );
+
+    expect(result.skippedByRating).toBe(0);
+    const [work] = await db.select().from(audioWorks);
+    expect(work?.ageRating).toBe("r18");
+  });
+
+  it("storeSection をストアの区分のまま保存する", async () => {
+    const db = await setupDb();
+
+    await ingest(db, payload({ works: [rawWork({ storeSection: "home" })] }), NOW);
+
+    const [listing] = await db.select().from(storeListings);
+    expect(listing?.storeSection).toBe("home");
+  });
+
+  // 既知の作品は詳細取得を飛ばすので storeSection が付かない。null で潰すと区分が消える
+  it("storeSection が無い再取り込みでは既存の区分を残す", async () => {
+    const db = await setupDb();
+
+    await ingest(db, payload({ works: [rawWork({ storeSection: "home" })] }), daysAgo(3));
+    await ingest(db, payload({ runId: "run-2", works: [rawWork()] }), NOW);
+
+    const [listing] = await db.select().from(storeListings);
+    expect(listing?.storeSection).toBe("home");
   });
 
   it("error 付きの payload は crawl_runs に error として記録する", async () => {
@@ -242,7 +289,7 @@ describe("ingest", () => {
       NOW,
     );
 
-    expect(result).toEqual({ upserted: 0, new: 0, unmatched: 0, skippedAdult: 0 });
+    expect(result).toEqual({ upserted: 0, new: 0, unmatched: 0, skippedByRating: 0 });
     const [run] = await db.select().from(crawlRuns);
     expect(run?.status).toBe("error");
     expect(run?.error).toBe("302 で検索結果に飛ばされた");

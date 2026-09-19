@@ -11,6 +11,7 @@ import {
   parsePagerCount,
   parseProductJson,
   parseSearchHtml,
+  toAgeRating,
 } from "./dlsite.ts";
 
 // fetchByActor の分岐 (古い順での補完) だけをネットワーク無しで確かめるための差し替え。
@@ -115,7 +116,9 @@ describe("parseSearchHtml", () => {
       makerName: "Bit grooove lab.",
       creditedNames: ["上田麗奈"],
       storeCategory: "SOU",
-      adult: false,
+      // /home/ の一覧なので全年齢。区分は product.json で上書きされる
+      ageRating: "general",
+      storeSection: "home",
       fetchedAt: FETCHED_AT,
       // 一覧に発売日は無い (設計書 §3)。product.json で補う
       releaseDate: undefined,
@@ -148,6 +151,7 @@ describe("parseProductJson", () => {
       makerName: "Bit grooove lab.",
       releaseDate: "2026-08-22",
       ageCategory: 1,
+      siteId: "home",
       workType: "SOU",
       price: 1584,
       officialPrice: 1980,
@@ -209,6 +213,48 @@ describe("applyProductDetail", () => {
     });
     expect(merged.creditedNames).toEqual(["上田麗奈"]);
     expect(merged.releaseDate).toBe("2020-01-01");
+  });
+
+  it("age_category と site_id から年齢区分とストア区分を入れる", () => {
+    const listWork = parseSearchHtml(searchHtml, FETCHED_AT).works[0];
+    if (listWork === undefined) throw new Error("fixture が空");
+
+    const merged = applyProductDetail(listWork, {
+      workno: listWork.storeProductId,
+      voiceNames: [],
+      genres: [],
+      ageCategory: 3,
+      siteId: "maniax",
+    });
+    expect(merged.ageRating).toBe("r18");
+    expect(merged.storeSection).toBe("maniax");
+  });
+
+  // 詳細が取れなかったことを理由に、一覧から分かっている事実まで捨てない
+  it("age_category が無ければ一覧由来の区分を残す", () => {
+    const listWork = parseSearchHtml(searchHtml, FETCHED_AT).works[0];
+    if (listWork === undefined) throw new Error("fixture が空");
+
+    const merged = applyProductDetail(listWork, {
+      workno: listWork.storeProductId,
+      voiceNames: [],
+      genres: [],
+    });
+    expect(merged.ageRating).toBe("general");
+    expect(merged.storeSection).toBe("home");
+  });
+});
+
+describe("toAgeRating", () => {
+  it("1 だけが全年齢で、それ以外は r18 に寄せる", () => {
+    expect(toAgeRating(1)).toBe("general");
+    expect(toAgeRating(2)).toBe("r18");
+    expect(toAgeRating(3)).toBe("r18");
+  });
+
+  // 区分が読めなかった作品を「全年齢」と言い切らない (設計書 §14)
+  it("区分が無ければ unknown", () => {
+    expect(toAgeRating(undefined)).toBe("unknown");
   });
 });
 

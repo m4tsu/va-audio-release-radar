@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
@@ -21,6 +21,13 @@ export const RECENT_DAYS = 30;
 export const NEW_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 画面に出してよい作品の年齢区分 (設計書 §14)。R18 だけを除く形にしてあるのは、
+ * 区分を読めなかった作品 ("unknown"。Audible は年齢区分を公開していない) を落とさないため。
+ * 許可制にすると Audible の作品が丸ごと消える
+ */
+export const notAdultRated = ne(audioWorks.ageRating, "r18");
 
 export type WorkSummary = {
   id: string;
@@ -82,12 +89,12 @@ export async function getWorkById(
   id: string,
   now: string = new Date().toISOString(),
 ): Promise<WorkDetail | undefined> {
-  // 一覧と同じく成人向けは出さない。ここだけ絞っていないと、一覧に出ない作品でも
-  // URL を直接叩けば見えてしまう (設計書 §1「成人向け作品は導入しない」)
+  // 一覧と同じく R18 は出さない。ここだけ絞っていないと、一覧に出ない作品でも
+  // URL を直接叩けば見えてしまう (設計書 §14)
   const [row] = await db
     .select()
     .from(audioWorks)
-    .where(and(eq(audioWorks.id, id), eq(audioWorks.adult, false)))
+    .where(and(eq(audioWorks.id, id), notAdultRated))
     .limit(1);
   if (!row) return undefined;
 
@@ -147,7 +154,7 @@ export async function worksByActor(
     .where(
       and(
         eq(audioCredits.voiceActorId, voiceActorId),
-        eq(audioWorks.adult, false),
+        notAdultRated,
         storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
       ),
     )
@@ -185,7 +192,7 @@ export async function latestWorks(
     .select(workSelection)
     .from(audioWorks)
     .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
-    .where(and(eq(audioWorks.adult, false), withinPeriod(now, sinceDays)))
+    .where(and(notAdultRated, withinPeriod(now, sinceDays)))
     .groupBy(audioWorks.id)
     .orderBy(...feedOrder)
     .limit(limit);
@@ -237,11 +244,7 @@ export async function feedForActors(
       .innerJoin(audioCredits, eq(audioCredits.audioWorkId, audioWorks.id))
       .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
       .where(
-        and(
-          inArray(audioCredits.voiceActorId, ids),
-          eq(audioWorks.adult, false),
-          withinPeriod(now, sinceDays),
-        ),
+        and(inArray(audioCredits.voiceActorId, ids), notAdultRated, withinPeriod(now, sinceDays)),
       )
       .groupBy(audioWorks.id)
       .orderBy(...feedOrder)
@@ -311,7 +314,7 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
     db
       .select({ id: audioWorks.id, updatedAt: audioWorks.updatedAt })
       .from(audioWorks)
-      .where(eq(audioWorks.adult, false))
+      .where(notAdultRated)
       .orderBy(desc(audioWorks.updatedAt)),
   ]);
 

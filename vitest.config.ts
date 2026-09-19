@@ -18,7 +18,12 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["src/domain/**/*.test.ts", "src/server/**/*.test.ts", "crawler/**/*.test.ts"],
+          include: [
+            "src/domain/**/*.test.ts",
+            "src/server/**/*.test.ts",
+            "crawler/**/*.test.ts",
+            "scripts/**/*.test.ts",
+          ],
         },
       },
       {

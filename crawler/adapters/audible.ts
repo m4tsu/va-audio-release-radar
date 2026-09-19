@@ -112,7 +112,9 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       // ナレーター名は「上田 麗奈」のように空白入りのまま入れる。表記の寄せは名寄せ側の責務
       creditedNames: narrators,
       storeCategory: AUDIBLE_STORE_CATEGORY,
-      adult: false,
+      // Audible は年齢区分を公開していないので「全年齢」とは言い切れない。
+      // unknown にしておき、表示側は R18 を除く形で絞る (設計書 §14)
+      ageRating: "unknown",
       fetchedAt,
     };
     candidates.push(candidate);

@@ -1,5 +1,6 @@
 import { Check, Plus } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
+import { useT } from "@/app/i18n";
 import { type FollowTarget, useFollowStore, useIsFollowing } from "@/app/store/follow-store";
 
 /**
@@ -18,6 +19,7 @@ export function FollowButton({
   size?: "sm" | "default";
   className?: string;
 }) {
+  const t = useT();
   const status = useFollowStore((state) => state.status);
   const follow = useFollowStore((state) => state.follow);
   const unfollow = useFollowStore((state) => state.unfollow);
@@ -37,7 +39,7 @@ export function FollowButton({
       }}
     >
       {following ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
-      {following ? "フォロー中" : "フォロー"}
+      {following ? t("follow.following") : t("follow.follow")}
     </Button>
   );
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   categoryLabel,
+  formatDateTime,
   formatDuration,
   formatMonthDay,
   formatPrice,
@@ -76,5 +77,49 @@ describe("categoryLabel", () => {
   test("カテゴリを日本語にする", () => {
     expect(categoryLabel("asmr")).toBe("ASMR");
     expect(categoryLabel("audiobook")).toBe("朗読");
+  });
+
+  test("英語では英語にする", () => {
+    expect(categoryLabel("audiobook", "en")).toBe("Audiobook");
+    expect(categoryLabel("audio_drama", "en")).toBe("Audio drama");
+    // ASMR は英語圏でもそのままの語
+    expect(categoryLabel("asmr", "en")).toBe("ASMR");
+  });
+});
+
+/** 言語を渡さない呼び出しは日本語のまま (上の describe 群がそれを見ている) */
+describe("英語表示", () => {
+  test("再生時間の単位が変わる", () => {
+    expect(formatDuration(29520, "en")).toBe("8 hr 12 min");
+    expect(formatDuration(2700, "en")).toBe("45 min");
+    expect(formatDuration(7200, "en")).toBe("2 hr");
+  });
+
+  test("発売日は英語の書式になる", () => {
+    expect(formatReleaseDate("2026-09-01", "en")).toBe("September 1, 2026");
+    expect(formatMonthDay("2026-10-01", "en")).toBe("Oct 1");
+  });
+
+  /** 日付は UTC のまま組み立てる。実行環境のタイムゾーンで前日にずれないこと */
+  test("日付はタイムゾーンでずれない", () => {
+    expect(formatReleaseDate("2026-01-01", "en")).toBe("January 1, 2026");
+    expect(formatReleaseDate("2026-01-01")).toBe("2026年1月1日");
+    expect(formatMonthDay("2026-01-01")).toBe("1月1日");
+  });
+
+  test("価格は通貨を変えない (売っているのは日本のストア)", () => {
+    expect(formatPrice(1584, "en")).toBe("¥1,584");
+  });
+
+  /** 価格の取得時点は言語を問わず JST で読ませる */
+  test("日時は言語が変わっても JST のまま", () => {
+    const iso = "2026-09-18T04:30:00.000Z";
+    expect(formatDateTime(iso)).toContain("13:30");
+    expect(formatDateTime(iso, "en")).toContain("1:30");
+  });
+
+  test("読めない日付はそのまま返す", () => {
+    expect(formatReleaseDate("", "en")).toBe("");
+    expect(formatMonthDay("not-a-date", "en")).toBe("not-a-date");
   });
 });

@@ -4,6 +4,8 @@ import { useEffect, useId, useState } from "react";
 import { FollowButton } from "@/app/components/follow-button";
 import { Input } from "@/app/components/ui/input";
 import { useDebouncedValue } from "@/app/hooks/use-debounced-value";
+import { useLocale, useT } from "@/app/i18n";
+import { actorDisplayName } from "@/app/lib/actor-name";
 import type { ActorSummary } from "@/app/lib/view-types";
 import { searchActorsFn } from "@/app/server-fns/actors";
 
@@ -17,6 +19,7 @@ const RESULT_LIMIT = 8;
  * 検索はクライアントからしか走らない。SSR には入力欄だけが出る
  */
 export function ActorSearch() {
+  const t = useT();
   const inputId = useId();
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query.trim(), DEBOUNCE_MS);
@@ -52,7 +55,7 @@ export function ActorSearch() {
   return (
     <section className="space-y-3">
       <label htmlFor={inputId} className="font-medium text-sm">
-        声優を探してフォローする
+        {t("search.label")}
       </label>
       <div className="relative">
         <Search
@@ -64,7 +67,7 @@ export function ActorSearch() {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="声優名 (例: 上田麗奈)"
+          placeholder={t("search.placeholder")}
           autoComplete="off"
           className="pl-9"
         />
@@ -86,16 +89,19 @@ function SearchResults({
   searching: boolean;
   query: string;
 }) {
+  const t = useT();
+  const locale = useLocale();
+
   if (results.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        {searching ? "検索中…" : `「${query}」に一致する声優は見つかりませんでした。`}
+        {searching ? t("search.searching") : t("search.noResults", { query })}
       </p>
     );
   }
 
   return (
-    <ul aria-label="検索結果" className="divide-y rounded-xl border bg-card">
+    <ul aria-label={t("search.resultsLabel")} className="divide-y rounded-xl border bg-card">
       {results.map((actor) => (
         <li key={actor.id} className="flex items-center justify-between gap-3 px-4 py-3">
           <Link
@@ -103,11 +109,13 @@ function SearchResults({
             params={{ slug: actor.slug }}
             className="min-w-0 hover:underline"
           >
-            <span className="font-medium">{actor.canonicalName}</span>
+            <span className="font-medium">{actorDisplayName(actor, locale)}</span>
             {actor.nameKana ? (
               <span className="ml-2 text-muted-foreground text-xs">{actor.nameKana}</span>
             ) : null}
-            <span className="ml-2 text-muted-foreground text-xs">{actor.workCount} 作品</span>
+            <span className="ml-2 text-muted-foreground text-xs">
+              {t("common.worksCount", { count: actor.workCount })}
+            </span>
           </Link>
           <FollowButton
             actor={{

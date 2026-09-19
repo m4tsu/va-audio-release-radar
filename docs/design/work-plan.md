@@ -1,7 +1,9 @@
 # 作業計画と進行記録
 
-Date: 2026-09-18 (夜間の自律作業)
 方針: 設計・タスク分割・レビューは上流担当 (Fable)、実装は下位モデルのサブエージェントが行う。
+
+この文書はタスクの進行記録と、人が手を動かす必要があることの一覧。
+**設計の現状は [`architecture.md`](./architecture.md)、決定の経緯は [`decisions.md`](./decisions.md)。**
 
 ## タスク一覧
 
@@ -24,7 +26,9 @@ Date: 2026-09-18 (夜間の自律作業)
 - ローカル D1: 声優 35、作品 424、listing 424、credit 1493 (テストデータは削除済み)
 - git: 初期化のみ。コミットは 0 件 (全ファイルが未追跡)。本番デプロイ・remote へのマイグレーション適用は未実施
 
-## 次にやること (候補)
+## T7 (夜間作業) 終了時点での積み残し
+
+記録。現在の作業は末尾の「次の作業」を見る。
 
 1. ユーザー確認後にコミット → GitHub リポジトリ作成 → `npm run deploy` → `npm run db:migrate:remote` → 本番 D1 へ初回クロール (`INGEST_URL` を本番に向けて `radar:crawl`)
 2. 企画書 Milestone 5: アフィリエイト URL (`store_listings.affiliate_url`) の生成。アフィリエイト ID が入ってから
@@ -83,22 +87,41 @@ Date: 2026-09-18 (夜間の自律作業)
 
 - Cloudflare: wrangler ログイン済み (account id 22a094315813df5b583e86fcc338d11d)。D1 は作成可能
 - GitHub: gh ログイン済み (m4tsu)
-- DLsite / Audible / AniList への到達性: `docs/design/architecture.md` §3
+- DLsite / Audible / AniList への到達性: [`architecture.md`](./architecture.md) §6
 
 ## 2026-09-18 日中の決定と進行中の作業
 
-### 決定 (設計書 §9〜§14 に詳細)
+### 日中のタスク (T8〜T15 / A1〜A8)
 
-| 論点 | 決定 |
-|---|---|
-| 対象声優 | AniList にアニメ出演がある声優 2,569 人。手書きリストを廃止し自動生成 |
-| 取得方針 | 声優起点。sitemap の全件取得はしない (27 倍のコスト差) |
-| 新着 | 発売日基準。フィードは 3 段。back catalog が主内容 |
-| 差別化の軸 | 出演形態 (単独 / 少人数 / 全編朗読 / 大人数) |
-| 年齢区分 | **全年齢 + BL**。R18 は載せない (実利ゼロ + Amazon アソシエイトのリスク) |
-| 次のストア | **ポケットドラマ CD** (斉藤壮馬 143 件。既存 2 ストアが取りこぼす男性声優とドラマ CD の本流) |
-| audiobook.jp | 規約 第15条(15) の照会が前提。**ユーザーが照会を実施**。返信待ちの間はポケドラを進める |
-| 別名義 | 信頼できる情報に基づく場合のみ紐付ける。DLsite からは根拠が得られないと実測で確認 |
+夜間の T0〜T7 と違い、日中は個別の起票を残していない。成果物から確認できる範囲で次のとおり。
+
+| ID | 内容 | 成果物 |
+|---|---|---|
+| T8 | Audible の空白入り別名フォールバック (検証済み → 未検証の順に候補を試す) | `crawler/adapters/audible.ts`, `crawler/lib/ingest.ts` |
+| T9 | 発見スパイク (AniList × DLsite sitemap の交差) | `docs/research/discovery-spike-2026-09-18.md`, `crawler/discovery/run.ts` |
+| T10 | フィードの 3 段構成、`freshness`、未読 | `src/server/queries/works.ts`, `src/app/routes/index.tsx` |
+| T11 | Audible の `sort=pubdate-desc-rank` 対応 | `crawler/adapters/audible.ts` |
+| T12 | 網羅率 (`totalCount` / `coverageComplete`) と古い順での補完 | `crawler/adapters/coverage.ts`, `crawl_runs` の 2 列 |
+| T13 | 対象声優の自動生成 (2,569 人)、作品 0 件の声優をページ・一覧・sitemap から外す | `crawler/discovery/actor-entity.ts`, `crawler/actors.generated.json` |
+| T14 | 生成規則の修正 (1 語名義を除外しない、姓の切り方を名前の長さで変える) | 同上 |
+| T15 | `adult: boolean` → `ageRating` の列挙、`storeSection` の追加 | `src/domain/types.ts`, `src/server/db/schema.ts`, `migrations/` |
+
+| ID | 調査 | 成果物 |
+|---|---|---|
+| A1 / A2 | Audible の「該当なし」302 の検証 (頻度制限ではなく検索結果 0 件であることの確認) (推測: 起票の粒度は記録が無い) | `architecture.md` §6 の Audible |
+| A3 | Audible の並び順パラメータの実測 | `architecture.md` §6 の Audible |
+| A4 | DLsite のページング上限の実測 (`per_page` は無視される、`pager.count` が取れる) | `decisions.md` §4 |
+| A5 | ストア横断調査 | `docs/research/store-survey-2026-09-18.md` |
+| A6 | 年齢区分の実利調査 | `docs/research/adult-scope-2026-09-18.md` |
+| A7 | オトバンクへの照会の窓口と文面 | `docs/research/otobank-inquiry-draft.md` |
+| A8 | ポケドラのフィクスチャ収集と取得仕様の確定 | `architecture.md` §6 のポケットドラマ CD, `decisions.md` §12 |
+
+### 決定
+
+2026-09-18 日中のブレストと調査で決めたことは [`decisions.md`](./decisions.md) にまとめてある
+(対象声優の自動生成、声優起点の取得、発売日基準の新着、出演形態への差別化、全年齢 + BL、
+次のストアはポケドラ、audiobook.jp の規約照会、別名義の原則)。ここには要約を置かない。
+2 箇所に書くと片方だけ古くなるため。
 
 ### ユーザーが行うこと
 
@@ -109,7 +132,28 @@ Date: 2026-09-18 (夜間の自律作業)
 
 ### 次の作業
 
-1. 上位 500 人のスイープ (2〜4 時間)。T14 完了後に開始
-2. ポケットドラマ CD の adapter 実装 (一般 + BL の 2 区分。年齢確認・Cookie 不要)
-3. `AudioWork.adult: boolean` を年齢区分の列挙に変更する
-4. 出演形態の分類をドメイン層に追加する
+実行中 (別セッション。どちらもプロセス単位のレート制限を使うので、**同じストアへ同時に出ない**こと):
+
+| | 内容 | 状態 |
+|---|---|---|
+| S1 | 上位 500 人のスイープ (DLsite / Audible)。対象声優の厚みを実データで測る | 実行中 (2〜4 時間) |
+| S2 | ポケドラの声優タグ辞書の構築 (`crawler/discovery/pokedora-tags.ts`、3,161 件 × 5 秒) | 実行中 (4.4 時間) |
+
+S1 / S2 が終わってから着手するもの:
+
+1. S2 の辞書を AniList 2,569 人と交差させる (`crawler/discovery/pokedora-intersect.ts`)。
+   ネットワークに出ないので S2 の完了直後に回せる
+2. ポケットドラマ CD の adapter 実装 (一般 + BL の 2 区分。年齢確認・Cookie 不要)。
+   `StoreSlug` に `pokedora` を追加する。取得仕様は `architecture.md` §6
+3. 出演形態 (単独 / 少人数 / 全編朗読 / 大人数) の分類をドメイン層に追加する
+4. S1 の結果で GO / NO-GO の厚み (音声作品が 1 本以上ある対象声優の人数、1 人あたりの作品総数) を判定する
+
+いつでも着手できるもの:
+
+5. カテゴリ判定の取りこぼし (ジャンル「歴史/時代物」のみの連作ドラマ 8 件) の扱い
+6. `voice_actors` が 100 人を超える前に、管理画面の一覧・検索のページングを確認する
+7. 通知の設計 (OAuth 登録、フォローのサーバー同期、週次ダイジェスト。`architecture.md` §9)
+
+完了済み:
+
+- `AudioWork.adult: boolean` → `ageRating` の列挙 (T15 で対応済み)

@@ -10,7 +10,7 @@ function work(storeProductId: string, titleRaw: string, releaseDate?: string): R
     titleRaw,
     productUrl: `https://example.com/${storeProductId}`,
     creditedNames: [],
-    adult: false,
+    ageRating: "general",
     fetchedAt: "2026-09-18T00:00:00.000Z",
     releaseDate,
   };

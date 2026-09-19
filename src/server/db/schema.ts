@@ -1,5 +1,12 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { CREDIT_CONFIDENCES, STORE_SLUGS, WORK_CATEGORIES } from "@/domain/types";
+import {
+  AGE_RATINGS,
+  ANIME_ROLES,
+  ANIME_SEASONS,
+  CREDIT_CONFIDENCES,
+  STORE_SLUGS,
+  WORK_CATEGORIES,
+} from "@/domain/types";
 
 /**
  * D1 (SQLite) のスキーマ。設計書 (docs/design/architecture.md) §5 に対応する。
@@ -24,6 +31,8 @@ export const voiceActors = sqliteTable(
     slug: text("slug").notNull(),
     canonicalName: text("canonical_name").notNull(),
     nameKana: text("name_kana"),
+    // 英語名 ("Reina Ueda")。slug ("ueda-reina") からは姓名の順も大文字も戻せないので列で持つ
+    nameEn: text("name_en"),
     anilistStaffId: integer("anilist_staff_id"),
     imageUrl: text("image_url"),
     status: text("status", { enum: VOICE_ACTOR_STATUSES }).notNull().default("unknown"),
@@ -57,7 +66,11 @@ export const audioWorks = sqliteTable(
     releaseDate: text("release_date"),
     coverImageUrl: text("cover_image_url"),
     durationSeconds: integer("duration_seconds"),
-    adult: integer("adult", { mode: "boolean" }).notNull().default(false),
+    /**
+     * 年齢区分 (設計書 §14)。既定を "unknown" にしてあるのは、区分を読めなかった作品を
+     * 「全年齢」と言い切らないため。読み取り側は R18 を除外する形で絞る
+     */
+    ageRating: text("age_rating", { enum: AGE_RATINGS }).notNull().default("unknown"),
     makerName: text("maker_name"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
@@ -80,6 +93,9 @@ export const storeListings = sqliteTable(
     titleRaw: text("title_raw").notNull(),
     price: integer("price"),
     listPrice: integer("list_price"),
+    // ストアが名乗っている区分をそのまま持つ (DLsite の home / maniax など)。
+    // 年齢区分と違って解釈しないので、ストアが区分を増やしても移行が要らない
+    storeSection: text("store_section"),
     available: integer("available", { mode: "boolean" }).notNull().default(true),
     firstSeenAt: text("first_seen_at").notNull(),
     lastSeenAt: text("last_seen_at").notNull(),
@@ -133,7 +149,7 @@ export const crawlRuns = sqliteTable(
     error: text("error"),
     /**
      * ストアが出している検索結果の総件数 (設計書 §13)。読み取れなければ NULL。
-     * `work_count` は成人向けを除いた保存件数なので、総件数と一致しないことがある。
+     * `work_count` は許可した年齢区分だけの保存件数なので、総件数と一致しないことがある。
      * 網羅できたかどうかの判定には下の `coverage_complete` を使う
      */
     totalCount: integer("total_count"),
@@ -142,4 +158,69 @@ export const crawlRuns = sqliteTable(
   },
   // 「同じストア × 同じ声優の前回の結果」を引いて件数の急減を検知する (設計書 §5)
   (t) => [index("crawl_runs_store_actor_started_idx").on(t.storeSlug, t.voiceActorId, t.startedAt)],
+);
+
+/**
+ * アニメ 1 作品 (設計書 docs/feature-proposals/anime-season-entry-design-2026-09-18.md §3)。
+ * あらすじ・話数・放送局は持たない。アニメ事典にしないための歯止め (同 §5)
+ */
+export const animeTitles = sqliteTable(
+  "anime_titles",
+  {
+    // "anilist:195516"。AniList の mediaId を接頭辞付きで持ち、出典が変わっても衝突しないようにする
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull(),
+    titleNative: text("title_native").notNull(),
+    titleRomaji: text("title_romaji").notNull(),
+    // AniList で実際に null のことがある。表示側は title_romaji で埋める
+    titleEnglish: text("title_english"),
+    seasonYear: integer("season_year").notNull(),
+    season: text("season", { enum: ANIME_SEASONS }).notNull(),
+    // AniList の CDN URL をそのまま参照する。画像を自前で再配信しない (同 §2)
+    coverImageUrl: text("cover_image_url"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("anime_titles_slug_unique").on(t.slug),
+    // /anime/season/{year}-{season} がこの索引だけで引ける
+    index("anime_titles_season_idx").on(t.seasonYear, t.season),
+  ],
+);
+
+/**
+ * アニメ × キャラクター × 声優の 1 行。キャラクター情報はこの行に持つ。
+ *
+ * キャラクターを別テーブルに分けないのは、キャラクターが「このアニメで、この声優が」という
+ * 文脈でしか使われないため
+ */
+export const animeAppearances = sqliteTable(
+  "anime_appearances",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    animeTitleId: text("anime_title_id")
+      .notNull()
+      .references(() => animeTitles.id),
+    voiceActorId: text("voice_actor_id")
+      .notNull()
+      .references(() => voiceActors.id),
+    // "anilist:12345"
+    characterId: text("character_id").notNull(),
+    characterNameNative: text("character_name_native").notNull(),
+    characterNameFull: text("character_name_full"),
+    characterImageUrl: text("character_image_url"),
+    role: text("role", { enum: ANIME_ROLES }).notNull(),
+  },
+  (t) => [
+    // 1 人が 1 作品で複数キャラを演じることがあるので、(作品, 声優) では一意にならない。
+    // キャラクターまで含めて初めて 1 行が定まる
+    uniqueIndex("anime_appearances_title_character_actor_unique").on(
+      t.animeTitleId,
+      t.characterId,
+      t.voiceActorId,
+    ),
+    // アニメ → 出演者、声優 → 出演アニメ の両方向を引くので索引も両方張る
+    index("anime_appearances_anime_title_id_idx").on(t.animeTitleId),
+    index("anime_appearances_voice_actor_id_idx").on(t.voiceActorId),
+  ],
 );

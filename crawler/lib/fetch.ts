@@ -24,13 +24,17 @@ const DEFAULT_RATE_LIMITED_DELAY_MS = 60_000;
 /** Retry-After が極端な値でも待ちすぎないための上限 */
 const MAX_RETRY_AFTER_MS = 120_000;
 
-export type FetchKind = "html" | "json";
+/** "binary" は gzip など文字列に直せない本文を取るときに使う (ポケドラの sitemap `.xml.gz`) */
+export type FetchKind = "html" | "json" | "binary";
 
 export type FetchSuccess = {
   ok: true;
   status: number;
   url: string;
+  /** kind が "binary" のときは空文字。本体は `bytes` に入る */
   body: string;
+  /** kind が "binary" のときだけ入る生バイト列 */
+  bytes?: Uint8Array;
   /** 保存したスナップショットのパス (--no-snapshot 時は undefined) */
   snapshotPath?: string;
 };
@@ -90,6 +94,12 @@ export function rateLimitFor(rawUrl: string): RateLimit {
   }
   if (host === "audible.co.jp" || host.endsWith(".audible.co.jp")) {
     return { key: "audible", intervalMs: 6_000 };
+  }
+  // ポケドラの robots.txt は `Disallow: /cart/*` と `/mypage/*` だけで Crawl-delay の指定が無い。
+  // 指定が無いときに何秒が妥当かは相手にしか分からないので、こちらで保守的に 5 秒を採る。
+  // 声優タグ辞書は 3,161 件の一度きりのバッチで、速く終わらせる必要がない (設計書 §15 の訂正)
+  if (host === "pokedora.com" || host.endsWith(".pokedora.com")) {
+    return { key: "pokedora", intervalMs: 5_000 };
   }
   // AniList は 1 分あたりのリクエスト上限があり、超えると 429 + Retry-After を返す。
   // 公称 90 req/min に対し余裕を取って 1.5 秒 (= 40 req/min) にする
@@ -195,17 +205,25 @@ async function attempt(rawUrl: string, options: FetchOptions): Promise<Attempt> 
     };
   }
 
-  let body: string;
+  // gzip は文字列に落とすと壊れるので、binary だけはバイト列のまま返す。
+  // text() の文字コード判定 (Content-Type の charset) は html / json ではそのまま使いたいので、
+  // 全部をバイト列経由にはしない
   try {
-    body = await response.text();
+    if (options.kind === "binary") {
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return { ok: true, status: response.status, url: rawUrl, body: "", bytes };
+    }
+    return { ok: true, status: response.status, url: rawUrl, body: await response.text() };
   } catch (error) {
     const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return { ok: false, url: rawUrl, status: response.status, reason, retryable: true };
   }
-
-  return { ok: true, status: response.status, url: rawUrl, body };
 }
 
+/**
+ * 外部サイトの取得。kind が "binary" のときは `bytes` に、それ以外は `body` に本文が入る。
+ * 名前は履歴上 fetchText のままにしてある (呼び出し側が多く、改名の実利がないため)
+ */
 export async function fetchText(rawUrl: string, options: FetchOptions): Promise<FetchResult> {
   let last = await attempt(rawUrl, options);
   // 429 は待てば通る見込みがあるので、通常の 1 回より多く粘る。
@@ -229,16 +247,21 @@ export async function fetchText(rawUrl: string, options: FetchOptions): Promise<
     return failure;
   }
 
-  const snapshotPath = await saveSnapshot(last.body, options);
+  const snapshotPath = await saveSnapshot(last, options);
   return snapshotPath === undefined ? last : { ...last, snapshotPath };
 }
 
 /** 取得した生データを残す。パーサーが壊れたときに再現できるようにするため (企画書 §20) */
-async function saveSnapshot(body: string, options: FetchOptions): Promise<string | undefined> {
+async function saveSnapshot(
+  result: FetchSuccess,
+  options: FetchOptions,
+): Promise<string | undefined> {
   if (options.snapshot === false) return undefined;
   const dir = path.join(SNAPSHOT_DIR, safeFileName(options.store));
-  const file = path.join(dir, `${safeFileName(options.requestKey)}.${options.kind}`);
+  // binary の中身は gzip などなので、テキストとして開かせないよう拡張子を分ける
+  const extension = options.kind === "binary" ? "bin" : options.kind;
+  const file = path.join(dir, `${safeFileName(options.requestKey)}.${extension}`);
   await mkdir(dir, { recursive: true });
-  await writeFile(file, body, "utf8");
+  await writeFile(file, result.bytes ?? result.body);
   return file;
 }

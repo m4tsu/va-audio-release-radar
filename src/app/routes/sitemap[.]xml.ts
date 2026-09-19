@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getDb } from "@/server/db/client";
+import { animeSitemapEntries } from "@/server/queries/anime";
 import { sitemapEntries } from "@/server/queries/works";
 import { siteOrigin } from "@/server/site";
 
@@ -20,7 +21,10 @@ export const Route = createFileRoute("/sitemap.xml")({
     handlers: {
       GET: async ({ request }) => {
         const origin = siteOrigin(request);
-        const { actors, works } = await sitemapEntries(getDb());
+        const [{ actors, works }, anime] = await Promise.all([
+          sitemapEntries(getDb()),
+          animeSitemapEntries(getDb()),
+        ]);
 
         const urls = [
           buildUrl(origin, "/"),
@@ -28,6 +32,9 @@ export const Route = createFileRoute("/sitemap.xml")({
             buildUrl(origin, `/voice-actors/${actor.slug}`, actor.updatedAt),
           ),
           ...works.map((work) => buildUrl(origin, `/works/${work.id}`, work.updatedAt)),
+          // 出演者が全員「音声作品なし」のアニメは animeSitemapEntries が返さないので、
+          // 404 になるページが sitemap に載ることはない
+          ...anime.map((item) => buildUrl(origin, `/anime/${item.slug}`, item.updatedAt)),
         ];
 
         const xml = [

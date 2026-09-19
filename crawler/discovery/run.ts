@@ -12,8 +12,11 @@ import {
   aggregateStaff,
   crawlAniList,
   enumerateSeasons,
+  queryFingerprint,
+  SEASON_PAGE_QUERY,
   type SeasonCredit,
   type SeasonKey,
+  type SeasonMedia,
   type StaffRecord,
 } from "./anilist.ts";
 import { crawlSitemap } from "./dlsite-sitemap.ts";
@@ -77,7 +80,9 @@ const USAGE = `使い方:
   --seasons <N>     AniList の対象シーズン数 (既定 12 = 2024 WINTER 〜 2026 FALL)
   --media <N>       1 シーズンあたりの作品数 (既定 100)
   --audible         交差上位のうちシードに居ない ${AUDIBLE_SAMPLE} 人を Audible で引く
+  --anilist-only    AniList の取得だけを行い、交差もレポート書き出しもしない
   --refresh         .cache/discovery の中間結果を使わず取り直す
+                    (DLsite の sitemap と product.json も取り直すので時間がかかる)
   --no-snapshot     生データを .cache/snapshots に保存しない
 `;
 
@@ -86,6 +91,7 @@ const OPTION_SPEC = {
   seasons: { type: "string" },
   media: { type: "string" },
   audible: { type: "boolean" },
+  "anilist-only": { type: "boolean" },
   refresh: { type: "boolean" },
   "no-snapshot": { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -412,6 +418,10 @@ type AniListPhaseResult = {
   seasons: SeasonKey[];
   mediaCount: number;
   mediaCountBySeason: Record<string, number>;
+  /** 作品そのもの。アニメ導線の生成 (build-anime.ts) が使う */
+  media: SeasonMedia[];
+  /** 取得に使ったクエリの指紋。取得項目を変えたら中間結果も作り直す */
+  queryFingerprint: string;
   staff: StaffRecord[];
   withoutNativeName: number;
   requestCount: number;
@@ -427,11 +437,14 @@ async function runAniListPhase(options: {
 }): Promise<AniListPhaseResult> {
   if (!options.refresh) {
     const cached = await readJson<AniListPhaseResult>(ANILIST_STAFF_JSON);
-    // 取得条件が違う中間結果を黙って使うと、シーズン数を増やしたのに数字が変わらない事故になる
+    // 取得条件が違う中間結果を黙って使うと、シーズン数を増やしたのに数字が変わらない事故になる。
+    // クエリの指紋も見るのは、取得項目を増やしたときに「形は新しいが中身が古い」中間結果を
+    // 再利用してしまうため (2026-09-18 に実際に踏んだ。キャラクター名が全件空のまま通った)
     const sameScope =
       cached !== undefined &&
       cached.mediaPerSeason === options.mediaPerSeason &&
-      cached.seasons.length === options.seasons.length;
+      cached.seasons.length === options.seasons.length &&
+      cached.queryFingerprint === queryFingerprint(SEASON_PAGE_QUERY);
     if (cached !== undefined && sameScope) {
       console.log("[AniList] .cache/discovery/anilist-staff.json を再利用");
       return cached;
@@ -456,6 +469,8 @@ async function runAniListPhase(options: {
     seasons: crawled.seasons,
     mediaCount: crawled.mediaCount,
     mediaCountBySeason: crawled.mediaCountBySeason,
+    media: crawled.media,
+    queryFingerprint: queryFingerprint(SEASON_PAGE_QUERY),
     staff,
     withoutNativeName,
     requestCount: crawled.requestCount,
@@ -541,6 +556,20 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   console.log(`対象期間: ${windowStartIso} 〜 ${TODAY} (${WINDOW_DAYS} 日)`);
   const startedAt = Date.now();
+
+  // AniList だけを取り直したいときの経路 (アニメ導線のデータ生成の前段)。
+  // 通しで走らせると DLsite にも出ていくうえ、docs/research/ の調査ノートを上書きしてしまう。
+  // 調査ノートは実測の記録なので後から書き換えない (docs/README.md)
+  if (values["anilist-only"] === true) {
+    const anilistOnly = await runAniListPhase({ seasons, mediaPerSeason, refresh, snapshot });
+    console.log(
+      `[AniList] 作品 ${anilistOnly.media.length} 件 / 声優 ${anilistOnly.staff.length} 人 ` +
+        `(リクエスト ${anilistOnly.requestCount} 回、キャッシュ ${anilistOnly.cachedCount} 回)`,
+    );
+    console.log(`書き出した: ${ANILIST_STAFF_JSON}`);
+    console.log(`書き出した: ${ANILIST_CREDITS_JSON}`);
+    return 0;
+  }
 
   // AniList と DLsite はレート制限の枠が別なので同時に走らせる。合計時間が半分近くになる
   const [anilist, dlsite] = await Promise.all([

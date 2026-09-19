@@ -8,7 +8,7 @@ const VALID: RawWork = {
   titleRaw: "テスト作品",
   productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ01698658.html",
   creditedNames: ["上田麗奈"],
-  adult: false,
+  ageRating: "general",
   fetchedAt: "2026-09-18T00:00:00.000Z",
 };
 

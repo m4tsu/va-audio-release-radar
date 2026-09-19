@@ -1,3 +1,22 @@
+> [!WARNING]
+> **この文書は 2026-09-18 に作成された最初の草案であり、現行の設計ではない。**
+>
+> **現在の設計は [`docs/design/architecture.md`](./design/architecture.md) が正。**
+> 本文は原文の記録として残してあり、以後の決定を反映していない。
+> 以下は草案から覆った主な点で、経緯と根拠は [`docs/design/decisions.md`](./design/decisions.md) にある。
+>
+> | 草案の記述 | 現在 |
+> |---|---|
+> | 対象声優は人が選んだリストから始める | AniList にアニメ出演がある声優 2,569 人を機械的に生成する |
+> | §5 直近 90 日の新着を扱う | 全期間の back catalog が主内容。90 日制限は実装上の制約ではなかった |
+> | 新着は発見日基準 | 発売日基準。フィードは 3 段 (今後の発売 / 30 日以内 / それ以前) |
+> | フィードが主機能。薄ければ kill | 「めったに鳴らない通知」が主。フィードの薄さは kill criteria から外した |
+> | §26 全年齢のみ | 全年齢 + BL。R18 は載せない (実利ゼロ + Amazon アソシエイトのリスク) |
+> | `adult: boolean` | `ageRating` の列挙 + ストア固有区分 `storeSection` |
+> | Phase 2 の次のストアは未定 | ポケットドラマ CD。audiobook.jp は規約照会の返信待ち |
+> | 差別化は「ストア横断」 | 出演形態 (単独 / 少人数 / 全編朗読 / 大人数) を軸に置く |
+> | 通知は Phase 1.5 の Nice-to-have | 通知が中核。OAuth 登録、新作が出た週だけ 1 通 |
+
 # Voice Actor Audio Release Radar — Development Plan
 
 Date: 2026-09-18  

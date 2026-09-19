@@ -11,6 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
+import { createTranslator, useLocale, useT } from "@/app/i18n";
+import { actorDisplayName } from "@/app/lib/actor-name";
 import { handleAdminTokenQuery } from "@/app/lib/admin-token";
 import { formatDateTime } from "@/app/lib/format";
 import { cn } from "@/app/lib/utils";
@@ -35,13 +37,17 @@ export const Route = createFileRoute("/admin/crawler-health")({
     if (!session.authorized) return { authorized: false as const, configured: session.configured };
     return { authorized: true as const, health: await fetchCrawlerHealth() };
   },
-  head: () => ({
-    meta: [{ title: "クローラー健全性 | 管理" }, ...ADMIN_HEAD_META],
+  head: ({ match }) => ({
+    meta: [
+      { title: createTranslator(match.context.locale)("admin.healthMetaTitle") },
+      ...ADMIN_HEAD_META,
+    ],
   }),
   component: CrawlerHealthPage,
 });
 
 function CrawlerHealthPage() {
+  const t = useT();
   const data = Route.useLoaderData();
   if (!data.authorized) return <AdminUnauthorized configured={data.configured} />;
 
@@ -51,29 +57,33 @@ function CrawlerHealthPage() {
   return (
     <div>
       <PageHeader
-        title="クローラー健全性"
-        description={`直近 24 時間: 成功 ${last24h.ok} / 失敗 ${last24h.error}。要対応 ${warnings} 件。`}
+        title={t("admin.healthTitle")}
+        description={t("admin.healthSummary", {
+          ok: last24h.ok,
+          error: last24h.error,
+          warnings,
+        })}
         actions={
           <Link to="/admin/unmatched-credits" className="text-sm underline underline-offset-4">
-            未解決クレジットへ
+            {t("admin.healthToUnmatched")}
           </Link>
         }
       />
 
       {entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">まだクロールの記録がない。</p>
+        <p className="text-muted-foreground text-sm">{t("admin.healthEmpty")}</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>声優</TableHead>
-              <TableHead>ストア</TableHead>
-              <TableHead>直近の実行</TableHead>
-              <TableHead className="text-right">取得件数</TableHead>
-              <TableHead className="text-right">網羅</TableHead>
-              <TableHead className="text-right">前回比</TableHead>
-              <TableHead className="text-right">新規</TableHead>
-              <TableHead>状態</TableHead>
+              <TableHead>{t("admin.healthColumnActor")}</TableHead>
+              <TableHead>{t("admin.healthColumnStore")}</TableHead>
+              <TableHead>{t("admin.healthColumnLatestRun")}</TableHead>
+              <TableHead className="text-right">{t("admin.healthColumnWorkCount")}</TableHead>
+              <TableHead className="text-right">{t("admin.healthColumnCoverage")}</TableHead>
+              <TableHead className="text-right">{t("admin.healthColumnDiff")}</TableHead>
+              <TableHead className="text-right">{t("admin.healthColumnNew")}</TableHead>
+              <TableHead>{t("admin.healthColumnStatus")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -95,11 +105,12 @@ function CrawlerHealthPage() {
  * 総件数を読めなかった run は「—」にする。完全と取り違えないため
  */
 function CoverageCell({ latest }: { latest: CrawlerHealthEntry["latest"] }) {
+  const t = useT();
   const incomplete = latest.coverageComplete === false;
   return (
     <TableCell
       className={cn("text-right tabular-nums", incomplete && "font-medium text-destructive")}
-      title={incomplete ? "検索の 1 ページ目では取り切れていない" : undefined}
+      title={incomplete ? t("admin.healthCoverageIncomplete") : undefined}
     >
       {latest.totalCount === undefined ? "—" : `${latest.workCount}/${latest.totalCount}`}
     </TableCell>
@@ -107,6 +118,8 @@ function CoverageCell({ latest }: { latest: CrawlerHealthEntry["latest"] }) {
 }
 
 function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
+  const t = useT();
+  const locale = useLocale();
   const previous = entry.previousOk?.workCount;
   const diff = previous === undefined ? undefined : entry.latest.workCount - previous;
 
@@ -119,7 +132,9 @@ function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
             params={{ slug: entry.voiceActorSlug }}
             className="hover:underline"
           >
-            {entry.voiceActorName ?? entry.voiceActorId}
+            {entry.voiceActorName
+              ? actorDisplayName({ canonicalName: entry.voiceActorName }, locale)
+              : entry.voiceActorId}
           </Link>
         ) : (
           entry.voiceActorId
@@ -127,7 +142,7 @@ function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
       </TableCell>
       <TableCell>{storeLabel(entry.storeSlug)}</TableCell>
       <TableCell className="text-muted-foreground">
-        {formatDateTime(entry.latest.startedAt)}
+        {formatDateTime(entry.latest.startedAt, locale)}
       </TableCell>
       <TableCell className="text-right tabular-nums">{entry.latest.workCount}</TableCell>
       <CoverageCell latest={entry.latest} />
@@ -142,11 +157,11 @@ function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
       <TableCell className="text-right tabular-nums">{entry.latest.newCount}</TableCell>
       <TableCell className="whitespace-normal">
         {entry.latest.status === "error" ? (
-          <Badge variant="destructive">失敗</Badge>
+          <Badge variant="destructive">{t("admin.healthStatusError")}</Badge>
         ) : entry.warning ? (
-          <Badge variant="destructive">要確認</Badge>
+          <Badge variant="destructive">{t("admin.healthStatusWarning")}</Badge>
         ) : (
-          <Badge variant="secondary">正常</Badge>
+          <Badge variant="secondary">{t("admin.healthStatusOk")}</Badge>
         )}
         {entry.warningReason ? (
           <p className="mt-1 text-muted-foreground text-xs">{entry.warningReason}</p>

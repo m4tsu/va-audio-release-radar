@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { ingestPayloadSchema, rawWorkSchema } from "./types.ts";
+import {
+  INGEST_PROTOCOL_VERSION,
+  ingestPayloadSchema,
+  rawWorkSchema,
+  readProtocolVersion,
+} from "./types.ts";
 
 function validRawWork() {
   return {
@@ -8,7 +13,7 @@ function validRawWork() {
     titleRaw: "テスト作品",
     productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ01698658.html",
     creditedNames: ["上田麗奈"],
-    adult: false,
+    ageRating: "general",
     fetchedAt: "2026-09-18T00:00:00.000Z",
   };
 }
@@ -84,6 +89,7 @@ describe("rawWorkSchema", () => {
 describe("ingestPayloadSchema", () => {
   test("正規のペイロードを受け付ける", () => {
     const result = ingestPayloadSchema.safeParse({
+      protocolVersion: INGEST_PROTOCOL_VERSION,
       runId: "run_1",
       storeSlug: "dlsite",
       voiceActorId: "va_ueda-reina",
@@ -94,6 +100,7 @@ describe("ingestPayloadSchema", () => {
 
   test("取得失敗時 (works が空、error あり) を受け付ける", () => {
     const result = ingestPayloadSchema.safeParse({
+      protocolVersion: INGEST_PROTOCOL_VERSION,
       runId: "run_2",
       storeSlug: "audible",
       voiceActorId: "va_ueda-reina",
@@ -105,10 +112,47 @@ describe("ingestPayloadSchema", () => {
 
   test("works の中身が不正なら拒否する", () => {
     const result = ingestPayloadSchema.safeParse({
+      protocolVersion: INGEST_PROTOCOL_VERSION,
       runId: "run_3",
       storeSlug: "dlsite",
       voiceActorId: "va_ueda-reina",
-      works: [{ ...validRawWork(), adult: "not-a-boolean" }],
+      works: [{ ...validRawWork(), ageRating: "r15-ではない値" }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("readProtocolVersion", () => {
+  test("整数の protocolVersion を取り出す", () => {
+    expect(readProtocolVersion({ protocolVersion: 3 })).toBe(3);
+  });
+
+  test("欠けていれば undefined", () => {
+    // 版を持たないのは、この仕組みが入る前の古いクローラー。不一致として扱う
+    expect(readProtocolVersion({ runId: "run_1" })).toBeUndefined();
+  });
+
+  test("数値でなければ undefined", () => {
+    expect(readProtocolVersion({ protocolVersion: "1" })).toBeUndefined();
+    expect(readProtocolVersion({ protocolVersion: 1.5 })).toBeUndefined();
+  });
+
+  test("オブジェクトでない本文でも落ちない", () => {
+    // JSON としては読めたが配列や null だった場合。ここで例外を投げると 500 になる
+    expect(readProtocolVersion(null)).toBeUndefined();
+    expect(readProtocolVersion([])).toBeUndefined();
+    expect(readProtocolVersion("payload")).toBeUndefined();
+  });
+});
+
+describe("ingestPayloadSchema の protocolVersion", () => {
+  test("protocolVersion が無ければ拒否する", () => {
+    // 任意にすると、版を持たない古いクローラーが素通りしてしまう
+    const result = ingestPayloadSchema.safeParse({
+      runId: "run_4",
+      storeSlug: "dlsite",
+      voiceActorId: "va_ueda-reina",
+      works: [],
     });
     expect(result.success).toBe(false);
   });

@@ -15,6 +15,20 @@
       "when": 1789711658045,
       "tag": "0001_moaning_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789722141532,
+      "tag": "0002_graceful_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789742106604,
+      "tag": "0003_windy_zarda",
+      "breakpoints": true
     }
   ]
 }

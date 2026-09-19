@@ -1,4 +1,4 @@
-import type { IngestPayload, RawWork } from "@/domain/types";
+import { INGEST_PROTOCOL_VERSION, type IngestPayload, type RawWork } from "@/domain/types";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { type ActorSeed, upsertActors } from "./actors";
@@ -63,7 +63,7 @@ export function rawWork(overrides: Partial<RawWork> = {}): RawWork {
     productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ01698658.html",
     creditedNames: ["上田麗奈"],
     storeCategory: "SOU",
-    adult: false,
+    ageRating: "general",
     fetchedAt: NOW,
     ...overrides,
   };
@@ -71,6 +71,7 @@ export function rawWork(overrides: Partial<RawWork> = {}): RawWork {
 
 export function payload(overrides: Partial<IngestPayload> = {}): IngestPayload {
   return {
+    protocolVersion: INGEST_PROTOCOL_VERSION,
     runId: "run-1",
     storeSlug: "dlsite",
     voiceActorId: UEDA.id,

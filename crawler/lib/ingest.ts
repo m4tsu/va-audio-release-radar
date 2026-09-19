@@ -1,4 +1,8 @@
-import type { IngestPayload, StoreSlug } from "../../src/domain/index.ts";
+import {
+  INGEST_PROTOCOL_VERSION,
+  type IngestPayload,
+  type StoreSlug,
+} from "../../src/domain/index.ts";
 
 /**
  * Worker 側の管理 API (`/api/admin/*`) を叩くクライアント (設計書 §2 / §6)。
@@ -20,7 +24,7 @@ export type IngestResponse = {
   upserted: number;
   new: number;
   unmatched: number;
-  skippedAdult: number;
+  skippedByRating: number;
 };
 
 export type UpsertActorsResponse = { actors: number; aliases: number };
@@ -61,6 +65,38 @@ function spacedAliasNames(actor: Pick<ActorSeed, "aliases">, verified: boolean):
 
 export class AdminApiError extends Error {}
 
+/**
+ * サーバーが 409 を返した、つまり送っている payload の形が古い (T16)。
+ *
+ * `AdminApiError` と分けてあるのは、呼び出し側の扱いが違うため。ふつうの失敗は
+ * その 1 件を失敗として記録して次の声優に進むが、これは残り全員も確実に同じ結果になる。
+ * 3 時間かけて 420 人ぶんを捨てた事故を繰り返さないよう、受け取ったら走行ごと止める
+ */
+export class IngestProtocolMismatchError extends AdminApiError {}
+
+/**
+ * ingest に送れなかったことを記録するための最小ペイロード (T16)。
+ *
+ * 取り込み本体が失敗したときに、作品を外して `error` だけを付けて送り直す。
+ * これを送らないと `crawl_runs` に行が 1 つも残らず、管理画面からは
+ * 「作品が 0 件だった声優」と区別が付かない。works を空にするのは、
+ * 元の payload が大きすぎる / 形が不正なことこそが失敗の原因でありうるため
+ */
+export function failureReport(
+  source: Pick<IngestPayload, "runId" | "storeSlug" | "voiceActorId">,
+  error: string,
+): IngestPayload {
+  return {
+    protocolVersion: INGEST_PROTOCOL_VERSION,
+    runId: source.runId,
+    storeSlug: source.storeSlug,
+    voiceActorId: source.voiceActorId,
+    works: [],
+    // 管理画面にそのまま出る 1 行なので、長い zod の issue 一覧は切り詰める
+    error: error.slice(0, 500),
+  };
+}
+
 export class AdminApiClient {
   readonly #baseUrl: string;
   readonly #token: string;
@@ -92,10 +128,11 @@ export class AdminApiClient {
 
     const text = await response.text();
     if (!response.ok) {
+      const detail = `${method} ${path} が HTTP ${response.status}: ${text.slice(0, 500)}`;
+      // 409 は「クローラーが古い」の合図。呼び出し側が走行ごと止められるよう型で区別する
+      if (response.status === 409) throw new IngestProtocolMismatchError(detail);
       // 本文には zod の issue 一覧が入ることがあるので、切り詰めたうえでそのまま見せる
-      throw new AdminApiError(
-        `${method} ${path} が HTTP ${response.status}: ${text.slice(0, 500)}`,
-      );
+      throw new AdminApiError(detail);
     }
     try {
       return JSON.parse(text) as T;

@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import type { RawWork } from "../../src/domain/index.ts";
+import { type AgeRating, isAgeRatingAllowed, type RawWork } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { buildCoverage } from "./coverage.ts";
 import { validateRawWorks } from "./raw-work.ts";
@@ -19,12 +19,25 @@ import type {
  *    古い順の 1 ページ目を足して和集合を取る (最大 60 件)
  * 3. 一覧から ID・タイトル・サークル・価格・定価・サムネイル・種別を取る (一覧に発売日は無い)
  * 4. ID ごとに product.json を 1 件ずつ取り、発売日・声優全員・年齢区分・ジャンルを補う
- * 5. `age_category !== 1` (全年齢以外) の作品を捨てる
+ * 5. 許可していない年齢区分 (現状は R18) の作品を捨てる
  */
 
 const STORE_SLUG = "dlsite" as const;
 /** product.json の `age_category`。1 が全年齢 (`age_category_string: "general"`) */
 export const DLSITE_GENERAL_AGE_CATEGORY = 1;
+/** 全年齢サイトの `site_id`。R18 サイトは "maniax" になる */
+export const DLSITE_HOME_SITE_ID = "home";
+
+/**
+ * `age_category` を年齢区分にする。1 だけが全年齢で、2 (R15) も 3 (R18) も
+ * まとめて r18 に寄せる。このプロジェクトが区別する必要があるのは「載せるか載せないか」で、
+ * 載せない側の内訳を持っても使い道が無いため (設計書 §14)。
+ * 区分そのものが読めなかったときは全年齢と言い切らず unknown にする
+ */
+export function toAgeRating(ageCategory: number | undefined): AgeRating {
+  if (ageCategory === undefined) return "unknown";
+  return ageCategory === DLSITE_GENERAL_AGE_CATEGORY ? "general" : "r18";
+}
 
 /**
  * 検索の並び順。`release_d` が新しい順 (既定)、`release` が古い順。
@@ -110,7 +123,10 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       makerName: makerName === "" ? undefined : makerName,
       creditedNames,
       storeCategory: extractWorkType(item.find("div.work_category").attr("class")),
-      adult: false, // /home/ は全年齢サイトなので一覧に成人向けは出ない
+      // /home/ は全年齢サイトなので一覧に R18 は出ない。product.json を取れたら
+      // そちらの age_category / site_id で上書きする (applyProductDetail)
+      ageRating: "general",
+      storeSection: DLSITE_HOME_SITE_ID,
       fetchedAt,
     };
     candidates.push(candidate);
@@ -174,6 +190,8 @@ export type DlsiteProductDetail = {
   /** `regist_date` ("2026-08-22 00:00:00") の日付部分 */
   releaseDate?: string;
   ageCategory?: number;
+  /** "home" (全年齢) / "maniax" (R18)。ストア固有の区分としてそのまま保存する */
+  siteId?: string;
   workType?: string;
   price?: number;
   officialPrice?: number;
@@ -208,6 +226,7 @@ export function parseProductJson(text: string): DlsiteProductDetail | undefined 
     makerName: asString(record.maker_name),
     releaseDate: toIsoDate(asString(record.regist_date)),
     ageCategory: asNumber(record.age_category),
+    siteId: asString(record.site_id),
     workType: asString(record.work_type),
     price: asNumber(record.price),
     officialPrice: asNumber(record.official_price),
@@ -256,6 +275,10 @@ export function applyProductDetail(work: RawWork, detail: DlsiteProductDetail): 
     price: detail.price ?? work.price,
     listPrice: detail.officialPrice ?? work.listPrice,
     genres: detail.genres.length > 0 ? detail.genres : work.genres,
+    // age_category が読めなければ一覧由来の値 (全年齢) を残す。詳細が取れなかったことを
+    // 理由に unknown へ落とすと、一覧の事実まで捨ててしまう
+    ageRating: detail.ageCategory === undefined ? work.ageRating : toAgeRating(detail.ageCategory),
+    storeSection: detail.siteId ?? work.storeSection,
   };
 }
 
@@ -382,15 +405,17 @@ async function fetchByActor(
       continue;
     }
 
-    // 全年齢だけを扱う (設計書 §1)。区分が取れた作品のうち 1 以外は捨てる
-    if (detail.ageCategory !== undefined && detail.ageCategory !== DLSITE_GENERAL_AGE_CATEGORY) {
+    const detailed = applyProductDetail(listWork, detail);
+    // 許可していない年齢区分は捨てる (設計書 §14)。判定はドメイン層の許可集合に任せ、
+    // ここで「R18 は捨てる」と決め打ちしない
+    if (!isAgeRatingAllowed(detailed.ageRating)) {
       warnings.push(
-        `${listWork.storeProductId}: 全年齢ではない (age_category=${detail.ageCategory}) ため除外`,
+        `${listWork.storeProductId}: 対象外の年齢区分 (age_category=${detail.ageCategory}) のため除外`,
       );
       continue;
     }
 
-    works.push(applyProductDetail(listWork, detail));
+    works.push(detailed);
   }
 
   return {

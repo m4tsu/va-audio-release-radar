@@ -103,7 +103,8 @@ describe("parseSearchHtml", () => {
         "酒巻 光宏",
       ],
       storeCategory: "audiobook",
-      adult: false,
+      // Audible は年齢区分を公開していない (設計書 §14)
+      ageRating: "unknown",
       fetchedAt: FETCHED_AT,
     });
   });

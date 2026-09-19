@@ -432,13 +432,16 @@ describe("getWorkById", () => {
   });
 
   /**
-   * 一覧と同じく成人向けは出さない。URL を直接叩いたときだけ見えてしまう穴を塞ぐ
-   * (ingest は成人向けを保存しないので、対象になるのは以前入った行だけ)
+   * 一覧と同じく R18 は出さない。URL を直接叩いたときだけ見えてしまう穴を塞ぐ
+   * (ingest は R18 を保存しないので、対象になるのは以前入った行だけ)
    */
-  it("成人向けの作品は undefined を返す", async () => {
+  it("R18 の作品は undefined を返す", async () => {
     const db = await setupDb();
     await ingest(db, payload(), NOW);
-    await db.update(audioWorks).set({ adult: true }).where(eq(audioWorks.id, "dlsite:RJ01698658"));
+    await db
+      .update(audioWorks)
+      .set({ ageRating: "r18" })
+      .where(eq(audioWorks.id, "dlsite:RJ01698658"));
 
     expect(await getWorkById(db, "dlsite:RJ01698658")).toBeUndefined();
   });

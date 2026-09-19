@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ingestPayloadSchema } from "@/domain/types";
 import { requireBearer } from "@/server/auth";
 import { getDb } from "@/server/db/client";
+import { requireIngestProtocolVersion } from "@/server/protocol";
 import { ingest } from "@/server/queries/ingest";
 import { summarizeIssues } from "@/server/validation";
 
@@ -31,6 +32,11 @@ export const Route = createFileRoute("/api/admin/ingest")({
         } catch {
           return Response.json({ error: "JSON として読めない本文" }, { status: 400 });
         }
+
+        // 全体の検証より先に版を見る。版が上がる変更は works の形を変えるので、
+        // 先に zod へ通すと「版がずれている」が「works が不正」に化けて読めなくなる
+        const mismatched = requireIngestProtocolVersion(body);
+        if (mismatched) return mismatched;
 
         const parsed = ingestPayloadSchema.safeParse(body);
         if (!parsed.success) {

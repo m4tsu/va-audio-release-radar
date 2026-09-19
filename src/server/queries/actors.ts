@@ -12,6 +12,8 @@ export type ActorSummary = {
   slug: string;
   canonicalName: string;
   nameKana?: string;
+  /** 英語表示のときだけ使う表記。画面側の actorDisplayName が見る (今は全件 NULL) */
+  nameEn?: string;
   imageUrl?: string;
   status: VoiceActor["status"];
   workCount: number;
@@ -27,6 +29,7 @@ export const actorSeedSchema = z.object({
   slug: z.string().min(1),
   canonicalName: z.string().min(1),
   nameKana: z.string().optional(),
+  nameEn: z.string().optional(),
   anilistStaffId: z.number().int().optional(),
   imageUrl: z.string().optional(),
   status: z.enum(["active", "inactive", "unknown"]).default("unknown"),
@@ -62,6 +65,7 @@ export async function upsertActors(
         slug: actor.slug,
         canonicalName: actor.canonicalName,
         nameKana: actor.nameKana ?? null,
+        nameEn: actor.nameEn ?? null,
         anilistStaffId: actor.anilistStaffId ?? null,
         imageUrl: actor.imageUrl ?? null,
         status: actor.status,
@@ -74,6 +78,7 @@ export async function upsertActors(
           slug: actor.slug,
           canonicalName: actor.canonicalName,
           nameKana: actor.nameKana ?? null,
+          nameEn: actor.nameEn ?? null,
           anilistStaffId: actor.anilistStaffId ?? null,
           imageUrl: actor.imageUrl ?? null,
           status: actor.status,
@@ -245,6 +250,7 @@ function summaryQuery(db: AppDb, extra?: SQL) {
       slug: voiceActors.slug,
       canonicalName: voiceActors.canonicalName,
       nameKana: voiceActors.nameKana,
+      nameEn: voiceActors.nameEn,
       imageUrl: voiceActors.imageUrl,
       status: voiceActors.status,
       workCount: workCountExpression,
@@ -261,6 +267,7 @@ type ActorSummaryRow = {
   slug: string;
   canonicalName: string;
   nameKana: string | null;
+  nameEn: string | null;
   imageUrl: string | null;
   status: VoiceActor["status"];
   workCount: number;
@@ -272,6 +279,7 @@ function toActorSummary(row: ActorSummaryRow): ActorSummary {
     slug: row.slug,
     canonicalName: row.canonicalName,
     ...(row.nameKana ? { nameKana: row.nameKana } : {}),
+    ...(row.nameEn ? { nameEn: row.nameEn } : {}),
     ...(row.imageUrl ? { imageUrl: row.imageUrl } : {}),
     status: row.status,
     workCount: Number(row.workCount ?? 0),
@@ -287,6 +295,7 @@ export function toVoiceActor(row: VoiceActorRow): VoiceActor {
     slug: row.slug,
     canonicalName: row.canonicalName,
     ...(row.nameKana ? { nameKana: row.nameKana } : {}),
+    ...(row.nameEn ? { nameEn: row.nameEn } : {}),
     ...(row.anilistStaffId !== null ? { anilistStaffId: row.anilistStaffId } : {}),
     ...(row.imageUrl ? { imageUrl: row.imageUrl } : {}),
     status: row.status,

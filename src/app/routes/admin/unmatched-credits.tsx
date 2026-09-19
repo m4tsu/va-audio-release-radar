@@ -7,6 +7,8 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
+import { createTranslator, useLocale, useT } from "@/app/i18n";
+import { actorDisplayName } from "@/app/lib/actor-name";
 import { handleAdminTokenQuery } from "@/app/lib/admin-token";
 import type { ActorSummary, UnmatchedCreditGroup } from "@/app/lib/view-types";
 import { fetchAllActors } from "@/app/server-fns/actors";
@@ -46,30 +48,34 @@ export const Route = createFileRoute("/admin/unmatched-credits")({
     ]);
     return { authorized: true as const, groups, actors };
   },
-  head: () => ({
-    meta: [{ title: "未解決クレジット | 管理" }, ...ADMIN_HEAD_META],
+  head: ({ match }) => ({
+    meta: [
+      { title: createTranslator(match.context.locale)("admin.unmatchedMetaTitle") },
+      ...ADMIN_HEAD_META,
+    ],
   }),
   component: UnmatchedCreditsPage,
 });
 
 function UnmatchedCreditsPage() {
+  const t = useT();
   const data = Route.useLoaderData();
   if (!data.authorized) return <AdminUnauthorized configured={data.configured} />;
 
   return (
     <div>
       <PageHeader
-        title="未解決クレジット"
-        description={`${data.groups.length} 件の表記が声優に結び付いていない。`}
+        title={t("admin.unmatchedTitle")}
+        description={t("admin.unmatchedSummary", { count: data.groups.length })}
         actions={
           <Link to="/admin/crawler-health" className="text-sm underline underline-offset-4">
-            クローラー健全性へ
+            {t("admin.unmatchedToHealth")}
           </Link>
         }
       />
 
       {data.groups.length === 0 ? (
-        <p className="text-muted-foreground text-sm">未解決の表記はない。</p>
+        <p className="text-muted-foreground text-sm">{t("admin.unmatchedEmpty")}</p>
       ) : (
         <ul className="space-y-4">
           {data.groups.map((group) => (
@@ -90,12 +96,16 @@ function CreditGroupCard({
   group: UnmatchedCreditGroup;
   actors: ActorSummary[];
 }) {
+  const t = useT();
   return (
     <div className="space-y-4 rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
       <div className="flex flex-wrap items-baseline gap-2">
+        {/* 表記そのものはストア上の書き方。訳さない */}
         <span className="font-medium text-lg">{group.creditedName}</span>
         <Badge variant="outline">{storeLabel(group.sourceStoreSlug)}</Badge>
-        <span className="text-muted-foreground text-sm">{group.count} 件</span>
+        <span className="text-muted-foreground text-sm">
+          {t("admin.unmatchedCount", { count: group.count })}
+        </span>
       </div>
 
       {group.sampleWorks.length > 0 ? (
@@ -128,6 +138,8 @@ type SubmitState = { phase: "idle" | "saving" } | { phase: "error"; message: str
  * 同じ作業を繰り返さずに済む
  */
 function AssignForm({ group, actors }: { group: UnmatchedCreditGroup; actors: ActorSummary[] }) {
+  const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const filterId = useId();
   const selectId = useId();
@@ -164,7 +176,7 @@ function AssignForm({ group, actors }: { group: UnmatchedCreditGroup; actors: Ac
     } catch (error) {
       setState({
         phase: "error",
-        message: error instanceof Error ? error.message : "割り当てに失敗した",
+        message: error instanceof Error ? error.message : t("admin.unmatchedError"),
       });
     }
   };
@@ -179,37 +191,38 @@ function AssignForm({ group, actors }: { group: UnmatchedCreditGroup; actors: Ac
     >
       {group.candidate ? (
         <p className="text-sm">
-          候補: <span className="font-medium">{group.candidate.canonicalName}</span>
+          {t("admin.unmatchedCandidate")}{" "}
+          <span className="font-medium">{actorDisplayName(group.candidate, locale)}</span>
         </p>
       ) : (
-        <p className="text-muted-foreground text-sm">候補なし。一覧から選ぶこと。</p>
+        <p className="text-muted-foreground text-sm">{t("admin.unmatchedNoCandidate")}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
         <div className="space-y-1">
-          <Label htmlFor={filterId}>声優を絞り込む</Label>
+          <Label htmlFor={filterId}>{t("admin.unmatchedFilterLabel")}</Label>
           <Input
             id={filterId}
             type="search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="名前 / かな"
+            placeholder={t("admin.unmatchedFilterPlaceholder")}
             autoComplete="off"
           />
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor={selectId}>割り当てる声優</Label>
+          <Label htmlFor={selectId}>{t("admin.unmatchedSelectLabel")}</Label>
           <select
             id={selectId}
             value={voiceActorId}
             onChange={(event) => setVoiceActorId(event.target.value)}
             className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
-            <option value="">選択してください</option>
+            <option value="">{t("admin.unmatchedSelectPlaceholder")}</option>
             {visible.map((actor) => (
               <option key={actor.id} value={actor.id}>
-                {actor.canonicalName}
+                {actorDisplayName(actor, locale)}
                 {actor.nameKana ? ` (${actor.nameKana})` : ""}
               </option>
             ))}
@@ -226,11 +239,13 @@ function AssignForm({ group, actors }: { group: UnmatchedCreditGroup; actors: Ac
             onChange={(event) => setAddAlias(event.target.checked)}
             className="size-4 accent-primary"
           />
-          この表記をエイリアスとして登録する
+          {t("admin.unmatchedAddAlias")}
         </label>
 
         <Button type="submit" size="sm" disabled={!voiceActorId || state.phase === "saving"}>
-          {state.phase === "saving" ? "割り当て中…" : `${group.count} 件を割り当てる`}
+          {state.phase === "saving"
+            ? t("admin.unmatchedSaving")
+            : t("admin.unmatchedSubmit", { count: group.count })}
         </Button>
       </div>
 

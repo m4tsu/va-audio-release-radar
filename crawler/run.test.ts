@@ -1,8 +1,8 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import type { StoreSlug } from "../src/domain/index.ts";
-import type { AdapterStatus } from "./adapters/types.ts";
-import type { ActorSeed } from "./lib/ingest.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { INGEST_PROTOCOL_VERSION, type StoreSlug } from "../src/domain/index.ts";
+import type { AdapterResult, AdapterStatus } from "./adapters/types.ts";
+import { type ActorSeed, AdminApiClient, IngestProtocolMismatchError } from "./lib/ingest.ts";
 import { CRAWLER_DIR } from "./lib/paths.ts";
 import {
   buildSearchNames,
@@ -10,6 +10,8 @@ import {
   formatOutcomeTable,
   loadActorSeeds,
   type RunOutcome,
+  send,
+  sliceActors,
   summarize,
 } from "./run.ts";
 
@@ -25,6 +27,7 @@ const UEDA: ActorSeed = {
 };
 const KAJI: ActorSeed = { id: "va_kaji-yuki", slug: "kaji-yuki", canonicalName: "梶裕貴" };
 
+/** 保存まで成功した 1 行。workCount は保存された件数なので fetchedCount と同じになる */
 function outcome(
   actor: ActorSeed,
   storeSlug: StoreSlug,
@@ -34,7 +37,38 @@ function outcome(
   unmatchedCount = 0,
   queryUsed?: string,
 ): RunOutcome {
-  return { actor, storeSlug, status, workCount, newCount, unmatchedCount, queryUsed };
+  return {
+    actor,
+    storeSlug,
+    status,
+    fetchedCount: workCount,
+    workCount,
+    newCount,
+    unmatchedCount,
+    queryUsed,
+    save: "saved",
+  };
+}
+
+/** 取得はできたが ingest への送信に失敗した 1 行 (T16) */
+function saveFailed(
+  actor: ActorSeed,
+  storeSlug: StoreSlug,
+  fetchedCount: number,
+  failureRecorded: boolean,
+): RunOutcome {
+  return {
+    actor,
+    storeSlug,
+    status: "ok",
+    fetchedCount,
+    workCount: 0,
+    newCount: 0,
+    unmatchedCount: 0,
+    reason: "POST /api/admin/ingest が HTTP 400",
+    save: "failed",
+    failureRecorded,
+  };
 }
 
 describe("summarize", () => {
@@ -46,7 +80,19 @@ describe("summarize", () => {
         outcome(KAJI, "dlsite", "ok", 12, 5, 1),
         outcome(KAJI, "audible", "error"),
       ]),
-    ).toEqual({ actors: 2, ok: 2, empty: 1, error: 1, works: 42, new: 35, unmatched: 5 });
+    ).toEqual({
+      actors: 2,
+      ok: 2,
+      empty: 1,
+      error: 1,
+      fetched: 42,
+      works: 42,
+      new: 35,
+      unmatched: 5,
+      saved: 4,
+      saveFailed: 0,
+      saveFailedUnrecorded: 0,
+    });
   });
 
   it("結果が無ければすべて 0", () => {
@@ -55,10 +101,37 @@ describe("summarize", () => {
       ok: 0,
       empty: 0,
       error: 0,
+      fetched: 0,
       works: 0,
       new: 0,
       unmatched: 0,
+      saved: 0,
+      saveFailed: 0,
+      saveFailedUnrecorded: 0,
     });
+  });
+
+  it("取得できたのに保存に失敗した件数を、取得成功と別に数える (T16)", () => {
+    // 取得は 3 件とも成功しているが、保存まで届いたのは 1 件だけ。
+    // これを「取得 3 成功」だけで報告したのが前回の事故
+    const summary = summarize([
+      outcome(UEDA, "dlsite", "ok", 30, 30, 4),
+      saveFailed(UEDA, "audible", 7, true),
+      saveFailed(KAJI, "dlsite", 12, false),
+    ]);
+    expect(summary.ok).toBe(3);
+    expect(summary.fetched).toBe(49);
+    // 保存できた作品だけを works として数える
+    expect(summary.works).toBe(30);
+    expect(summary.saved).toBe(1);
+    expect(summary.saveFailed).toBe(2);
+    expect(summary.saveFailedUnrecorded).toBe(1);
+  });
+
+  it("--dry-run の skipped は保存の成功にも失敗にも数えない", () => {
+    const summary = summarize([{ ...outcome(UEDA, "dlsite", "ok", 30, 30, 4), save: "skipped" }]);
+    expect(summary.saved).toBe(0);
+    expect(summary.saveFailed).toBe(0);
   });
 });
 
@@ -86,6 +159,43 @@ describe("formatOutcomeTable", () => {
       outcome(UEDA, "dlsite", "ok", 30, 7, 0, "上田麗奈"),
     ]);
     expect(table.split("\n")[1]).toMatch(/^上田麗奈\s+30\s+7\s+7\s+1\s+audible:query=上田 麗奈$/);
+  });
+
+  it("取得できたのに保存に失敗したストアを備考に出す (T16)", () => {
+    // status は ok のままなので、備考に出さないと 0 件だった声優と見分けが付かない
+    const table = formatOutcomeTable([saveFailed(UEDA, "dlsite", 12, true)]);
+    expect(table.split("\n")[1]).toContain("dlsite:save-failed");
+  });
+
+  it("失敗を crawl_runs にも残せなかったときは備考でそう書く (T16)", () => {
+    const table = formatOutcomeTable([saveFailed(UEDA, "audible", 12, false)]);
+    expect(table.split("\n")[1]).toContain("audible:save-failed(未記録)");
+  });
+});
+
+describe("sliceActors", () => {
+  const actors = [UEDA, KAJI];
+
+  it("指定が無ければ全員返す", () => {
+    expect(sliceActors(actors, undefined, undefined)).toEqual(actors);
+  });
+
+  it("--offset は先頭から飛ばす", () => {
+    expect(sliceActors(actors, 1, undefined)).toEqual([KAJI]);
+  });
+
+  it("--limit は offset を適用した後の人数として数える", () => {
+    // 「81 人目から 420 人」を --offset 80 --limit 420 で書けるようにするため
+    const five = [UEDA, KAJI, UEDA, KAJI, UEDA];
+    expect(sliceActors(five, 2, 2)).toEqual([five[2], five[3]]);
+  });
+
+  it("offset 0 は先頭からと同じ", () => {
+    expect(sliceActors(actors, 0, 1)).toEqual([UEDA]);
+  });
+
+  it("offset が人数を超えたら空", () => {
+    expect(sliceActors(actors, 5, 10)).toEqual([]);
   });
 });
 
@@ -210,5 +320,126 @@ describe("actors.generated.json", () => {
       withoutCandidate.push(seed.canonicalName);
     }
     expect(withoutCandidate.length).toBeLessThanOrEqual(70);
+  });
+});
+
+describe("send (取り込み失敗の可視化, T16)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  const RESULT: AdapterResult = {
+    storeSlug: "dlsite",
+    actorName: "上田麗奈",
+    status: "ok",
+    works: [],
+    invalidCount: 0,
+    warnings: [],
+  };
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status });
+  }
+
+  function bodyOf(call: unknown): Record<string, unknown> {
+    const init = (call as [string, RequestInit])[1];
+    return JSON.parse(String(init.body)) as Record<string, unknown>;
+  }
+
+  it("今の protocolVersion を載せて送る", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ upserted: 3, new: 3, unmatched: 0, skippedByRating: 0 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const outcome = await send(
+      new AdminApiClient("http://x", "dev"),
+      UEDA,
+      "dlsite",
+      RESULT,
+      "2026-09-18",
+    );
+
+    expect(bodyOf(fetchMock.mock.calls[0]).protocolVersion).toBe(INGEST_PROTOCOL_VERSION);
+    expect(outcome.save).toBe("saved");
+    expect(outcome.workCount).toBe(3);
+  });
+
+  it("POST が失敗したら失敗ペイロードを送り直して crawl_runs に残す", async () => {
+    // 前回の事故では失敗が DB に残らず、管理画面から 0 件の声優と区別が付かなかった
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ error: "payload が不正" }, 400))
+      .mockResolvedValueOnce(
+        jsonResponse({ upserted: 0, new: 0, unmatched: 0, skippedByRating: 0 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    const outcome = await send(
+      new AdminApiClient("http://x", "dev"),
+      UEDA,
+      "dlsite",
+      { ...RESULT, works: [{} as never, {} as never] },
+      "2026-09-18",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retry = bodyOf(fetchMock.mock.calls[1]);
+    // 元の payload そのものが原因でありうるので、作品は載せずに error だけを送る
+    expect(retry.works).toEqual([]);
+    expect(String(retry.error)).toContain("HTTP 400");
+    expect(retry.runId).toBe("2026-09-18-dlsite-ueda-reina");
+
+    expect(outcome.save).toBe("failed");
+    expect(outcome.failureRecorded).toBe(true);
+    // 取得はできていたことを残す。保存された件数は 0
+    expect(outcome.fetchedCount).toBe(2);
+    expect(outcome.workCount).toBe(0);
+    // status は adapter の結果のまま。取得失敗と保存失敗を混ぜない
+    expect(outcome.status).toBe("ok");
+  });
+
+  it("失敗ペイロードも送れなければ failureRecorded を false にする", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ error: "payload が不正" }, 400))
+      .mockRejectedValue(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    vi.useFakeTimers();
+    const promise = send(
+      new AdminApiClient("http://x", "dev"),
+      UEDA,
+      "dlsite",
+      RESULT,
+      "2026-09-18",
+    );
+    await vi.runAllTimersAsync();
+    const outcome = await promise;
+
+    expect(outcome.save).toBe("failed");
+    expect(outcome.failureRecorded).toBe(false);
+    // 「DB に記録できなかった失敗」として最終集計に出る
+    expect(summarize([outcome]).saveFailedUnrecorded).toBe(1);
+  });
+
+  it("409 は握り潰さずに投げ、走行を止められるようにする", async () => {
+    // その 1 件を諦めて次に進むと、残り全員ぶんも同じように捨てることになる
+    const fetchMock = vi.fn(async () => jsonResponse({ error: "クローラーが古い" }, 409));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      send(new AdminApiClient("http://x", "dev"), UEDA, "dlsite", RESULT, "2026-09-18"),
+    ).rejects.toThrow(IngestProtocolMismatchError);
+    // 失敗ペイロードの送り直しもしない (それも 409 になる)
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("--dry-run では送らず save を skipped にする", async () => {
+    const outcome = await send(undefined, UEDA, "dlsite", RESULT, "2026-09-18");
+    expect(outcome.save).toBe("skipped");
   });
 });

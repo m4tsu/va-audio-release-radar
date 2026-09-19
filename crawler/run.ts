@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import type { IngestPayload, StoreSlug } from "../src/domain/index.ts";
+import {
+  INGEST_PROTOCOL_VERSION,
+  type IngestPayload,
+  type StoreSlug,
+} from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import type { ActorQuery, AdapterResult, AdapterStatus, SourceAdapter } from "./adapters/types.ts";
@@ -10,6 +14,8 @@ import {
   type ActorSeed,
   AdminApiClient,
   AdminApiError,
+  failureReport,
+  IngestProtocolMismatchError,
   spacedUnverifiedAliasNames,
   spacedVerifiedAliasNames,
 } from "./lib/ingest.ts";
@@ -48,7 +54,8 @@ const USAGE = `使い方:
   --actors <path>           使う声優リスト (既定 crawler/actors.json)
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
   --store <dlsite|audible>  片方のストアだけを対象にする
-  --limit <N>               先頭 N 人の声優だけを対象にする (動作確認用)
+  --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
+  --limit <N>               (--offset のぶんを飛ばした後) N 人の声優だけを対象にする
   --dry-run                 取得はするが DB へは送らない (声優の upsert も行わない)
   --no-snapshot             取得した生データを .cache/snapshots に保存しない
   --no-skip-known           既知 ID の詳細取得を飛ばさず、毎回すべて取り直す
@@ -59,6 +66,7 @@ const OPTION_SPEC = {
   actors: { type: "string" },
   only: { type: "string" },
   store: { type: "string" },
+  offset: { type: "string" },
   limit: { type: "string" },
   "dry-run": { type: "boolean" },
   "no-snapshot": { type: "boolean" },
@@ -72,11 +80,26 @@ function isStoreSlug(value: string): value is StoreSlug {
 
 // --- 集計 ------------------------------------------------------------------
 
+/**
+ * 保存の結果 (T16)。adapter の取得結果 (`AdapterStatus`) とは別に持つ。
+ *
+ * 混ぜていたせいで、取得は成功したのに ingest が HTTP 400 で捨てられた 420 人ぶんを
+ * 「取得 386 成功」と報告してしまった。取得の成否と保存の成否は別の事実なので別に数える
+ *
+ * - `saved`: ingest が受け取って保存まで終えた
+ * - `failed`: ingest に届かなかった / 受け付けられなかった
+ * - `skipped`: --dry-run なのでそもそも送っていない
+ */
+export type SaveStatus = "saved" | "failed" | "skipped";
+
 /** 声優 1 人 × ストア 1 つの結果。最後の表と終了コードの材料 */
 export type RunOutcome = {
   actor: ActorSeed;
   storeSlug: StoreSlug;
   status: AdapterStatus;
+  /** adapter が取れた作品数。保存できたかどうかとは無関係 */
+  fetchedCount: number;
+  /** 実際に保存された作品数 (ingest の upserted)。保存に失敗したときは 0 */
   workCount: number;
   newCount: number;
   unmatchedCount: number;
@@ -84,6 +107,12 @@ export type RunOutcome = {
   reason?: string;
   /** 実際に検索に使った語。Audible は空白入り別名フォールバックがあるため canonicalName と違うことがある (T8) */
   queryUsed?: string;
+  save: SaveStatus;
+  /**
+   * `save: "failed"` のとき、失敗したことを `crawl_runs` に残せたか (T16)。
+   * false なら DB 上は何も起きなかったことになるので、最終集計で別枠にして人に見せる
+   */
+  failureRecorded?: boolean;
 };
 
 export type RunSummary = {
@@ -91,9 +120,18 @@ export type RunSummary = {
   ok: number;
   empty: number;
   error: number;
+  /** adapter が取れた作品数の合計 */
+  fetched: number;
+  /** 実際に DB へ保存された作品数の合計 */
   works: number;
   new: number;
   unmatched: number;
+  /** 保存まで成功した 声優×ストア の数 */
+  saved: number;
+  /** 取得はできたが保存に失敗した数 */
+  saveFailed: number;
+  /** 保存に失敗し、その失敗すら crawl_runs に残せなかった数 */
+  saveFailedUnrecorded: number;
 };
 
 export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
@@ -102,15 +140,25 @@ export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
     ok: 0,
     empty: 0,
     error: 0,
+    fetched: 0,
     works: 0,
     new: 0,
     unmatched: 0,
+    saved: 0,
+    saveFailed: 0,
+    saveFailedUnrecorded: 0,
   };
   for (const outcome of outcomes) {
     summary[outcome.status] += 1;
+    summary.fetched += outcome.fetchedCount;
     summary.works += outcome.workCount;
     summary.new += outcome.newCount;
     summary.unmatched += outcome.unmatchedCount;
+    if (outcome.save === "saved") summary.saved += 1;
+    if (outcome.save === "failed") {
+      summary.saveFailed += 1;
+      if (outcome.failureRecorded !== true) summary.saveFailedUnrecorded += 1;
+    }
   }
   return summary;
 }
@@ -129,6 +177,15 @@ export function formatOutcomeTable(outcomes: readonly RunOutcome[]): string {
     const notes = group.flatMap((outcome) => {
       const parts: string[] = [];
       if (outcome.status !== "ok") parts.push(`${outcome.storeSlug}:${outcome.status}`);
+      // 取得できたのに保存できなかったことは、取得失敗とは別に必ず表に出す (T16)。
+      // 前回の事故ではこれが表に出ず、0 件の声優と見分けが付かなかった
+      if (outcome.save === "failed") {
+        parts.push(
+          outcome.failureRecorded === true
+            ? `${outcome.storeSlug}:save-failed`
+            : `${outcome.storeSlug}:save-failed(未記録)`,
+        );
+      }
       // canonicalName のまま確定した場合は自明なので出さない。空白入り別名で確定したときだけ出す
       if (outcome.queryUsed !== undefined && outcome.queryUsed !== outcome.actor.canonicalName) {
         parts.push(`${outcome.storeSlug}:query=${outcome.queryUsed}`);
@@ -211,6 +268,24 @@ export function buildSearchNames(actor: ActorSeed): string[] {
   return [actor.canonicalName, ...spacedUnverifiedAliasNames(actor)];
 }
 
+/**
+ * `--offset` / `--limit` で対象を切り出す (T16)。
+ *
+ * `--offset` があるのは、途中で落ちた走行を続きから再開するため。500 人のクロールは
+ * 3 時間かかるので、81 人目から失敗したときに先頭からやり直すと相手サイトへの往復が
+ * 二重になる。`--limit` は offset を適用した後の人数として数える
+ * (「81 人目から 420 人」がそのまま書けるようにするため)
+ */
+export function sliceActors(
+  actors: readonly ActorSeed[],
+  offset: number | undefined,
+  limit: number | undefined,
+): ActorSeed[] {
+  const start = offset ?? 0;
+  const end = limit === undefined ? undefined : start + limit;
+  return actors.slice(start, end);
+}
+
 /** `--only` の値で絞る。canonicalName と slug のどちらでも書けるようにする */
 export function filterActors(actors: readonly ActorSeed[], only: string | undefined): ActorSeed[] {
   if (only === undefined) return [...actors];
@@ -265,13 +340,30 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
+  const offsetOption = asString(values.offset);
+  const offset = offsetOption === undefined ? undefined : Number(offsetOption);
+  // 0 を許すのは「先頭から」を明示して書けるようにするため (スクリプトで組み立てやすい)
+  if (offset !== undefined && (!Number.isInteger(offset) || offset < 0)) {
+    process.stderr.write(`--offset は 0 以上の整数を指定する: ${offsetOption}\n`);
+    return 1;
+  }
+
   const actorsFile = asString(values.actors) ?? ACTORS_JSON;
   const seeds = await loadActorSeeds(actorsFile);
-  let actors = filterActors(seeds, asString(values.only));
-  if (limit !== undefined) actors = actors.slice(0, limit);
+  const filtered = filterActors(seeds, asString(values.only));
+  const actors = sliceActors(filtered, offset, limit);
   if (actors.length === 0) {
-    process.stderr.write("対象の声優が 0 人。--only の指定を見直す\n");
+    process.stderr.write(
+      filtered.length === 0
+        ? "対象の声優が 0 人。--only の指定を見直す\n"
+        : `対象の声優が 0 人。--offset ${offset} が候補 ${filtered.length} 人を超えている\n`,
+    );
     return 1;
+  }
+  if (offset !== undefined && offset > 0) {
+    process.stdout.write(
+      `先頭 ${offset} 人を飛ばし、${offset + 1} 人目から ${offset + actors.length} 人目までを対象にする\n`,
+    );
   }
 
   // dry-run では API に触らない。取り込み先がまだ無い状態でも取得部分だけ試せるようにする
@@ -290,6 +382,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   const snapshot = values["no-snapshot"] !== true;
 
   const outcomes: RunOutcome[] = [];
+  let aborted: string | undefined;
   let index = 0;
   for (const actor of actors) {
     index += 1;
@@ -300,30 +393,61 @@ export async function main(argv: readonly string[]): Promise<number> {
       canonicalName: actor.canonicalName,
       searchNames: buildSearchNames(actor),
     };
-    for (const storeSlug of stores) {
-      const result = await ADAPTERS[storeSlug].fetchByActor(query, {
-        skipKnownIds: knownIds.get(storeSlug),
-        snapshot,
-      });
-      for (const warning of result.warnings) {
-        process.stderr.write(`[警告] ${actor.canonicalName} ${storeSlug}: ${warning}\n`);
+    try {
+      for (const storeSlug of stores) {
+        const result = await ADAPTERS[storeSlug].fetchByActor(query, {
+          skipKnownIds: knownIds.get(storeSlug),
+          snapshot,
+        });
+        for (const warning of result.warnings) {
+          process.stderr.write(`[警告] ${actor.canonicalName} ${storeSlug}: ${warning}\n`);
+        }
+        forActor.push(await send(client, actor, storeSlug, result, runDate));
       }
-      forActor.push(await send(client, actor, storeSlug, result, runDate));
+    } catch (error) {
+      // 版ずれ。残り全員も確実に同じ結果になるので、ここで打ち切る (T16)
+      if (!(error instanceof IngestProtocolMismatchError)) throw error;
+      aborted = error.message;
+      outcomes.push(...forActor);
+      break;
     }
     outcomes.push(...forActor);
     process.stdout.write(`${progressLine(index, actors.length, actor, forActor)}\n`);
   }
 
+  if (aborted !== undefined) {
+    // 中断でも、そこまでに何を保存できたかの表は出す。再開の範囲を決める材料になる
+    if (outcomes.length > 0) process.stdout.write(`\n${formatOutcomeTable(outcomes)}\n`);
+    process.stderr.write(
+      `\n[中断] サーバーが payload の版の違いを理由に受け取りを拒否した。\n` +
+        `  ${aborted}\n` +
+        `  クローラーのプロセスが古いコードのまま動いている。止めて起動し直すこと。\n` +
+        `  ${index - 1} 人目まで処理し、残り ${actors.length - index + 1} 人は実行していない。\n` +
+        `  再開するには --offset で済んだぶんを飛ばす\n`,
+    );
+    return 1;
+  }
+
   process.stdout.write(`\n${formatOutcomeTable(outcomes)}\n`);
   const summary = summarize(outcomes);
+  // 取得と保存を分けて出す。まとめると、取得できたのに 1 件も保存されていない状態が
+  // 「成功」に見えてしまう (実際にそれで 420 人ぶんの取りこぼしを 3 時間見逃した)
   process.stdout.write(
     `\n声優 ${summary.actors} 人 / 取得 ${summary.ok} 成功・${summary.empty} 空・` +
-      `${summary.error} 失敗 / 作品 ${summary.works} 件 (new ${summary.new}) / ` +
+      `${summary.error} 失敗 (作品 ${summary.fetched} 件)\n` +
+      `保存 ${summary.saved} 成功・${summary.saveFailed} 失敗 / ` +
+      `保存できた作品 ${summary.works} 件 (new ${summary.new}) / ` +
       `未解決クレジット ${summary.unmatched} 件\n`,
   );
+  if (summary.saveFailedUnrecorded > 0) {
+    process.stdout.write(
+      `DB に記録できなかった失敗 ${summary.saveFailedUnrecorded} 件 ` +
+        `(crawl_runs に行が無いので、管理画面からは 0 件の声優と区別が付かない)\n`,
+    );
+  }
 
-  // 失敗が 1 件でもあれば異常終了。ここまで来ている時点で全件の送信は終えている
-  return summary.error > 0 ? 1 : 0;
+  // 取得の失敗と保存の失敗、どちらでも異常終了。ここまで来ている時点で全件の送信は終えている
+  return summary.error > 0 || summary.saveFailed > 0 ? 1 : 0;
 }
 
 /** 進捗の 1 行。時間のかかる処理なので、声優 1 人が終わるたびに結果が見えるようにする */
@@ -333,19 +457,25 @@ function progressLine(
   actor: ActorSeed,
   outcomes: readonly RunOutcome[],
 ): string {
-  const parts = outcomes.map(
-    (outcome) =>
-      `${outcome.storeSlug} ${outcome.status} ${outcome.workCount}件(new ${outcome.newCount})`,
-  );
+  const parts = outcomes.map((outcome) => {
+    // 保存に失敗した行は件数ではなく失敗と書く。「0件」と並べて出すと見分けが付かない (T16)
+    if (outcome.save === "failed") {
+      return `${outcome.storeSlug} ${outcome.status} 取得${outcome.fetchedCount}件だが保存失敗`;
+    }
+    return `${outcome.storeSlug} ${outcome.status} ${outcome.workCount}件(new ${outcome.newCount})`;
+  });
   const position = String(index).padStart(String(total).length);
   return `[${position}/${total}] ${actor.canonicalName}  ${parts.join("  ")}`;
 }
 
 /**
  * 取得結果を ingest に送り、集計 1 行にまとめる。
- * 取得に失敗した (`status: "error"`) ときも `error` 付きで送り、crawl_runs に残す
+ * 取得に失敗した (`status: "error"`) ときも `error` 付きで送り、crawl_runs に残す。
+ *
+ * `IngestProtocolMismatchError` だけは捕まえずに投げ直す。クローラーが古いという意味なので、
+ * 残りの声優を回しても同じ結果にしかならず、呼び出し側が走行ごと止めるため (T16)
  */
-async function send(
+export async function send(
   client: AdminApiClient | undefined,
   actor: ActorSeed,
   storeSlug: StoreSlug,
@@ -356,18 +486,24 @@ async function send(
     actor,
     storeSlug,
     status: result.status,
-    workCount: result.works.length,
+    fetchedCount: result.works.length,
+    // 保存できて初めて件数が入る。送る前の時点では 0 にしておく
+    workCount: 0,
     newCount: 0,
     unmatchedCount: 0,
     ...(result.reason === undefined ? {} : { reason: result.reason }),
     ...(result.queryUsed === undefined ? {} : { queryUsed: result.queryUsed }),
+    save: "skipped",
   } satisfies RunOutcome;
 
   if (client === undefined) return base;
 
+  // 同じ日に流し直すと上書きされる。ingest 側が冪等なので取り込み結果は変わらない
+  const runId = `${runDate}-${storeSlug}-${actor.slug}`;
   const payload: IngestPayload = {
-    // 同じ日に流し直すと上書きされる。ingest 側が冪等なので取り込み結果は変わらない
-    runId: `${runDate}-${storeSlug}-${actor.slug}`,
+    // サーバーと形が揃っているかの検査 (T16)。合わなければサーバーが 409 を返す
+    protocolVersion: INGEST_PROTOCOL_VERSION,
+    runId,
     storeSlug,
     voiceActorId: actor.id,
     works: result.works,
@@ -387,12 +523,53 @@ async function send(
       workCount: response.upserted,
       newCount: response.new,
       unmatchedCount: response.unmatched,
+      save: "saved",
     };
   } catch (error) {
-    // 送信できなかったぶんは crawl_runs にも残らないので、集計と終了コードには必ず反映する
+    // 版ずれは 1 件の失敗ではなく走行全体の問題。ここで握り潰さず上へ投げる
+    if (error instanceof IngestProtocolMismatchError) throw error;
+
     const reason = error instanceof AdminApiError ? error.message : String(error);
     process.stderr.write(`[エラー] ${actor.canonicalName} ${storeSlug}: ${reason}\n`);
-    return { ...base, status: "error", reason };
+    const failureRecorded = await reportFailure(client, { runId, storeSlug, actor }, reason);
+    // status は adapter の取得結果のまま残す。取得できたのに保存できなかったのか、
+    // そもそも取れなかったのかを後から見分けられるようにするため
+    return { ...base, reason, save: "failed", failureRecorded };
+  }
+}
+
+/**
+ * 保存に失敗したことを `crawl_runs` に残す (T16)。
+ *
+ * 作品を外した最小ペイロードを送り直す。元の payload そのものが失敗の原因
+ * (大きすぎる / 形が古い) であることがあるので、同じものを送り直しても意味がない。
+ *
+ * これ自体が失敗することもある (サーバーが落ちている等)。そのときは false を返し、
+ * 「DB に記録できなかった失敗」として最終集計に出す。ここで投げると、
+ * 記録できなかったという事実ごと失われてしまう
+ */
+async function reportFailure(
+  client: AdminApiClient,
+  source: { runId: string; storeSlug: StoreSlug; actor: ActorSeed },
+  reason: string,
+): Promise<boolean> {
+  try {
+    await client.ingest(
+      failureReport(
+        { runId: source.runId, storeSlug: source.storeSlug, voiceActorId: source.actor.id },
+        reason,
+      ),
+    );
+    return true;
+  } catch (error) {
+    // 版ずれなら呼び出し元が走行を止める。ここで握り潰すと止まらなくなる
+    if (error instanceof IngestProtocolMismatchError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    process.stderr.write(
+      `[エラー] ${source.actor.canonicalName} ${source.storeSlug}: ` +
+        `失敗を crawl_runs に記録できなかった: ${detail}\n`,
+    );
+    return false;
   }
 }
 

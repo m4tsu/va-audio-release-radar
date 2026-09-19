@@ -1,18 +1,28 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
 import { storeLabel } from "@/app/components/store-badge";
 import { WorkCard } from "@/app/components/work-card";
+import { createTranslator, useLocale, useT } from "@/app/i18n";
+import { actorDisplayName } from "@/app/lib/actor-name";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
-import type { ActorDetail, WorkWithListings } from "@/app/lib/view-types";
+import { seasonLabel } from "@/app/lib/season";
+import type { ActorAnimeAppearance, ActorDetail, WorkWithListings } from "@/app/lib/view-types";
 import { fetchActorBySlug } from "@/app/server-fns/actors";
+import { fetchAnimeByActor } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 import { fetchWorksByActor } from "@/app/server-fns/works";
 import { STORE_SLUGS } from "@/domain/types";
 
 /** 1 ストアあたりに出す作品数。新着を追うのが目的なので過去分は打ち切る (企画書 §5) */
 const WORKS_PER_STORE = 30;
+
+/**
+ * 声優ページに出す出演アニメの上限。本人の識別 (「この人どのキャラの人だっけ」) が目的なので、
+ * 全出演歴は並べない。並べるとアニメのキャスト DB になり、設計書 §1 の線を越える
+ */
+const ANIME_PER_ACTOR = 8;
 
 /**
  * 声優ページ (企画書 §13)。「{声優名} ASMR」「{声優名} Audible」のような
@@ -45,14 +55,24 @@ export const Route = createFileRoute("/voice-actors/$slug")({
     // 声優そのものは `getActorBySlug` が返し続ける (管理用)
     if (works.every((section) => section.items.length === 0)) throw notFound();
 
-    return { actor, works, origin };
+    // 出演アニメは 404 の判定の後に引く。音声作品が無ければページ自体を出さないので、
+    // 先に引いても捨てることになる
+    const anime = await fetchAnimeByActor({
+      data: { voiceActorId: actor.id, limit: ANIME_PER_ACTOR },
+    });
+
+    return { actor, works, anime, origin };
   },
-  head: ({ loaderData, params }) => {
+  head: ({ loaderData, params, match }) => {
     const actor = loaderData?.actor;
     if (!actor) return {};
 
-    const title = `${actor.canonicalName}の新着音声作品 | DLsite・Audible`;
-    const description = `${actor.canonicalName}が出演する DLsite の ASMR・ボイス作品と Audible の朗読を新着順に。`;
+    const locale = match.context.locale;
+    const t = createTranslator(locale);
+    // 声優名はデータそのもの。訳さず、英語表示で name_en があればそちらを出す
+    const name = actorDisplayName(actor, locale);
+    const title = t("actor.metaTitle", { name });
+    const description = t("actor.metaDescription", { name });
     const canonical = absoluteUrl(loaderData?.origin, `/voice-actors/${params.slug}`);
 
     return {
@@ -76,7 +96,11 @@ export const Route = createFileRoute("/voice-actors/$slug")({
   component: VoiceActorPage,
 });
 
-/** 検索エンジンに「この URL は人物のページ」と伝える (企画書 §14 の実体クエリ狙い) */
+/**
+ * 検索エンジンに「この URL は人物のページ」と伝える (企画書 §14 の実体クエリ狙い)。
+ * name は表示言語に関わらず canonicalName のまま。構造化データは実体の正規表記を出す場所で、
+ * 画面の表示言語で揺らすものではない
+ */
 function personJsonLd(actor: ActorDetail, url: string) {
   const alternateName = actor.aliases.map((alias) => alias.name);
   return {
@@ -107,18 +131,19 @@ function absoluteUrl(origin: string | undefined, path: string): string {
 }
 
 function VoiceActorPage() {
-  const { actor, works } = Route.useLoaderData();
+  const t = useT();
+  const locale = useLocale();
+  const { actor, works, anime } = Route.useLoaderData();
+  const name = actorDisplayName(actor, locale);
 
   return (
     <div className="space-y-8">
       <PageHeader
-        title={`${actor.canonicalName}の新着音声作品`}
+        title={t("actor.title", { name })}
         description={
-          actor.nameKana ? (
-            <>{actor.nameKana} ／ DLsite・Audible を横断した新着順</>
-          ) : (
-            "DLsite・Audible を横断した新着順"
-          )
+          actor.nameKana
+            ? t("actor.subtitleWithKana", { kana: actor.nameKana })
+            : t("actor.subtitle")
         }
         actions={
           <FollowButton
@@ -135,6 +160,8 @@ function VoiceActorPage() {
       {works.map((section) => (
         <StoreSection key={section.storeSlug} storeSlug={section.storeSlug} items={section.items} />
       ))}
+
+      {anime.length > 0 ? <AnimeSection items={anime} /> : null}
     </div>
   );
 }
@@ -146,13 +173,14 @@ function StoreSection({
   storeSlug: "dlsite" | "audible";
   items: WorkWithListings[];
 }) {
+  const t = useT();
   return (
     <section className="space-y-3">
       <h2 className="font-semibold text-xl tracking-tight">{storeLabel(storeSlug)}</h2>
       {items.length === 0 ? (
         <EmptyState
-          title="まだ見つかっていません"
-          description={`${storeLabel(storeSlug)} でのこの声優の作品は、まだ収集できていない。`}
+          title={t("actor.storeEmptyTitle")}
+          description={t("actor.storeEmptyDescription", { store: storeLabel(storeSlug) })}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -161,6 +189,50 @@ function StoreSection({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * 出演アニメ。本人を特定するための手がかりとして出すので、役名と作品名だけに留める。
+ * あらすじも話数も持たない (設計書 §1 の「アニメのキャスト DB ではない」)
+ */
+function AnimeSection({ items }: { items: ActorAnimeAppearance[] }) {
+  const t = useT();
+  const locale = useLocale();
+  return (
+    <section className="space-y-3">
+      <h2 className="font-semibold text-xl tracking-tight">{t("actor.animeTitle")}</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {items.map((item) => (
+          <Link
+            key={`${item.slug}-${item.characterNameNative}`}
+            to="/anime/$slug"
+            params={{ slug: item.slug }}
+            className="flex gap-3 rounded-xl border p-3 transition-colors hover:bg-accent"
+          >
+            {safeHttpsUrl(item.characterImageUrl) ? (
+              <img
+                src={safeHttpsUrl(item.characterImageUrl)}
+                alt=""
+                className="h-16 w-12 shrink-0 rounded-md object-cover"
+                loading="lazy"
+              />
+            ) : null}
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium leading-snug">{item.titleNative}</p>
+              <p className="text-muted-foreground text-xs">
+                {/* 役名は AniList 由来のデータなので訳さない */}
+                {[
+                  item.characterNameNative,
+                  item.role === "main" ? t("anime.roleMain") : t("anime.roleSupporting"),
+                  seasonLabel(item.seasonYear, item.season, locale),
+                ].join(t("common.slashSeparator"))}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }

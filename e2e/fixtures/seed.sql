@@ -24,15 +24,15 @@ VALUES (9000001, 'va_e2e-alpha', 'テスト 声優アルファ', 'manual', 1);
 -- 作品 4 件 ----------------------------------------------------------------
 -- 4 件目は発売日が未来。フィードの「今後の発売」の段が出ることの確認用
 INSERT OR REPLACE INTO audio_works
-  (id, title, category, release_date, cover_image_url, duration_seconds, adult, maker_name, created_at, updated_at)
+  (id, title, category, release_date, cover_image_url, duration_seconds, age_rating, maker_name, created_at, updated_at)
 VALUES
-  ('dlsite:RJ90000001', 'テスト用ASMR作品アルファ', 'asmr', date('now', '-2 day'), NULL, 5160, 0, 'テストサークル',
+  ('dlsite:RJ90000001', 'テスト用ASMR作品アルファ', 'asmr', date('now', '-2 day'), NULL, 5160, 'general', 'テストサークル',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-2 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('audible:B0E2E00002', 'テスト用朗読作品アルファ', 'audiobook', date('now', '-5 day'), NULL, 29520, 0, 'テスト出版',
+  ('audible:B0E2E00002', 'テスト用朗読作品アルファ', 'audiobook', date('now', '-5 day'), NULL, 29520, 'unknown', 'テスト出版',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-5 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('dlsite:RJ90000003', 'テスト用ボイスドラマ作品ベータ', 'audio_drama', date('now', '-10 day'), NULL, 3600, 0, 'テストサークル',
+  ('dlsite:RJ90000003', 'テスト用ボイスドラマ作品ベータ', 'audio_drama', date('now', '-10 day'), NULL, 3600, 'general', 'テストサークル',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('dlsite:RJ90000004', 'テスト用発売予定作品アルファ', 'asmr', date('now', '+14 day'), NULL, 4200, 0, 'テストサークル',
+  ('dlsite:RJ90000004', 'テスト用発売予定作品アルファ', 'asmr', date('now', '+14 day'), NULL, 4200, 'general', 'テストサークル',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 -- ストアの掲載 ------------------------------------------------------------

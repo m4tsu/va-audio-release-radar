@@ -4,9 +4,14 @@ import { ActorSearch } from "@/app/components/actor-search";
 import { EmptyState } from "@/app/components/empty-state";
 import { Badge } from "@/app/components/ui/badge";
 import { WorkCard } from "@/app/components/work-card";
+import { useLocale, useT } from "@/app/i18n";
+import { actorDisplayName } from "@/app/lib/actor-name";
 import { isUnreadSince } from "@/app/lib/format";
-import type { ActorSummary, FeedItem } from "@/app/lib/view-types";
+import { safeHttpsUrl } from "@/app/lib/safe-url";
+import { seasonLabel, toSeasonSlug } from "@/app/lib/season";
+import type { ActorSummary, AnimeSummary, FeedItem } from "@/app/lib/view-types";
 import { fetchAllActors } from "@/app/server-fns/actors";
+import { fetchLatestAnimeSeason, fetchSeasonAnime } from "@/app/server-fns/anime";
 import { fetchFeed, fetchLatestWorks } from "@/app/server-fns/works";
 import { useFollowStore } from "@/app/store/follow-store";
 
@@ -24,6 +29,8 @@ const FEED_LIMIT = 60;
 /** フォロー 0 件のときの「最近の新着」。こちらは見出しどおり直近 30 日に絞る */
 const LATEST_SINCE_DAYS = 30;
 const LATEST_LIMIT = 24;
+/** トップに並べる今期アニメの件数。続きはシーズンのページで見せる */
+const SEASON_ANIME_LIMIT = 6;
 
 /**
  * トップ (企画書 §13)。
@@ -33,23 +40,30 @@ const LATEST_LIMIT = 24;
  */
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [latest, actors] = await Promise.all([
+    const [latest, actors, season] = await Promise.all([
       fetchLatestWorks({ data: { sinceDays: LATEST_SINCE_DAYS, limit: LATEST_LIMIT } }),
       fetchAllActors(),
+      // 「今期」を日付から決めない。実際にデータがあるシーズンを出す (queries/anime.ts)
+      fetchLatestAnimeSeason(),
     ]);
-    return { latest, actors };
+    const seasonAnime = season === null ? [] : await fetchSeasonAnime({ data: season });
+    return { latest, actors, season, seasonAnime };
   },
   component: HomePage,
 });
 
 function HomePage() {
-  const { latest, actors } = Route.useLoaderData();
+  const { latest, actors, season, seasonAnime } = Route.useLoaderData();
   const follows = useFollowStore((state) => state.follows);
   const status = useFollowStore((state) => state.status);
 
   return (
     <div className="space-y-10">
       <ActorSearch />
+
+      {season && seasonAnime.length > 0 ? (
+        <SeasonAnimeSection season={season} anime={seasonAnime} />
+      ) : null}
 
       {follows.length > 0 ? (
         <FollowingFeed />
@@ -66,22 +80,21 @@ function HomePage() {
 
 /** フォローが 0 件のときだけ出す説明。何をすればこのサービスが動き出すかを 1 行で示す */
 function FollowPrompt() {
+  const t = useT();
   return (
-    <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">
-      好きな声優をフォローすると、ここが DLsite と Audible
-      を横断した「フォロー中の新着」に変わる。アカウント登録は不要で、フォローはこのブラウザにだけ保存される。
-    </p>
+    <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">{t("home.followPrompt")}</p>
   );
 }
 
 function LatestSection({ latest }: { latest: Awaited<ReturnType<typeof fetchLatestWorks>> }) {
+  const t = useT();
   return (
     <section className="space-y-4">
-      <h1 className="font-semibold text-2xl tracking-tight">最近の新着 (全声優)</h1>
+      <h1 className="font-semibold text-2xl tracking-tight">{t("home.latestTitle")}</h1>
       {latest.length === 0 ? (
         <EmptyState
-          title="まだ新着がありません"
-          description="クローラーが作品を集めるとここに並ぶ。"
+          title={t("home.latestEmptyTitle")}
+          description={t("home.latestEmptyDescription")}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -95,10 +108,13 @@ function LatestSection({ latest }: { latest: Awaited<ReturnType<typeof fetchLate
 }
 
 function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
+  const t = useT();
+  const locale = useLocale();
+
   if (actors.length === 0) return null;
   return (
     <section className="space-y-4">
-      <h2 className="font-semibold text-xl tracking-tight">声優一覧</h2>
+      <h2 className="font-semibold text-xl tracking-tight">{t("home.actorDirectoryTitle")}</h2>
       <ul className="flex flex-wrap gap-2">
         {actors.map((actor) => (
           <li key={actor.id}>
@@ -107,7 +123,7 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
               params={{ slug: actor.slug }}
               className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
             >
-              {actor.canonicalName}
+              {actorDisplayName(actor, locale)}
               <Badge variant="secondary">{actor.workCount}</Badge>
             </Link>
           </li>
@@ -126,6 +142,7 @@ type FeedState = { phase: "loading" } | { phase: "ready"; items: FeedItem[] } | 
  * フォローの増減でキーが変わったときだけ取り直す
  */
 function FollowingFeed() {
+  const t = useT();
   const follows = useFollowStore((state) => state.follows);
   const [state, setState] = useState<FeedState>({ phase: "loading" });
 
@@ -161,19 +178,16 @@ function FollowingFeed() {
 
   return (
     <section className="space-y-4">
-      <h1 className="font-semibold text-2xl tracking-tight">フォロー中の新着</h1>
+      <h1 className="font-semibold text-2xl tracking-tight">{t("home.feedTitle")}</h1>
       <p className="text-muted-foreground text-sm">
-        フォロー中 {follows.length} 人の、発売日が直近 {FEED_SINCE_DAYS} 日 / 発売予定の音声作品。
+        {t("home.feedSummary", { count: follows.length, days: FEED_SINCE_DAYS })}
       </p>
 
       {state.phase === "loading" ? (
-        <p className="text-muted-foreground text-sm">読み込み中…</p>
+        <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
       ) : null}
       {state.phase === "error" ? (
-        <EmptyState
-          title="新着を取得できませんでした"
-          description="時間をおいて再読み込みすること。"
-        />
+        <EmptyState title={t("home.feedErrorTitle")} description={t("home.feedErrorDescription")} />
       ) : null}
       {state.phase === "ready" ? <FeedTiers items={state.items} /> : null}
     </section>
@@ -204,28 +218,22 @@ function useFeedSeenBaseline(ready: boolean): string | null {
   return baseline;
 }
 
-/** 3 段の見出し。サーバーが付けてくる `freshness` と 1 対 1 で対応する */
-const TIER_TITLES = {
-  upcoming: "今後の発売",
-  recent: `${FEED_RECENT_DAYS} 日以内の新作`,
-  older: `それ以前 (直近 ${FEED_SINCE_DAYS} 日)`,
-} as const;
-
 /**
  * フィードの 3 段 (設計書 §10)。段の判定はサーバー側 (`freshness`) に寄せてあるので、
  * ここは並んできたものを切り分けるだけ。上 2 段が空でも 3 段目が残り画面が空にならない
  */
 function FeedTiers({ items }: { items: FeedItem[] }) {
+  const t = useT();
   const lastSeenFeedAt = useFeedSeenBaseline(items.length > 0);
 
   if (items.length === 0) {
     return (
       <EmptyState
-        title="この期間の新着はありません"
-        description="フォローを増やすか、時間をおいて見ること。"
+        title={t("home.feedEmptyTitle")}
+        description={t("home.feedEmptyDescription")}
         action={
           <Link to="/following" className="text-sm underline underline-offset-4">
-            フォロー中の声優を見る
+            {t("home.feedEmptyAction")}
           </Link>
         }
       />
@@ -239,14 +247,18 @@ function FeedTiers({ items }: { items: FeedItem[] }) {
   return (
     <div className="space-y-8">
       {upcoming.length > 0 ? (
-        <FeedTier title={TIER_TITLES.upcoming} items={upcoming} lastSeenFeedAt={lastSeenFeedAt} />
+        <FeedTier title={t("home.tierUpcoming")} items={upcoming} lastSeenFeedAt={lastSeenFeedAt} />
       ) : null}
       {recent.length > 0 ? (
-        <FeedTier title={TIER_TITLES.recent} items={recent} lastSeenFeedAt={lastSeenFeedAt} />
+        <FeedTier
+          title={t("home.tierRecent", { days: FEED_RECENT_DAYS })}
+          items={recent}
+          lastSeenFeedAt={lastSeenFeedAt}
+        />
       ) : null}
       {older.length > 0 ? (
         <CollapsibleTier
-          title={TIER_TITLES.older}
+          title={t("home.tierOlder", { days: FEED_SINCE_DAYS })}
           items={older}
           lastSeenFeedAt={lastSeenFeedAt}
           // 上 2 段が空なら畳んだままでは画面が空に見える。そのときだけ開いて出す
@@ -266,11 +278,14 @@ function FeedTier({
   items: FeedItem[];
   lastSeenFeedAt: string | null;
 }) {
+  const t = useT();
   return (
     <div className="space-y-3">
       <h2 className="font-medium text-lg">
         {title}
-        <span className="ml-2 text-muted-foreground text-sm">{items.length} 作品</span>
+        <span className="ml-2 text-muted-foreground text-sm">
+          {t("common.worksCount", { count: items.length })}
+        </span>
       </h2>
       <FeedCards items={items} lastSeenFeedAt={lastSeenFeedAt} />
     </div>
@@ -289,6 +304,7 @@ function CollapsibleTier({
   lastSeenFeedAt: string | null;
   defaultOpen: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(defaultOpen);
 
   return (
@@ -298,10 +314,13 @@ function CollapsibleTier({
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-expanded={open}
+          title={open ? t("home.tierCollapse") : t("home.tierExpand")}
           className="inline-flex items-center gap-2 hover:underline"
         >
           {title}
-          <span className="text-muted-foreground text-sm">{items.length} 作品</span>
+          <span className="text-muted-foreground text-sm">
+            {t("common.worksCount", { count: items.length })}
+          </span>
           <span aria-hidden="true" className="text-muted-foreground text-sm">
             {open ? "▲" : "▼"}
           </span>
@@ -339,4 +358,62 @@ function earliestFirstSeen(listings: FeedItem["listings"]): string | undefined {
     .map((listing) => listing.firstSeenAt)
     .sort()
     .at(0);
+}
+
+/**
+ * 今期アニメからの入口 (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md`)。
+ *
+ * 声優名を知らない利用者はここから入る。フォロー済みの利用者にも隠さないのは、
+ * 「知らなかった出演」を見つける経路でもあるため
+ */
+function SeasonAnimeSection({
+  season,
+  anime,
+}: {
+  season: { seasonYear: number; season: AnimeSummary["season"] };
+  anime: AnimeSummary[];
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const slug = toSeasonSlug(season.seasonYear, season.season);
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-semibold text-xl tracking-tight">
+          {t("home.seasonTitle", {
+            season: seasonLabel(season.seasonYear, season.season, locale),
+          })}
+        </h2>
+        <Link to="/anime/season/$season" params={{ season: slug }} className="text-sm underline">
+          {t("home.seasonSeeAll", { count: anime.length })}
+        </Link>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {anime.slice(0, SEASON_ANIME_LIMIT).map((item) => (
+          <Link
+            key={item.slug}
+            to="/anime/$slug"
+            params={{ slug: item.slug }}
+            className="flex gap-3 rounded-xl border p-3 transition-colors hover:bg-accent"
+          >
+            {safeHttpsUrl(item.coverImageUrl) ? (
+              <img
+                src={safeHttpsUrl(item.coverImageUrl)}
+                alt=""
+                className="h-20 w-14 shrink-0 rounded-md object-cover"
+                loading="lazy"
+              />
+            ) : null}
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium leading-snug">{item.titleNative}</p>
+              <p className="text-muted-foreground text-xs">
+                {t("anime.actorCount", { count: item.actorCount })}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 }

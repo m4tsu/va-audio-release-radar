@@ -9,11 +9,32 @@ export type StoreSlug = "dlsite" | "audible"; // Phase 2 で "pokedora" | "audio
 export type WorkCategory = "asmr" | "audio_drama" | "audiobook" | "situation_voice" | "other";
 export type CreditConfidence = "verified" | "probable" | "unmatched";
 
+/**
+ * 年齢区分 (設計書 §14)。真偽値ではなく列挙にしてあるのは、ストアが「全年齢 / R18」の
+ * 2 値で割っていないことと、年齢が分からないストア (Audible) を「全年齢」と言い切らないため。
+ *
+ * BL はここに入れない。BL は年齢区分ではなく内容の区分で、ポケドラがストアを 4 つに
+ * 割っている (men / bl / adt / adt-bl) ために混ざって見えるだけ。ストア固有の区分は
+ * `StoreListing.storeSection` にそのまま残す
+ */
+export type AgeRating = "general" | "r18" | "unknown";
+
+/**
+ * アニメの放送クール。AniList の `MediaSeason` の値をそのまま使う。
+ * 小文字に直さないのは、AniList のクエリ変数にそのまま渡せる形を保つため
+ */
+export type AnimeSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
+
+/** アニメでの役の種別。AniList の `MAIN` / `SUPPORTING` を小文字に直したもの */
+export type AnimeRole = "main" | "supporting";
+
 export type VoiceActor = {
   id: string; // 例 "va_ueda-reina" (slug 由来。シードで固定)
   slug: string; // URL 用。ローマ字小文字ハイフン ("ueda-reina")
   canonicalName: string; // "上田麗奈"
   nameKana?: string; // "うえだれいな"
+  // "Reina Ueda"。slug ("ueda-reina") からは姓名の順も大文字も戻せないので別に持つ
+  nameEn?: string;
   anilistStaffId?: number;
   imageUrl?: string;
   status: "active" | "inactive" | "unknown";
@@ -33,7 +54,7 @@ export type AudioWork = {
   releaseDate?: string; // "YYYY-MM-DD"
   coverImageUrl?: string;
   durationSeconds?: number;
-  adult: boolean; // MVP では常に false の作品だけ保存する
+  ageRating: AgeRating; // 取り込み時に許可された区分だけが入る (下の DEFAULT_ALLOWED_AGE_RATINGS)
   makerName?: string; // サークル / 出版社
 };
 
@@ -46,6 +67,13 @@ export type StoreListing = {
   titleRaw: string;
   price?: number; // JPY
   listPrice?: number; // 定価 (セール時に price と異なる)
+  /**
+   * ストアが自分で名乗っている区分をそのまま持つ。DLsite の `home` / `maniax`、
+   * ポケドラの `men` / `bl` / `adt` / `adt-bl` など。解釈せずに保存するのは、
+   * ストアが区分を増やしても壊れないようにするためと、BL のような年齢区分でない
+   * 切り口で後から絞れるようにするため
+   */
+  storeSection?: string;
   available: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -58,6 +86,40 @@ export type AudioCredit = {
   role?: string;
   confidence: CreditConfidence;
   sourceStoreSlug: StoreSlug;
+};
+
+/**
+ * アニメ 1 作品 (設計書 docs/feature-proposals/anime-season-entry-design-2026-09-18.md §3)。
+ * あらすじ・話数・放送局は持たない。アニメ事典にしないための歯止め (同 §5)
+ */
+export type AnimeTitle = {
+  id: string; // "anilist:195516"
+  slug: string; // titleRomaji 由来 ("sousou-no-frieren")
+  titleNative: string;
+  titleRomaji: string;
+  // AniList で実際に null のことがある。表示は titleEnglish ?? titleRomaji で埋める
+  titleEnglish?: string;
+  seasonYear: number;
+  season: AnimeSeason;
+  coverImageUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * アニメ × キャラクター × 声優の 1 行。
+ *
+ * キャラクターを別テーブルに分けないのは、キャラクターが「このアニメで、この声優が」という
+ * 文脈でしか使われないため。続編は mediaId が違うので別の行になり、それが正しい
+ */
+export type AnimeAppearance = {
+  animeTitleId: string;
+  voiceActorId: string;
+  characterId: string; // "anilist:12345"
+  characterNameNative: string; // "壬氏"
+  characterNameFull?: string; // "Jinshi"
+  characterImageUrl?: string;
+  role: AnimeRole;
 };
 
 /** クローラーの adapter が返す正規化前の 1 作品 */
@@ -75,12 +137,33 @@ export type RawWork = {
   creditedNames: string[]; // 声優 / ナレーターとして表記されている名前 (全員)
   storeCategory?: string; // "SOU" / "audiobook" などストア固有の分類
   genres?: string[];
-  adult: boolean;
+  ageRating: AgeRating;
+  storeSection?: string; // ストア固有の区分 (StoreListing.storeSection と同じ値)
   fetchedAt: string;
 };
 
+/**
+ * ingest の payload 形式の版 (T16)。`RawWork` / `IngestPayload` に後方互換でない変更を
+ * 入れるたびに 1 つ上げる。
+ *
+ * これが要るのは、クローラーが 1 回 3 時間走る一方でサーバーは vite の HMR で
+ * 差し替わるため。実際に `adult: boolean` を `ageRating` の列挙に変えたとき、
+ * 走っている最中のクローラーだけが古い形を送り続け、420 人ぶんが HTTP 400 で
+ * 捨てられた。400 では `crawl_runs` に行が残らないので、管理画面からは
+ * 「作品 0 件の声優」と見分けが付かず、事故が 3 時間気づかれなかった。
+ *
+ * 版が合わなければサーバーは 409 を返し、クローラーは残りを回さず即座に止まる。
+ * 「静かに捨てる」より「うるさく止まる」方が被害が小さいという判断
+ */
+export const INGEST_PROTOCOL_VERSION = 1;
+
 /** ingest エンドポイントの入力 */
 export type IngestPayload = {
+  /**
+   * 送り手が期待する payload の版。`INGEST_PROTOCOL_VERSION` と一致しなければサーバーは 409。
+   * 任意にせず必須にしてあるのは、省略できると古いクローラーが素通りしてしまうため
+   */
+  protocolVersion: number;
   runId: string;
   storeSlug: StoreSlug;
   voiceActorId: string; // このクロールの対象声優
@@ -111,6 +194,17 @@ export const WORK_CATEGORIES = [
   "other",
 ] as const satisfies readonly WorkCategory[];
 
+export const AGE_RATINGS = ["general", "r18", "unknown"] as const satisfies readonly AgeRating[];
+
+export const ANIME_SEASONS = [
+  "WINTER",
+  "SPRING",
+  "SUMMER",
+  "FALL",
+] as const satisfies readonly AnimeSeason[];
+
+export const ANIME_ROLES = ["main", "supporting"] as const satisfies readonly AnimeRole[];
+
 export const CREDIT_CONFIDENCES = [
   "verified",
   "probable",
@@ -138,7 +232,48 @@ const _creditConfidencesCoverAllTypes: AssertSameLiteralSet<
   CreditConfidence,
   (typeof CREDIT_CONFIDENCES)[number]
 > = true;
-void [_storeSlugsCoverAllTypes, _workCategoriesCoverAllTypes, _creditConfidencesCoverAllTypes];
+const _ageRatingsCoverAllTypes: AssertSameLiteralSet<AgeRating, (typeof AGE_RATINGS)[number]> =
+  true;
+const _animeSeasonsCoverAllTypes: AssertSameLiteralSet<
+  AnimeSeason,
+  (typeof ANIME_SEASONS)[number]
+> = true;
+const _animeRolesCoverAllTypes: AssertSameLiteralSet<AnimeRole, (typeof ANIME_ROLES)[number]> =
+  true;
+void [
+  _storeSlugsCoverAllTypes,
+  _workCategoriesCoverAllTypes,
+  _creditConfidencesCoverAllTypes,
+  _ageRatingsCoverAllTypes,
+  _animeSeasonsCoverAllTypes,
+  _animeRolesCoverAllTypes,
+];
+
+// --- 年齢区分の方針 --------------------------------------------------------
+
+/**
+ * 保存してよい年齢区分 (設計書 §14)。
+ *
+ * R18 を外しているのは実測の結果で、対象声優 (アニメ声優の本名義) の作品が 1 件も増えない
+ * 一方で Amazon アソシエイトの審査に落ちる恐れがあるため。`unknown` を許すのは Audible が
+ * 年齢区分を公開しておらず、弾くとストアごと落ちるため
+ */
+export const DEFAULT_ALLOWED_AGE_RATINGS = [
+  "general",
+  "unknown",
+] as const satisfies readonly AgeRating[];
+
+/**
+ * この区分の作品を保存してよいか。許可集合を引数にしてあるのは、将来 R18 を扱う判断をしたときに
+ * 呼び出し側 (ingest / クローラー) の設定だけで切り替えられるようにするため。
+ * ドメイン層に「R18 は捨てる」という決め打ちを埋め込まない
+ */
+export function isAgeRatingAllowed(
+  ageRating: AgeRating,
+  allowed: readonly AgeRating[] = DEFAULT_ALLOWED_AGE_RATINGS,
+): boolean {
+  return allowed.includes(ageRating);
+}
 
 // --- Zod スキーマ ----------------------------------------------------------
 // crawler → ingest エンドポイントの境界で検証する。推論型が上の手書き型と一致することを
@@ -173,11 +308,13 @@ export const rawWorkSchema = z.object({
   creditedNames: z.array(z.string()),
   storeCategory: z.string().optional(),
   genres: z.array(z.string()).optional(),
-  adult: z.boolean(),
+  ageRating: z.enum(AGE_RATINGS),
+  storeSection: z.string().optional(),
   fetchedAt: z.string(),
 }) satisfies z.ZodType<RawWork>;
 
 export const ingestPayloadSchema = z.object({
+  protocolVersion: z.number().int(),
   runId: z.string(),
   storeSlug: z.enum(STORE_SLUGS),
   voiceActorId: z.string(),
@@ -186,3 +323,17 @@ export const ingestPayloadSchema = z.object({
   totalCount: z.number().int().nonnegative().optional(),
   coverageComplete: z.boolean().optional(),
 }) satisfies z.ZodType<IngestPayload>;
+
+/**
+ * 本文から `protocolVersion` だけを取り出す (T16)。
+ *
+ * 全体を `ingestPayloadSchema` に通す前に呼ぶ。版が上がる変更はたいてい
+ * `works` の形を変えるので、先に全体を検証すると「版がずれている」ではなく
+ * 「works が不正」という的外れな 400 になり、原因が読み取れないため。
+ * 数値でなければ undefined を返し、呼び出し側が不一致として扱う
+ */
+export function readProtocolVersion(body: unknown): number | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const value = (body as { protocolVersion?: unknown }).protocolVersion;
+  return typeof value === "number" && Number.isInteger(value) ? value : undefined;
+}

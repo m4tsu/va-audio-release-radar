@@ -2,7 +2,14 @@ import { and, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { categorize } from "@/domain/category";
 import { resolveCredit } from "@/domain/identity";
-import type { IngestPayload, RawWork, StoreSlug } from "@/domain/types";
+import {
+  type AgeRating,
+  DEFAULT_ALLOWED_AGE_RATINGS,
+  type IngestPayload,
+  isAgeRatingAllowed,
+  type RawWork,
+  type StoreSlug,
+} from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings } from "../db/schema";
 import type { AppDb, BatchStatements } from "../db/types";
@@ -15,14 +22,22 @@ import { loadActorIndex } from "./actors";
 const BATCH_SIZE = 50;
 
 export type IngestResult = {
-  /** 保存した作品数 (成人向けを除く) */
+  /** 保存した作品数 (許可していない年齢区分を除く) */
   upserted: number;
   /** 今回はじめて見た listing の数 */
   new: number;
   /** 声優を特定できなかった credit の数。管理画面の未解決キューに積まれる */
   unmatched: number;
-  /** 成人向けとして捨てた作品数 (設計書 §1「成人向け作品は導入しない」) */
-  skippedAdult: number;
+  /** 許可していない年齢区分として捨てた作品数 (設計書 §14。現状は R18) */
+  skippedByRating: number;
+};
+
+export type IngestOptions = {
+  /**
+   * 保存してよい年齢区分。既定は `DEFAULT_ALLOWED_AGE_RATINGS` (全年齢と不明)。
+   * 引数にしてあるのは、将来 R18 を扱う判断をしたときにここだけで切り替えられるようにするため
+   */
+  allowedAgeRatings?: readonly AgeRating[];
 };
 
 /**
@@ -43,14 +58,16 @@ export async function ingest(
   db: AppDb,
   payload: IngestPayload,
   now: string,
+  options: IngestOptions = {},
 ): Promise<IngestResult> {
-  const result: IngestResult = { upserted: 0, new: 0, unmatched: 0, skippedAdult: 0 };
+  const { allowedAgeRatings = DEFAULT_ALLOWED_AGE_RATINGS } = options;
+  const result: IngestResult = { upserted: 0, new: 0, unmatched: 0, skippedByRating: 0 };
 
-  // 成人向けは保存しない。件数だけ返してクローラー側の取りこぼしと区別できるようにする
+  // 許可していない年齢区分は保存しない。件数だけ返してクローラー側の取りこぼしと区別できるようにする
   const works: RawWork[] = [];
   for (const work of payload.works) {
-    if (work.adult) result.skippedAdult += 1;
-    else works.push(work);
+    if (isAgeRatingAllowed(work.ageRating, allowedAgeRatings)) works.push(work);
+    else result.skippedByRating += 1;
   }
   result.upserted = works.length;
 
@@ -137,7 +154,7 @@ function workUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
     .insert(audioWorks)
     .values({
       id: workId,
-      adult: false,
+      ageRating: work.ageRating,
       createdAt: now,
       updatedAt: now,
       title: work.titleRaw,
@@ -152,9 +169,9 @@ function workUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
       set: {
         title: work.titleRaw,
         category: hasCategoryEvidence(work) ? category : keep(audioWorks.category),
-        // ここに来る作品は成人向けを弾いた後なので必ず全年齢。判定が変わった作品
-        // (ストア側で区分が付け直された) を残さないよう、毎回 false に揃える
-        adult: false,
+        // ストア側で区分が付け直されることがあるので毎回入れ直す。ここに来る作品は
+        // 許可された区分だけなので、既存行が許可外のまま残ることはない
+        ageRating: work.ageRating,
         // 以下は詳細を取れたときだけ埋まる。クローラーは既知の作品の詳細取得を飛ばすので
         // (`--skip-known`)、値が無いときは既存の値を残す。null で上書きすると再クロールのたびに
         // 発売日や再生時間が消える
@@ -195,6 +212,7 @@ function listingUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
       titleRaw: work.titleRaw,
       price: work.price ?? null,
       listPrice: work.listPrice ?? null,
+      storeSection: work.storeSection ?? null,
       // 一覧に出てきた = 買える、と見なす。RawWork に在庫の情報は無い
       available: true,
       firstSeenAt: now,
@@ -211,6 +229,9 @@ function listingUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
         titleRaw: work.titleRaw,
         price: work.price ?? null,
         listPrice: work.listPrice ?? null,
+        // 区分は詳細を取れたときだけ埋まる (DLsite は product.json 由来)。既知の作品では
+        // 詳細取得を飛ばすので、値が無いときは null で潰さず既存の値を残す
+        storeSection: work.storeSection ?? keep(storeListings.storeSection),
         available: true,
         lastSeenAt: now,
         lastCheckedAt: now,

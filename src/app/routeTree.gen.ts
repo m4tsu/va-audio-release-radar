@@ -15,10 +15,13 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AdminCrawlerHealthRouteImport } from './routes/admin/crawler-health'
 import { Route as AdminUnmatchedCreditsRouteImport } from './routes/admin/unmatched-credits'
+import { Route as AnimeSlugRouteImport } from './routes/anime.$slug'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as VoiceActorsSlugRouteImport } from './routes/voice-actors.$slug'
 import { Route as WorksIdRouteImport } from './routes/works.$id'
+import { Route as AnimeSeasonSeasonRouteImport } from './routes/anime.season.$season'
 import { Route as ApiAdminActorsRouteImport } from './routes/api/admin/actors'
+import { Route as ApiAdminAnimeRouteImport } from './routes/api/admin/anime'
 import { Route as ApiAdminIngestRouteImport } from './routes/api/admin/ingest'
 import { Route as ApiAdminKnownIdsRouteImport } from './routes/api/admin/known-ids'
 
@@ -52,6 +55,11 @@ const AdminUnmatchedCreditsRoute = AdminUnmatchedCreditsRouteImport.update({
   path: '/admin/unmatched-credits',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnimeSlugRoute = AnimeSlugRouteImport.update({
+  id: '/anime/$slug',
+  path: '/anime/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -67,9 +75,19 @@ const WorksIdRoute = WorksIdRouteImport.update({
   path: '/works/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnimeSeasonSeasonRoute = AnimeSeasonSeasonRouteImport.update({
+  id: '/anime/season/$season',
+  path: '/anime/season/$season',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminActorsRoute = ApiAdminActorsRouteImport.update({
   id: '/api/admin/actors',
   path: '/api/admin/actors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAdminAnimeRoute = ApiAdminAnimeRouteImport.update({
+  id: '/api/admin/anime',
+  path: '/api/admin/anime',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAdminIngestRoute = ApiAdminIngestRouteImport.update({
@@ -90,10 +108,13 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
+  '/anime/$slug': typeof AnimeSlugRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
+  '/anime/season/$season': typeof AnimeSeasonSeasonRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
+  '/api/admin/anime': typeof ApiAdminAnimeRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
 }
@@ -104,10 +125,13 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
+  '/anime/$slug': typeof AnimeSlugRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
+  '/anime/season/$season': typeof AnimeSeasonSeasonRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
+  '/api/admin/anime': typeof ApiAdminAnimeRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
 }
@@ -119,10 +143,13 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
+  '/anime/$slug': typeof AnimeSlugRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
+  '/anime/season/$season': typeof AnimeSeasonSeasonRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
+  '/api/admin/anime': typeof ApiAdminAnimeRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
 }
@@ -135,10 +162,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/crawler-health'
     | '/admin/unmatched-credits'
+    | '/anime/$slug'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
+    | '/anime/season/$season'
     | '/api/admin/actors'
+    | '/api/admin/anime'
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
   fileRoutesByTo: FileRoutesByTo
@@ -149,10 +179,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/crawler-health'
     | '/admin/unmatched-credits'
+    | '/anime/$slug'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
+    | '/anime/season/$season'
     | '/api/admin/actors'
+    | '/api/admin/anime'
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
   id:
@@ -163,10 +196,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/crawler-health'
     | '/admin/unmatched-credits'
+    | '/anime/$slug'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
+    | '/anime/season/$season'
     | '/api/admin/actors'
+    | '/api/admin/anime'
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
   fileRoutesById: FileRoutesById
@@ -178,10 +214,13 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   AdminCrawlerHealthRoute: typeof AdminCrawlerHealthRoute
   AdminUnmatchedCreditsRoute: typeof AdminUnmatchedCreditsRoute
+  AnimeSlugRoute: typeof AnimeSlugRoute
   ApiHealthRoute: typeof ApiHealthRoute
   VoiceActorsSlugRoute: typeof VoiceActorsSlugRoute
   WorksIdRoute: typeof WorksIdRoute
+  AnimeSeasonSeasonRoute: typeof AnimeSeasonSeasonRoute
   ApiAdminActorsRoute: typeof ApiAdminActorsRoute
+  ApiAdminAnimeRoute: typeof ApiAdminAnimeRoute
   ApiAdminIngestRoute: typeof ApiAdminIngestRoute
   ApiAdminKnownIdsRoute: typeof ApiAdminKnownIdsRoute
 }
@@ -230,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUnmatchedCreditsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anime/$slug': {
+      id: '/anime/$slug'
+      path: '/anime/$slug'
+      fullPath: '/anime/$slug'
+      preLoaderRoute: typeof AnimeSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -251,11 +297,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorksIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/anime/season/$season': {
+      id: '/anime/season/$season'
+      path: '/anime/season/$season'
+      fullPath: '/anime/season/$season'
+      preLoaderRoute: typeof AnimeSeasonSeasonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/actors': {
       id: '/api/admin/actors'
       path: '/api/admin/actors'
       fullPath: '/api/admin/actors'
       preLoaderRoute: typeof ApiAdminActorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/anime': {
+      id: '/api/admin/anime'
+      path: '/api/admin/anime'
+      fullPath: '/api/admin/anime'
+      preLoaderRoute: typeof ApiAdminAnimeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/ingest': {
@@ -282,10 +342,13 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   AdminCrawlerHealthRoute: AdminCrawlerHealthRoute,
   AdminUnmatchedCreditsRoute: AdminUnmatchedCreditsRoute,
+  AnimeSlugRoute: AnimeSlugRoute,
   ApiHealthRoute: ApiHealthRoute,
   VoiceActorsSlugRoute: VoiceActorsSlugRoute,
   WorksIdRoute: WorksIdRoute,
+  AnimeSeasonSeasonRoute: AnimeSeasonSeasonRoute,
   ApiAdminActorsRoute: ApiAdminActorsRoute,
+  ApiAdminAnimeRoute: ApiAdminAnimeRoute,
   ApiAdminIngestRoute: ApiAdminIngestRoute,
   ApiAdminKnownIdsRoute: ApiAdminKnownIdsRoute,
 }
