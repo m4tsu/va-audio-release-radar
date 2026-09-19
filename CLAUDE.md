@@ -40,10 +40,12 @@
 |---|---|
 | `npm run check` | typecheck + lint + test。コミット前にこれを通す |
 | `npm run build` | 本番ビルド |
-| `npm run test:e2e` | Playwright の E2E。ローカル D1 にシードを入れて実行する |
+| `npm run test:e2e` | Playwright の E2E。E2E 専用の D1 (`.wrangler-e2e/`) を作り直して実行する |
 | `npm run db:generate` | Drizzle のスキーマから migrations を生成する。**生成だけで止めない** |
 | `npm run db:migrate:local` | 生成したマイグレーションをローカル D1 に適用する |
 | `npm run radar:crawl` | クローラー本体。長時間動く |
 
 マイグレーションの扱いには追加の規則がある。`migrations/` や `src/server/db/schema.ts` を
 触るときは [`.claude/rules/migrations.md`](.claude/rules/migrations.md) が自動で読み込まれる。
+同様に `e2e/` や `playwright.config.ts` を触るときは
+[`.claude/rules/e2e.md`](.claude/rules/e2e.md) が読み込まれる。

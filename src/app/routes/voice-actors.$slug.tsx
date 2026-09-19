@@ -13,7 +13,7 @@ import { fetchActorBySlug } from "@/app/server-fns/actors";
 import { fetchAnimeByActor } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 import { fetchWorksByActor } from "@/app/server-fns/works";
-import { STORE_SLUGS } from "@/domain/types";
+import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
 
 /** 1 ストアあたりに出す作品数。新着を追うのが目的なので過去分は打ち切る (企画書 §5) */
 const WORKS_PER_STORE = 30;
@@ -166,13 +166,7 @@ function VoiceActorPage() {
   );
 }
 
-function StoreSection({
-  storeSlug,
-  items,
-}: {
-  storeSlug: "dlsite" | "audible";
-  items: WorkWithListings[];
-}) {
+function StoreSection({ storeSlug, items }: { storeSlug: StoreSlug; items: WorkWithListings[] }) {
   const t = useT();
   return (
     <section className="space-y-3">

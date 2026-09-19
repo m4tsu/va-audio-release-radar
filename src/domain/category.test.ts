@@ -71,3 +71,42 @@ describe("categorize", () => {
     expect(categorize("dlsite")).toBe("other");
   });
 });
+
+/**
+ * ポケドラは商品カテゴリだけで決める (T23)。実データ 492 件に出た 6 種類をすべて押さえる。
+ * 内訳は BLCD 351 / 一般ドラマCD 76 / シチュエーションCD 35 / 音楽 17 /
+ * 女性向けドラマCD 11 / 配信限定シチュエーション 2
+ */
+describe("categorize (ポケドラ)", () => {
+  test("ドラマ CD 系のカテゴリは audio_drama", () => {
+    expect(categorize("pokedora", "BLCD")).toBe("audio_drama");
+    expect(categorize("pokedora", "一般ドラマCD")).toBe("audio_drama");
+    expect(categorize("pokedora", "女性向けドラマCD")).toBe("audio_drama");
+  });
+
+  test("シチュエーション系のカテゴリは situation_voice", () => {
+    expect(categorize("pokedora", "シチュエーションCD")).toBe("situation_voice");
+    expect(categorize("pokedora", "配信限定シチュエーション")).toBe("situation_voice");
+  });
+
+  test("音楽はキャラクターソング CD なので other", () => {
+    // 「【DIG-ROCK】RESISTANCE【Vo.AKANE（CV.古川慎）】」のような歌もの
+    expect(categorize("pokedora", "音楽")).toBe("other");
+  });
+
+  test("カテゴリが取れなければ audio_drama (ドラマ CD のストアなので)", () => {
+    expect(categorize("pokedora")).toBe("audio_drama");
+    expect(categorize("pokedora", "見たことのない区分")).toBe("audio_drama");
+  });
+
+  test("関連ワードとタイトルは見ない", () => {
+    // ASMR の語を含む 3 件は実データでもシチュエーション系のカテゴリに置かれていた
+    expect(categorize("pokedora", "シチュエーションCD", ["ASMR", "添い寝"], "ASMR 添い寝")).toBe(
+      "situation_voice",
+    );
+    // 内容の語 (「あまあま」「学園」) で区分が動かないこと
+    expect(categorize("pokedora", "BLCD", ["あまあま", "学園"], "ボイスドラマ風のタイトル")).toBe(
+      "audio_drama",
+    );
+  });
+});

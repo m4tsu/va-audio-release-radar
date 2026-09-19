@@ -34,15 +34,13 @@ export const en: Translations = {
   },
 
   theme: {
-    label: "Theme: {{current}} (switch to {{next}})",
+    switchToLight: "Switch to light theme",
+    switchToDark: "Switch to dark theme",
     labelPending: "Switch theme",
-    light: "Light",
-    dark: "Dark",
-    system: "Match system",
   },
 
   locale: {
-    label: "Display language",
+    label: "Display language: {{name}}",
     // 言語名はその言語自身の表記で出すので、日本語辞書と同じ文字列にする
     ja: "日本語",
     en: "English",
@@ -149,6 +147,7 @@ export const en: Translations = {
   storeLink: {
     dlsite: "View on DLsite",
     audible: "Listen on Audible",
+    pokedora: "Listen on Pokedora",
     missing: "No link to this store has been collected.",
   },
 

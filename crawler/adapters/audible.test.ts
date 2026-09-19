@@ -13,6 +13,7 @@ import {
   parseRuntimeSeconds,
   parseSearchHtml,
   parseTotalCount,
+  SORT_LADDER,
   toIsoDate,
 } from "./audible.ts";
 
@@ -27,6 +28,16 @@ vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
 
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
 const searchHtml = readFileSync(path.join(FIXTURES_DIR, "audible-search-ueda-reina.html"), "utf8");
+// ヒット 1 件の実 HTML。総件数サマリの表記が複数件のときと違う (T22-C)
+const singleHitHtml = readFileSync(
+  path.join(FIXTURES_DIR, "audible-search-genda-tesshou.html"),
+  "utf8",
+);
+// searchNarrator= が姓だけでも一致する実 HTML。総件数 355 に対し本人名義は 0 件 (T22-D)
+const looseMatchHtml = readFileSync(
+  path.join(FIXTURES_DIR, "audible-search-sato-hajime.html"),
+  "utf8",
+);
 
 describe("buildSearchUrl", () => {
   it("sort=pubdate-desc-rank を付けて発売日降順にする", () => {
@@ -49,6 +60,22 @@ describe("buildSearchUrl", () => {
     expect(buildSearchUrl("上田 麗奈", "pubdate-asc-rank")).toBe(
       "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&sort=pubdate-asc-rank",
     );
+  });
+});
+
+describe("SORT_LADDER", () => {
+  it("新しい順から始まり、同じキーの昇順が 2 番目に来る", () => {
+    // 1 番目が新作レーダーの本体。2 番目を同じキー (pubdate) の逆向きにすると、
+    // 「上位 20 件」と「下位 20 件」で必ず重ならないので、総件数 40 以下は定義上 全件取れる (T22)
+    expect(SORT_LADDER[0]).toBe("pubdate-desc-rank");
+    expect(SORT_LADDER[1]).toBe("pubdate-asc-rank");
+  });
+
+  it("並び順は重複せず、上限は 6 リクエスト", () => {
+    // 10 種すべて使っても実測 (斉藤壮馬 164 件) では 6 種の 83 件から 84 件にしか増えない。
+    // 声優 1 人あたりの所要時間に見合わないので 6 で打ち切る
+    expect(new Set(SORT_LADDER).size).toBe(SORT_LADDER.length);
+    expect(SORT_LADDER).toHaveLength(6);
   });
 });
 
@@ -152,7 +179,19 @@ describe("parseTotalCount", () => {
     expect(parseTotalCount(summaryHtml)).toBe(38);
   });
 
+  it("ヒットが 1 件のときの別表記からも総件数を取る", () => {
+    // 500 人のクロールで総件数を読めなかった 73 件は全部これ。1 件のときだけ
+    // 「のうち」が出ず、実 HTML では「検索結果 1 件」とだけ書かれる (T22-C)
+    expect(parseTotalCount(singleHitHtml)).toBe(1);
+  });
+
+  it("桁区切りのカンマが入っても数値にする", () => {
+    // 実測では 4 桁以上のナレーターに当たっていないが、出たときに黙って undefined にしない
+    expect(parseTotalCount("検索結果 1,234  のうち 1 - 20 件")).toBe(1234);
+  });
+
   it("表示が無ければ undefined", () => {
+    // ueda のフィクスチャは商品リストだけを残したもので、サマリの span が無い
     expect(parseTotalCount(searchHtml)).toBeUndefined();
     expect(parseTotalCount("<html></html>")).toBeUndefined();
   });
@@ -213,8 +252,15 @@ describe("fetchByActor", () => {
   });
 
   /** 1 件の productListItem だけを持つ最小限の HTML。検証 (rawWorkSchema) を通る最小項目だけ埋める */
-  function htmlWithOneWork(asin: string): string {
-    return `<li class="productListItem" id="product-list-item-${asin}"><h3><a href="/pd/x/${asin}">Title ${asin}</a></h3></li>`;
+  function htmlWithOneWork(asin: string, narrator = "上田 麗奈"): string {
+    // ナレーター欄を入れるのは、本人名義かどうかの一致率を測るため (T22-D)。
+    // 既定を検索対象の声優にしてあるので、名前を渡さない限り「正しく引けている」状態になる
+    return (
+      `<li class="productListItem" id="product-list-item-${asin}">` +
+      `<h3><a href="/pd/x/${asin}">Title ${asin}</a></h3>` +
+      // 実 HTML と同じく ul で包む。li を直接入れ子にするとパーサーが外側の li を閉じてしまう
+      `<ul><li class="narratorLabel"><a>${narrator}</a></li></ul></li>`
+    );
   }
 
   function ok(body: string): FetchResult {
@@ -243,7 +289,7 @@ describe("fetchByActor", () => {
   it("1 つ目が該当なしでも、2 つ目で 1 件見つかれば確定する", async () => {
     // 実測どおり: 空白なし (石見舞菜香) が該当なし、空白あり (石見 舞菜香) で見つかる
     fetchTextMock.mockResolvedValueOnce(emptyRedirect());
-    fetchTextMock.mockResolvedValueOnce(ok(htmlWithOneWork("B000000001")));
+    fetchTextMock.mockResolvedValueOnce(ok(htmlWithOneWork("B000000001", "石見 舞菜香")));
 
     const result = await audibleAdapter.fetchByActor(
       { canonicalName: "石見舞菜香", searchNames: ["石見舞菜香", "石見 舞菜香"] },
@@ -312,70 +358,329 @@ describe("fetchByActor", () => {
     expect(result.status).toBe("ok");
   });
 
-  // --- 網羅率と古い順での補完 (T12) ---------------------------------------
+  // --- 網羅率と並び順のはしご (T12 / T22) ---------------------------------
 
-  /** 「検索結果 N のうち」の表示。総件数はここからしか取れない */
+  /** 複数件ヒット時の総件数サマリ。1 件のときだけ表記が変わる (parseTotalCount のテスト参照) */
   function summary(total: number): string {
     return `<span class="resultsSummarySubheading">検索結果 ${total}  のうち 1 - 20 件</span>`;
   }
 
+  /** 連番の ASIN で商品リストを作る。`from` 番から `count` 件 (既定は 1 ページ分の 20 件) */
+  function page(from: number, count = 20, narrator?: string): string {
+    return Array.from({ length: count }, (_value, index) =>
+      htmlWithOneWork(`B${String(from + index).padStart(9, "0")}`, narrator),
+    ).join("");
+  }
+
   const ACTOR = { canonicalName: "上田麗奈", searchNames: ["上田麗奈"] };
 
-  it("総件数が 20 件以下なら古い順の追加リクエストを出さない", async () => {
+  it("総件数が 1 ページに収まるなら追加の並び順を引かない", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(`${summary(7)}${page(1, 7)}`));
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.coverage).toEqual({ fetched: 7, total: 7, complete: true, pages: 1, matched: 7 });
+  });
+
+  it("総件数が 1 ページに収まるなら、取得件数が足りなくても引き直さない", async () => {
+    // ページングが起きていないので、どの並び順を引いても同じ 1 ページが返る。
+    // 解析落ちで件数が合わないときに 5 回引き直しても、相手に負荷をかけるだけで増えない
     fetchTextMock.mockResolvedValueOnce(ok(`${summary(7)}${htmlWithOneWork("B000000010")}`));
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
     expect(fetchTextMock).toHaveBeenCalledTimes(1);
-    expect(result.coverage).toEqual({ fetched: 1, total: 7, complete: false, pages: 1 });
+    expect(result.coverage).toEqual({
+      fetched: 1,
+      total: 7,
+      complete: false,
+      pages: 1,
+      matched: 1,
+    });
   });
 
-  it("総件数が 20 件を超えると古い順を 1 回足して和集合を取る", async () => {
+  it("和集合が総件数に届いた時点で打ち切る", async () => {
+    // 総件数 21。新しい順で 20 件、古い順で 1 件足りれば 21 件に届くので 3 種類目は引かない
     fetchTextMock
-      .mockResolvedValueOnce(
-        ok(`${summary(21)}${htmlWithOneWork("B000000011")}${htmlWithOneWork("B000000012")}`),
-      )
-      .mockResolvedValueOnce(
-        // 重複 (B000000012) を含む古い順。ASIN で束ねるので 3 件になる
-        ok(`${summary(21)}${htmlWithOneWork("B000000012")}${htmlWithOneWork("B000000013")}`),
-      );
+      .mockResolvedValueOnce(ok(`${summary(21)}${page(1)}`))
+      .mockResolvedValueOnce(ok(`${summary(21)}${page(21, 1)}`));
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
     expect(fetchTextMock).toHaveBeenCalledTimes(2);
     expect(fetchTextMock.mock.calls[1]?.[0]).toBe(buildSearchUrl("上田麗奈", "pubdate-asc-rank"));
+    expect(result.coverage).toEqual({
+      fetched: 21,
+      total: 21,
+      complete: true,
+      pages: 2,
+      matched: 21,
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("重複した ASIN は畳んで 1 件にする", async () => {
+    // 総件数 30 に届かないのではしごを使い切るが、3 種類目以降は既出の ASIN しか返さない
+    fetchTextMock
+      .mockResolvedValueOnce(
+        ok(`${summary(30)}${htmlWithOneWork("B000000011")}${htmlWithOneWork("B000000012")}`),
+      )
+      .mockResolvedValue(
+        ok(`${summary(30)}${htmlWithOneWork("B000000012")}${htmlWithOneWork("B000000013")}`),
+      );
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
     expect(result.works.map((work) => work.storeProductId)).toEqual([
       "B000000011",
       "B000000012",
       "B000000013",
     ]);
-    expect(result.coverage).toEqual({ fetched: 3, total: 21, complete: false, pages: 2 });
-    expect(result.warnings).toContain("網羅率 3/21");
+    expect(result.coverage).toEqual({
+      fetched: 3,
+      total: 30,
+      complete: false,
+      pages: 6,
+      matched: 3,
+    });
   });
 
-  it("古い順の取得に失敗しても新しい順の結果で続行する", async () => {
+  it("届かないときは SORT_LADDER を使い切って打ち切る", async () => {
+    // 総件数 164 (斉藤壮馬の実測値)。並び順ごとに別の 20 件が返っても 6 種類で止める
+    for (let index = 0; index < SORT_LADDER.length; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(ok(`${summary(164)}${page(1 + index * 20)}`));
+    }
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(SORT_LADDER.length);
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual(
+      SORT_LADDER.map((sort) => buildSearchUrl("上田麗奈", sort)),
+    );
+    expect(result.coverage).toEqual({
+      fetched: 120,
+      total: 164,
+      complete: false,
+      pages: 6,
+      matched: 120,
+    });
+    expect(result.warnings).toContain("網羅率 120/164");
+  });
+
+  it("途中の並び順が失敗したら、そこまでの結果で打ち切る", async () => {
+    // 相手が答えられない状態で残りを投げ続けない (fetchText 側で既に 4 回再試行している)
     fetchTextMock
-      .mockResolvedValueOnce(ok(`${summary(21)}${htmlWithOneWork("B000000014")}`))
+      .mockResolvedValueOnce(ok(`${summary(164)}${page(1)}`))
       .mockResolvedValueOnce(networkError());
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
     expect(result.status).toBe("ok");
-    expect(result.works).toHaveLength(1);
-    expect(result.coverage).toEqual({ fetched: 1, total: 21, complete: false, pages: 1 });
-    expect(result.warnings.some((warning) => warning.startsWith("古い順での補完に失敗"))).toBe(
-      true,
-    );
+    expect(result.works).toHaveLength(20);
+    expect(result.coverage).toEqual({
+      fetched: 20,
+      total: 164,
+      complete: false,
+      pages: 1,
+      matched: 20,
+    });
+    expect(
+      result.warnings.some((warning) =>
+        warning.startsWith("並び順 pubdate-asc-rank での補完に失敗"),
+      ),
+    ).toBe(true);
   });
 
-  it("総件数の表示が無ければ complete を立てず、追加リクエストも出さない", async () => {
+  it("1 ページ目で総件数を読めなくても、後続の並び順で読めれば拾う", async () => {
+    // 1 ページ目が埋まっていれば続きがあると分かるので、総件数不明でもはしごを進める
+    fetchTextMock
+      .mockResolvedValueOnce(ok(page(1)))
+      .mockResolvedValueOnce(ok(`${summary(30)}${page(21, 10)}`));
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.coverage).toEqual({
+      fetched: 30,
+      total: 30,
+      complete: true,
+      pages: 2,
+      matched: 30,
+    });
+    expect(result.totalCount).toBe(30);
+  });
+
+  // --- 総件数を読めなかったときの扱い (T22-C) -----------------------------
+
+  it("総件数が読めず 1 ページ目が埋まっていなければ、全件取れたとみなす", async () => {
+    // 20 件未満 = ページングが起きていない = これがその声優の全作品。
+    // 「不明」のまま残すと、網羅率が分からない run が積み上がる (実測 73 件)
     fetchTextMock.mockResolvedValueOnce(ok(htmlWithOneWork("B000000015")));
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
     expect(fetchTextMock).toHaveBeenCalledTimes(1);
-    expect(result.coverage).toEqual({ fetched: 1, pages: 1 });
+    expect(result.coverage).toEqual({ fetched: 1, total: 1, complete: true, pages: 1, matched: 1 });
     expect(result.warnings).toEqual([]);
+  });
+
+  it("実 HTML (ヒット 1 件) でも総件数を読んで網羅完了にする", async () => {
+    fetchTextMock.mockResolvedValueOnce(ok(singleHitHtml));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "玄田哲章", searchNames: ["玄田 哲章"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(result.works).toHaveLength(1);
+    expect(result.coverage).toEqual({ fetched: 1, total: 1, complete: true, pages: 1, matched: 1 });
+  });
+
+  it("総件数が読めないまま最後まで埋まっていたら「不明」のままにする", async () => {
+    // ちょうど 20 件で総件数も読めない。続きがあるかどうか分からないので complete を立てない
+    for (let index = 0; index < SORT_LADDER.length; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(ok(page(1)));
+    }
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(SORT_LADDER.length);
+    expect(result.coverage).toEqual({ fetched: 20, pages: 6, matched: 20 });
+    expect(result.totalCount).toBeUndefined();
+  });
+
+  it("検証落ちを引いた分は「1 ページが埋まっていない」の判定に入れない", async () => {
+    // 1 ページ 20 件のうち 1 件が検証に落ちる (ここでは表紙がプレースホルダ画像で https URL でない)
+    // と works は 19 件になるが、ページングは起きている。works の数で判断すると
+    // 「20 件未満だから全件」と誤るので、捨てた分を数に戻してから判定する
+    const brokenItem =
+      '<li class="productListItem" id="product-list-item-B099999999">' +
+      '<h3><a href="/pd/x/B099999999">壊れた行</a></h3>' +
+      '<ul><li class="narratorLabel"><a>上田 麗奈</a></li></ul>' +
+      '<img class="bc-image-inset-border" src="data:image/gif;base64,R0lGOD"></li>';
+    fetchTextMock
+      .mockResolvedValueOnce(ok(`${page(1, 19)}${brokenItem}`))
+      .mockResolvedValueOnce(ok(`${summary(25)}${page(20, 6)}`));
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.invalidCount).toBe(1);
+    expect(result.coverage).toEqual({
+      fetched: 25,
+      total: 25,
+      complete: true,
+      pages: 2,
+      matched: 25,
+    });
+  });
+
+  // --- 検索語が広すぎるときの扱い (T22-D) --------------------------------
+
+  it("本人が 1 件もクレジットされていなければ、総件数を分母にしない", async () => {
+    // 実測: 「佐藤 元」で引くと総件数 355 件が返るが、1 ページ目のナレーターは
+    // 佐藤恵・佐藤詩乃・佐藤弘樹などで佐藤元は 1 件も含まれない。
+    // この 355 は佐藤姓のナレーター作品の総数であって、佐藤元の作品数ではない
+    for (let index = 0; index < SORT_LADDER.length; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(ok(`${summary(355)}${page(1, 20, "佐藤 恵")}`));
+    }
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "佐藤元", searchNames: ["佐藤 元"] },
+      { snapshot: false },
+    );
+
+    // total も complete も落として「不明」にする。complete: false にすると
+    // 「佐藤元の作品を取り逃した」という別の主張になってしまう
+    expect(result.coverage).toEqual({ fetched: 20, pages: 6, matched: 0 });
+    expect(result.totalCount).toBeUndefined();
+    expect(result.warnings).toContain(
+      "検索語が広すぎる可能性 (本人名義 0/20 件)。総件数 355 は同姓の別人を含むとみて網羅率は不明とする",
+    );
+    // 網羅率の警告は鳴らさない。分母が信用できないものを取りこぼしとして出し続けても意味がない
+    expect(result.warnings.some((warning) => warning.startsWith("網羅率"))).toBe(false);
+  });
+
+  it("本人名義が大半なら、1 件混ざっても網羅率をそのまま出す", async () => {
+    // 斉藤壮馬は和集合 84 件中 83 件が本人名義。残り 1 件は本人の冠番組でナレーター欄が空。
+    // この程度の混入で分母を捨てると、正しく引けている声優の網羅率まで見えなくなる
+    const own = page(1, 19, "斉藤 壮馬");
+    const other = htmlWithOneWork("B000000099", "別人 太郎");
+    for (let index = 0; index < SORT_LADDER.length; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(ok(`${summary(164)}${own}${other}`));
+    }
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "斉藤壮馬", searchNames: ["斉藤 壮馬"] },
+      { snapshot: false },
+    );
+
+    expect(result.coverage).toEqual({
+      fetched: 20,
+      total: 164,
+      complete: false,
+      pages: 6,
+      matched: 19,
+    });
+    expect(result.warnings).toContain("網羅率 20/164");
+    expect(result.warnings.some((warning) => warning.startsWith("検索語が広すぎる"))).toBe(false);
+  });
+
+  it("異体字違いの表記でも本人名義として数える", async () => {
+    // 検索は「斉藤 壮馬」で通っても、作品側の表記が「齊藤壮馬」ということがある。
+    // normalizeName が常用漢字表の異体字 (齊→斉) を畳むので一致する
+    fetchTextMock.mockResolvedValueOnce(ok(`${summary(3)}${page(1, 3, "齊藤 壮馬")}`));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "斉藤壮馬", searchNames: ["斉藤 壮馬"] },
+      { snapshot: false },
+    );
+
+    expect(result.coverage?.matched).toBe(3);
+  });
+
+  it("検索に使わなかった canonicalName とも照合する", async () => {
+    // 検索は空白入りの別名で通すが、作品側の表記は空白なしのことがある。
+    // 照合対象は searchNames だけでなく canonicalName も含める
+    fetchTextMock.mockResolvedValueOnce(ok(`${summary(2)}${page(1, 2, "上田麗奈")}`));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "上田麗奈", searchNames: ["上田 麗奈"] },
+      { snapshot: false },
+    );
+
+    expect(result.coverage?.matched).toBe(2);
+  });
+
+  it("実 HTML (佐藤元の検索結果) で本人名義が 0 件になる", async () => {
+    fetchTextMock.mockResolvedValue(ok(looseMatchHtml));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "佐藤元", searchNames: ["佐藤 元"] },
+      { snapshot: false },
+    );
+
+    // ナレーターは佐藤恵・佐藤詩乃・佐藤弘樹・佐藤佑暉・佐藤慧・佐藤正宏。姓しか合っていない
+    expect(result.works).toHaveLength(6);
+    expect(result.coverage?.matched).toBe(0);
+    expect(result.coverage?.total).toBeUndefined();
+    expect(result.warnings.some((warning) => warning.startsWith("検索語が広すぎる"))).toBe(true);
+  });
+
+  it("実 HTML の同じ検索結果でも、佐藤恵で引いたなら本人名義として数える", async () => {
+    // 一致率は「検索した声優が並んでいるか」だけを見ているので、
+    // 同じ HTML でも対象の声優が変われば判定も変わる
+    fetchTextMock.mockResolvedValue(ok(looseMatchHtml));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "佐藤恵", searchNames: ["佐藤 恵"] },
+      { snapshot: false },
+    );
+
+    expect(result.coverage?.matched).toBe(1);
   });
 
   it("該当なし (empty) でも網羅率は 0/0 として残す", async () => {
@@ -384,6 +689,6 @@ describe("fetchByActor", () => {
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
     expect(result.status).toBe("empty");
-    expect(result.coverage).toEqual({ fetched: 0, total: 0, complete: true, pages: 1 });
+    expect(result.coverage).toEqual({ fetched: 0, total: 0, complete: true, pages: 1, matched: 0 });
   });
 });

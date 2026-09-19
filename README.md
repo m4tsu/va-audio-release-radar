@@ -43,7 +43,7 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定したい
 ```bash
 npm run dev              # 開発サーバー (SSR。ポート 5199)
 npm run check            # 型・lint・単体テスト
-npm run test:e2e         # Playwright (ローカル D1 にシードを入れて実行し、後で消す)
+npm run test:e2e         # Playwright (E2E 専用の D1 .wrangler-e2e/ を作り直して実行する)
 npm run build            # dist/client と dist/server を生成
 npm run preview          # ビルド成果物を Workers ランタイムで確認
 npm run deploy           # build + wrangler deploy

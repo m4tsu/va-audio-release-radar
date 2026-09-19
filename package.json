@@ -14,7 +14,7 @@
     "lint:fix": "biome check --write .",
     "check:migrations": "node --no-warnings scripts/check-migrations.mjs",
     "check": "npm run check:migrations && npm run typecheck && npm run lint && npm run test",
-    "test:e2e": "node e2e/fixtures/run-e2e.mjs",
+    "test:e2e": "playwright test",
     "deploy": "npm run build && wrangler deploy",
     "radar": "node crawler/cli.ts",
     "radar:crawl": "node crawler/run.ts",
@@ -24,8 +24,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "db:seed:e2e": "wrangler d1 execute DB --local --file e2e/fixtures/seed.sql",
-    "db:seed:e2e:clean": "wrangler d1 execute DB --local --file e2e/fixtures/cleanup.sql",
+    "db:reset:e2e": "node e2e/fixtures/e2e-db.mjs reset",
+    "db:migrate:e2e": "node e2e/fixtures/e2e-db.mjs migrate",
+    "db:seed:e2e": "node e2e/fixtures/e2e-db.mjs seed",
     "e2e:prepare": "node e2e/fixtures/prepare.mjs"
   },
   "dependencies": {

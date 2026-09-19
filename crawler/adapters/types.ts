@@ -23,12 +23,39 @@ export interface SourceAdapter {
  * Audible は名前によって空白の有無で検索結果が変わる (例: 「石見舞菜香」は 302、
  * 「石見 舞菜香」は 2 件) ため、試す順序付きの候補を `searchNames` として渡す。
  * DLsite は表記揺れの影響を受けないので `canonicalName` の完全一致検索だけを使い、
- * `searchNames` は無視する
+ * `searchNames` は無視する。
+ *
+ * ポケドラは名前で検索しない。声優がタグ (`tag_id`) という一級の概念になっていて、
+ * 事前に作った辞書から ID を引くほうが表記揺れに強いため、`storeActorRefs` を見る (T23)
  */
 export type ActorQuery = {
   canonicalName: string;
   searchNames: string[];
+  /**
+   * ストア固有の声優 ID。ポケドラのタグ辞書のように、引く前から ID が分かっている
+   * ストアだけに入る。同じ人に ID が 2 つ付いていることがある (ポケドラで 7 組) ので配列で持つ
+   */
+  storeActorRefs?: Readonly<Partial<Record<StoreSlug, readonly StoreActorRef[]>>>;
 };
+
+/** 辞書から渡すストア固有の声優 ID 1 件 */
+export type StoreActorRef = {
+  externalId: string;
+  /**
+   * ストア区分ごとの既知の作品数 (ポケドラの `men` / `bl` など)。
+   * 0 件と分かっている区分のページは引かずに済ませるために渡す。
+   * 分からないときは undefined にして、adapter に全区分を引かせる
+   */
+  counts?: Readonly<Record<string, number>>;
+};
+
+/**
+ * 取得中に実際に見えた (ストア固有の声優 ID, そのときの表記) の組。
+ *
+ * ポケドラの `tag_id` は「同じ tag_id なら同一人物」というストア由来の事実なので、
+ * 別名義や表記揺れの根拠に使える (設計書 §3)。名前しか出さない DLsite / Audible では空
+ */
+export type ObservedActorRef = { externalId: string; name: string };
 
 export type ParsedWorks = {
   works: RawWork[];
@@ -73,6 +100,16 @@ export type Coverage = {
   /** `total` を取れたときだけ true / false。取れなければ undefined */
   complete?: boolean;
   /**
+   * `fetched` のうち、検索した声優本人がクレジットされていた件数 (T22)。
+   *
+   * Audible の `searchNarrator=` は完全一致ではなく、姓だけ一致する別人の作品も返す
+   * (「佐藤 元」で引くと佐藤恵・佐藤弘樹などが並び、本人は 1 件も含まれない)。
+   * `fetched` との比が低いときは `total` がその声優の作品数ではないので、
+   * adapter は `total` と `complete` を落として「不明」にする。その判断根拠をここに残す。
+   * 名前で検索しないストア (ポケドラ) や完全一致検索のストア (DLsite) では undefined
+   */
+  matched?: number;
+  /**
    * 実際に取った検索ページ数。1 なら並び順違いの補完リクエストは出していない。
    * 相手サイトへの往復が増えていないことを CLI とログから確かめられるようにするため
    */
@@ -89,6 +126,8 @@ export type AdapterResult = ParsedWorks & {
   queryUsed?: string;
   /** 網羅率。検索そのものに失敗した (`error`) ときは undefined */
   coverage?: Coverage;
+  /** 取得中に見えたストア固有の声優 ID。今はポケドラだけが返す (T23) */
+  observedActorRefs?: ObservedActorRef[];
 };
 
 export type FetchByActorOptions = {

@@ -9,6 +9,7 @@ import {
   filterActors,
   formatOutcomeTable,
   loadActorSeeds,
+  markFetched,
   type RunOutcome,
   send,
   sliceActors,
@@ -143,13 +144,13 @@ describe("formatOutcomeTable", () => {
     ]);
     const lines = table.split("\n");
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatch(/^声優\s+DLsite\s+new\s+Audible\s+new\s+備考$/);
-    expect(lines[1]).toMatch(/^上田麗奈\s+30\s+7\s+0\s+0\s+audible:empty$/);
+    expect(lines[0]).toMatch(/^声優\s+DLsite\s+new\s+Audible\s+new\s+ポケドラ\s+new\s+備考$/);
+    expect(lines[1]).toMatch(/^上田麗奈\s+30\s+7\s+0\s+0\s+-\s+-\s+audible:empty$/);
   });
 
   it("対象から外したストアは 0 ではなく - にする", () => {
     const table = formatOutcomeTable([outcome(KAJI, "dlsite", "ok", 3, 3)]);
-    expect(table.split("\n")[1]).toMatch(/^梶裕貴\s+3\s+3\s+-\s+-$/);
+    expect(table.split("\n")[1]).toMatch(/^梶裕貴\s+3\s+3\s+-\s+-\s+-\s+-$/);
   });
 
   it("空白入り別名で確定したときは queryUsed を備考に出す (T8)", () => {
@@ -158,7 +159,9 @@ describe("formatOutcomeTable", () => {
       outcome(UEDA, "audible", "ok", 7, 1, 0, "上田 麗奈"),
       outcome(UEDA, "dlsite", "ok", 30, 7, 0, "上田麗奈"),
     ]);
-    expect(table.split("\n")[1]).toMatch(/^上田麗奈\s+30\s+7\s+7\s+1\s+audible:query=上田 麗奈$/);
+    expect(table.split("\n")[1]).toMatch(
+      /^上田麗奈\s+30\s+7\s+7\s+1\s+-\s+-\s+audible:query=上田 麗奈$/,
+    );
   });
 
   it("取得できたのに保存に失敗したストアを備考に出す (T16)", () => {
@@ -167,9 +170,31 @@ describe("formatOutcomeTable", () => {
     expect(table.split("\n")[1]).toContain("dlsite:save-failed");
   });
 
+  it("ポケドラは tag_id で引いたことが備考に出る (T23)", () => {
+    // 名前で検索していないので、queryUsed が canonicalName と違う。列も独立して出る
+    const table = formatOutcomeTable([outcome(UEDA, "pokedora", "ok", 5, 2, 0, "tag_id=1554")]);
+    expect(table.split("\n")[1]).toMatch(
+      /^上田麗奈\s+-\s+-\s+-\s+-\s+5\s+2\s+pokedora:query=tag_id=1554$/,
+    );
+  });
+
   it("失敗を crawl_runs にも残せなかったときは備考でそう書く (T16)", () => {
     const table = formatOutcomeTable([saveFailed(UEDA, "audible", 12, false)]);
     expect(table.split("\n")[1]).toContain("audible:save-failed(未記録)");
+  });
+});
+
+describe("markFetched", () => {
+  it("取り終えた作品を既知に足す (共演作を人数分だけ引き直さないため)", () => {
+    const known = new Map<StoreSlug, Set<string>>([["pokedora", new Set(["93854"])]]);
+    markFetched(known, "pokedora", [{ storeProductId: "93854" }, { storeProductId: "126232" }]);
+    expect([...(known.get("pokedora") ?? [])].sort()).toEqual(["126232", "93854"]);
+  });
+
+  it("集合が無いストア (--no-skip-known) では何もしない", () => {
+    const known = new Map<StoreSlug, Set<string>>();
+    markFetched(known, "dlsite", [{ storeProductId: "RJ01" }]);
+    expect(known.size).toBe(0);
   });
 });
 

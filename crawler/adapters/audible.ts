@@ -1,11 +1,12 @@
 import * as cheerio from "cheerio";
-import type { RawWork } from "../../src/domain/index.ts";
+import { normalizeName, type RawWork } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { buildCoverage } from "./coverage.ts";
 import { validateRawWorks } from "./raw-work.ts";
 import type {
   ActorQuery,
   AdapterResult,
+  Coverage,
   FetchByActorOptions,
   ParsedWorks,
   SourceAdapter,
@@ -14,12 +15,14 @@ import type {
 /**
  * Audible Japan のアダプタ。手順は設計書 §3 のとおり:
  *
- * 1. `?searchNarrator={名前}&sort=pubdate-desc-rank` の 1 ページ目 (20 件) だけを取る。
+ * 1. `?searchNarrator={名前}&sort={並び順}` の 1 ページ目 (20 件) だけを取る。
  *    既定 (sort 無し) は人気順 (popularity-rank) で、20 件を超える声優 (例: 石田彰は 38 件)
- *    では新作が 1 ページ目に載らないことがある。`sort=pubdate-desc-rank` を単独で付けると
- *    HTTP 200 のまま発売日降順になる (実測)。`pageSize` や `page` を追加すると
- *    `no-search-results` へ 302 される。robots.txt も `page=` との組み合わせを禁じている
- * 2. `li.productListItem` から 1 件ずつ取り出す
+ *    では新作が 1 ページ目に載らないことがある。`sort` を単独で付けると HTTP 200 のまま
+ *    その並び順になる (実測)。`pageSize` や `page` を追加すると `no-search-results` へ
+ *    302 される。robots.txt も `page=` との組み合わせを禁じている
+ * 2. 総件数が 1 ページに収まらないときは、並び順を変えた 1 ページ目を足して和集合を取る
+ *    (SORT_LADDER を参照)
+ * 3. `li.productListItem` から 1 件ずつ取り出す
  *
  * `li.productListItem` の中には flyout (popover) があり、同じ情報が短縮形で重複している。
  * flyout 側は「、その他」で省略されるため、必ず本文側のラベル class
@@ -31,14 +34,67 @@ const STORE_SLUG = "audible" as const;
 const AUDIBLE_STORE_CATEGORY = "audiobook";
 
 /**
- * 検索の並び順。`pubdate-desc-rank` が新しい順 (既定)、`pubdate-asc-rank` が古い順。
- * 1 ページ目 20 件の制約は `sort` を変えても外れないので、20 件を超える声優は
- * 両方の 1 ページ目を取って和集合にする (40 件まで) (T12)
+ * 検索の並び順。Audible の検索フォームが持つ 10 種類すべて。いずれも単独で付ければ
+ * HTTP 200 のまま並び順だけが変わる (2026-09-19 に斉藤壮馬で 10 種すべて実測)
  */
-export type AudibleSearchSort = "pubdate-desc-rank" | "pubdate-asc-rank";
+export type AudibleSearchSort =
+  | "popularity-rank"
+  | "pubdate-desc-rank"
+  | "pubdate-asc-rank"
+  | "review-rank"
+  | "price-asc-rank"
+  | "price-desc-rank"
+  | "runtime-asc-rank"
+  | "runtime-desc-rank"
+  | "title-asc-rank"
+  | "title-desc-rank";
 
 /** 1 ページ目に載る件数の上限 (実測)。`pageSize` や `page` を足すと 302 されるので増やせない */
 const PAGE_SIZE = 20;
+
+/**
+ * 「検索語が広すぎる」と判断する一致率の下限 (T22-D)。
+ *
+ * `searchNarrator=` は完全一致ではなく姓だけでも拾う。「佐藤 元」で引くと総件数 355 件が返るが、
+ * 1 ページ目のナレーターは佐藤恵・佐藤詩乃・佐藤弘樹・佐藤佑暉・佐藤慧・佐藤正宏で、
+ * **佐藤元は 1 件も含まれない** (2026-09-19 実測)。この 355 はその声優の作品数ではないので、
+ * 網羅率の分母に使えない。
+ *
+ * 一方、正しく引けている声優では一致率がほぼ 1 になる (斉藤壮馬は和集合 84 件中 83 件が本人名義。
+ * 残り 1 件は本人の冠番組でナレーター欄が空)。0 に近い側と 1 に近い側がはっきり分かれるので、
+ * その間に線を引く。ナレーター欄が空の作品がたまたま固まっても落ちない程度に低く取る
+ */
+const LOOSE_MATCH_RATIO = 0.2;
+
+/**
+ * 網羅率を上げるための並び順のはしご (T22)。総件数が 1 ページに収まらないときに、
+ * この順で 1 ページ目を足していき、ASIN の和集合を取る。
+ *
+ * 並び順 `K` に対して `K-asc` は「K が小さい方から 20 件」、`K-desc` は「K が大きい方から 20 件」
+ * なので、**同じキーの asc と desc は必ず重ならない**。よって:
+ *
+ * - 総件数 20 以下 … 1 リクエストで全件 (ページングが起きない)
+ * - 総件数 40 以下 … `pubdate-desc` + `pubdate-asc` で全件。これは重なりの実測ではなく
+ *   並び順の定義から出る保証で、声優が誰であっても成り立つ
+ * - 総件数 41 以上 … 保証は無く、そこから先は「互いに相関の低いキーを足す」最善努力になる
+ *
+ * 3 番目以降の並びは 2026-09-19 に斉藤壮馬 (総件数 164) で 10 種すべてを 1 回ずつ取って
+ * 実測した重なりから決めた。`popularity` / `review` / `price-desc` / `runtime-desc` /
+ * `title-desc` / `pubdate-desc` は互いに 9〜19 件重なる (人気・高額・長時間・新しいは同じ有名作に
+ * 集まる) 一方、`runtime-asc` (短い順) と `title-asc` は `pubdate-desc` と重なりが 0 だった。
+ * 重なりの小さいものから順に置いてあるので、途中で打ち切っても取り分が最大になる。
+ *
+ * 1 番目を `pubdate-desc` に固定するのは、このアプリが新作レーダーで、
+ * 後続のリクエストが失敗しても新作だけは確実に取れている状態にしたいため
+ */
+export const SORT_LADDER = [
+  "pubdate-desc-rank",
+  "pubdate-asc-rank",
+  "runtime-asc-rank",
+  "title-asc-rank",
+  "price-desc-rank",
+  "review-rank",
+] as const satisfies readonly AudibleSearchSort[];
 
 export function buildSearchUrl(
   narratorName: string,
@@ -71,12 +127,27 @@ export function isNoSearchResultsLocation(location: string | undefined): boolean
 
 // --- 一覧 HTML の解析 ------------------------------------------------------
 
-/** 「検索結果 38  のうち 1 - 20 件」から総件数 (38) を取る。表示自体が無ければ undefined */
+/**
+ * 検索結果サマリから総件数を取る。表示自体が無ければ undefined。
+ *
+ * 表記は 2 通りある (2026-09-19 実測):
+ * - 2 件以上 … 「検索結果 164  のうち 1 - 20 件」
+ * - ちょうど 1 件 … 「検索結果 1 件」。`のうち` が出ない
+ *
+ * 500 人のクロールで総件数を読めなかった 73 件は**すべて取得 1 件**で、この後者の表記だった。
+ * `のうち` だけを見ていたので取り逃していた (T22-C)。
+ * 桁区切りのカンマは実測では出ていないが、4 桁以上で出たときに黙って落ちないよう許容する
+ */
+const TOTAL_COUNT_PATTERNS = [/検索結果\s*([\d,]+)\s*のうち/, /検索結果\s*([\d,]+)\s*件/] as const;
+
 export function parseTotalCount(html: string): number | undefined {
-  const matched = /検索結果\s*(\d+)\s*のうち/.exec(html);
-  if (matched?.[1] === undefined) return undefined;
-  const value = Number(matched[1]);
-  return Number.isFinite(value) ? value : undefined;
+  for (const pattern of TOTAL_COUNT_PATTERNS) {
+    const matched = pattern.exec(html)?.[1];
+    if (matched === undefined) continue;
+    const value = Number(matched.replace(/,/g, ""));
+    if (Number.isFinite(value)) return value;
+  }
+  return undefined;
 }
 
 export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
@@ -195,10 +266,20 @@ async function fetchByActor(
   const names = actor.searchNames.length > 0 ? actor.searchNames : [actor.canonicalName];
   const attempts: AdapterResult[] = [];
 
+  // 本人名義かどうかの照合に使う名前。検索に使った候補だけでなく canonicalName も入れる。
+  // 検索は「斉藤 壮馬」で通っても、作品側の表記が「齊藤壮馬」ということがあるため
+  // (normalizeName が異体字と空白を畳む)
+  const actorNames = new Set(
+    [actor.canonicalName, ...actor.searchNames].map(normalizeName).filter((name) => name !== ""),
+  );
+
   for (const name of names) {
-    const result = await fetchText(buildSearchUrl(name), {
+    // 1 種類目ははしごの先頭そのもの。ここで既定値を使うと、はしごを組み替えたときに
+    // 先頭の並び順だけ引かれなくなる (collectAcrossSorts は 2 番目から始めるため)
+    const [firstSort] = SORT_LADDER;
+    const result = await fetchText(buildSearchUrl(name, firstSort), {
       store: STORE_SLUG,
-      requestKey: `search-${name}`,
+      requestKey: `search-${name}-${firstSort}`,
       kind: "html",
       snapshot: options.snapshot,
     });
@@ -214,7 +295,7 @@ async function fetchByActor(
           ...base,
           status: "empty",
           queryUsed: name,
-          coverage: buildCoverage(0, 0, 1),
+          coverage: { ...buildCoverage(0, 0, 1), matched: 0 },
           reason: "ナレーター検索に該当なし (no-search-results)",
         });
         continue;
@@ -229,7 +310,13 @@ async function fetchByActor(
     }
 
     const parsed = parseSearchHtml(result.body, fetchedAt);
-    const attemptResult = await supplementWithOldest(base, parsed, name, fetchedAt, options);
+    const attemptResult = await collectAcrossSorts(
+      base,
+      parsed,
+      { name, actorNames },
+      fetchedAt,
+      options,
+    );
     if (attemptResult.works.length > 0) return attemptResult;
     // 取得はできたが 0 件。空白なしで先に 200 が返り中身が空、ということは実測では起きていないが、
     // 起きた場合も「まだ確定していない」ものとして次の候補を試す
@@ -240,52 +327,69 @@ async function fetchByActor(
 }
 
 /**
- * 総件数が 1 ページ (20 件) を超えるときだけ、古い順の 1 ページ目を 1 回だけ足して
- * 和集合を取る (T12)。新しい順と合わせて 40 件まで覆える。
+ * 並び順を変えた 1 ページ目を足していき、ASIN の和集合を作る (T22)。
  *
- * 超えていなければ新しい順の 1 ページ目がその声優の全作品なので、追加のリクエストは出さない。
- * 20 件以下の声優が大半 (実測) なので、無駄打ちを避けるほうが相手サイトへの負荷が軽い
+ * 総件数に応じて必要な分だけ引き、それ以上は引かない。500 人の実測では総件数 20 以下が 380 人、
+ * 21〜40 が 38 人、41 以上は 9 人しかいないので、ほとんどの声優ではリクエストが 1 回のまま増えない。
+ *
+ * 打ち切りの条件は次の 3 つ:
+ * - 和集合が総件数に達した … もう取るものが無い
+ * - はしご (SORT_LADDER) を使い切った … 上限。これ以上足しても実測で伸びが 1 件程度しかない
+ * - 取得に失敗した … 相手が答えられない状態で残りを投げ続けない。そこまでの結果で続行する
  */
-async function supplementWithOldest(
+async function collectAcrossSorts(
   base: AdapterResult,
-  parsed: ParsedWorks,
-  name: string,
+  first: ParsedWorks,
+  query: { name: string; actorNames: ReadonlySet<string> },
   fetchedAt: string,
   options: FetchByActorOptions,
 ): Promise<AdapterResult> {
-  const warnings = [...parsed.warnings];
-  let invalidCount = parsed.invalidCount;
+  const { name, actorNames } = query;
+  const warnings = [...first.warnings];
+  let invalidCount = first.invalidCount;
+  let total = first.totalCount;
   let pages = 1;
 
-  // 新しい順を先に入れてあるので、古い順で重複した ASIN は捨てる
+  // 先に取った並び順を優先して入れるので、後の並び順で重複した ASIN は捨てる
   const works = new Map<string, RawWork>();
-  for (const work of parsed.works) works.set(work.storeProductId, work);
+  for (const work of first.works) works.set(work.storeProductId, work);
 
-  if (parsed.works.length > 0 && parsed.totalCount !== undefined && parsed.totalCount > PAGE_SIZE) {
-    const oldest = await fetchText(buildSearchUrl(name, "pubdate-asc-rank"), {
+  // ページが埋まっていたか (= ページングが起きているか) の判定は、検証で捨てた分も数に入れる。
+  // 検証落ちを引くと「20 件未満だから全部取れた」と誤って判断してしまうため
+  const firstPageItemCount = first.works.length + first.invalidCount;
+
+  for (const sort of SORT_LADDER.slice(1)) {
+    if (!needsMoreSorts(works.size, total, firstPageItemCount)) break;
+
+    const next = await fetchText(buildSearchUrl(name, sort), {
       store: STORE_SLUG,
-      requestKey: `search-${name}-pubdate-asc`,
+      requestKey: `search-${name}-${sort}`,
       kind: "html",
       snapshot: options.snapshot,
     });
-    if (oldest.ok) {
-      pages += 1;
-      const parsedOldest = parseSearchHtml(oldest.body, fetchedAt);
-      invalidCount += parsedOldest.invalidCount;
-      warnings.push(...parsedOldest.warnings);
-      for (const work of parsedOldest.works) {
-        if (!works.has(work.storeProductId)) works.set(work.storeProductId, work);
-      }
-    } else {
-      warnings.push(`古い順での補完に失敗 (${oldest.reason})。新しい順の結果だけで続行`);
+    if (!next.ok) {
+      warnings.push(`並び順 ${sort} での補完に失敗 (${next.reason})。ここまでの結果で続行`);
+      break;
+    }
+
+    pages += 1;
+    const parsed = parseSearchHtml(next.body, fetchedAt);
+    invalidCount += parsed.invalidCount;
+    warnings.push(...parsed.warnings);
+    // 1 ページ目で総件数を読めなくても、別の並び順で読めればそこから拾う
+    total ??= parsed.totalCount;
+    for (const work of parsed.works) {
+      if (!works.has(work.storeProductId)) works.set(work.storeProductId, work);
     }
   }
 
-  const coverage = buildCoverage(works.size, parsed.totalCount, pages);
-  // 並び順 2 通り (最大 40 件) でも総件数に届かない声優。管理画面で気づけるようにする (企画書 §21)
-  if (coverage.complete === false) {
-    warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);
-  }
+  // 総件数の表示を読めないまま 1 ページ目が埋まらなかった = ページングが起きていない =
+  // 見えた分がその声優の全作品。ここまで言えるので「不明」にせず全件扱いにする (T22-C)
+  if (total === undefined && firstPageItemCount < PAGE_SIZE) total = works.size;
+
+  const coverage = judgeCoverage([...works.values()], { total, pages, actorNames }, (warning) =>
+    warnings.push(warning),
+  );
 
   return {
     ...base,
@@ -294,8 +398,90 @@ async function supplementWithOldest(
     warnings,
     queryUsed: name,
     coverage,
-    ...(parsed.totalCount === undefined ? {} : { totalCount: parsed.totalCount }),
+    // 総件数は coverage と揃える。信用できないと判断したものを別の欄に残すと、
+    // 後から読んだ人がそちらを分母に使ってしまう
+    ...(coverage.total === undefined ? {} : { totalCount: coverage.total }),
   };
+}
+
+/**
+ * 網羅率を決め、必要な警告を積む (T22-D)。
+ *
+ * `searchNarrator=` が姓だけでも一致してしまうので、**総件数をそのまま分母にはできない**。
+ * 取得した作品のうち本人がクレジットされている割合を測り、極端に低ければ
+ * 「その総件数は同姓の別人を含む」とみなして `total` ごと落とし、網羅率を不明にする。
+ *
+ * `complete: false` (取りこぼしあり) にしないのは、それが「取り逃した作品がある」という
+ * 別の主張になるため。佐藤元の 355 件に対して 20 件しか取れていなくても、取り逃しているのは
+ * 佐藤元の作品ではなく同姓の別人の作品なので、それを取りこぼしとして報告し続けても意味がない。
+ * 分母が分からない以上、言えるのは「判断できない」だけ
+ */
+function judgeCoverage(
+  works: readonly RawWork[],
+  context: { total: number | undefined; pages: number; actorNames: ReadonlySet<string> },
+  warn: (warning: string) => void,
+): Coverage {
+  const { total, pages, actorNames } = context;
+  const matched = countCreditedWorks(works, actorNames);
+  const looseMatch = works.length > 0 && matched / works.length < LOOSE_MATCH_RATIO;
+
+  if (looseMatch) {
+    const totalNote =
+      total === undefined ? "" : `。総件数 ${total} は同姓の別人を含むとみて網羅率は不明とする`;
+    warn(`検索語が広すぎる可能性 (本人名義 ${matched}/${works.length} 件)${totalNote}`);
+  }
+
+  const coverage: Coverage = {
+    ...buildCoverage(works.length, looseMatch ? undefined : total, pages),
+    matched,
+  };
+  // はしごを使い切っても総件数に届かない声優。管理画面で気づけるようにする (企画書 §21)。
+  // 一致率が低いときは complete 自体が undefined になるので、ここは鳴らない
+  if (coverage.complete === false) {
+    warn(`網羅率 ${coverage.fetched}/${coverage.total}`);
+  }
+  return coverage;
+}
+
+/**
+ * 検索した声優本人がクレジットされている作品数。
+ *
+ * 判定はナレーター欄 (`creditedNames`) だけで行い、タイトルは見ない。
+ * 「斉藤壮馬の本心」のように本人名がタイトルに入る番組があり、そこまで数えると
+ * 「本人の作品が並んでいる」ことの根拠として弱くなるため
+ */
+function countCreditedWorks(works: readonly RawWork[], actorNames: ReadonlySet<string>): number {
+  let matched = 0;
+  for (const work of works) {
+    if (work.creditedNames.some((credited) => actorNames.has(normalizeName(credited)))) {
+      matched += 1;
+    }
+  }
+  return matched;
+}
+
+/**
+ * まだ並び順を足す価値があるか。
+ *
+ * 総件数が読めているときの条件は「1 ページに収まらない」かつ「和集合が総件数に届いていない」。
+ * 総件数 20 以下の声優は実測で 500 人中 380 人いて、そこは 1 リクエストのまま変わらない。
+ *
+ * 総件数を読めなかったときは、1 ページ目が上限まで埋まっていたかどうかで判断する。
+ * 埋まっていなければページングが起きていないので足す必要が無く、埋まっていたら
+ * 続きがあるはずなので、網羅率が測れないぶん最善努力ではしごを使い切る
+ */
+function needsMoreSorts(
+  fetched: number,
+  total: number | undefined,
+  firstPageItemCount: number,
+): boolean {
+  // 1 件も取れていないなら並び順を変えても取れない (該当なしか、解析が壊れている)
+  if (fetched === 0) return false;
+  if (total === undefined) return firstPageItemCount >= PAGE_SIZE;
+  // 総件数が 1 ページに収まる = ページングが起きていない。どの並び順でも同じ集合が返るので、
+  // 取得件数が総件数に足りていなくても (解析落ちなど) 引き直す意味が無い
+  if (total <= PAGE_SIZE) return false;
+  return fetched < total;
 }
 
 /**

@@ -92,3 +92,60 @@ describe("resolveCredit", () => {
     expect(result).toEqual({ voiceActorId: "va_ueda-reina", confidence: "verified" });
   });
 });
+
+describe("resolveCredit の異体字", () => {
+  test("異体字だけが違う表記を同じ声優に寄せる", () => {
+    const amasaki = actor({ id: "va_amasaki", slug: "amasaki-kohei", canonicalName: "天崎滉平" });
+    // ポケドラ側の表記は 﨑 (U+FA11)
+    const result = resolveCredit("天﨑滉平", [amasaki], []);
+    expect(result).toEqual({ voiceActorId: "va_amasaki", confidence: "verified" });
+  });
+
+  test("エイリアス側が異体字でも寄せる", () => {
+    const hidaka = actor({ id: "va_hidaka", slug: "hidaka-noriko", canonicalName: "日高のり子" });
+    const variant = alias({ voiceActorId: "va_hidaka", name: "日髙 のり子" });
+    expect(resolveCredit("日高のり子", [hidaka], [variant])).toEqual({
+      voiceActorId: "va_hidaka",
+      confidence: "verified",
+    });
+  });
+
+  /**
+   * 異体字を畳むぶん、別人が同じ鍵になる可能性は上がる。そのときも誤マッチではなく
+   * unmatched に落ちる (取りこぼしを選ぶ) ことを固定する
+   */
+  test("異体字を畳んだ結果 2 人に当たったら unmatched にする", () => {
+    const actors = [
+      actor({ id: "va_a", slug: "a", canonicalName: "天崎滉平" }),
+      actor({ id: "va_b", slug: "b", canonicalName: "天﨑滉平" }),
+    ];
+    // 完全一致の段階を通り抜けさせるため、空白入りの表記で引く
+    expect(resolveCredit("天\uFA11 滉平", actors, [])).toEqual({ confidence: "unmatched" });
+  });
+
+  /**
+   * 変換表を広げる判断の安全余裕をここで固定する。
+   *
+   * 龍 と 竜 のように、旧字体と新字体が別人の名として使い分けられうる組を畳んでも、
+   * 両方の人が登録されていれば**どちらにも紐付かず unmatched になる**。
+   * 畳み込みで増えるのは誤マッチではなく取りこぼしである、というのが変換表を
+   * 常用漢字表の康熙字典体まで広げられる根拠なので、実装ではなくテストで保証する
+   */
+  test("畳んだ結果 2 人の声優に一致したら、どちらにも紐付けず unmatched にする", () => {
+    const actors = [
+      actor({ id: "va_ryuta", slug: "ryuta-old", canonicalName: "架空龍太" }),
+      actor({ id: "va_ryuta_new", slug: "ryuta-new", canonicalName: "架空竜太" }),
+    ];
+
+    // 完全一致の段階を通り抜けさせるため、空白入りの表記で引く
+    const result = resolveCredit("架空龍 太", actors, []);
+
+    expect(result).toEqual({ confidence: "unmatched" });
+    expect(result.voiceActorId).toBeUndefined();
+  });
+
+  test("別字どうしは寄らない (斉藤と斎藤)", () => {
+    const saito = actor({ id: "va_saito", slug: "saito", canonicalName: "斉藤壮馬" });
+    expect(resolveCredit("斎藤壮馬", [saito], [])).toEqual({ confidence: "unmatched" });
+  });
+});

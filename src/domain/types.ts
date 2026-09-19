@@ -5,7 +5,7 @@ import { z } from "zod";
  * この層は React / DB / fetch を知らない。日時は ISO 8601 文字列 (UTC)。ID は文字列
  */
 
-export type StoreSlug = "dlsite" | "audible"; // Phase 2 で "pokedora" | "audiobookjp"
+export type StoreSlug = "dlsite" | "audible" | "pokedora"; // Phase 2 で "audiobookjp"
 export type WorkCategory = "asmr" | "audio_drama" | "audiobook" | "situation_voice" | "other";
 export type CreditConfidence = "verified" | "probable" | "unmatched";
 
@@ -184,7 +184,11 @@ export type IngestPayload = {
 // --- 値配列 --------------------------------------------------------------
 // enum 的な型を実行時に列挙するための配列。テスト・UI の選択肢生成に使う
 
-export const STORE_SLUGS = ["dlsite", "audible"] as const satisfies readonly StoreSlug[];
+export const STORE_SLUGS = [
+  "dlsite",
+  "audible",
+  "pokedora",
+] as const satisfies readonly StoreSlug[];
 
 export const WORK_CATEGORIES = [
   "asmr",

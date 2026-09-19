@@ -3,8 +3,6 @@ import type { StaffRecord } from "./anilist.ts";
 import type { DlsiteWorkRecord } from "./intersect.ts";
 import {
   dlsiteVoiceNames,
-  findVariantMisses,
-  foldVariants,
   groupByNormalizedName,
   intersect,
   type PokedoraActor,
@@ -188,40 +186,35 @@ describe("PokedoraActor の型", () => {
   });
 });
 
-describe("foldVariants", () => {
-  it("人名の異体字を新字体に寄せる", () => {
-    expect(foldVariants("天﨑滉平")).toBe(foldVariants("天崎滉平"));
-    expect(foldVariants("髙坂篤志")).toBe(foldVariants("高坂篤志"));
-    expect(foldVariants("鵜澤正太郎")).toBe(foldVariants("鵜沢正太郎"));
-  });
-
-  it("別人まで同一視しない", () => {
-    expect(foldVariants("新田杏樹")).not.toBe(foldVariants("小田杏樹"));
-  });
-});
-
-describe("findVariantMisses", () => {
-  it("字体が違うだけで交差から漏れた人を拾う", () => {
-    const misses = findVariantMisses({
-      pokedoraOnly: toActors([
+describe("intersect の異体字", () => {
+  /**
+   * 突き合わせの鍵は `normalizeName` だけで、そこに人名の異体字の変換表が入った
+   * (decisions.md §16 / T21)。字体が割れている人が交差に入ることをこの層でも固定する
+   */
+  it("字体が割れていても交差に入れる", () => {
+    const result = intersect({
+      actors: toActors([
         tagRecord(1, "天﨑滉平", { men: 8, bl: 27, adt: 0, "adt-bl": 0 }),
-        tagRecord(2, "中澤まさとも", { men: 6, bl: 31, adt: 0, "adt-bl": 0 }),
+        tagRecord(2, "髙木俊", { men: 1, bl: 0, adt: 0, "adt-bl": 0 }),
       ]),
-      staff: [staff(1, "天崎滉平"), staff(2, "花澤香菜")],
+      staff: [staff(1, "天崎滉平"), staff(2, "高木俊")],
+      dlsiteNames: new Set(),
+      audibleByName: new Map(),
     });
-    expect(misses).toHaveLength(1);
-    expect(misses[0]?.actor.name).toBe("天﨑滉平");
-    expect(misses[0]?.anilistName).toBe("天崎滉平");
+
+    expect(result.rows.map((row) => row.anilistStaffId)).toEqual([1, 2]);
+    expect(result.pokedoraOnly).toEqual([]);
   });
 
-  it("作品数の多い順に並べる", () => {
-    const misses = findVariantMisses({
-      pokedoraOnly: toActors([
-        tagRecord(1, "髙木俊", { men: 0, bl: 0, adt: 0, "adt-bl": 0 }),
-        tagRecord(2, "天﨑滉平", { men: 8, bl: 27, adt: 0, "adt-bl": 0 }),
-      ]),
-      staff: [staff(1, "高木俊"), staff(2, "天崎滉平")],
+  it("別人までは同一視しない", () => {
+    const result = intersect({
+      actors: toActors([tagRecord(1, "新田杏樹", { men: 1, bl: 0, adt: 0, "adt-bl": 0 })]),
+      staff: [staff(1, "小田杏樹")],
+      dlsiteNames: new Set(),
+      audibleByName: new Map(),
     });
-    expect(misses.map((miss) => miss.actor.name)).toEqual(["天﨑滉平", "髙木俊"]);
+
+    expect(result.rows).toEqual([]);
+    expect(result.pokedoraOnly.map((actor) => actor.name)).toEqual(["新田杏樹"]);
   });
 });

@@ -6,6 +6,8 @@ import type { StoreSlug } from "@/domain/types";
 export const STORE_LABELS: Record<StoreSlug, string> = {
   dlsite: "DLsite",
   audible: "Audible",
+  // 正式名称は「ポケットドラマCD」。バッジに入る長さで、通称として定着している短縮形を使う
+  pokedora: "ポケドラ",
 };
 
 export function storeLabel(store: StoreSlug): string {

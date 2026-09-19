@@ -1,4 +1,4 @@
--- E2E 用の固定データ。`npm run db:seed:e2e` でローカル D1 に流す。
+-- E2E 用の固定データ。`npm run db:seed:e2e` で E2E 専用の D1 に流す (開発用の .wrangler/state ではない)。
 --
 -- 実データと混ざっても壊れないように、ID・slug・名前をすべて "e2e" / "テスト" で始める。
 -- 何度流しても同じ状態になるよう INSERT OR REPLACE を使い、自動採番の列にも明示の ID を振る。

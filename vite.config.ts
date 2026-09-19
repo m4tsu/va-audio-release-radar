@@ -5,9 +5,16 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+// ローカルの D1 / KV などを置く場所。既定は @cloudflare/vite-plugin の `.wrangler/state`。
+// E2E は開発用の実データを壊さないよう、RADAR_PERSIST_TO で専用のディレクトリに逃がす
+// (playwright.config.ts と e2e/fixtures/e2e-db.mjs が同じ値を wrangler の --persist-to にも渡す)。
+// 型は PluginConfig["persistState"] = boolean | { path: string }
+const persistTo = process.env.RADAR_PERSIST_TO;
+
 export default defineConfig({
   server: {
-    // Playwright の webServer と手動確認で同じポートを使うため、既定ポートを固定する
+    // 手動確認の入口を固定する。E2E は別ポート (playwright.config.ts の 5399) と
+    // 別の D1 を使うので、ここと衝突させない
     port: 5199,
     watch: {
       // クローラーのスナップショット置き場。クロール中に何百ファイルも書かれ、
@@ -19,7 +26,11 @@ export default defineConfig({
     // プラグインの順序は変えないこと。
     // cloudflare が "ssr" 環境を workerd に差し替えてから tanstackStart がその環境に載り、
     // tanstackStart のルート生成・コンパイルが終わってから react が JSX を変換する
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    cloudflare({
+      viteEnvironment: { name: "ssr" },
+      // true は既定と同じ意味 (.wrangler/state を使う)
+      persistState: persistTo ? { path: persistTo } : true,
+    }),
     tanstackStart({
       router: {
         // routesDirectory / generatedRouteTree は srcDirectory (既定 "src") からの相対パス

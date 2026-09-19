@@ -19,6 +19,8 @@ playwright-report
 
 # Cloudflare wrangler
 .wrangler
+# E2E 専用のローカル D1 (開発用の .wrangler とは別物。playwright.config.ts)
+.wrangler-e2e
 .dev.vars
 
 # TanStack Router plugin の一時ファイル

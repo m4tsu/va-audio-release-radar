@@ -17,7 +17,8 @@ import type { StoreSlug, WorkCategory } from "./types.ts";
  * そこで判定材料をジャンル + タイトルに広げ、次の順で決める:
  *
  * 1. Audible はすべて audiobook (朗読以外の判定はしない)
- * 2. DLsite の `SOU` 以外 (`MUS` など) は other
+ * 2. ポケドラは商品カテゴリだけで決める (`categorizePokedora`)
+ * 3. DLsite の `SOU` 以外 (`MUS` など) は other
  * 3. ジャンルかタイトルに「ボイスドラマ」「ドラマCD」「オーディオドラマ」→ audio_drama
  * 4. ジャンルに「ドラマ」を含む語 → audio_drama (DLsite が将来ジャンルを持った場合の受け)
  * 5. ジャンルかタイトルに ASMR 系の語 → asmr
@@ -54,6 +55,18 @@ const ASMR_WORDS = [
 /** シチュエーションボイス系 */
 const SITUATION_WORDS = ["シチュエーション", "シチュボ"];
 
+/**
+ * ポケドラの商品カテゴリのうち、ドラマ CD を指すもの。
+ * `BLCD` はポケドラでいちばん多いカテゴリで、中身はドラマ CD (ストア横断調査 §1)
+ */
+const POKEDORA_DRAMA_WORDS = ["ドラマCD", "BLCD", "ボイスドラマ", "オーディオドラマ"];
+
+/**
+ * ポケドラの商品カテゴリのうち、ドラマでも ASMR でもないもの。
+ * 中身はキャラクターソング CD (「【DIG-ROCK】RESISTANCE【Vo.AKANE（CV.古川慎）】」など)
+ */
+const POKEDORA_OTHER_WORDS = ["音楽"];
+
 export function categorize(
   storeSlug: StoreSlug,
   storeCategory?: string,
@@ -61,6 +74,7 @@ export function categorize(
   titleRaw?: string,
 ): WorkCategory {
   if (storeSlug === "audible") return "audiobook";
+  if (storeSlug === "pokedora") return categorizePokedora(storeCategory);
   if (storeSlug !== "dlsite" || storeCategory !== "SOU") return "other";
 
   const genreList = genres ?? [];
@@ -72,6 +86,28 @@ export function categorize(
   if (includesAny(haystack, ASMR_WORDS)) return "asmr";
   if (includesAny(haystack, SITUATION_WORDS)) return "situation_voice";
   return "asmr";
+}
+
+/**
+ * ポケドラの商品カテゴリ (`span.product_catgory_el` の先頭) だけで区分を決める。
+ *
+ * 実データ 492 件の内訳は BLCD 351 / 一般ドラマCD 76 / シチュエーションCD 35 /
+ * 音楽 17 / 女性向けドラマCD 11 / 配信限定シチュエーション 2 の 6 種類だった。
+ *
+ * DLsite と違ってジャンルとタイトルを見ないのは、ポケドラの商品カテゴリがストア自身の
+ * 売り場区分で、それだけで答えが出るため。関連ワード (genres に入れている) のほうは
+ * 「あまあま」「学園」のような内容の語で、区分の材料にならない。実際、ASMR の語を含む
+ * 3 件はいずれもシチュエーション系のカテゴリに置かれており、カテゴリだけで正しく決まる。
+ *
+ * 既定を audio_drama にしてあるのは、ポケドラがドラマ CD のストアで、上の 6 種類のうち
+ * 4 種類がドラマ系だから (DLsite 全年齢音声の既定を asmr にしてあるのと同じ理屈)
+ */
+function categorizePokedora(storeCategory: string | undefined): WorkCategory {
+  const category = storeCategory ?? "";
+  if (includesAny([category], POKEDORA_OTHER_WORDS)) return "other";
+  if (includesAny([category], SITUATION_WORDS)) return "situation_voice";
+  if (includesAny([category], POKEDORA_DRAMA_WORDS)) return "audio_drama";
+  return "audio_drama";
 }
 
 function includesAny(values: readonly string[], words: readonly string[]): boolean {

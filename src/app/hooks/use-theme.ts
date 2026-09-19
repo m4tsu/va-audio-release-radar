@@ -13,6 +13,12 @@ export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 /** 実際に画面に出る配色。"system" は OS の設定を見てこのどちらかに解決する */
 export type ResolvedTheme = "light" | "dark";
 
+/**
+ * 保存が無いときの設定。OS の設定に従う。
+ * ボタンからは light と dark しか選べないので、ここへ戻るのは localStorage を消したときだけ
+ */
+export const DEFAULT_THEME: ThemePreference = "system";
+
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 export function isThemePreference(value: unknown): value is ThemePreference {
@@ -26,9 +32,9 @@ export function isThemePreference(value: unknown): value is ThemePreference {
 export function readStoredTheme(): ThemePreference {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return isThemePreference(stored) ? stored : "system";
+    return isThemePreference(stored) ? stored : DEFAULT_THEME;
   } catch {
-    return "system";
+    return DEFAULT_THEME;
   }
 }
 
@@ -62,9 +68,13 @@ export function applyTheme(theme: ThemePreference): void {
 /**
  * 配色の設定と、その切り替え。
  *
+ * 初回訪問は "system" で、OS の設定に追従し続ける。ボタンを押すと "light" か "dark" に
+ * 固定され、以後 OS が変わっても動かない ("system" へ戻す操作はボタンには出さない。
+ * 2 択のトグルにするため。戻したい人は localStorage の "theme" を消せばよい)。
+ *
  * `theme` はマウントが済むまで null を返す。SSR では localStorage も OS の設定も読めないため、
- * サーバーで値を決め打つとハイドレーションで食い違う (切り替えボタンの表示がその場で入れ替わる)。
- * 呼び出し側は null の間、どの状態とも言い切らない見た目を出すこと。
+ * サーバーで値を決め打つとハイドレーションで食い違う。呼び出し側は null の間、
+ * どの状態とも言い切らない見た目を出すこと。
  *
  * 初回描画の配色そのものは `__root.tsx` のインラインスクリプトが既に付けているので、
  * ここではマウント時に付け直さない。設定を変えたときと、"system" で OS の設定が変わったときだけ触る
@@ -106,10 +116,4 @@ export function useTheme(): {
   }, []);
 
   return { theme, resolved, setTheme };
-}
-
-/** 押すたびに light → dark → system → light と回す。ヘッダーに置くボタン 1 つで 3 状態を回すため */
-export function nextThemePreference(current: ThemePreference): ThemePreference {
-  const index = THEME_PREFERENCES.indexOf(current);
-  return THEME_PREFERENCES[(index + 1) % THEME_PREFERENCES.length] ?? "system";
 }

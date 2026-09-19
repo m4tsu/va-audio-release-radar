@@ -5,11 +5,18 @@ import { parseArgs } from "node:util";
 import {
   INGEST_PROTOCOL_VERSION,
   type IngestPayload,
+  STORE_SLUGS,
   type StoreSlug,
 } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
+import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { ActorQuery, AdapterResult, AdapterStatus, SourceAdapter } from "./adapters/types.ts";
+import {
+  appendActorRefs,
+  loadPokedoraDirectory,
+  lookupActor,
+} from "./discovery/pokedora-directory.ts";
 import {
   type ActorSeed,
   AdminApiClient,
@@ -40,9 +47,17 @@ import { CRAWLER_DIR } from "./lib/paths.ts";
 const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
   dlsite: dlsiteAdapter,
   audible: audibleAdapter,
+  pokedora: pokedoraAdapter,
 };
 
-const ALL_STORES: StoreSlug[] = ["dlsite", "audible"];
+const ALL_STORES: readonly StoreSlug[] = STORE_SLUGS;
+
+/** 集計表の見出し。slug をそのまま出すと列が狭くて読みにくいので短い表示名にする */
+const STORE_COLUMN_LABELS: Record<StoreSlug, string> = {
+  dlsite: "DLsite",
+  audible: "Audible",
+  pokedora: "ポケドラ",
+};
 
 const ACTORS_JSON = path.join(CRAWLER_DIR, "actors.json");
 
@@ -53,7 +68,7 @@ const USAGE = `使い方:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
   --actors <path>           使う声優リスト (既定 crawler/actors.json)
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
-  --store <dlsite|audible>  片方のストアだけを対象にする
+  --store <slug>            1 つのストアだけを対象にする (dlsite / audible / pokedora)
   --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
   --limit <N>               (--offset のぶんを飛ばした後) N 人の声優だけを対象にする
   --dry-run                 取得はするが DB へは送らない (声優の upsert も行わない)
@@ -75,7 +90,7 @@ const OPTION_SPEC = {
 } as const;
 
 function isStoreSlug(value: string): value is StoreSlug {
-  return value === "dlsite" || value === "audible";
+  return (STORE_SLUGS as readonly string[]).includes(value);
 }
 
 // --- 集計 ------------------------------------------------------------------
@@ -165,7 +180,13 @@ export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
 
 /** 声優ごとに 1 行の表。どの声優のどのストアが空・失敗だったかを一目で追えるようにする */
 export function formatOutcomeTable(outcomes: readonly RunOutcome[]): string {
-  const header = ["声優", "DLsite", "new", "Audible", "new", "備考"];
+  // 列はストアが増えても勝手に増える。`--store` で 1 つに絞った走行でも全ストアの列を出し、
+  // 引かなかったストアは "-" にする (0 件と「そもそも取っていない」を混ぜないため)
+  const header = [
+    "声優",
+    ...ALL_STORES.flatMap((storeSlug) => [STORE_COLUMN_LABELS[storeSlug], "new"]),
+    "備考",
+  ];
   const byActor = new Map<string, RunOutcome[]>();
   for (const outcome of outcomes) {
     const list = byActor.get(outcome.actor.id);
@@ -194,10 +215,10 @@ export function formatOutcomeTable(outcomes: readonly RunOutcome[]): string {
     });
     return [
       group[0]?.actor.canonicalName ?? "",
-      cell(group, "dlsite", (outcome) => String(outcome.workCount)),
-      cell(group, "dlsite", (outcome) => String(outcome.newCount)),
-      cell(group, "audible", (outcome) => String(outcome.workCount)),
-      cell(group, "audible", (outcome) => String(outcome.newCount)),
+      ...ALL_STORES.flatMap((storeSlug) => [
+        cell(group, storeSlug, (outcome) => String(outcome.workCount)),
+        cell(group, storeSlug, (outcome) => String(outcome.newCount)),
+      ]),
       notes.join(" "),
     ];
   });
@@ -377,6 +398,21 @@ export async function main(argv: readonly string[]): Promise<number> {
     );
   }
 
+  // ポケドラは名前で検索できない (声優はタグで、URL に tag_id が要る)。先に辞書を読む
+  const pokedoraDirectory = stores.includes("pokedora") ? await loadPokedoraDirectory() : undefined;
+  if (stores.includes("pokedora")) {
+    if (pokedoraDirectory === undefined) {
+      process.stderr.write(
+        "[警告] ポケドラの声優タグ辞書を読めなかった。" +
+          "`node crawler/discovery/pokedora-tags.ts --resume` で作る。ポケドラは全員分を飛ばす\n",
+      );
+    } else {
+      process.stdout.write(
+        `ポケドラの声優タグ辞書: ${pokedoraDirectory.size} 名 (一般 + BL に作品がある人だけ)\n`,
+      );
+    }
+  }
+
   const knownIds = await loadKnownIds(client, stores, values["no-skip-known"] === true);
   const runDate = new Date().toISOString().slice(0, 10);
   const snapshot = values["no-snapshot"] !== true;
@@ -389,12 +425,20 @@ export async function main(argv: readonly string[]): Promise<number> {
     const forActor: RunOutcome[] = [];
     // searchNames は Audible のためのもの。DLsite adapter は canonicalName しか見ないので
     // ストアを問わず同じ ActorQuery を渡す
+    const pokedoraRefs = lookupActor(pokedoraDirectory, actor.canonicalName);
     const query: ActorQuery = {
       canonicalName: actor.canonicalName,
       searchNames: buildSearchNames(actor),
+      ...(pokedoraRefs === undefined ? {} : { storeActorRefs: { pokedora: pokedoraRefs } }),
     };
+    // 辞書に無い声優のポケドラは引かない。名前から tag_id を引く API が無く
+    // (`/sapi/json.php` は 404)、総当たりで探す手段もないため (ストア横断調査 §1-3)
+    const actorStores = stores.filter(
+      (storeSlug) => storeSlug !== "pokedora" || pokedoraRefs !== undefined,
+    );
+    const skipped = stores.filter((storeSlug) => !actorStores.includes(storeSlug));
     try {
-      for (const storeSlug of stores) {
+      for (const storeSlug of actorStores) {
         const result = await ADAPTERS[storeSlug].fetchByActor(query, {
           skipKnownIds: knownIds.get(storeSlug),
           snapshot,
@@ -402,6 +446,15 @@ export async function main(argv: readonly string[]): Promise<number> {
         for (const warning of result.warnings) {
           process.stderr.write(`[警告] ${actor.canonicalName} ${storeSlug}: ${warning}\n`);
         }
+        // ストアが出している声優 ID (ポケドラの tag_id) を貯める。
+        // 「同じ tag_id なら同一人物」はストア由来の事実で、別名義の根拠に使える (T23)
+        await appendActorRefs(result.observedActorRefs ?? []);
+        // この走行で詳細まで取った作品を既知に足す。共演の多いストアでは同じ作品が
+        // 何人もの一覧に出るので、これが無いと同じ詳細ページを人数分だけ引き直す。
+        // ポケドラの BL ドラマ CD は 1 作品に十数名が出るため、延べ 8,593 件のうち
+        // かなりが重複になる。credit は作品に紐づいて既に保存されているので、
+        // 2 人目以降で詳細を飛ばしても出演者は落ちない (設計書 §6 の upsert は credit を消さない)
+        markFetched(knownIds, storeSlug, result.works);
         forActor.push(await send(client, actor, storeSlug, result, runDate));
       }
     } catch (error) {
@@ -412,7 +465,7 @@ export async function main(argv: readonly string[]): Promise<number> {
       break;
     }
     outcomes.push(...forActor);
-    process.stdout.write(`${progressLine(index, actors.length, actor, forActor)}\n`);
+    process.stdout.write(`${progressLine(index, actors.length, actor, forActor, skipped)}\n`);
   }
 
   if (aborted !== undefined) {
@@ -456,6 +509,7 @@ function progressLine(
   total: number,
   actor: ActorSeed,
   outcomes: readonly RunOutcome[],
+  skippedStores: readonly StoreSlug[] = [],
 ): string {
   const parts = outcomes.map((outcome) => {
     // 保存に失敗した行は件数ではなく失敗と書く。「0件」と並べて出すと見分けが付かない (T16)
@@ -464,6 +518,8 @@ function progressLine(
     }
     return `${outcome.storeSlug} ${outcome.status} ${outcome.workCount}件(new ${outcome.newCount})`;
   });
+  // 引かなかったストアも 1 行に出す。0 件だった声優と見分けが付かなくなるため
+  for (const storeSlug of skippedStores) parts.push(`${storeSlug} 辞書に無いので引かない`);
   const position = String(index).padStart(String(total).length);
   return `[${position}/${total}] ${actor.canonicalName}  ${parts.join("  ")}`;
 }
@@ -597,27 +653,47 @@ async function upsertAllActors(
 
 /**
  * ストアごとの既知 ID。DLsite の `product.json` を新規 ID だけに絞るために使う。
- * 取れなくても致命的ではない (全件取り直しになるだけ) ので、失敗しても警告に留める
+ * 取れなくても致命的ではない (全件取り直しになるだけ) ので、失敗しても警告に留める。
+ *
+ * 走行中に取った作品もここに足していく (`markFetched`) ので、Set は書き換えられる形で返す
  */
 async function loadKnownIds(
   client: AdminApiClient | undefined,
   stores: readonly StoreSlug[],
   disabled: boolean,
-): Promise<Map<StoreSlug, ReadonlySet<string>>> {
-  const known = new Map<StoreSlug, ReadonlySet<string>>();
+): Promise<Map<StoreSlug, Set<string>>> {
+  const known = new Map<StoreSlug, Set<string>>();
   if (client === undefined || disabled) return known;
 
   for (const storeSlug of stores) {
     try {
       const ids = await client.knownIds(storeSlug);
-      known.set(storeSlug, ids);
+      known.set(storeSlug, new Set(ids));
       process.stdout.write(`既知の ${storeSlug} 作品: ${ids.size} 件 (詳細取得を飛ばす)\n`);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       process.stderr.write(`[警告] known-ids (${storeSlug}) を取れなかった: ${reason}\n`);
+      // 空でも集合は置く。DB 側の既知 ID は使えないが、この走行の中での重複取得は止められる
+      known.set(storeSlug, new Set());
     }
   }
   return known;
+}
+
+/**
+ * 取り終えた作品を既知集合に足す (T23)。
+ *
+ * `--no-skip-known` を指定した走行では `knownIds` に集合そのものが無いので何もしない。
+ * 「毎回すべて取り直す」という指定を、走行の途中から勝手に外さないため
+ */
+export function markFetched(
+  knownIds: Map<StoreSlug, Set<string>>,
+  storeSlug: StoreSlug,
+  works: readonly { storeProductId: string }[],
+): void {
+  const known = knownIds.get(storeSlug);
+  if (known === undefined) return;
+  for (const work of works) known.add(work.storeProductId);
 }
 
 function asString(value: string | boolean | undefined): string | undefined {

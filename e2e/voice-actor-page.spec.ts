@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const SLUG = "e2e-alpha";
 const NAME = "テスト声優アルファ";
 
-test("声優ページは title と作品一覧を SSR で返す", async ({ request }) => {
+test("声優ページは title と作品一覧を SSR で返す", async ({ request, baseURL }) => {
   const res = await request.get(`/voice-actors/${SLUG}`);
   expect(res.status()).toBe(200);
 
@@ -17,13 +17,10 @@ test("声優ページは title と作品一覧を SSR で返す", async ({ reque
   expect(html).toMatch(/<h2[^>]*>DLsite<\/h2>/);
   expect(html).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
   expect(html).toMatch(/<a[^>]*>テスト用朗読作品アルファ<\/a>/);
-  // canonical と og:url は絶対 URL (SITE_URL 未設定ならリクエストのオリジン)
-  expect(html).toContain(
-    `<link rel="canonical" href="http://localhost:5199/voice-actors/${SLUG}"/>`,
-  );
-  expect(html).toContain(
-    `<meta property="og:url" content="http://localhost:5199/voice-actors/${SLUG}"/>`,
-  );
+  // canonical と og:url は絶対 URL (SITE_URL 未設定ならリクエストのオリジン)。
+  // オリジンは baseURL から取る。ポートを直書きすると playwright.config.ts を変えた途端に落ちる
+  expect(html).toContain(`<link rel="canonical" href="${baseURL}/voice-actors/${SLUG}"/>`);
+  expect(html).toContain(`<meta property="og:url" content="${baseURL}/voice-actors/${SLUG}"/>`);
   expect(html).toContain('"@type":"Person"');
 });
 
@@ -49,7 +46,11 @@ test("作品が無いストアのセクションも出る", async ({ page }) => 
   // ベータは DLsite にしか作品が無い
   await page.goto("/voice-actors/e2e-beta");
   await expect(page.getByRole("heading", { level: 2, name: "Audible" })).toBeVisible();
-  await expect(page.getByText("まだ見つかっていません")).toBeVisible();
+  // 空のストアは複数ある (Audible とポケドラ)。見出し文言だけで引くと strict mode に触れるので、
+  // ストア名が入る説明文で Audible の空表示だけを指す
+  await expect(
+    page.getByText("Audible でのこの声優の作品は、まだ収集できていない。"),
+  ).toBeVisible();
 });
 
 test("作品が 1 件も無い声優は 404 になり、一覧にも sitemap にも出ない", async ({ request }) => {

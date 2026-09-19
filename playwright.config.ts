@@ -1,6 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 5199;
+// E2E 専用のポート。開発用の 5199 や他のセッションが使うポートとは重ねない。
+// 同じポートを使うと reuseExistingServer が他人のサーバーを掴んでしまう
+const port = 5399;
+
+// E2E 専用の D1 の置き場。e2e/fixtures/e2e-db.mjs の既定値と必ず同じにすること。
+// dev サーバー (vite.config.ts の persistState) と wrangler の両方にこの値で渡る
+const persistTo = ".wrangler-e2e/state";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -17,11 +23,14 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // TanStack Start は SSR なので dev サーバー経由で E2E する (静的 preview では API が動かない)。
-    // 先に e2e:prepare でローカル D1 のマイグレーションと固定データの投入を済ませる
-    // (.wrangler/ は git 管理外なので、CI では何もない状態から始まる)
+    // 先に e2e:prepare で E2E 専用 D1 を作り直し、マイグレーションと固定データの投入を済ませる
+    // (.wrangler-e2e/ は git 管理外なので、CI では何もない状態から始まる)
     command: `npm run e2e:prepare && npx vite dev --port ${port} --strictPort`,
     url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
+    // 既に上がっているサーバーには相乗りしない。他のセッションが同じポートで
+    // 開発用 D1 を見ている dev サーバーを乗っ取ると、そちらに固定データが流れ込む
+    reuseExistingServer: false,
+    env: { RADAR_PERSIST_TO: persistTo },
     timeout: 120_000,
   },
 });

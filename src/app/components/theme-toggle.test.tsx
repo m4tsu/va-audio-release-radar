@@ -32,35 +32,43 @@ describe("ThemeToggle", () => {
     vi.restoreAllMocks();
   });
 
-  test("押すたびに 3 状態を順に回り、localStorage に残る", () => {
+  test("押すと light と dark を往復するだけで、system には戻らない", () => {
     render(<ThemeToggle />);
     const button = screen.getByRole("button");
-    // 既定は system。1 回目で light に進む
+    // 保存が無いので既定は system。OS がライトなので見た目はライト
     expect(button).toBeEnabled();
-
-    click();
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(button).toHaveAttribute("aria-pressed", "false");
 
     click();
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(button).toHaveAttribute("aria-pressed", "true");
 
     click();
-    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("system");
-    // OS はライトなので system でライトに戻る
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
     expect(document.documentElement.classList.contains("dark")).toBe(false);
 
+    // 3 状態の名残が無いこと。何度押しても system には落ちない
+    click();
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
     click();
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   });
 
-  test("いまの状態と次の状態がラベルに出る", () => {
+  test("保存が無ければ OS の設定に従う", () => {
+    stubMatchMedia(true);
+    render(<ThemeToggle />);
+    const button = screen.getByRole("button");
+    // localStorage は空。OS がダークなので押されている扱いで、押すとライトへ向かう
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(button).toHaveAccessibleName("ライトに切り替える");
+  });
+
+  test("ラベルは押した先を言う", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "dark");
     render(<ThemeToggle />);
-    expect(screen.getByRole("button")).toHaveAccessibleName(
-      "配色: ダーク (押すと OS に合わせる に切り替わる)",
-    );
+    expect(screen.getByRole("button")).toHaveAccessibleName("ライトに切り替える");
   });
 
   test("表示言語に追従する", () => {
@@ -70,7 +78,19 @@ describe("ThemeToggle", () => {
         <ThemeToggle />
       </LocaleContext>,
     );
-    expect(screen.getByRole("button")).toHaveAccessibleName("Theme: Light (switch to Dark)");
+    expect(screen.getByRole("button")).toHaveAccessibleName("Switch to dark theme");
+  });
+
+  /**
+   * アイコンは CSS で出し分ける (ハイドレーションを待たずに正しい方を出すため)。
+   * 両方が DOM に居て、`dark:` バリアントで片方だけが見えることを確かめる
+   */
+  test("太陽と月の両方を描き、dark バリアントで出し分ける", () => {
+    const { container } = render(<ThemeToggle />);
+    const icons = [...container.querySelectorAll("svg")];
+    expect(icons).toHaveLength(2);
+    expect(icons[0]?.getAttribute("class")).toContain("dark:hidden");
+    expect(icons[1]?.getAttribute("class")).toContain("dark:block");
   });
 
   test("localStorage が使えなくても描画も操作もできる", () => {
@@ -83,8 +103,8 @@ describe("ThemeToggle", () => {
 
     expect(() => render(<ThemeToggle />)).not.toThrow();
     click();
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
-    click();
     expect(document.documentElement.classList.contains("dark")).toBe(true);
+    click();
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });

@@ -205,66 +205,6 @@ export function dlsiteVoiceNames(works: readonly DlsiteWorkRecord[]): Set<string
 }
 
 /**
- * 人名に使われる代表的な異体字 (JIS 互換漢字・旧字体) を新字体に寄せる表。
- *
- * `normalizeName` はこれをしない。踏み込むと別人を同一視する危険があるためで、その判断は妥当。
- * ただしポケドラと AniList で字体が割れている実例があるので (天﨑滉平 / 天崎滉平)、
- * **取りこぼしがどれだけあるかを測る目的にかぎって**ここで畳む。交差の判定には使わない
- */
-const VARIANT_GROUPS = [
-  "崎﨑",
-  "高髙",
-  "徳德",
-  "浜濱濵",
-  "辺邊邉",
-  "館舘",
-  "真眞",
-  "瀬瀨",
-  "郎郞",
-  "柳栁",
-  "沢澤",
-  "斉齊",
-  "斎齋",
-  "富冨",
-  "島嶋",
-  "桧檜",
-  "曽曾",
-  "恵惠",
-];
-
-const VARIANT_MAP = new Map<string, string>(
-  VARIANT_GROUPS.flatMap((group) => {
-    const base = [...group][0] ?? "";
-    return [...group].map((character) => [character, base] as [string, string]);
-  }),
-);
-
-export function foldVariants(name: string): string {
-  return [...normalizeName(name)]
-    .map((character) => VARIANT_MAP.get(character) ?? character)
-    .join("");
-}
-
-/**
- * 異体字を畳めば AniList と一致する「ポケドラにしか居ない」人を拾う。
- * 交差の数字が下振れしている量を示すための補助計測
- */
-export function findVariantMisses(options: {
-  pokedoraOnly: readonly PokedoraActor[];
-  staff: readonly StaffRecord[];
-}): { actor: PokedoraActor; anilistName: string }[] {
-  const folded = new Map<string, string>();
-  for (const person of options.staff)
-    folded.set(foldVariants(person.nativeName), person.nativeName);
-  const misses: { actor: PokedoraActor; anilistName: string }[] = [];
-  for (const actor of options.pokedoraOnly) {
-    const anilistName = folded.get(foldVariants(actor.name));
-    if (anilistName !== undefined) misses.push({ actor, anilistName });
-  }
-  return misses.sort((a, b) => b.actor.target - a.actor.target);
-}
-
-/**
  * 発見スパイクが残した Audible の検索結果 HTML から、名前ごとの作品有無を復元する。
  * 新たにネットワークへ出ないためにスナップショットを読む。
  *
@@ -307,7 +247,6 @@ export function buildReport(input: {
   cache: PokedoraTagsCache;
   result: PokedoraIntersectionResult;
   staffCount: number;
-  variantMisses: readonly { actor: PokedoraActor; anilistName: string }[];
   dlsiteWorkCount: number;
   dlsiteNameCount: number;
   audibleProbedCount: number;
@@ -392,28 +331,19 @@ export function buildReport(input: {
     `AniList 側から見ると ${input.staffCount} 人中 ${result.rows.length} 人 (${intersectionRate}%) がポケドラに居る。`,
   );
   lines.push("");
-  lines.push("### 2-1. 字体の違いによる取りこぼし");
+  lines.push("### 2-1. 字体の違い");
   lines.push("");
-  const variantWorks = input.variantMisses.reduce((sum, miss) => sum + miss.actor.target, 0);
   lines.push(
-    `**交差人数は下振れしている。** 両サイトで漢字の字体が割れている実例があり、` +
-      `異体字を新字体に寄せると交差に入る人が **${input.variantMisses.length} 人** (取得対象 ${variantWorks} 件) 見つかった。` +
-      "`normalizeName` は異体字を畳まない。畳むと別人を同一視する危険があるためで、その判断自体は妥当だが、" +
-      "ポケドラを本採用するなら人名の異体字だけを対象にした変換表を足すか判断が要る。",
+    "**この交差は異体字を畳んだ後の数字である。** 両サイトで漢字の字体が割れる実例があり " +
+      "(ポケドラ 天﨑滉平 / AniList 天崎滉平)、初回の計測 (2026-09-18) では畳めば交差に入る人が " +
+      "8 人 (延べ 60 件) 漏れていた。その後 `normalizeName` に人名の異体字の変換表を入れたので " +
+      "(decisions.md §16 / T21)、上の交差人数にはこの層が含まれている。",
   );
   lines.push("");
-  if (input.variantMisses.length > 0) {
-    lines.push("| ポケドラの表記 | AniList の表記 | 一般 | BL | 合計 |");
-    lines.push("|---|---|---:|---:|---:|");
-    for (const miss of input.variantMisses) {
-      lines.push(
-        `| ${miss.actor.name} | ${miss.anilistName} | ${miss.actor.men} | ${miss.actor.bl} | ${miss.actor.target} |`,
-      );
-    }
-    lines.push("");
-  }
   lines.push(
-    "この表は代表的な異体字を畳んだときに限った下限である。かな表記の揺れや別名義は含んでいない。",
+    "畳む対象は常用漢字表の康熙字典体と、NFKC が畳まない互換漢字 (﨑 U+FA11) に限っている。" +
+      "字体の違いは Unicode と告示から機械的に判定できるが、かな表記の揺れと別名義は別問題で、" +
+      "ここには含まれていない。",
   );
   lines.push("");
   lines.push("---");
@@ -647,16 +577,11 @@ export async function main(): Promise<number> {
   const actors = toActors(cache.records);
   const dlsiteNames = dlsiteVoiceNames(works);
   const result = intersect({ actors, staff: anilist.staff, dlsiteNames, audibleByName });
-  const variantMisses = findVariantMisses({
-    pokedoraOnly: result.pokedoraOnly,
-    staff: anilist.staff,
-  });
 
   const report = buildReport({
     cache,
     result,
     staffCount: anilist.staff.length,
-    variantMisses,
     dlsiteWorkCount: works.length,
     dlsiteNameCount: dlsiteNames.size,
     audibleProbedCount: audibleByName.size,
@@ -666,7 +591,6 @@ export async function main(): Promise<number> {
   console.log(`ポケドラ声優タグ: ${cache.records.length} 件を処理`);
   console.log(`交差: ${result.rows.length} 人 / ポケドラのみ: ${result.pokedoraOnly.length} 人`);
   console.log(`同名で複数 tag_id: ${result.duplicateNames.length} 組`);
-  console.log(`異体字を畳めば交差する人: ${variantMisses.length} 人`);
   console.log(`報告: ${REPORT_PATH}`);
   return 0;
 }

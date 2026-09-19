@@ -9,6 +9,7 @@ import type { StoreSlug } from "@/domain/types";
 const CALL_TO_ACTION = {
   dlsite: "storeLink.dlsite",
   audible: "storeLink.audible",
+  pokedora: "storeLink.pokedora",
 } as const satisfies Record<StoreSlug, TKey>;
 
 /**

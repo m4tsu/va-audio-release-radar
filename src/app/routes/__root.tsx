@@ -72,8 +72,14 @@ export const Route = createRootRoute({
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   const { locale } = Route.useRouteContext();
 
+  /**
+   * `suppressHydrationWarning` は head のインラインスクリプトのため。
+   * あれがハイドレーションより前にこの要素へ .dark を付けるので、配色を知らないサーバーの
+   * 出力と class が必ず食い違い、React が警告を出す。この属性が黙らせるのは自分自身の
+   * 属性とテキストの差分だけで、子要素の不一致はそのまま警告される
+   */
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/*
           theme-color は light / dark を media で出し分ける。HeadContent 経由の meta は

@@ -94,10 +94,11 @@ sitemap にも出さない。声優データそのものは管理用に引き続
 
 ```
 crawler/                 # Node スクリプト。src/domain にだけ依存する (src/app, src/server は禁止)
-├── adapters/            # dlsite.ts, audible.ts (ストアごとに分離。SourceAdapter を実装)
+├── adapters/            # dlsite.ts, audible.ts, pokedora.ts (ストアごとに分離。SourceAdapter を実装)
 │                        # coverage.ts (網羅率), raw-work.ts (zod 検証)
 ├── discovery/           # 対象声優の発見と生成 (anilist / dlsite-sitemap / intersect /
-│                        # actor-entity / build-actors / pokedora-tags / pokedora-intersect)
+│                        # actor-entity / build-actors / pokedora-tags / pokedora-intersect /
+│                        # pokedora-directory: タグ辞書を引く形に直す。クロール時に使う)
 ├── fixtures/            # 実 HTML / JSON を切り詰めた固定データ (パーサーのテスト用)
 ├── lib/                 # fetch ラッパー (レート制限・スナップショット保存)、ingest クライアント
 ├── actors.json          # 手書きの暫定シード 35 人 (run.ts の既定)
@@ -134,7 +135,7 @@ src/
 日時は ISO 8601 文字列 (UTC)。ID は文字列。
 
 ```ts
-export type StoreSlug = "dlsite" | "audible";            // Phase 2 で "pokedora" | "audiobookjp"
+export type StoreSlug = "dlsite" | "audible" | "pokedora";  // Phase 2 で "audiobookjp"
 export type WorkCategory = "asmr" | "audio_drama" | "audiobook" | "situation_voice" | "other";
 export type CreditConfidence = "verified" | "probable" | "unmatched";
 export type AgeRating = "general" | "r18" | "unknown";
@@ -377,15 +378,85 @@ creaters.voice_by[].name, genres[].name, on_sale, site_id`。
 ### Audible Japan
 
 ```
-https://www.audible.co.jp/search?searchNarrator={名前}&sort=pubdate-desc-rank
+https://www.audible.co.jp/search?searchNarrator={名前}&sort={並び順}
 ```
 
-`sort` を単独で付けると HTTP 200 のまま発売日降順になる。既定 (sort 無し) は人気順なので、
+`sort` を単独で付けると HTTP 200 のまま並び順だけが変わる。既定 (sort 無し) は人気順なので、
 20 件を超える声優 (石田彰は 38 件) では新作が 1 ページ目に載らない。
 `pageSize` や `page` を足すと `no-search-results` へ 302 され、robots.txt も `page=` との組み合わせを禁じている。
-**1 ページ 20 件の制約は外せない**ので、総件数 (「検索結果 N のうち…」の表示) が 20 を超えるときだけ
-`sort=pubdate-asc-rank` (古い順) の 1 ページ目を足して和集合にする (最大 40 件)。
-それでも届かなければ網羅率を警告に積む。
+
+#### 並び順のはしごで網羅率を上げる (T22)
+
+**1 ページ 20 件の制約は外せない**ので、並び順を変えた 1 ページ目を足して ASIN の和集合を取る。
+使える `sort` は 10 種類 (`popularity-rank` / `pubdate-desc-rank` / `pubdate-asc-rank` / `review-rank` /
+`price-asc-rank` / `price-desc-rank` / `runtime-asc-rank` / `runtime-desc-rank` /
+`title-asc-rank` / `title-desc-rank`)。このうち 6 種類を次の順で必要な分だけ引く。
+
+| # | 並び順 | 意味 |
+|---|---|---|
+| 1 | `pubdate-desc-rank` | 新しい順 |
+| 2 | `pubdate-asc-rank` | 古い順 |
+| 3 | `runtime-asc-rank` | 再生時間が短い順 |
+| 4 | `title-asc-rank` | タイトル昇順 |
+| 5 | `price-desc-rank` | 価格が高い順 |
+| 6 | `review-rank` | レビュー順 |
+
+**保証できる範囲**は並び順の定義から出る。`K-asc` は「K が小さい方から 20 件」、`K-desc` は
+「K が大きい方から 20 件」なので、同じキーの asc と desc は必ず重ならない。よって:
+
+- 総件数 20 以下 … ページングが起きないので 1 リクエストで全件。実測 500 人中 380 人がここ
+- 総件数 40 以下 … 1 番目と 2 番目 (同じ `pubdate` キーの逆向き) で全件。声優が誰でも成り立つ。実測 38 人
+- 総件数 41 以上 … 保証は無く、相関の低いキーを足す最善努力になる。実測 9 人
+
+3 番目以降の並びは、斉藤壮馬 (総件数 164) で 10 種すべてを 1 回ずつ引いて重なりを測って決めた
+(2026-09-19)。`popularity` / `review` / `price-desc` / `runtime-desc` / `title-desc` / `pubdate-desc` は
+互いに 9〜19 件重なる (人気・高額・長時間・新しいは同じ有名作に集まる) 一方、
+`runtime-asc` と `title-asc` は `pubdate-desc` と重なりが 0 だった。重なりの小さいものから順に置いてある。
+6 種類で 83/164 (50.6%)、10 種類すべてでも 84/164 にしかならないので、**上限は 6 リクエスト**とする。
+
+引くのをやめる条件は 3 つ。和集合が総件数に達した / はしごを使い切った / 取得に失敗した。
+総件数が 1 ページに収まるときは、どの並び順でも同じ集合が返るので 2 種類目以降は引かない。
+はしごを使い切っても届かなければ網羅率を警告に積む。
+
+#### 一致率 — 総件数を分母にしてよいかの判定 (T22-D)
+
+**`searchNarrator=` は完全一致ではない。** 「佐藤 元」で引くと総件数 355 件が返るが、
+1 ページ目 20 件のナレーターは佐藤恵・佐藤詩乃・佐藤弘樹・佐藤佑暉・佐藤慧・佐藤正宏で、
+**佐藤元は 1 件も含まれない** (2026-09-19 実測)。姓だけ一致しても拾う。
+この 355 は「佐藤姓のナレーター作品の総数」であって、その声優の作品数ではない。
+
+そこで取得した作品のうち**本人がクレジットされている件数**を数え、`Coverage.matched` に載せる。
+
+- 照合は `creditedNames` だけで行い、タイトルは見ない。「斉藤壮馬の本心」のように本人名が
+  タイトルに入る番組があり、そこまで数えると「本人の作品が並んでいる」ことの根拠として弱くなる
+- 照合相手は `canonicalName` と `searchNames` の両方。検索は「斉藤 壮馬」で通っても
+  作品側が「齊藤壮馬」ということがあるので、`normalizeName` (異体字と空白を畳む) を通して比べる
+- 一致率が 0.2 未満なら「検索語が広すぎる」とみなし、**`total` と `complete` を落として網羅率を不明にする**。
+  `complete: false` (取りこぼしあり) にはしない。それは「取り逃した作品がある」という別の主張であり、
+  佐藤元の 355 件に対して取り逃しているのは佐藤元の作品ではなく同姓の別人の作品だから。
+  分母が分からない以上、言えるのは「判断できない」だけ
+- 警告は `検索語が広すぎる可能性 (本人名義 M/N 件)。総件数 T は同姓の別人を含むとみて網羅率は不明とする`
+
+しきい値を 0.2 に置けるのは、実測で 0 に近い側と 1 に近い側がはっきり分かれるため
+(佐藤元 0/20、斉藤壮馬 82/83)。`matched` は `crawl_runs` には保存せず、警告としてだけ残す。
+
+**緩い一致による保存量の増加は小さい。** Audible の作品 1,764 件のうち、追跡対象の声優が
+1 人もクレジットされていないものは 87 件 (4.9%)。その多くは佐藤元の検索由来ではなく、
+童話シリーズなど追跡対象外のナレーターの作品で、23 件はナレーター欄自体が無い。
+佐藤元の検索が連れてきた佐藤恵の作品 10 件は、**佐藤恵自身が追跡対象**なので無駄になっていない。
+`feedForActors` はクレジット経由でしか作品を出さないので、表示面への実害も無い。
+
+#### 総件数の読み取り
+
+総件数サマリの表記は 2 通りある (実測)。
+
+- 2 件以上 … 「検索結果 164  のうち 1 - 20 件」
+- ちょうど 1 件 … 「検索結果 1 件」。`のうち` が出ない
+
+`のうち` だけを見ていたため、500 人のクロールで総件数を読めなかった 73 件は**すべて取得 1 件**だった。
+両方の表記を読む。それでも読めないときは、**1 ページ目が 20 件に満たなければページングが起きていない**ので
+「見えた分が全件」と判断する。ちょうど 20 件で総件数も読めないときだけ「不明」として残す。
+この判定は検証落ちを引く前の件数で行う (捨てた分を引くと「20 件未満だから全件」と誤るため)。
 
 - `/no-search-results?keywords=null` への 302 は **「ナレーター検索に該当なし」の意味**で、頻度制限ではない。
   adapter は `status: "empty"` (成功・0 件) として返し、`crawl_runs.work_count = 0` で記録する。
@@ -394,6 +465,7 @@ https://www.audible.co.jp/search?searchNarrator={名前}&sort=pubdate-desc-rank
 - ナレーター表記は作品ごとに「上田 麗奈」「上田麗奈」と揺れる。表記のまま `creditedNames` に入れ、名寄せで吸収する
 - **`searchNarrator=` 自体も空白の有無で結果が変わる**。「石見舞菜香」は該当なしだが「石見 舞菜香」だと 2 件。
   検証済みの空白入り別名を先に試し、無ければ canonicalName で検索する (§2 の別名候補)
+- **`searchNarrator=` は完全一致ではない**。詳細は次の「一致率」の節
 - 本文側の `li` にだけ `narratorLabel` / `authorLabel` / `runtimeLabel` / `releaseDateLabel` クラスが付く。
   同じ `li` の中の flyout (popover) は「、その他」で省略されるので、**必ず本文側を使う**
 - ポッドキャストが混ざり、配信日・再生時間が無い。除外せず `releaseDate` なしで保存する
@@ -402,7 +474,7 @@ https://www.audible.co.jp/search?searchNarrator={名前}&sort=pubdate-desc-rank
 - 正規の商品 URL: `https://www.audible.co.jp/pd/{ASIN}`
 - Audible は年齢区分を公開していないので `ageRating` は `unknown`、`storeCategory` は `audiobook` 固定
 
-### ポケットドラマ CD (次に追加するストア。未実装)
+### ポケットドラマ CD (実装済み。T23)
 
 運営は株式会社アニメイト。robots.txt は `Disallow: /cart/*` と `/mypage/*` のみで、
 商品一覧・商品詳細・タグはすべて許可。`Crawl-delay` の指定は無い。
@@ -411,20 +483,32 @@ https://www.audible.co.jp/search?searchNarrator={名前}&sort=pubdate-desc-rank
 
 | 段階 | 内容 | コスト |
 |---|---|---|
-| 1 | 声優タグ辞書の構築。`sitemap_tags_1.xml.gz` の `tag_type=1` 3,161 件について、各タグページの `<title>` (`声優【小林千晃】の…` の形) から名前を取る | 3,161 × 5 秒 = 4.4 時間 (一度きり) |
+| 1 | 声優タグ辞書の構築。`sitemap_tags_1.xml.gz` の `tag_type=1` 3,161 件について、各タグページの `<title>` (`声優【小林千晃】の…` の形) から名前を取る | 3,161 × 5 秒 = 4.4 時間 (一度きり。実施済み) |
 | 2 | AniList 2,569 人との交差を測る。副産物としてポケドラに居る声優の全リストが手に入る | 0 |
-| 3 | 交差した声優のタグページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100`、一般 + BL の 2 回) | 交差人数 × 2 × 5 秒 |
-| 4 | 出てきた作品の詳細を引く (全クレジット取得のため必須) | 作品数 × 5 秒 |
+| 3 | 対象声優のタグページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100&store={men\|bl}&pageno={n}`) | 1,142 枚 = 1.6 時間 |
+| 4 | 出てきた作品の詳細を引く (全クレジット取得のため必須) | ユニーク作品数 × 5 秒 (上限 2,277 = 3.2 時間) |
 
 同じタグページに 4 ストアぶんの件数内訳が出る (`li.category_tab_el-{men|bl|adt|adt-bl}`) ので、
-段階 3 の対象を辞書だけで絞り込める。
+段階 3 の対象を辞書だけで絞り込める。件数が 0 の区分はページを引かない。
+
+**全件クロールの見積もりは 13.4 時間から 4.8 時間になった** (上限。実測 5.03 秒/リクエスト)。
+段階 4 を「延べ 8,593 件」で見積もっていたのを、**走行中に取り終えた作品を既知集合へ足す**
+仕組み (`crawler/run.ts` の `markFetched`) でユニーク件数に落としたため。1 作品に十数名が出る
+BL ドラマ CD では、これが無いと同じ詳細ページを出演者の人数ぶん引き直す。
+credit は作品に紐づいて既に保存されており、2 人目以降で詳細を飛ばしても出演者は落ちない。
+ユニーク件数の上限 2,277 は一般 1,366 + BL 911 (両ストアの全作品数) で、実際はこれより少ない。
+
+**辞書に無い声優はポケドラを引かない**。名前から tag_id を引く API が無く (`/sapi/json.php` は 404)、
+総当たりで探す手段もないため。`crawler/run.ts` がその声優のストアごと飛ばす
+(集計表では 0 件ではなく `-` になる)。辞書の突き合わせは `normalizeName` なので、
+人名の異体字は変換表 ([`decisions.md`](decisions.md) §16) で吸収される。
 **オトナ向け 2 ストア (`adt` / `adt-bl`) は取得しない**。年齢認証の背後にあり、
 AniList 対象声優との一致が 0 名で実利がない (§10)。これを外せば Cookie もセッション維持も要らない。
 
-取得仕様 (実 HTML 6 件で確定):
+取得仕様 (実 HTML 6 件で確定し、上位 5 人のクロールで取った 492 作品で裏を取った):
 
 - **出演声優の全員が取れるのは「作品情報」欄だけ**: `div.item_detail_extra` のうちヘッダが「出演声優」のものの
-  `a[href*="tag_type=1"]`。href の `tag_id` を声優の外部 ID として保存できる。
+  `a[href*="tag_type=1"]`。href から声優の `tag_id` も取れる (DB には入れていない。下の節)。
   タイトル末尾の `【出演声優：…】` と `.item_detail_info_desc_content` は主要キャストのみ (上部 6 名に対し作品情報欄は 17 名の実例あり)
 - **役名は取らない**。`役名(CV:声優名)` / `役名 CV:声優名` / `役名:声優名` / 記載なし と 4 パターン以上あり、
   単一の正規表現では抽出できない
@@ -432,15 +516,43 @@ AniList 対象声優との一致が 0 名で実利がない (§10)。これを�
   JSON-LD は BreadcrumbList だけで日付フィールドが無い。sitemap の `lastmod` はページ更新日なので代理にできない。
   §7 の「発売日が無い作品は初回発見日で新着判定する」機構にそのまま乗るが、
   **1 ストアだけ日付の意味が違う**ことを UI とドキュメントで明示する
-- 価格は税込のみ (`span.product_price`)。税抜は表示されない
-- ストア区分は `select[name=store] option[selected]` の value (`men` / `bl` / `adt` / `adt-bl`) と
-  JSON-LD の BreadcrumbList の両方から取れ、一致することを確認済み。`storeSection` にそのまま入れる
-- シリーズは `a[href*="tag_type=2"]`、レーベルは `tag_type=3`。単発作品にはシリーズ欄自体が無い
+- 価格は税込のみ (`span.product_price`)。税抜は表示されない。無料の作品は 0 で出る
+- ストア区分は `select[name=store] option[selected]` の value を主、JSON-LD の BreadcrumbList を予備にする。
+  **2 つは語彙がずれている**: パンくずは一般を `store=home` と書き、`select` は `men` と書く。
+  パンくず側を使うときは `home` を `men` に読み替える。`storeSection` に入るのは `men` / `bl`
+- **シリーズ (`tag_type=2`) は捨てている**。`RawWork` に置く場所が無く、`genres` に混ぜると
+  ジャンルでない語がジャンル欄に入るため。レーベル (`tag_type=3`) は `makerName`、
+  関連ワード (`tag_type=4`) と商品カテゴリは `genres` に入れる
+- **作品の区分は商品カテゴリ (`span.product_catgory_el` の先頭) だけで決める** (`src/domain/category.ts`)。
+  実データ 492 件の内訳は BLCD 351 / 一般ドラマCD 76 / シチュエーションCD 35 / 音楽 17 /
+  女性向けドラマCD 11 / 配信限定シチュエーション 2。ドラマ CD 系は `audio_drama`、
+  シチュエーション系は `situation_voice`、音楽 (キャラクターソング CD) は `other`、既定は `audio_drama`。
+  関連ワードを見ないのは「あまあま」「学園」のような内容の語だから。ASMR の語を含む 3 件も
+  シチュエーション系のカテゴリに置かれており、カテゴリだけで正しく決まる
 - カバー画像は `og:image` または `get_image.php?product_id={id}&thumb=large`
 - **1 作品に複数商品 (通常版・特典版・ダウンロード版) がある**。当面は別作品として扱う (確信が無ければマージしない)
 - 声優の紐付けは既存の `resolveCredit` を通す。ポケドラの `tag_id` は「同じ tag_id なら同一人物」という
-  **ストア由来の事実**なので、別名義の根拠として使える (§10 の原則に合致)。表記揺れを吸収できる可能性がある (要確認)
-- 実装時に `StoreSlug` へ `pokedora` を追加する
+  **ストア由来の事実**だが、**DB には入れていない**。理由は下の節
+
+#### tag_id を DB に入れていない理由
+
+492 作品から 638 個の tag_id を 3,097 回観測して、**2 つ以上の表記を持つ tag_id は 0 件**だった。
+ポケドラはリンク文字列がタグ名そのものなので 1 タグ 1 表記で、tag_id から今取れる
+別名義の根拠はゼロである。価値は「将来ストアをまたいで人を突き合わせるときの結合キー」だけになる。
+
+置き場所としては次のどれも合わない。
+
+- `voice_actor_aliases` は名前の表で、`resolveCredit` がその列を名寄せの索引として舐める。
+  tag_id は名前ではないので、入れると非名前の文字列が索引と管理画面の別名一覧に混ざる
+- `voice_actors` の列も合わない。1 人が複数の tag_id を持ちえて (同名別タグが 7 組)、
+  ストアが増えるたびに列が増える
+
+**将来やるなら `(store_slug, external_id)` が一意な別テーブル**にする。その一意制約が
+「同じ tag_id なら同一人物」をそのまま表す。ただし tag_id をクローラーから DB へ運ぶには
+`RawWork` か `IngestPayload` に項目が要り、`INGEST_PROTOCOL_VERSION` の扱い (§6) が絡む。
+
+当面は観測した (tag_id, 表記) を `crawler/.cache/discovery/pokedora-actor-refs.json` に貯めている。
+同じ tag_id に別の表記が現れたらそこに 2 つ並ぶので、DB へ移す判断の材料になる。
 
 ### AniList
 

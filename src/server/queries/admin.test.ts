@@ -1,8 +1,13 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { audioCredits, crawlRuns, voiceActorAliases } from "../db/schema";
-import { upsertActors } from "./actors";
-import { assignCredit, crawlerHealth, listUnmatchedCredits } from "./admin";
+import { type ActorSeed, upsertActors } from "./actors";
+import {
+  assignCredit,
+  crawlerHealth,
+  listUnmatchedCredits,
+  reresolveUnmatchedCredits,
+} from "./admin";
 import { ingest } from "./ingest";
 import { daysAgo, HANAZAWA, NOW, payload, rawWork, setupDb, UEDA } from "./test-fixtures";
 
@@ -174,6 +179,144 @@ describe("assignCredit", () => {
 
     expect(result).toEqual({ updated: 1, aliasAdded: false });
     expect(await db.select().from(voiceActorAliases)).toEqual([]);
+  });
+});
+
+const AMASAKI: ActorSeed = {
+  id: "va_amasaki-kohei",
+  slug: "amasaki-kohei",
+  // AniList 側の表記。ストアには 﨑 (U+FA11) で出てくる
+  canonicalName: "天崎滉平",
+  status: "active",
+};
+
+describe("reresolveUnmatchedCredits", () => {
+  it("異体字だけが違う未解決を解決する", async () => {
+    const db = await setupDb([]);
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["天\uFA11 滉平"] })] }), NOW);
+    await upsertActors(db, [AMASAKI], NOW);
+
+    const result = await reresolveUnmatchedCredits(db);
+
+    expect(result.scannedGroups).toBe(1);
+    expect(result.scannedCredits).toBe(1);
+    expect(result.resolvedCredits).toBe(1);
+    expect(result.groups).toEqual([
+      {
+        creditedName: "天\uFA11 滉平",
+        sourceStoreSlug: "dlsite",
+        count: 1,
+        voiceActorId: AMASAKI.id,
+        canonicalName: "天崎滉平",
+      },
+    ]);
+
+    const credits = await db.select().from(audioCredits);
+    expect(credits[0]?.confidence).toBe("verified");
+    expect(credits[0]?.voiceActorId).toBe(AMASAKI.id);
+  });
+
+  it("同じ表記の未解決をまとめて解決し、件数の多い順に返す", async () => {
+    const db = await setupDb([]);
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "A", creditedNames: ["天\uFA11滉平"] }),
+          rawWork({ storeProductId: "B", creditedNames: ["天\uFA11滉平"] }),
+          rawWork({ storeProductId: "C", creditedNames: ["花澤 香菜"] }),
+        ],
+      }),
+      NOW,
+    );
+    await upsertActors(db, [AMASAKI, HANAZAWA], NOW);
+
+    const result = await reresolveUnmatchedCredits(db);
+
+    expect(result.resolvedCredits).toBe(3);
+    expect(result.groups.map((group) => [group.canonicalName, group.count])).toEqual([
+      ["天崎滉平", 2],
+      ["花澤香菜", 1],
+    ]);
+  });
+
+  it("解決できない未解決はそのまま残す", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["謎の人"] })] }), NOW);
+
+    const result = await reresolveUnmatchedCredits(db);
+
+    expect(result).toEqual({
+      scannedGroups: 1,
+      scannedCredits: 1,
+      resolvedCredits: 0,
+      groups: [],
+    });
+    const credits = await db.select().from(audioCredits);
+    expect(credits[0]?.confidence).toBe("unmatched");
+    expect(credits[0]?.voiceActorId).toBeNull();
+  });
+
+  /**
+   * 手で割り当てた行 (verified) を巻き込まないことを固定する。
+   * `addAlias: false` にしてあるので名寄せは今も失敗する表記だが、行は触ってはならない
+   */
+  it("手動で割り当てた verified の行は対象にしない", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["ReinaU"] })] }), NOW);
+    await assignCredit(db, {
+      creditedName: "ReinaU",
+      sourceStoreSlug: "dlsite",
+      voiceActorId: UEDA.id,
+      addAlias: false,
+    });
+
+    const result = await reresolveUnmatchedCredits(db);
+
+    expect(result.scannedGroups).toBe(0);
+    expect(result.scannedCredits).toBe(0);
+    const credits = await db.select().from(audioCredits);
+    expect(credits[0]?.confidence).toBe("verified");
+    expect(credits[0]?.voiceActorId).toBe(UEDA.id);
+  });
+
+  it("複数の声優に当たる表記は unmatched のまま残す", async () => {
+    const db = await setupDb([]);
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["天\uFA11 滉平"] })] }), NOW);
+    await upsertActors(
+      db,
+      [AMASAKI, { ...AMASAKI, id: "va_other", slug: "other", canonicalName: "天\uFA11滉平" }],
+      NOW,
+    );
+
+    const result = await reresolveUnmatchedCredits(db);
+
+    expect(result.resolvedCredits).toBe(0);
+    expect((await db.select().from(audioCredits))[0]?.confidence).toBe("unmatched");
+  });
+
+  it("2 回実行しても結果が変わらない (冪等)", async () => {
+    const db = await setupDb([]);
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "A", creditedNames: ["天\uFA11滉平"] }),
+          rawWork({ storeProductId: "B", creditedNames: ["謎の人"] }),
+        ],
+      }),
+      NOW,
+    );
+    await upsertActors(db, [AMASAKI], NOW);
+
+    const first = await reresolveUnmatchedCredits(db);
+    const before = await db.select().from(audioCredits);
+    const second = await reresolveUnmatchedCredits(db);
+
+    expect(first.resolvedCredits).toBe(1);
+    expect(second.resolvedCredits).toBe(0);
+    expect(second.scannedCredits).toBe(1);
+    expect(await db.select().from(audioCredits)).toEqual(before);
   });
 });
 

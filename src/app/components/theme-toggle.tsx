@@ -1,37 +1,30 @@
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
-import { nextThemePreference, type ThemePreference, useTheme } from "@/app/hooks/use-theme";
-import { type TKey, useT } from "@/app/i18n";
-
-/** 3 状態それぞれのアイコン。"system" は「OS の画面に合わせる」ので画面の絵にする */
-const ICONS = { light: Sun, dark: Moon, system: Monitor } as const;
-
-const NAME_KEYS = {
-  light: "theme.light",
-  dark: "theme.dark",
-  system: "theme.system",
-} as const satisfies Record<ThemePreference, TKey>;
+import { useTheme } from "@/app/hooks/use-theme";
+import { useT } from "@/app/i18n";
 
 /**
- * 配色の切り替え。押すたびに ライト → ダーク → OS に合わせる と回る。
+ * 配色の切り替え。今の見え方のアイコンを出し、押すと反対に固定する 2 択のトグル。
  *
- * ボタン 1 つで 3 状態を回すのは、ヘッダーに置く部品として幅を取らないため。
- * 今どれなのかはアイコンと読み上げラベルの両方に出す。
+ * 初回は "system" (OS の設定に追従) で、そのままなら OS が変わっても追従し続ける。
+ * "system" へ戻す操作はここには出さない。ヘッダーのボタン 1 つで 3 状態を回すと、
+ * 押した先が読めず、今どれなのかも分かりにくかった (ユーザーからの指摘)。
  *
- * マウントが済むまで (`theme === null`) は状態を確定させない。SSR では localStorage も
- * OS の設定も読めず、そこで「ライト」などと決め打つとハイドレーションで食い違う。
- * 画面に出ている配色そのものは `__root.tsx` のインラインスクリプトが既に付けている
+ * アイコンは JS の状態ではなく CSS (`dark:` バリアント) で出し分ける。配色そのものは
+ * `__root.tsx` のインラインスクリプトが最初の描画前に付けているので、これならハイドレーションを
+ * 待たずに正しい方が出る。状態から描くと、ダークのとき一瞬だけ太陽が見えてから月に入れ替わる
  */
 export function ThemeToggle({ className }: { className?: string }) {
   const t = useT();
-  const { theme, setTheme } = useTheme();
+  const { resolved, setTheme } = useTheme();
 
-  const next = theme === null ? null : nextThemePreference(theme);
-  const Icon = theme === null ? Monitor : ICONS[theme];
+  // 読み上げのラベルだけは CSS で出し分けられないので、確定するまでは動作だけを言う
   const label =
-    theme === null || next === null
+    resolved === null
       ? t("theme.labelPending")
-      : t("theme.label", { current: t(NAME_KEYS[theme]), next: t(NAME_KEYS[next]) });
+      : resolved === "dark"
+        ? t("theme.switchToLight")
+        : t("theme.switchToDark");
 
   return (
     <Button
@@ -41,13 +34,17 @@ export function ThemeToggle({ className }: { className?: string }) {
       className={className}
       title={label}
       aria-label={label}
-      // 未確定のうちは押させない。null のまま押すと、どの状態から回すのか決まらない
-      disabled={next === null}
+      // 押されている = ダーク。確定前はどちらとも言えないので属性ごと出さない
+      aria-pressed={resolved === null ? undefined : resolved === "dark"}
+      data-resolved={resolved ?? undefined}
+      // 未確定のうちは押させない。null のまま押すと、どちらへ切り替えるのか決まらない
+      disabled={resolved === null}
       onClick={() => {
-        if (next !== null) setTheme(next);
+        if (resolved !== null) setTheme(resolved === "dark" ? "light" : "dark");
       }}
     >
-      <Icon aria-hidden="true" />
+      <Sun aria-hidden="true" className="dark:hidden" />
+      <Moon aria-hidden="true" className="hidden dark:block" />
     </Button>
   );
 }

@@ -2,10 +2,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import type { RawWork, StoreSlug } from "../src/domain/index.ts";
+import { type RawWork, STORE_SLUGS, type StoreSlug } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
+import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { ActorQuery, AdapterResult, Coverage, SourceAdapter } from "./adapters/types.ts";
+import { loadPokedoraDirectory, lookupActor } from "./discovery/pokedora-directory.ts";
 import { type ActorSeed, spacedVerifiedAliasNames } from "./lib/ingest.ts";
 import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
 import { loadActorSeeds } from "./run.ts";
@@ -17,7 +19,7 @@ import { loadActorSeeds } from "./run.ts";
  *   node crawler/cli.ts diff  "上田麗奈"
  *
  * オプション:
- *   --store dlsite|audible   片方のストアだけ実行する
+ *   --store <slug>           1 つのストアだけ実行する (dlsite / audible / pokedora)
  *   --json                   RawWork[] をそのまま標準出力に出す
  *   --no-snapshot            crawler/.cache/snapshots への保存を止める
  *   --skip-known RJ1,RJ2     既知 ID の詳細取得を飛ばす (将来 DB から渡す)
@@ -28,12 +30,14 @@ import { loadActorSeeds } from "./run.ts";
 const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
   dlsite: dlsiteAdapter,
   audible: audibleAdapter,
+  pokedora: pokedoraAdapter,
 };
 
 /** 見出しに出すストア名 (企画書 §34 の出力例) */
 const STORE_LABELS: Record<StoreSlug, string> = {
   dlsite: "DLsite",
   audible: "Audible",
+  pokedora: "ポケットドラマCD",
 };
 
 const USAGE = `使い方:
@@ -41,14 +45,14 @@ const USAGE = `使い方:
   node crawler/cli.ts diff  "<声優名>" [オプション]
 
 オプション:
-  --store <dlsite|audible>  指定したストアだけを対象にする
+  --store <slug>            指定したストアだけを対象にする (dlsite / audible / pokedora)
   --json                    RawWork[] を JSON で出力する
   --no-snapshot             取得した生データを .cache/snapshots に保存しない
   --skip-known <id,id,...>  既知の作品 ID の詳細取得を飛ばす
 `;
 
 function isStoreSlug(value: string): value is StoreSlug {
-  return value === "dlsite" || value === "audible";
+  return (STORE_SLUGS as readonly string[]).includes(value);
 }
 
 const OPTION_SPEC = {
@@ -77,7 +81,13 @@ async function buildActorQuery(actorName: string): Promise<ActorQuery> {
   );
   const spaced = matched === undefined ? [] : spacedVerifiedAliasNames(matched);
   const searchNames = spaced.length > 0 ? [...spaced, actorName] : [actorName];
-  return { canonicalName: actorName, searchNames };
+  // ポケドラは名前で検索できない。辞書があれば tag_id を引いて渡す (辞書が無ければ空振りになる)
+  const pokedoraRefs = lookupActor(await loadPokedoraDirectory(), actorName);
+  return {
+    canonicalName: actorName,
+    searchNames,
+    ...(pokedoraRefs === undefined ? {} : { storeActorRefs: { pokedora: pokedoraRefs } }),
+  };
 }
 
 /** 引数の形が不正なら使い方を出して undefined を返す */
@@ -112,10 +122,12 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   const storeFilter = values.store;
   if (storeFilter !== undefined && !isStoreSlug(storeFilter)) {
-    process.stderr.write(`--store は dlsite か audible を指定してください: ${storeFilter}\n`);
+    process.stderr.write(
+      `--store は ${STORE_SLUGS.join(" / ")} のどれかを指定してください: ${storeFilter}\n`,
+    );
     return 1;
   }
-  const stores: StoreSlug[] = storeFilter === undefined ? ["dlsite", "audible"] : [storeFilter];
+  const stores: readonly StoreSlug[] = storeFilter === undefined ? STORE_SLUGS : [storeFilter];
 
   const skipKnownIds = new Set(
     (values["skip-known"] ?? "")
