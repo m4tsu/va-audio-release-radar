@@ -74,6 +74,14 @@ test("英語表示でフォローすると、フォロー一覧にもローマ�
       .getByRole("list", { name: "Voice actors you follow" })
       .getByRole("link", { name: NAME_EN }),
   ).toBeVisible();
+
+  // 作品のカードに添える名前はサーバーから引いた行で描く。こちらもローマ字になる
+  await expect(
+    page
+      .getByRole("article")
+      .filter({ hasText: "テスト用発売予定作品アルファ" })
+      .getByRole("link", { name: NAME_EN }),
+  ).toBeVisible();
 });
 
 test("フォローはページをまたいで保持される", async ({ page }) => {

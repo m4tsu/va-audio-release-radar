@@ -192,6 +192,17 @@ describe("feedForActors", () => {
     expect(feed[0]?.actors).toEqual([{ id: UEDA.id, slug: UEDA.slug, name: "上田麗奈" }]);
   });
 
+  it("ローマ字表記を持つ声優には nameEn も添える", async () => {
+    const db = await setupDb([{ ...UEDA, nameEn: "Reina Ueda" }]);
+    await ingest(db, payload(), NOW);
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    expect(feed[0]?.actors).toEqual([
+      { id: UEDA.id, slug: UEDA.slug, name: "上田麗奈", nameEn: "Reina Ueda" },
+    ]);
+  });
+
   it("フォローしていない声優の作品は入らない", async () => {
     const db = await setupDb([UEDA, HANAZAWA]);
     await ingest(db, payload({ works: [rawWork({ creditedNames: ["花澤香菜"] })] }), NOW);

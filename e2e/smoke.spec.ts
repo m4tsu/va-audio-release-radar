@@ -54,8 +54,8 @@ test("トップの新着カードは名寄せ済みの出演声優を出す", as
   const card = page.getByRole("article").filter({ hasText: "テスト用ASMR作品アルファ" });
   await expect(card.getByRole("link", { name: "テスト声優アルファ" })).toBeVisible();
   await expect(card.getByRole("link", { name: "テスト声優デルタ" })).toBeVisible();
-  // ストアの表記のまま残っている未解決のクレジットは出さない
-  await expect(card.getByText("テスト未解決表記")).toBeHidden();
+  // ストアの表記のまま残っている未解決のクレジットは、カードのどこにも出さない
+  await expect(card.getByText("テスト未解決表記")).toHaveCount(0);
 
   await card.getByRole("link", { name: "テスト声優アルファ" }).click();
   await expect(page).toHaveURL(/\/voice-actors\/e2e-alpha$/);
