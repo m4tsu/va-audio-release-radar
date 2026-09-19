@@ -131,6 +131,13 @@ export const en: Translations = {
       "Every voice actor with ASMR, audiobooks or audio dramas we have found. Pick a name to see their works.",
     title: "Voice actors",
     emptyTitle: "No voice actors found",
+    sortLabel: "Sort by: {{name}}",
+    sortName: "Name",
+    sortWorkCount: "Most works",
+    storeFilterLabel: "Filter by store",
+    storeFilterAll: "All",
+    shownCount: { one: "{{count}} voice actor", other: "{{count}} voice actors" },
+    filteredEmptyTitle: "No voice actors have works on {{store}}",
   },
 
   actor: {

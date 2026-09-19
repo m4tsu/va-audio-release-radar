@@ -6,8 +6,10 @@
 -- 日付は `date('now', ...)` で毎回ずらす。固定日を書くと、時間が経つほど
 -- 「直近 30 日の新着」から外れてテストが落ちるため。
 
--- 声優 3 人 ----------------------------------------------------------------
+-- 声優 4 人 ----------------------------------------------------------------
 -- ガンマは作品を 1 件も持たない。DB には居るが表には出ないことの確認用 (T13)
+-- デルタは名前順ではアルファより後ろだが作品数はいちばん多い。
+-- 一覧の「作品数の多い順」が名前順と違う並びになることの確認用
 INSERT OR REPLACE INTO voice_actors
   (id, slug, canonical_name, name_kana, anilist_staff_id, image_url, status, created_at, updated_at)
 VALUES
@@ -16,6 +18,8 @@ VALUES
   ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', NULL, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'てすとせいゆうでるた', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO voice_actor_aliases (id, voice_actor_id, name, source, verified)
@@ -64,7 +68,8 @@ VALUES
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 -- クレジット --------------------------------------------------------------
--- 最後の 1 件は名寄せできていない表記。管理画面の未解決キューに出る
+-- 4 件目は名寄せできていない表記。管理画面の未解決キューに出る。
+-- デルタは 4 件すべてに出演させ、アルファ (3 件) より作品数を多くする
 INSERT OR REPLACE INTO audio_credits
   (id, audio_work_id, voice_actor_id, credited_name, role, confidence, source_store_slug)
 VALUES
@@ -72,7 +77,11 @@ VALUES
   (9000002, 'audible:B0E2E00002', 'va_e2e-alpha', 'テスト 声優アルファ', 'ナレーター', 'verified', 'audible'),
   (9000003, 'dlsite:RJ90000003', 'va_e2e-beta', 'テスト声優ベータ', NULL, 'verified', 'dlsite'),
   (9000004, 'dlsite:RJ90000001', NULL, 'テスト未解決表記', NULL, 'unmatched', 'dlsite'),
-  (9000005, 'dlsite:RJ90000004', 'va_e2e-alpha', 'テスト声優アルファ', NULL, 'verified', 'dlsite');
+  (9000005, 'dlsite:RJ90000004', 'va_e2e-alpha', 'テスト声優アルファ', NULL, 'verified', 'dlsite'),
+  (9000006, 'dlsite:RJ90000001', 'va_e2e-delta', 'テスト声優デルタ', NULL, 'verified', 'dlsite'),
+  (9000007, 'audible:B0E2E00002', 'va_e2e-delta', 'テスト声優デルタ', NULL, 'verified', 'audible'),
+  (9000008, 'dlsite:RJ90000003', 'va_e2e-delta', 'テスト声優デルタ', NULL, 'verified', 'dlsite'),
+  (9000009, 'dlsite:RJ90000004', 'va_e2e-delta', 'テスト声優デルタ', NULL, 'verified', 'dlsite');
 
 -- クロール履歴 ------------------------------------------------------------
 -- audible × アルファ は「前回 12 件 → 今回 0 件」で警告、dlsite × ベータ は失敗で警告になる

@@ -1,9 +1,9 @@
 import { and, asc, eq, inArray, like, or, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
-import type { VoiceActor, VoiceActorAlias } from "@/domain/types";
+import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
 import { chunked } from "../db/chunked";
-import { audioCredits, voiceActorAliases, voiceActors } from "../db/schema";
+import { audioCredits, storeListings, voiceActorAliases, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
 
 /** 一覧・検索結果の 1 行。作品数は声優ページへ行く前の目安として画面に出す */
@@ -17,6 +17,8 @@ export type ActorSummary = {
   imageUrl?: string;
   status: VoiceActor["status"];
   workCount: number;
+  /** この声優の作品が載っているストア。`STORE_SLUGS` の順。一覧のストア絞り込みが見る */
+  storeSlugs: StoreSlug[];
 };
 
 export type ActorDetail = VoiceActor & { aliases: VoiceActorAlias[] };
@@ -232,6 +234,14 @@ async function matchByNormalizedName(db: AppDb, query: string): Promise<string[]
 const workCountExpression = sql<number>`count(distinct ${audioCredits.audioWorkId})`;
 
 /**
+ * この声優の作品が載っているストアを 1 行にまとめたもの ("dlsite,audible")。
+ *
+ * SQLite の `group_concat` は `distinct` を付けると区切り文字を指定できないので "," 固定になる。
+ * ストアの slug に "," は入らないので、読む側は素朴に分割してよい (`toStoreSlugs`)
+ */
+const storeSlugsExpression = sql<string | null>`group_concat(distinct ${storeListings.storeSlug})`;
+
+/**
  * 作品が 1 件以上ある声優かどうか。
  *
  * EXISTS にするのは、声優 1 人ずつ作品数を引き直すと 2,500 人ぶんのクエリになるため。
@@ -242,23 +252,34 @@ export const hasAnyAudioCredit: SQL = sql`exists (
   select 1 from ${audioCredits} where ${audioCredits.voiceActorId} = ${voiceActors.id}
 )`;
 
-/** 一覧・検索で共有する select。`extra` は呼び出し側の追加条件 */
+/**
+ * 一覧・検索で共有する select。`extra` は呼び出し側の追加条件。
+ *
+ * 作品数もストアも年齢区分で絞らない。保存する時点で許可集合の外 (R18) を弾いているので
+ * (`ingest`)、ここで絞っても結果は変わらず、全声優ぶんの集計に `audio_works` の join が増えるだけになる
+ */
 function summaryQuery(db: AppDb, extra?: SQL) {
-  return db
-    .select({
-      id: voiceActors.id,
-      slug: voiceActors.slug,
-      canonicalName: voiceActors.canonicalName,
-      nameKana: voiceActors.nameKana,
-      nameEn: voiceActors.nameEn,
-      imageUrl: voiceActors.imageUrl,
-      status: voiceActors.status,
-      workCount: workCountExpression,
-    })
-    .from(voiceActors)
-    .leftJoin(audioCredits, eq(audioCredits.voiceActorId, voiceActors.id))
-    .where(extra === undefined ? hasAnyAudioCredit : and(hasAnyAudioCredit, extra))
-    .groupBy(voiceActors.id);
+  return (
+    db
+      .select({
+        id: voiceActors.id,
+        slug: voiceActors.slug,
+        canonicalName: voiceActors.canonicalName,
+        nameKana: voiceActors.nameKana,
+        nameEn: voiceActors.nameEn,
+        imageUrl: voiceActors.imageUrl,
+        status: voiceActors.status,
+        workCount: workCountExpression,
+        storeSlugs: storeSlugsExpression,
+      })
+      .from(voiceActors)
+      .leftJoin(audioCredits, eq(audioCredits.voiceActorId, voiceActors.id))
+      // 作品がどのストアに載っているかは listing が持つ。作品 1 件につき行が増えるが、
+      // 作品数は count(distinct) で数えているので重複しても狂わない
+      .leftJoin(storeListings, eq(storeListings.audioWorkId, audioCredits.audioWorkId))
+      .where(extra === undefined ? hasAnyAudioCredit : and(hasAnyAudioCredit, extra))
+      .groupBy(voiceActors.id)
+  );
 }
 
 /** summaryQuery が返す行。select の指定と手で合わせる */
@@ -271,6 +292,7 @@ type ActorSummaryRow = {
   imageUrl: string | null;
   status: VoiceActor["status"];
   workCount: number;
+  storeSlugs: string | null;
 };
 
 function toActorSummary(row: ActorSummaryRow): ActorSummary {
@@ -283,7 +305,20 @@ function toActorSummary(row: ActorSummaryRow): ActorSummary {
     ...(row.imageUrl ? { imageUrl: row.imageUrl } : {}),
     status: row.status,
     workCount: Number(row.workCount ?? 0),
+    storeSlugs: toStoreSlugs(row.storeSlugs),
   };
+}
+
+/**
+ * `group_concat` の結果を slug の配列に戻す。
+ *
+ * `STORE_SLUGS` 側から拾うので、並びは画面に出す順に揃い、知らない値は落ちる。
+ * ストアが増えて DB に古い slug が残っていても、画面には出せないものを渡さずに済む
+ */
+function toStoreSlugs(concatenated: string | null): StoreSlug[] {
+  if (!concatenated) return [];
+  const found = new Set(concatenated.split(","));
+  return STORE_SLUGS.filter((slug) => found.has(slug));
 }
 
 type VoiceActorRow = typeof voiceActors.$inferSelect;

@@ -150,6 +150,14 @@ export const ja = {
       "ASMR・朗読・ボイスドラマなどの音声作品が見つかっている声優の一覧です。名前を選ぶとその人の作品が見られます。",
     title: "声優から探す",
     emptyTitle: "声優が見つかりません",
+    sortLabel: "並び替え: {{name}}",
+    sortName: "名前順",
+    sortWorkCount: "作品数の多い順",
+    /** ストアの絞り込み。選択肢のうちストア名 (`STORE_LABELS`) は辞書に持たない */
+    storeFilterLabel: "ストアで絞り込む",
+    storeFilterAll: "すべて",
+    shownCount: "{{count}} 人",
+    filteredEmptyTitle: "{{store}} に作品がある声優はいません",
   },
 
   actor: {

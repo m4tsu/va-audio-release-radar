@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { StoreSlug } from "@/domain/types";
+import { audioCredits, audioWorks, storeListings } from "../db/schema";
 import { getActorBySlug, listActors, searchActors, upsertActors } from "./actors";
 import { ingest } from "./ingest";
 import {
@@ -135,6 +137,73 @@ describe("listActors", () => {
 
     expect(byslug.get(HANAZAWA.slug)).toBe(2);
     expect(byslug.get(UEDA.slug)).toBe(1);
+  });
+
+  /** 一覧のストア絞り込みはこの値だけを見る */
+  it("作品が載っているストアを STORE_SLUGS の順で返す", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await giveEachActorAWork(db, [UEDA, HANAZAWA]);
+    await ingest(
+      db,
+      payload({
+        runId: "run-audible",
+        storeSlug: "audible",
+        works: [
+          rawWork({
+            storeSlug: "audible",
+            storeProductId: "B0AUDIBLE1",
+            productUrl: "https://www.audible.co.jp/pd/B0AUDIBLE1",
+            creditedNames: [UEDA.canonicalName],
+          }),
+        ],
+      }),
+      NOW,
+    );
+
+    const byslug = new Map((await listActors(db)).map((actor) => [actor.slug, actor.storeSlugs]));
+
+    // 取り込んだ順 (dlsite → audible) ではなく STORE_SLUGS の順で返る
+    expect(byslug.get(UEDA.slug)).toEqual(["dlsite", "audible"]);
+    expect(byslug.get(HANAZAWA.slug)).toEqual(["dlsite"]);
+  });
+
+  /**
+   * 画面はこの配列をストアの絞り込みにしか使わない。知らない値が混ざると
+   * どの選択肢にも当たらない声優が出るので、取り除いたうえで渡す
+   */
+  it("掲載が無い作品や、知らないストアの掲載は storeSlugs に出さない", async () => {
+    const db = await setupDb([UEDA]);
+    await db.insert(audioWorks).values({
+      id: "unknown:1",
+      title: "掲載の無い作品",
+      category: "other",
+      ageRating: "unknown",
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await db.insert(audioCredits).values({
+      audioWorkId: "unknown:1",
+      voiceActorId: UEDA.id,
+      creditedName: UEDA.canonicalName,
+      confidence: "verified",
+      sourceStoreSlug: "dlsite",
+    });
+
+    expect((await listActors(db))[0]?.storeSlugs).toEqual([]);
+
+    // STORE_SLUGS に無い slug (Phase 2 で足す予定の audiobookjp) を直に入れる
+    await db.insert(storeListings).values({
+      audioWorkId: "unknown:1",
+      storeSlug: "audiobookjp" as StoreSlug,
+      storeProductId: "1",
+      productUrl: "https://audiobook.jp/product/1",
+      titleRaw: "掲載の無い作品",
+      firstSeenAt: NOW,
+      lastSeenAt: NOW,
+      lastCheckedAt: NOW,
+    });
+
+    expect((await listActors(db))[0]?.storeSlugs).toEqual([]);
   });
 });
 
