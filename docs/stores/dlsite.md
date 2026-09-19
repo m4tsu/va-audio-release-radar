@@ -1,5 +1,9 @@
 # DLsite (全年齢サイト `/home/`)
 
+読者: `crawler/adapters/dlsite.ts` を触る前の人
+更新: robots.txt を取り直したら (差分が無くても最終確認日を更新する)。使う URL の形やセレクタを変えたら
+削除: DLsite を対応ストアから外したら
+
 実装: `crawler/adapters/dlsite.ts` / `crawler/discovery/dlsite-sitemap.ts`
 共通の原則は [`README.md`](./README.md)。
 
@@ -59,13 +63,11 @@ Crawl-delay: 10
 パスの限定が無いので、検索 HTML だけでなく `product.json` にも及ぶ。
 
 **以前は `product.json` だけを短くしていた。これは誤り**だった。「JSON API は負荷が軽い」
-という理由はこちらの都合でしかなく、相手の指定より短い。T12 で全パスを揃えた
-(`docs/design/decisions.md` §7)。全声優のクロールはその分長くなるが、それは意図どおり。
+という理由はこちらの都合でしかなく、相手の指定より短い。全パスを同じ間隔に揃えている。
 
 ### この間隔から出る取得コスト
 
-間隔を守ったときの所要時間。**声優起点にした根拠**であり、`decisions.md` §7 と
-`architecture.md` §6 はここを参照している。
+間隔を守ったときの所要時間。**声優起点にした根拠** (`docs/decisions/0002-actor-first-crawling.md`)。
 
 | 取り方 | 規模 | 所要時間 |
 |---|---:|---:|
@@ -112,8 +114,8 @@ https://www.dlsite.com/modpub/sitemap-xml/indexes/home_index.xml
 ```
 
 robots.txt の `Sitemap:` 行に載っているので許可されている。
-発見スパイク (T9) で全件発見に使ったが、**対象声優を AniList 単独で定義した時点で不要になった**
-(`docs/design/decisions.md` §7)。実装は `crawler/discovery/dlsite-sitemap.ts` に残してある。
+全件発見の調査 (`docs/research/discovery-spike-2026-09-18.md`) で使ったが、**対象声優を AniList 単独で
+定義した時点で不要になった** (`docs/decisions/0002-actor-first-crawling.md`)。実装は `crawler/discovery/dlsite-sitemap.ts` に残してある。
 
 ---
 
@@ -126,14 +128,8 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 | `/*adultcheck/`、`/js/adultcheck.js` | robots が禁止。年齢確認の経路には触れない |
 | `/*/cart`、`/*/mypage` | robots が禁止 |
 | `product.json?workno=RJ1,RJ2,…` | robots ではなく仕様の問題。複数渡すと空配列が返る |
-| `/maniax/` の検索 | robots は禁じていない (`/maniax/` を名指しした行は無く、Cookie も年齢確認も不要で 200 が返る)。**禁止ではなく方針として使わない**。R18 は載せないと決めており、実測でも対象声優の作品は 1 件も増えなかった (`docs/design/decisions.md` §9) |
+| `/maniax/` の検索 | robots は禁じていない (`/maniax/` を名指しした行は無く、Cookie も年齢確認も不要で 200 が返る)。**禁止ではなく方針として使わない**。R18 は載せない (`docs/decisions/0003-no-r18-keep-bl.md`) |
 
-### 過去にここで間違えた
-
-- **「`per_page/100` を付けると 0 件になる」**と設計書に書いていた。再現せず、
-  **正しくは「無視されて既定件数が返る」**だった (§6)。確かめずに記録したことが原因
-- **「robots は `per_page` を禁止している」**と読んでいた。`Allow` の行を見落としていた
-- **「`product.json` は短い間隔でよい」**としていた。`Crawl-delay` は全パスに及ぶ (§2)
 
 ---
 
@@ -185,10 +181,10 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 - **robots の字面では 2 ページ目以降も許可されている** (`per_page` を含まないため)。
   それでも**運用として 1 ページ目に固定する**。`per_page` 付きで 2 ページ目以降を禁じている以上、
   ページ送りを避けたいという意図は明らかで、かつ 1 ページ目だけで足りるため。
-  設計書とコードの「robots.txt が 2 ページ目以降を禁じている」という言い方は、
-  **字面としては不正確**である (根拠: `docs/research/new-release-feeds-2026-09-19.md` §1.1)
+  「robots.txt が 2 ページ目以降を禁じている」という言い方は**字面としては不正確**である
+  (根拠: `docs/research/new-release-feeds-2026-09-19.md` の DLsite の節)
 - **ジャンルに「ドラマ」「シチュエーション」という語は出ない。** 実データ 200 件で 0 件。
-  ドラマ作品を見分けられるのは**タイトルだけ** (`docs/design/decisions.md` §1)
+  ドラマ作品を見分けられるのは**タイトルだけ** (判定規則は `src/domain/category.ts`)
   - `product.json` 200 件のジャンル上位: ASMR 155 / バイノーラル・ダミヘ 138 / 癒し 134 /
     耳かき 109 / 萌え 65 / ささやき 64 / 日常・生活 46 / ラブラブ・あまあま 40 / 健全 29 /
     人外娘・モンスター娘 24 / 学校・学園 24 / ほのぼの 21 / 添い寝 18 / ラブコメ 18 / 百合 18 /
@@ -231,10 +227,9 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 
 - [`docs/research/discovery-spike-2026-09-18.md`](../research/discovery-spike-2026-09-18.md) —
   sitemap 全件 68,321 作品、AniList との交差 57 人、90 日 75 件
-- [`docs/research/adult-scope-2026-09-18.md`](../research/adult-scope-2026-09-18.md) §1 —
+- [`docs/research/adult-scope-2026-09-18.md`](../research/adult-scope-2026-09-18.md) —
   robots.txt の全文確認、maniax の対照実験、別名義の実測
-- [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) §1 —
+- [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) —
   robots の再確認、全体の新着一覧、1 日あたりの新作数、`order/release_d` が発売日順である証拠
-- [`docs/design/decisions.md`](../design/decisions.md) §1 (カテゴリ判定) / §4 (`per_page`) /
-  §7 (声優起点と `Crawl-delay`) / §9 (R18) / §10 (別名義)
-- [`docs/design/architecture.md`](../design/architecture.md) §6 — 取得手順の位置づけ
+- [`docs/decisions/0002-actor-first-crawling.md`](../decisions/0002-actor-first-crawling.md) — 声優起点
+- [`docs/decisions/0003-no-r18-keep-bl.md`](../decisions/0003-no-r18-keep-bl.md) — R18 を載せない

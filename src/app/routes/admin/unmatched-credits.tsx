@@ -22,12 +22,12 @@ import { fetchAdminSession } from "@/app/server-fns/admin-session";
  * `listUnmatchedCredits` が表記名を 1 つの IN 句に並べていたためで、
  * 表記 100 件 + confidence の 1 件で上限を超えていた。
  * いまは `src/server/queries/admin.ts` が `chunked()` で IN 句を 90 件ずつに切るので、
- * この定数は「1 画面に何件出すか」だけの話に戻っている (T6)
+ * この定数は「1 画面に何件出すか」だけの話に戻っている
  */
 const GROUPS_PER_PAGE = 100;
 
 /**
- * 未解決クレジットの割り当て (設計書 §7)。
+ * 未解決クレジットの割り当て。
  *
  * 名寄せできなかったストア上の表記を、人が見て声優に結び付ける。
  * 割り当ては「表記 × ストア」単位でまとめて行う。同じ声優が同じ表記で何十作品にも出るため

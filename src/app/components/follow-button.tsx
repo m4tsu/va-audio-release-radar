@@ -4,7 +4,7 @@ import { useT } from "@/app/i18n";
 import { type FollowTarget, useFollowStore, useIsFollowing } from "@/app/store/follow-store";
 
 /**
- * 声優のフォロー / 解除。ユーザーに求める操作はこれとストアへ行くことだけ (企画書 §7.2)。
+ * 声優のフォロー / 解除。ユーザーに求める操作はこれとストアへ行くことだけ。
  *
  * フォロー状態はブラウザ内にしか無いので SSR 時は必ず「未フォロー」で描かれる。
  * 読み込みが済むまで (`status !== "ready"`) は押せなくしておく。押せてしまうと、

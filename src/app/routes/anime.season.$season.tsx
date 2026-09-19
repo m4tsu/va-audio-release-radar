@@ -9,7 +9,7 @@ import { fetchSeasonAnime } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 
 /**
- * シーズンのアニメ一覧 (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md`)。
+ * シーズンのアニメ一覧。
  *
  * 声優名を知らない利用者がアニメから入ってくる経路。放送中のアニメは毎クール入れ替わるので、
  * back catalog 中心の他のページに無い「時期性」をここが受け持つ

@@ -1,15 +1,18 @@
 # ストアの新着一覧調査 (2026-09-19)
 
+読者: 日次クロールの方式を決める人
+更新: しない (日付つきの測定。数字を書き換えない)
+削除: 参照する文書が無くなったら
+
 日次クロールを「声優 1 人ずつ検索する」方式から「ストアの新着一覧を取り、クレジットを
 我々の声優リストと照合する」方式に変えられるかを、実データで確かめた記録。
 DB には書き込んでいない。コードも変更していない。
 
 - 外部へのリクエスト: **18 件** (DLsite 6 / Audible 12)。上限 30 件、ストア別上限 (DLsite 6 / Audible 12) の範囲内
-- **pokedora.com には一切アクセスしていない** (T23 が全件クロール中のため)。ポケドラの節は
+- **pokedora.com には一切アクセスしていない** (別のクロールが同じホストを使っていたため)。ポケドラの節は
   2026-09-18 に取得済みの sitemap と HTML だけで書いている
 - UA は `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36`、
   `Accept-Language: ja-JP,ja;q=0.9`。間隔は DLsite 11 秒、Audible 7 秒
-- 取得物は `…/scratchpad/a9/` に置いてある
 
 ## 0. 結論
 
@@ -52,7 +55,7 @@ Crawl-delay: 10
 - **この一覧 URL は Disallow に一致しない。** パターンが `/per_page/` という文字列を
   必須にしているのに対し、上の URL には `per_page` が入っていないため。`page/1` も `page/2` も
   同じ理由で一致せず、**字面のうえでは 2 ページ目以降も許可されている**
-- 設計書 §6 の「robots.txt が 2 ページ目以降を禁じている」という記述は、**字面としては不正確**。
+- 当時の設計書の「robots.txt が 2 ページ目以降を禁じている」という記述は、**字面としては不正確**。
   ただし `per_page` 付きの URL で 2 ページ目以降を禁じている以上、
   ページ送りを避けたいという意図は明らかなので、**運用としては 1 ページ目に固定するべき**。
   後述のとおり 1 ページ目だけで 4.7 日ぶん取れるので、日次運用で 2 ページ目は要らない
@@ -158,7 +161,7 @@ Disallow: /search?searchNarrator=*&sort=
 (`searchNarrator` 単独に一致する Disallow は無い。`/search*searchNarrator=*=*=*=` は
 `=` が 4 つ要るので一致しない)。
 
-設計書 §6 の「robots.txt も `page=` との組み合わせを禁じている」という記述は、
+当時の設計書の「robots.txt も `page=` との組み合わせを禁じている」という記述は、
 禁止範囲を狭く読み違えている。**声優起点の巡回を残す場合、`sort=` は外す必要がある**
 (その結果 1 ページ目は人気順 20 件になり、並び順のはしごによる網羅率向上は使えなくなる)。
 
@@ -385,7 +388,7 @@ sitemap の再生成が数日おきの可能性がある。日次の差分検出
 - `<select name="disp_number">` の選択肢: **`30` / `50` / `100`**。
   1 ページ 100 件まで指定できる
 - `<select name="store">`: `men=一般` / `bl=BL` / `adt=オトナ向け` / `adt-bl=オトナBL`。
-  設計書 §6 のとおり `adt` 系は取らないので **`men` と `bl` の 2 本**
+  `adt` 系は取らないので **`men` と `bl` の 2 本**
 - `<select name="genre_tag_id">`: `0=すべて` / `1=BLCD` / `2=シチュエーションCD` /
   `3=配信限定シチュエーション` / `4=女性向けドラマCD` / `5=一般ドラマCD` /
   `7=オーディオブック` / `6=音楽`
@@ -399,7 +402,7 @@ https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0&or
 https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0&order=1&store=bl&disp_number=100&pageno=1
 ```
 
-robots.txt は設計書 §6 のとおり `Disallow: /cart/*` と `/mypage/*` だけなので、
+robots.txt は `Disallow: /cart/*` と `/mypage/*` だけなので、
 `list.php` は禁止されていない。
 
 ### 3.4 結論と、実アクセスで確かめるべき項目
@@ -407,7 +410,7 @@ robots.txt は設計書 §6 のとおり `Disallow: /cart/*` と `/mypage/*` だ
 **日次の新着検出には `list.php?order=1&disp_number=100` を使うのが第一候補。**
 sitemap の差分は保険として併用する価値がある (一覧に出ない商品を拾えるかもしれない)。
 
-T23 のクロールが終わってから確かめること:
+ポケドラへのクロールが終わってから確かめること:
 
 1. 上の `list.php` URL が HTTP 200 で、期待どおり新着順 100 件を返すか
 2. 一覧に**発売日**が載るか。載らなければ新規 ID 全件で詳細を引く必要がある

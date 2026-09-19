@@ -109,7 +109,7 @@ export async function upsertActors(
 /**
  * 声優一覧 (作品数付き、canonical_name 順)。
  *
- * 作品が 1 件も無い声優は返さない。追跡対象は AniList 由来の 2,500 人規模 (T13) で、
+ * 作品が 1 件も無い声優は返さない。追跡対象は AniList 由来の 2,500 人規模 で、
  * その大半は音声作品を出していない。クロール履歴を残すために DB には全員入れるが、
  * 中身の無いページへのリンクを並べても利用者の役に立たないため表には出さない
  */
@@ -144,7 +144,7 @@ export async function getActorBySlug(db: AppDb, slug: string): Promise<ActorDeta
  * 声優検索。部分一致 (SQL の LIKE) と表記揺れ一致 (`normalizeName`) の和集合を返す。
  *
  * `normalizeName` は空白・中黒などを落とすので SQL では表現できない。名前だけを全件読んで
- * JS 側で突き合わせている (`matchByNormalizedName`)。T13 で追跡対象が 2,500 人規模になり
+ * JS 側で突き合わせている (`matchByNormalizedName`)。追跡対象が 2,500 人規模になり
  * 1 回の検索で声優と別名を全件読むようになったので、遅くなったら正規化済みの列を持たせて
  * 索引を張る。作品が 1 件も無い声優は結果に含めない (`listActors` と同じ理由)
  */
@@ -232,7 +232,7 @@ async function matchByNormalizedName(db: AppDb, query: string): Promise<string[]
 const workCountExpression = sql<number>`count(distinct ${audioCredits.audioWorkId})`;
 
 /**
- * 作品が 1 件以上ある声優かどうか (T13)。
+ * 作品が 1 件以上ある声優かどうか。
  *
  * EXISTS にするのは、声優 1 人ずつ作品数を引き直すと 2,500 人ぶんのクエリになるため。
  * 1 件見つかった時点で打ち切られるので、作品数を数えるより安い。

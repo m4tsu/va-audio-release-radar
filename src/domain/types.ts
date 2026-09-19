@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * ドメインの公開型。設計書 (docs/design/architecture.md) §4 のコードブロックをそのまま反映する。
+ * ドメインの公開型。ここが型の正。
  * この層は React / DB / fetch を知らない。日時は ISO 8601 文字列 (UTC)。ID は文字列
  */
 
@@ -10,7 +10,7 @@ export type WorkCategory = "asmr" | "audio_drama" | "audiobook" | "situation_voi
 export type CreditConfidence = "verified" | "probable" | "unmatched";
 
 /**
- * 年齢区分 (設計書 §14)。真偽値ではなく列挙にしてあるのは、ストアが「全年齢 / R18」の
+ * 年齢区分。真偽値ではなく列挙にしてあるのは、ストアが「全年齢 / R18」の
  * 2 値で割っていないことと、年齢が分からないストア (Audible) を「全年齢」と言い切らないため。
  *
  * BL はここに入れない。BL は年齢区分ではなく内容の区分で、ポケドラがストアを 4 つに
@@ -89,7 +89,7 @@ export type AudioCredit = {
 };
 
 /**
- * アニメ 1 作品 (設計書 docs/feature-proposals/anime-season-entry-design-2026-09-18.md §3)。
+ * アニメ 1 作品。
  * あらすじ・話数・放送局は持たない。アニメ事典にしないための歯止め (同 §5)
  */
 export type AnimeTitle = {
@@ -143,14 +143,12 @@ export type RawWork = {
 };
 
 /**
- * ingest の payload 形式の版 (T16)。`RawWork` / `IngestPayload` に後方互換でない変更を
+ * ingest の payload 形式の版。`RawWork` / `IngestPayload` に後方互換でない変更を
  * 入れるたびに 1 つ上げる。
  *
- * これが要るのは、クローラーが 1 回 3 時間走る一方でサーバーは vite の HMR で
- * 差し替わるため。実際に `adult: boolean` を `ageRating` の列挙に変えたとき、
- * 走っている最中のクローラーだけが古い形を送り続け、420 人ぶんが HTTP 400 で
- * 捨てられた。400 では `crawl_runs` に行が残らないので、管理画面からは
- * 「作品 0 件の声優」と見分けが付かず、事故が 3 時間気づかれなかった。
+ * これが要るのは、クローラーが数時間走る一方でサーバーはその間に差し替わりうるため。
+ * 古い形のペイロードが 400 で拒否されると `crawl_runs` に行が残らず、管理画面からは
+ * 「作品 0 件の声優」と見分けが付かない。
  *
  * 版が合わなければサーバーは 409 を返し、クローラーは残りを回さず即座に止まる。
  * 「静かに捨てる」より「うるさく止まる」方が被害が小さいという判断
@@ -171,7 +169,7 @@ export type IngestPayload = {
   error?: string; // 取得失敗時 (works は空)
   /**
    * ストアが出している検索結果の総件数 (DLsite の `pager.count` / Audible の「検索結果 N のうち」)。
-   * どちらのストアも 1 ページ目しか取れないため、これと取得件数を比べて網羅率を監視する (設計書 §13)
+   * どちらのストアも 1 ページ目しか取れないため、これと取得件数を比べて網羅率を監視する
    */
   totalCount?: number;
   /**
@@ -256,7 +254,7 @@ void [
 // --- 年齢区分の方針 --------------------------------------------------------
 
 /**
- * 保存してよい年齢区分 (設計書 §14)。
+ * 保存してよい年齢区分。
  *
  * R18 を外しているのは実測の結果で、対象声優 (アニメ声優の本名義) の作品が 1 件も増えない
  * 一方で Amazon アソシエイトの審査に落ちる恐れがあるため。`unknown` を許すのは Audible が
@@ -329,7 +327,7 @@ export const ingestPayloadSchema = z.object({
 }) satisfies z.ZodType<IngestPayload>;
 
 /**
- * 本文から `protocolVersion` だけを取り出す (T16)。
+ * 本文から `protocolVersion` だけを取り出す。
  *
  * 全体を `ingestPayloadSchema` に通す前に呼ぶ。版が上がる変更はたいてい
  * `works` の形を変えるので、先に全体を検証すると「版がずれている」ではなく

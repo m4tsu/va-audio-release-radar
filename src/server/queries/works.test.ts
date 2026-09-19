@@ -159,7 +159,7 @@ function freshnessById(items: Array<{ work: { id: string }; freshness: string }>
   return Object.fromEntries(items.map((item) => [item.work.id, item.freshness]));
 }
 
-describe("feedForActors の段 (設計書 §10)", () => {
+describe("feedForActors の段", () => {
   it("発売日で upcoming / recent / older を分け、90 日より前は落とす", async () => {
     const db = await setupDb();
     await ingest(
@@ -241,7 +241,7 @@ describe("feedForActors の段 (設計書 §10)", () => {
 
   /**
    * 初回クロールは既存の全作品を一度に見つける。ここを新着にすると、声優を追加するたびに
-   * その人の過去作が丸ごとフィードに流れ込む (設計書 §10)
+   * その人の過去作が丸ごとフィードに流れ込む
    */
   it("発売日が無い作品は、初回クロールで見つかった分を older にする", async () => {
     const db = await setupDb();
@@ -459,7 +459,7 @@ describe("sitemapEntries", () => {
   });
 
   it("作品が 1 件も無い声優は出さない", async () => {
-    // そのページは notFound() を返すので、sitemap に載せると 404 を検索エンジンに出す (T13)
+    // そのページは notFound() を返すので、sitemap に載せると 404 を検索エンジンに出す
     const db = await setupDb([UEDA, HANAZAWA]);
     await ingest(db, payload(), NOW);
 

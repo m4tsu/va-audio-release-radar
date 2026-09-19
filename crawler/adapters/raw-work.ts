@@ -2,7 +2,7 @@ import { type RawWork, rawWorkSchema } from "../../src/domain/index.ts";
 import type { ParsedWorks } from "./types.ts";
 
 /**
- * adapter が組み立てた候補を `rawWorkSchema` で検証する (設計書 §4)。
+ * adapter が組み立てた候補を `rawWorkSchema` で検証する。
  * 検証に落ちたものは例外にせず捨てる。1 作品の崩れで 30 件まるごと失うほうが痛いため。
  * 捨てた件数は呼び出し側に返し、CLI と ingest が異常に気づけるようにする
  */

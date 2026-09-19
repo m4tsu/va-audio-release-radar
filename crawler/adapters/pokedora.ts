@@ -14,7 +14,7 @@ import type {
 } from "./types.ts";
 
 /**
- * ポケットドラマ CD (pokedora.com) のアダプタ。手順は設計書 §3 / §15 の訂正のとおり:
+ * ポケットドラマ CD (pokedora.com) のアダプタ。手順:
  *
  * 1. 声優タグのページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100&store={men|bl}`)。
  *    tag_id は事前に作った辞書 (`crawler/.cache/discovery/pokedora-tags.json`) から
@@ -28,17 +28,17 @@ import type {
  *   `a[href*="tag_type=1"]` から声優の tag_id まで取れる (表記揺れに依存しない)
  * - **発売日が存在しない**。詳細にも一覧にも日付が無く、JSON-LD は BreadcrumbList だけ、
  *   sitemap の `lastmod` はページ更新日なので代理にできない。`releaseDate` は undefined のまま送り、
- *   設計書 §7 の「発売日が無い作品は初回発見日で新着判定する」機構に乗せる
+ *   「発売日が無い作品は初回発見日で新着判定する」機構に乗せる
  * - **役名は取らない**。`役名(CV:声優名)` / `役名 CV:声優名` / `役名:声優名` / 記載なし と
  *   4 パターン以上に割れており、単一の正規表現では抽出できない (ストア横断調査 §1)
  * - **取るのは一般 (men) と BL (bl) だけ**。オトナ向け 2 ストア (adt / adt-bl) は
- *   年齢認証の背後にあり、AniList 対象声優との一致が 0 名で実利がない (設計書 §14)。
+ *   年齢認証の背後にあり、AniList 対象声優との一致が 0 名で実利がない。
  *   したがって `ageRating` は常に "general" で、BL かどうかは `storeSection` に残す
  */
 
 const STORE_SLUG = "pokedora" as const;
 
-/** 取得対象のストア区分。adt / adt-bl は取らない (設計書 §14) */
+/** 取得対象のストア区分。adt / adt-bl は取らない */
 export const POKEDORA_SECTIONS = ["men", "bl"] as const;
 export type PokedoraSection = (typeof POKEDORA_SECTIONS)[number];
 
@@ -147,7 +147,7 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       creditedNames: [],
       ...(categories[0] === undefined ? {} : { storeCategory: categories[0] }),
       ...(categories.length === 0 ? {} : { genres: categories }),
-      // 一般と BL しか引かないので、一覧に出た時点で全年齢扱いでよい (設計書 §14)
+      // 一般と BL しか引かないので、一覧に出た時点で全年齢扱いでよい
       ageRating: "general",
       ...(section === undefined ? {} : { storeSection: section }),
       fetchedAt,

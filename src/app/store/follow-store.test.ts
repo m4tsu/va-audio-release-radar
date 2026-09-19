@@ -37,7 +37,7 @@ describe("useFollowStore", () => {
     expect(useFollowStore.getState().follows).toEqual([]);
   });
 
-  /** 未読の印はこの値との比較で決まる (設計書 §10)。保存できない環境でも表示は動かす */
+  /** 未読の印はこの値との比較で決まる。保存できない環境でも表示は動かす */
   test("フィードを見た日時は保存先が使えなくても状態に残る", async () => {
     await useFollowStore.getState().init();
     expect(useFollowStore.getState().lastSeenFeedAt).toBeNull();

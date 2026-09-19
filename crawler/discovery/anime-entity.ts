@@ -2,7 +2,6 @@ import type { AniListSeason } from "./anilist.ts";
 
 /**
  * AniList の作品と出演から「今期アニメからの入口」のエンティティを組み立てる純粋関数
- * (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md` §4)。
  *
  * ここは fetch も fs も触らない。CLI 側 (`run.ts`) が読み書きを持ち、規則そのものはここに閉じる。
  * slug は URL に出て後から変えられないので、規則を単体テストで固定しておく必要がある
@@ -131,7 +130,7 @@ function appearanceKey(mediaId: number, characterId: number, voiceActorId: strin
  *
  * `targetActors` に居る声優の出演だけを入れる。全キャストを保存すると AniList の
  * Hoarding 禁止 (設計 §2) に触れ、「アニメのキャスト DB ではない」という製品の線
- * (`docs/design/architecture.md` §1) も越えるため。対象声優が 0 人になった作品は出力しない
+ * (`docs/product.md` の「作らないもの」) も越えるため。対象声優が 0 人になった作品は出力しない
  */
 export function buildAnimeEntities(
   media: readonly AnimeMediaInput[],
@@ -216,7 +215,7 @@ export function buildAnimeEntities(
  *
  * 見つかっても `-2` のような連番は振らない。どちらが `/anime/{slug}` なのかが
  * 実行のたびに入れ替わり、別作品の出演者が混ざる。どちらを正とするかは人が決める
- * (声優 slug と同じ方針。`docs/design/architecture.md` §2)
+ * (声優 slug と同じ方針。`actor-entity.ts`)
  */
 export function findAnimeSlugCollisions(anime: readonly AnimeEntity[]): AnimeSlugCollision[] {
   const bySlug = new Map<string, AnimeEntity[]>();

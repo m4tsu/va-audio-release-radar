@@ -13,7 +13,7 @@ import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
 import { loadActorSeeds } from "./run.ts";
 
 /**
- * 企画書 §34 の技術スパイク用 CLI。
+ * 調査用 CLI。
  *
  *   node crawler/cli.ts actor "上田麗奈"
  *   node crawler/cli.ts diff  "上田麗奈"
@@ -24,7 +24,7 @@ import { loadActorSeeds } from "./run.ts";
  *   --no-snapshot            crawler/.cache/snapshots への保存を止める
  *   --skip-known RJ1,RJ2     既知 ID の詳細取得を飛ばす (将来 DB から渡す)
  *
- * 依存は増やさず node:util の parseArgs で引数を読む (設計書 §2 のクローラー方針)
+ * 依存は増やさず node:util の parseArgs で引数を読む
  */
 
 const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
@@ -33,7 +33,7 @@ const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
   pokedora: pokedoraAdapter,
 };
 
-/** 見出しに出すストア名 (企画書 §34 の出力例) */
+/** 見出しに出すストア名 */
 const STORE_LABELS: Record<StoreSlug, string> = {
   dlsite: "DLsite",
   audible: "Audible",
@@ -64,9 +64,9 @@ const OPTION_SPEC = {
 } as const;
 
 /**
- * 入力した声優名を検索候補に組み立てる (T8)。
+ * 入力した声優名を検索候補に組み立てる。
  *
- * `actors.json` に canonicalName / slug / alias のどれかで一致する声優がいれば、
+ * 対象声優リストに canonicalName / slug / alias のどれかで一致する声優がいれば、
  * その検証済みの空白入り alias を Audible 向けの先頭候補として使う (`buildSearchNames` と同じ考え方)。
  * 見つからなければ入力した文字列だけで検索する。DLsite は canonicalName だけを見るので、
  * どちらの場合も canonicalName には入力した文字列をそのまま使う (これまでの挙動を変えないため)
@@ -151,7 +151,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   for (const result of results) {
-    // 網羅率 (設計書 §13)。並び順違いの補完リクエストが出たかどうかも `pages` で分かる
+    // 網羅率。並び順違いの補完リクエストが出たかどうかも `pages` で分かる
     if (result.coverage !== undefined) {
       process.stderr.write(
         `[網羅] ${STORE_LABELS[result.storeSlug]}: ${formatCoverage(result.coverage)}\n`,

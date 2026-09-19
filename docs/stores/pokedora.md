@@ -1,5 +1,9 @@
 # ポケットドラマ CD (pokedora.com)
 
+読者: `crawler/adapters/pokedora.ts` や `crawler/discovery/pokedora-*.ts` を触る前の人
+更新: robots.txt を取り直したら (差分が無くても最終確認日を更新する)。使う URL の形やセレクタを変えたら
+削除: ポケットドラマ CD を対応ストアから外したら
+
 実装: `crawler/adapters/pokedora.ts` / `crawler/discovery/pokedora-tags.ts` /
 `pokedora-intersect.ts` / `pokedora-directory.ts`
 共通の原則は [`README.md`](./README.md)。
@@ -42,7 +46,7 @@ robots.txt に指定が無いので、**こちらの判断**である。
 何秒が妥当かは相手にしか分からないため保守的に取った。
 声優タグ辞書は 3,161 件の一度きりのバッチで、速く終わらせる必要がない。
 
-実測のスループットは 5.03 秒/リクエスト (2026-09-19、S2 の実走)。
+実測のスループットは 5.03 秒/リクエスト (2026-09-19、声優タグ辞書の構築時)。
 設定した間隔とほぼ一致しており、相手側で絞られてはいない。
 
 ---
@@ -99,12 +103,9 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 | `/tags/` (引数なし) | 404 が返る |
 | 商品 sitemap を全件辿る形 | 禁止ではなく**コストが合わない**。`sitemap_products_1/2.xml.gz` の商品 URL は 76,731 件で、§2 の間隔だと 106 時間 (4.4 日) かかる |
 
-### 過去にここで間違えた
 
-- **「ポケドラは全件取得にする」と決めた数時間後に取り下げた。**
-  根拠にしていた「対象カタログは合計 2,277 件」はストアが表示する作品数で、
-  sitemap の URL 数 76,731 件とは **34 倍**ずれていた。
-  ストアが表示する作品数と sitemap の URL 数は別物である
+**ストアが表示する作品数と sitemap の URL 数は別物。** 表示上の 2,277 件に対し sitemap の商品 URL は 76,731 件 (2026-09-18)。
+取得コストは sitemap を実際に数えて見積もる。
 
 ---
 
@@ -153,7 +154,7 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 - **発売日が存在しない。** 実 HTML 6 件すべてで「発売日」「配信日」「リリース」が 0 件。
   `<meta>` は `author` と `og:*` のみ、JSON-LD は BreadcrumbList だけで日付フィールドが無い。
   sitemap の `lastmod` はページ更新日なので代理にできない。
-  新着判定は「初回発見日」の機構に乗る (`docs/design/architecture.md` §7) が、
+  新着判定は「初回発見日」の機構に乗る (`docs/product.md` の「新着」) が、
   **1 ストアだけ日付の意味が違う**ことを UI とドキュメントで明示する
 - **1 作品に複数商品がある** (通常版・特典版・ダウンロード版)。当面は別作品として扱う。
   確信が無いものをマージしない。`sitemap_products_1/2` が 76,731 件ある理由の一部でもある
@@ -168,8 +169,8 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
   2 つ以上の表記を持つ `tag_id` は **0 件**だった。リンク文字列がタグ名そのものなので
   1 タグ 1 表記で、別名義の根拠としての価値が現時点でゼロである。
   観測結果は `crawler/.cache/discovery/pokedora-actor-refs.json` に貯めてある。
-  将来入れるなら `(store_slug, external_id)` が一意な別テーブルにする
-  (理由の詳細は `docs/design/architecture.md` §6)
+  将来入れるなら `(store_slug, external_id)` が一意な別テーブルにする。`voice_actor_aliases` は名前の表で
+  名寄せの索引になるため、名前でない文字列を混ぜない
 - **カテゴリは商品カテゴリの先頭だけで決める。** 実データ 492 件の内訳は
   BLCD 351 / 一般ドラマCD 76 / シチュエーションCD 35 / 音楽 17 / 女性向けドラマCD 11 /
   配信限定シチュエーション 2。関連ワードを見ないのは「あまあま」「学園」のような
@@ -194,8 +195,7 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 
 ### 全件クロールのコスト
 
-**この表がポケドラの見積もりの出典**。`architecture.md` §6・`decisions.md` §12・
-`work-plan.md` はここを参照している。時間は §2 の間隔から出しているので、
+**この表がポケドラの見積もりの出典**。時間は §2 の間隔から出しているので、
 間隔を変えたら計算し直すこと。
 
 | 段階 | 内容 | コスト |
@@ -219,7 +219,7 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 ## 7. 未確認の項目
 
 - **全体の新着一覧 (`list.php?order=1`) が使えるか。** 一覧に発売日・出演者全員が出るか、
-  1 日あたり何件かは**すべて未検証**。2026-09-19 の調査時点で T23 が全件クロール中だったため、
+  1 日あたり何件かは**すべて未検証**。2026-09-19 の調査時点では別のクロールが同じホストを使っていたため、
   ネットワークアクセスを行っていない
 - 一覧の並びが「新着順」で何を基準にしているか (発売日が存在しないため)
 - アフィリエイトプログラム。ポケドラ単独のものは公開情報で見つからなかった。
@@ -234,13 +234,12 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 
 ## 8. 出典
 
-- [`docs/research/store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md) §1 —
+- [`docs/research/store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md) —
   robots.txt 全文、sitemap の構成、タグの `tag_type` 内訳、利用規約
 - [`docs/research/pokedora-intersection-2026-09-18.md`](../research/pokedora-intersection-2026-09-18.md) —
   タグ 3,161 件の全件取得、AniList との交差 1,187 人、延べ 8,534 件
-- [`docs/research/adult-scope-2026-09-18.md`](../research/adult-scope-2026-09-18.md) §2 —
+- [`docs/research/adult-scope-2026-09-18.md`](../research/adult-scope-2026-09-18.md) —
   4 ストアの件数、年齢認証の仕組み (`ECSESSID`)、オトナ向けの交差 0 名
-- [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) §3 —
+- [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) —
   sitemap の `lastmod` が新着検出に使えないこと (保存物だけで判断)
-- [`docs/design/decisions.md`](../design/decisions.md) §11 / §12 / §15
-- [`docs/design/architecture.md`](../design/architecture.md) §6 — 取得手順と `tag_id` の扱い
+- `crawler/adapters/pokedora.ts` のファイル冒頭コメント — 取得手順

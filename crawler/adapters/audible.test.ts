@@ -17,7 +17,7 @@ import {
 } from "./audible.ts";
 
 // fetchText (ネットワーク / レート制限を持つ) を差し替え、search-{名前} ごとに応答を固定する。
-// T8: searchNames のフォールバック順序を、実際の Audible にアクセスせず検証する
+// searchNames のフォールバック順序を、実際の Audible にアクセスせず検証する
 vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
 
 /**
@@ -27,17 +27,17 @@ vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
 
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
 const searchHtml = readFileSync(path.join(FIXTURES_DIR, "audible-search-ueda-reina.html"), "utf8");
-// ヒット 1 件の実 HTML。総件数サマリの表記が複数件のときと違う (T22-C)
+// ヒット 1 件の実 HTML。総件数サマリの表記が複数件のときと違う
 const singleHitHtml = readFileSync(
   path.join(FIXTURES_DIR, "audible-search-genda-tesshou.html"),
   "utf8",
 );
-// searchNarrator= が姓だけでも一致する実 HTML。総件数 355 に対し本人名義は 0 件 (T22-D)
+// searchNarrator= が姓だけでも一致する実 HTML。総件数 355 に対し本人名義は 0 件
 const looseMatchHtml = readFileSync(
   path.join(FIXTURES_DIR, "audible-search-sato-hajime.html"),
   "utf8",
 );
-// ページングの実 HTML。斉藤壮馬 (総件数 164) の 1 ページ目と最終ページ (T25)。
+// ページングの実 HTML。斉藤壮馬 (総件数 164) の 1 ページ目と最終ページ。
 // 1 ページ目は 20 件で埋まり、9 ページ目は 4 件しかない
 const pagedFirstHtml = readFileSync(
   path.join(FIXTURES_DIR, "audible-search-saito-souma-page1.html"),
@@ -51,7 +51,7 @@ const pagedLastHtml = readFileSync(
 describe("buildSearchUrl", () => {
   it("1 ページ目は searchNarrator だけの素の URL にする", () => {
     // sort= は robots.txt (#Block searchAuthor/Narrator/Provider &sort=) が値を問わず禁じている。
-    // page= は searchNarrator と 2 つだけの形を禁じる規則が無いので使える (設計書 §3)
+    // page= は searchNarrator と 2 つだけの形を禁じる規則が無いので使える
     expect(buildSearchUrl("上田麗奈")).toBe(
       "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88",
     );
@@ -87,7 +87,7 @@ describe("buildSearchUrl", () => {
 
 describe("buildProductUrl", () => {
   it("スラッグを含まない正規 URL を作る", () => {
-    // 一覧の href は /pd/{slug}/{ASIN} だが、スラッグはタイトル変更で変わりうる (設計書 §3)
+    // 一覧の href は /pd/{slug}/{ASIN} だが、スラッグはタイトル変更で変わりうる
     expect(buildProductUrl("B0D6VXP222")).toBe("https://www.audible.co.jp/pd/B0D6VXP222");
   });
 });
@@ -136,7 +136,7 @@ describe("parseSearchHtml", () => {
         "酒巻 光宏",
       ],
       storeCategory: "audiobook",
-      // Audible は年齢区分を公開していない (設計書 §14)
+      // Audible は年齢区分を公開していない
       ageRating: "unknown",
       fetchedAt: FETCHED_AT,
     });
@@ -187,7 +187,7 @@ describe("parseTotalCount", () => {
 
   it("ヒットが 1 件のときの別表記からも総件数を取る", () => {
     // 500 人のクロールで総件数を読めなかった 73 件は全部これ。1 件のときだけ
-    // 「のうち」が出ず、実 HTML では「検索結果 1 件」とだけ書かれる (T22-C)
+    // 「のうち」が出ず、実 HTML では「検索結果 1 件」とだけ書かれる
     expect(parseTotalCount(singleHitHtml)).toBe(1);
   });
 
@@ -207,7 +207,7 @@ describe("parseSearchHtml の totalCount", () => {
   const summaryHtml = '<span class="resultsSummarySubheading">検索結果 38  のうち 1 - 20 件</span>';
 
   it("総件数を totalCount に載せる。取りこぼしの判断はここではしない", () => {
-    // 2 ページ目以降を足した後でないと網羅率は決まらないので、警告は fetchByActor 側 (T12)
+    // 2 ページ目以降を足した後でないと網羅率は決まらないので、警告は fetchByActor 側
     const html = `${summaryHtml}${htmlWithOneWorkFixture("B000000009")}`;
     const parsed = parseSearchHtml(html, FETCHED_AT);
     expect(parsed.totalCount).toBe(38);
@@ -291,7 +291,7 @@ describe("fetchByActor", () => {
 
   /** 1 件の productListItem だけを持つ最小限の HTML。検証 (rawWorkSchema) を通る最小項目だけ埋める */
   function htmlWithOneWork(asin: string, narrator = "上田 麗奈"): string {
-    // ナレーター欄を入れるのは、本人名義かどうかの一致率を測るため (T22-D)。
+    // ナレーター欄を入れるのは、本人名義かどうかの一致率を測るため。
     // 既定を検索対象の声優にしてあるので、名前を渡さない限り「正しく引けている」状態になる
     return (
       `<li class="productListItem" id="product-list-item-${asin}">` +
@@ -396,7 +396,7 @@ describe("fetchByActor", () => {
     expect(result.status).toBe("ok");
   });
 
-  // --- 網羅率とページング (T12 / T22 / T25) -------------------------------
+  // --- 網羅率とページング -------------------------------
 
   /** 複数件ヒット時の総件数サマリ。1 件のときだけ表記が変わる (parseTotalCount のテスト参照) */
   function summary(total: number): string {
@@ -567,7 +567,7 @@ describe("fetchByActor", () => {
     expect(result.totalCount).toBe(30);
   });
 
-  // --- 総件数を読めなかったときの扱い (T22-C) -----------------------------
+  // --- 総件数を読めなかったときの扱い -----------------------------
 
   it("総件数が読めず 1 ページ目が埋まっていなければ、全件取れたとみなす", async () => {
     // 20 件未満 = ページングが起きていない = これがその声優の全作品。
@@ -635,7 +635,7 @@ describe("fetchByActor", () => {
     });
   });
 
-  // --- 検索語が広すぎるときの扱い (T22-D) --------------------------------
+  // --- 検索語が広すぎるときの扱い --------------------------------
 
   it("本人が 1 件もクレジットされていなければ、総件数を分母にしない", async () => {
     // 実測: 「佐藤 元」で引くと総件数 355 件が返るが、1 ページ目のナレーターは
@@ -745,7 +745,7 @@ describe("fetchByActor", () => {
     expect(result.coverage?.matched).toBe(1);
   });
 
-  // --- 実 HTML を使ったページングの筋 (T25) ------------------------------
+  // --- 実 HTML を使ったページングの筋 ------------------------------
 
   it("実 HTML の 1 ページ目と最終ページを含めて 164 件を網羅する", async () => {
     // 2026-09-19 の実測どおりの筋。斉藤壮馬は 9 ページで 164/164 (以前の並び順のはしごは 84/164)。
@@ -782,7 +782,7 @@ describe("fetchByActor", () => {
 
   it("実 HTML (上田麗奈 7 件) は 1 ページで終わり、2 ページ目を引かない", async () => {
     // このフィクスチャには総件数サマリが無い。7 件 = 1 ページが埋まっていないので、
-    // 総件数を読めなくても「これで全部」と判断してよい (T22-C)
+    // 総件数を読めなくても「これで全部」と判断してよい
     fetchTextMock.mockResolvedValue(ok(searchHtml));
 
     const result = await audibleAdapter.fetchByActor(

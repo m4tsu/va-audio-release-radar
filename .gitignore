@@ -31,3 +31,6 @@ playwright-report
 
 # crawler が取得した生データ・前回結果
 crawler/.cache/
+
+# 作業状態 (進行・次の作業・提案・下書き)。最終成果物ではないので git に入れない
+work/

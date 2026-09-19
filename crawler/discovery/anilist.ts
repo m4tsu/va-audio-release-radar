@@ -5,9 +5,9 @@ import { fetchText } from "../lib/fetch.ts";
 import { SNAPSHOT_DIR, safeFileName } from "../lib/paths.ts";
 
 /**
- * AniList GraphQL から「直近シーズンのアニメに出ている日本語声優」を取る (発見スパイク T9)。
+ * AniList GraphQL から「直近シーズンのアニメに出ている日本語声優」を取る (発見スパイク)。
  *
- * 設計書 §9 の需要側。DLsite 側 (供給側) と名前で交差させて対象声優を機械的に決めるのが目的。
+ * 需要側。DLsite 側 (供給側) と名前で交差させて対象声優を機械的に決めるのが目的。
  *
  * 2026-09-18 の実測で踏んだ罠: `characters { edges { role voiceActors(language: JAPANESE) } }`
  * とだけ書くと voiceActors が全件 null で返る。同じ edge で `node` も選ぶと埋まる

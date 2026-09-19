@@ -1,7 +1,7 @@
 // scripts/reresolve-unmatched-credits.mjs
 //
 // なぜ: ingest は取り込んだ時点の名寄せ規則で判定して終わりなので、規則を変えても
-// 過去の `unmatched` は解けないまま残る。T21 で `normalizeName` に異体字の畳み込みを入れた
+// 過去の `unmatched` は解けないまま残る。`normalizeName` に異体字の畳み込みを入れた
 // ぶんを既存データに反映するために、遡って解き直す。
 //
 // 名寄せの判定そのものは `src/domain/identity.ts` の `resolveCredit` を呼ぶ。

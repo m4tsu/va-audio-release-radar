@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { siteOrigin } from "@/server/site";
 
 /**
- * robots.txt (設計書 §6)。声優ページと作品ページはインデックスさせたいので全体は許可し、
+ * robots.txt。声優ページと作品ページはインデックスさせたいので全体は許可し、
  * 管理画面と JSON API だけ弾く。sitemap の場所もここから示す。
  * Sitemap 行のオリジンは canonical / sitemap.xml と同じ `siteOrigin()` から取る
  */

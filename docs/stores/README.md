@@ -1,5 +1,9 @@
 # 外部ストアの制約
 
+読者: `crawler/` を触る前の人。どのストアのファイルを読むかを決めるときに読む
+更新: ストアを足したり外したりしたら。共通の原則が変わったら
+削除: しない
+
 このディレクトリは **クローラーを触る前に読む場所**。ストアごとに 1 ファイルあり、
 robots.txt の引用、レート間隔、使ってよい URL の形、取得できる項目、過去の失敗を集めてある。
 
@@ -9,21 +13,12 @@ robots.txt の引用、レート間隔、使ってよい URL の形、取得で�
 | Audible Japan | [`audible.md`](./audible.md) | 実装済み |
 | ポケットドラマ CD | [`pokedora.md`](./pokedora.md) | 実装済み |
 | AniList (ストアではなく声優の供給元) | [`anilist.md`](./anilist.md) | 実装済み |
-| audiobook.jp | ファイルなし | **未着手**。規約照会の返信待ち。`docs/design/decisions.md` §13 |
+| audiobook.jp | ファイルなし | **未着手**。利用規約が「事前の許可なく情報解析をする行為」を禁じており、運営元への照会が済むまで着手しない |
 
 ## なぜこのディレクトリがあるか
 
-外部サイトの制約という 1 種類の情報が、`design/architecture.md`・`research/*.md`・
-`design/decisions.md` に散らばっていた。そのせいで **同じ種類の失敗を 4 回繰り返した**。
-
-| # | 失敗 | 何が起きたか |
-|---|---|---|
-| 1 | DLsite の `per_page` | 「指定すると 0 件になる」と設計書に書いたが、実際は**無視される**だけだった。確かめずに記録していた |
-| 2 | DLsite の `Crawl-delay` | robots に `Crawl-delay: 10` とあるのに、`product.json` を「軽い API だから」と 2 秒間隔で叩いていた |
-| 3 | Audible の `page=` | 「robots が `page=` を禁じている」と読んだが、実際は `title=` / `keywords=` / `node=` / `sort=` **との組み合わせ**だけが禁止だった。使える手段を自分で潰していた |
-| 4 | Audible の `sort=` | robots が `Disallow: /search?searchNarrator=*&sort=` と明確に禁じているのに、並び順 6 種類を実装した (2026-09-19 に同日中発覚、取り下げ) |
-
-4 つとも「robots.txt の該当行を引かずに、記憶と推測で取得方法を決めた」ことが原因である。
+外部サイトの制約は、記憶や以前の読みで判断すると誤る。robots.txt の該当行を引いて判断し、
+その引用を 1 か所に集めておくためのディレクトリ。
 
 ## 守ること
 
@@ -37,7 +32,7 @@ adapter から素の `fetch` を呼ばない。UA・レート制限・スナッ�
 
 URL の形・パラメータ・ページングを変えるときは、**その時点の robots.txt を取り直し、
 該当する `Disallow` / `Allow` の行をそのままこのディレクトリのファイルへ貼る**。
-「たぶん大丈夫」「前に読んだときは大丈夫だった」で進めない。上の 4 件はすべてそれで起きた。
+「たぶん大丈夫」「前に読んだときは大丈夫だった」で進めない。
 
 一致判定は字面で行う。`Disallow: /search*node=*searchNarrator=*page=` は `node=` を
 必須にしているので `searchNarrator` + `page` だけの URL には一致しない、という読み方をする。
@@ -54,10 +49,10 @@ robots のコメント (`#Block alternative sort order for /search` など) に�
 
 | ホスト | 根拠を書いてある場所 |
 |---|---|
-| dlsite.com | [`dlsite.md`](./dlsite.md) §2 |
-| audible.co.jp | [`audible.md`](./audible.md) §2 |
-| pokedora.com | [`pokedora.md`](./pokedora.md) §2 |
-| graphql.anilist.co | [`anilist.md`](./anilist.md) §2 |
+| dlsite.com | [`dlsite.md`](./dlsite.md) |
+| audible.co.jp | [`audible.md`](./audible.md) |
+| pokedora.com | [`pokedora.md`](./pokedora.md) |
+| graphql.anilist.co | [`anilist.md`](./anilist.md) |
 | 上記以外 | 既定値。`rateLimitFor()` の最後の `return` |
 
 短くするなら、相手が示した根拠 (robots の `Crawl-delay`、公開されている API 枠) を
@@ -69,12 +64,7 @@ robots のコメント (`#Block alternative sort order for /search` など) に�
 **同じホストに 2 つのプロセスから同時にアクセスすると、実効間隔は半分になる。**
 クロールや調査を始める前に、他のセッションが同じホストを叩いていないか確認する。
 
-```
-npx wrangler d1 execute DB --local --command \
-  "select started_at, finished_at, store_slug from crawl_runs order by started_at desc limit 5"
-```
-
-`finished_at` が NULL で `started_at` が直近なら動いている可能性が高い。
+確認方法は `CLAUDE.md` の「ローカルの共有資源」。
 
 ### 5. robots.txt は変わる。四半期に一度は取り直す
 

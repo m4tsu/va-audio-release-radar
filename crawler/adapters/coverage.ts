@@ -1,7 +1,7 @@
 import type { Coverage } from "./types.ts";
 
 /**
- * 網羅率の組み立て (T12)。DLsite と Audible で同じ判断をするので 1 か所に置く。
+ * 網羅率の組み立て。DLsite と Audible で同じ判断をするので 1 か所に置く。
  *
  * 総件数が取れなかったときは `total` も `complete` も入れない。
  * 「総件数は分からないが全部取れた」とは言えず、undefined のままにしておけば

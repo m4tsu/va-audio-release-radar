@@ -1,7 +1,7 @@
 import type { StoreSlug, WorkCategory } from "./types.ts";
 
 /**
- * ストア固有の分類・ジャンルからアプリ内カテゴリを決める (設計書 §4)。
+ * ストア固有の分類・ジャンルからアプリ内カテゴリを決める。
  *
  * 規則は実データから決め直した。`crawler/.cache/snapshots/dlsite/` に貯めた
  * product.json 200 件を数えたところ:

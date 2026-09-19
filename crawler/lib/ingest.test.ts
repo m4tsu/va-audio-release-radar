@@ -98,7 +98,7 @@ describe("AdminApiClient", () => {
   });
 });
 
-describe("プロトコル版の不一致 (T16)", () => {
+describe("プロトコル版の不一致", () => {
   it("409 は IngestProtocolMismatchError にする", async () => {
     // 呼び出し側 (run.ts) が「1 件の失敗」と「走行ごと止める」を型で見分けるため
     const fetchMock = vi.fn(async () =>

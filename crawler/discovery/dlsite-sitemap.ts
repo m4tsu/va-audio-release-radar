@@ -1,13 +1,13 @@
 import { fetchText } from "../lib/fetch.ts";
 
 /**
- * DLsite 全年齢サイト (/home/) の sitemap から作品 URL を全件発見する (発見スパイク T9)。
+ * DLsite 全年齢サイト (/home/) の sitemap から作品 URL を全件発見する (発見スパイク)。
  *
  * 検索 API は声優名を先に知っていないと使えないので、「どの声優が居るか」を調べる用途には
  * 使えない。sitemap は名前を知らなくても全作品を列挙できる唯一の入口なのでこちらを使う。
  *
  * XML パーサーは足さない。sitemap は 1 URL 1 ブロックの単純な構造で、必要なのは
- * `<loc>` と `<lastmod>` だけなので正規表現で足りる (設計書 §2 の「依存は増やさない」)
+ * `<loc>` と `<lastmod>` だけなので正規表現で足りる (依存を増やさないため)
  */
 
 const SITEMAP_STORE = "dlsite";

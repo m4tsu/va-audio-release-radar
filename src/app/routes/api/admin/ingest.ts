@@ -8,7 +8,7 @@ import { ingest } from "@/server/queries/ingest";
 import { summarizeIssues } from "@/server/validation";
 
 /**
- * クローラーからの取り込み (設計書 §6)。DB を触るコードを Worker 側 1 箇所に集約するため、
+ * クローラーからの取り込み。DB を触るコードを Worker 側 1 箇所に集約するため、
  * クローラーは直接 D1 に書かずここへ JSON を POST する。
  * GitHub Actions からもローカルの `vite dev` からも同じ経路で流せる
  */

@@ -2,7 +2,7 @@
 //
 // 実際のローカル D1 (.wrangler/state/...) や migrations/ には一切触れない。
 // すべて一時ディレクトリに作ったダミーの sqlite / .sql ファイルに対してテストする。
-// (T16 がクロール中にローカル D1 へ書き込んでいる環境と並行して実行しても安全にするため)
+// (クローラーがローカル D1 へ書き込んでいる環境と並行して実行しても安全にするため)
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

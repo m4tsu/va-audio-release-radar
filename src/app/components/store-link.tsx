@@ -5,7 +5,7 @@ import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkListing } from "@/app/lib/view-types";
 import type { StoreSlug } from "@/domain/types";
 
-/** ストアごとの導線の文言 (企画書 §15)。買う場所に合わせて「見る」「聴く」を変える */
+/** ストアごとの導線の文言。買う場所に合わせて「見る」「聴く」を変える */
 const CALL_TO_ACTION = {
   dlsite: "storeLink.dlsite",
   audible: "storeLink.audible",
@@ -15,7 +15,7 @@ const CALL_TO_ACTION = {
 /**
  * ストアへの外部リンク。
  *
- * - アフィリエイト URL があればそちらへ送る。無ければ正規 URL (企画書 §15)
+ * - アフィリエイト URL があればそちらへ送る。無ければ正規 URL
  * - `rel` に `sponsored` を付けるのは報酬が発生しうるリンクだから。`nofollow` で
  *   評価を渡さず、`noopener` で遷移先から元タブを触れないようにする
  * - URL は https のものしか出さない。`javascript:` などがそのまま href に出ると、

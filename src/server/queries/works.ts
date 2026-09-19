@@ -6,24 +6,24 @@ import type { AppDb } from "../db/types";
 import { hasAnyAudioCredit } from "./actors";
 
 /**
- * 発売日を基準にした「新しさ」(設計書 §10)。画面の 3 段と NEW バッジはこの値だけで決める。
+ * 発売日を基準にした「新しさ」。画面の 3 段と NEW バッジはこの値だけで決める。
  *
  * クライアントで再計算すると SSR とハイドレーション後で結果がずれる (時計が違う) ため、
  * 判定はサーバーに寄せて値として配る
  */
 export type Freshness = "upcoming" | "recent" | "older";
 
-/** フィードが遡る日数。3 段目「それ以前」の下限 (設計書 §10) */
+/** フィードが遡る日数。3 段目「それ以前」の下限 */
 export const FEED_WINDOW_DAYS = 90;
 /** 2 段目「30 日以内の新作」の幅 */
 export const RECENT_DAYS = 30;
-/** NEW バッジを出す日数。企画書 §6 の「今週の新着」に合わせる */
+/** NEW バッジを出す日数。「今週の新着」に合わせる */
 export const NEW_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * 画面に出してよい作品の年齢区分 (設計書 §14)。R18 だけを除く形にしてあるのは、
+ * 画面に出してよい作品の年齢区分。R18 だけを除く形にしてあるのは、
  * 区分を読めなかった作品 ("unknown"。Audible は年齢区分を公開していない) を落とさないため。
  * 許可制にすると Audible の作品が丸ごと消える
  */
@@ -90,7 +90,7 @@ export async function getWorkById(
   now: string = new Date().toISOString(),
 ): Promise<WorkDetail | undefined> {
   // 一覧と同じく R18 は出さない。ここだけ絞っていないと、一覧に出ない作品でも
-  // URL を直接叩けば見えてしまう (設計書 §14)
+  // URL を直接叩けば見えてしまう
   const [row] = await db
     .select()
     .from(audioWorks)
@@ -302,13 +302,13 @@ export async function knownStoreProductIds(db: AppDb, storeSlug: StoreSlug): Pro
   return rows.map((row) => row.storeProductId);
 }
 
-/** sitemap.xml が並べる URL の材料 (設計書 §6) */
+/** sitemap.xml が並べる URL の材料 */
 export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
   const [actorRows, workRows] = await Promise.all([
     db
       .select({ slug: voiceActors.slug, updatedAt: voiceActors.updatedAt })
       .from(voiceActors)
-      // 作品が 1 件も無い声優のページは notFound() を返すので sitemap にも出さない (T13)
+      // 作品が 1 件も無い声優のページは notFound() を返すので sitemap にも出さない
       .where(hasAnyAudioCredit)
       .orderBy(asc(voiceActors.slug)),
     db
@@ -324,7 +324,7 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
 // --- 内部 ----------------------------------------------------------------
 
 /**
- * フィードに載せる範囲 (設計書 §10)。新着は発売日基準なので、発売日があるものは
+ * フィードに載せる範囲。新着は発売日基準なので、発売日があるものは
  * 発売日だけで絞る (未来の発売日は常に入る)。発売日が無い作品 (Audible のポッドキャスト等) は
  * 判断材料が初出しか無いので、そこだけ初出で絞る。
  *
@@ -347,7 +347,7 @@ function baselineKey(voiceActorId: string, storeSlug: StoreSlug): string {
 }
 
 /**
- * 声優 × ストアごとの「初回成功クロールの開始時刻」(設計書 §10)。
+ * 声優 × ストアごとの「初回成功クロールの開始時刻」。
  *
  * 発売日が無い作品を新着扱いしてよいのは、この時刻より後に見つかった分だけ。初回クロールは
  * 既存の全作品を一度に見つけるので、そこを起点にしないと声優を追加するたびに全作品が新着になる。
@@ -415,7 +415,7 @@ function discoveredAfterBaseline(
 }
 
 /**
- * 作品の段と NEW バッジ (設計書 §10)。
+ * 作品の段と NEW バッジ。
  *
  * 発売日があればそれだけで決める。未来なら upcoming、30 日以内なら recent、それより前は older。
  * 発売日が無い作品は初回クロール以降に見つかった場合だけ発見日時で判定する。
@@ -504,7 +504,7 @@ function rowSortKey(row: WorkRow): string {
   return row.releaseDate ?? row.firstSeenAt.slice(0, 10);
 }
 
-/** 段の順。upcoming → recent → older (設計書 §10) */
+/** 段の順。upcoming → recent → older */
 const TIER_RANK: Record<Freshness, number> = { upcoming: 0, recent: 1, older: 2 };
 
 type ClassifiedRow = {

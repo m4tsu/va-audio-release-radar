@@ -3,7 +3,7 @@ import { z } from "zod";
 import { STORE_SLUGS } from "@/domain/types";
 
 /**
- * 管理画面 (/admin/*) 用の server function (設計書 §7)。
+ * 管理画面 (/admin/*) 用の server function。
  *
  * 画面のルート側でも認可するが、server function は直接叩ける独立したエンドポイントなので
  * ここでも必ず検証する。画面遷移では Authorization ヘッダを付けられないため、

@@ -2,7 +2,7 @@ import { normalizeName } from "../../src/domain/normalize.ts";
 import type { StaffRecord } from "./anilist.ts";
 
 /**
- * 需要側 (AniList) と供給側 (DLsite) を名前で突き合わせる (発見スパイク T9 / 設計書 §9)。
+ * 需要側 (AniList) と供給側 (DLsite) を名前で突き合わせる (発見スパイク)。
  *
  * 突き合わせの鍵は `normalizeName` だけにする。ここで類似度や LLM に頼ると、
  * 本番の名寄せ (`src/domain/identity.ts`) と違う基準で数字が出てしまい、
@@ -67,7 +67,7 @@ export function indexWorksByName(works: readonly DlsiteWorkRecord[]): Map<string
 
       const stat = index.get(normalized) ?? { displayNames: [], normalized, worknos: [] };
       if (!stat.displayNames.includes(rawName)) stat.displayNames.push(rawName);
-      // 空白入りの表記は Audible のナレーター検索で当たりやすい (T8)
+      // 空白入りの表記は Audible のナレーター検索で当たりやすい
       if (stat.spacedName === undefined && /\s/.test(rawName)) stat.spacedName = rawName;
       stat.worknos.push(work.workno);
       index.set(normalized, stat);
@@ -93,8 +93,6 @@ export type IntersectionRow = {
   dlsiteNames: string[];
   /** DLsite 側に空白入りの表記があればそれ */
   spacedName?: string;
-  /** 現在の crawler/actors.json に居るか */
-  inSeed: boolean;
 };
 
 export type IntersectionResult = {
@@ -111,7 +109,6 @@ export type IntersectionResult = {
 export function intersect(
   staff: readonly StaffRecord[],
   worksByName: ReadonlyMap<string, DlsiteNameStat>,
-  seedNormalizedNames: ReadonlySet<string>,
 ): IntersectionResult {
   const rows: IntersectionRow[] = [];
   const ambiguousRows: IntersectionRow[] = [];
@@ -139,7 +136,6 @@ export function intersect(
       worknos: stat.worknos,
       dlsiteNames: stat.displayNames,
       ...(stat.spacedName === undefined ? {} : { spacedName: stat.spacedName }),
-      inSeed: seedNormalizedNames.has(normalized),
     };
     (person.ambiguous ? ambiguousRows : rows).push(row);
   }

@@ -8,10 +8,10 @@ import type { AppDb } from "../db/types";
 import { notAdultRated } from "./works";
 
 /**
- * アニメ導線 (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md`)。
+ * アニメ導線。
  *
  * 読み取りはすべて「音声作品を持つ声優だけ」で絞る。全キャストを並べるとキャスト DB になり、
- * `docs/design/architecture.md` §1 の「アニメのキャスト DB ではない」を越えるため。
+ * `docs/product.md` の「作らないもの」(アニメのキャスト DB) を越えるため。
  * 絞り込みを画面側ではなくここに置いているのは、画面を足すたびに忘れないようにするため
  */
 

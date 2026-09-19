@@ -88,7 +88,7 @@ describe("searchActors", () => {
   });
 
   it("作品が 1 件も無い声優は検索結果に出さない", async () => {
-    // T13: DB には AniList 由来の 2,500 人が入るが、作品の無い声優のページは作らない
+    // DB には AniList 由来の 2,500 人が入るが、作品の無い声優のページは作らない
     const db = await setupDb([UEDA, HANAZAWA]);
     await giveEachActorAWork(db, [UEDA]);
 
@@ -145,7 +145,7 @@ describe("getActorBySlug", () => {
   });
 
   it("作品が 1 件も無くても声優そのものは返す", async () => {
-    // 一覧には出さないが、クロール履歴の確認や ingest の名寄せでは要る (T13)
+    // 一覧には出さないが、クロール履歴の確認や ingest の名寄せでは要る
     const db = await setupDb();
     expect((await getActorBySlug(db, UEDA.slug))?.id).toBe(UEDA.id);
   });

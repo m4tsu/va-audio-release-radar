@@ -12,7 +12,7 @@ import type {
 } from "./types.ts";
 
 /**
- * DLsite (全年齢サイト = /home/) のアダプタ。手順は設計書 §3 / §13 のとおり:
+ * DLsite (全年齢サイト = /home/) のアダプタ。手順:
  *
  * 1. 声優名をダブルクォートで囲んだ完全一致検索の 1 ページ目 (既定 30 件) を取る
  * 2. 埋め込み JSON の `pager.count` で総件数を読み、取りこぼしがあるときだけ
@@ -31,7 +31,7 @@ export const DLSITE_HOME_SITE_ID = "home";
 /**
  * `age_category` を年齢区分にする。1 だけが全年齢で、2 (R15) も 3 (R18) も
  * まとめて r18 に寄せる。このプロジェクトが区別する必要があるのは「載せるか載せないか」で、
- * 載せない側の内訳を持っても使い道が無いため (設計書 §14)。
+ * 載せない側の内訳を持っても使い道が無いため。
  * 区分そのものが読めなかったときは全年齢と言い切らず unknown にする
  */
 export function toAgeRating(ageCategory: number | undefined): AgeRating {
@@ -41,7 +41,7 @@ export function toAgeRating(ageCategory: number | undefined): AgeRating {
 
 /**
  * 検索の並び順。`release_d` が新しい順 (既定)、`release` が古い順。
- * `per_page` は無視され 1 ページ目の既定件数しか返らないため (設計書 §13 の実測)、
+ * `per_page` は無視され 1 ページ目の既定件数しか返らないため (実測)、
  * 件数を伸ばす手段は並び順違いの 1 ページ目を足すことしかない
  */
 export type DlsiteSearchOrder = "release_d" | "release";
@@ -60,7 +60,7 @@ export function buildSearchUrl(actorName: string, order: DlsiteSearchOrder = "re
 }
 
 export function buildProductJsonUrl(workno: string): string {
-  // 複数 workno をカンマ区切りで渡すと空配列が返るため、必ず 1 件ずつ取る (設計書 §3)
+  // 複数 workno をカンマ区切りで渡すと空配列が返るため、必ず 1 件ずつ取る
   return `https://www.dlsite.com/home/api/=/product.json?workno=${encodeURIComponent(workno)}`;
 }
 
@@ -73,7 +73,7 @@ export function buildProductUrl(workno: string): string {
 /**
  * 検索結果の総件数。一覧 HTML の `<script>` に
  * `window['...'] = {"url":"...","pager":{"have_to_paginate":false,"count":27,...},...}`
- * の形で埋まっているので、そこから `count` を読む (設計書 §13 の実測)。
+ * の形で埋まっているので、そこから `count` を読む (実測)。
  *
  * `pager` オブジェクトの中でキーの並び順は保証されていないため、`{` から最初の `}` までの
  * 範囲 (`[^}]*`) に挟まれた `count` を拾う。ページ内に `"pager"` は 1 か所しか出ない
@@ -168,7 +168,7 @@ function extractWorkType(className: string | undefined): string | undefined {
  * サムネイル URL。`thumb-with-ng-filter-block` の `:thumb-candidates` は
  * webp と jpg の 240x240 が入った配列リテラルなので、互換性のある jpg を選ぶ。
  * さらに `resize/` の 240x240 版を `modpub/` の原寸版に読み替える。
- * 同じ HTML 内のポップアップ画像がこの URL を使っており、設計書 §3 の画像 URL 規則とも一致する
+ * 同じ HTML 内のポップアップ画像がこの URL を使っており、docs/stores/dlsite.md の表紙の規則とも一致する
  */
 export function extractCoverImageUrl(itemHtml: string): string | undefined {
   const attribute = /:thumb-candidates="\[([^\]]*)\]"/.exec(itemHtml);
@@ -313,7 +313,7 @@ async function fetchByActor(
   options: FetchByActorOptions = {},
 ): Promise<AdapterResult> {
   // DLsite は表記揺れの影響を受けない (空白の有無で結果が変わらない) ので、
-  // searchNames の候補は使わず canonicalName の完全一致検索だけを行う (設計書 §3 / T8)
+  // searchNames の候補は使わず canonicalName の完全一致検索だけを行う
   const actorName = actor.canonicalName;
   const fetchedAt = new Date().toISOString();
   const base = {
@@ -368,7 +368,7 @@ async function fetchByActor(
   }
 
   const coverage = buildCoverage(listWorks.size, parsed.totalCount, pages);
-  // 並び順 2 通りでも総件数に届かない声優。1 ページ 30 件の上限を超えている合図 (設計書 §13)
+  // 並び順 2 通りでも総件数に届かない声優。1 ページ 30 件の上限を超えている合図
   if (coverage.complete === false) {
     warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);
   }
@@ -406,7 +406,7 @@ async function fetchByActor(
     }
 
     const detailed = applyProductDetail(listWork, detail);
-    // 許可していない年齢区分は捨てる (設計書 §14)。判定はドメイン層の許可集合に任せ、
+    // 許可していない年齢区分は捨てる。判定はドメイン層の許可集合に任せ、
     // ここで「R18 は捨てる」と決め打ちしない
     if (!isAgeRatingAllowed(detailed.ageRating)) {
       warnings.push(

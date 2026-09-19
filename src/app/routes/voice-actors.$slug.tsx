@@ -15,18 +15,18 @@ import { siteOriginForLoader } from "@/app/server-fns/site";
 import { fetchWorksByActor } from "@/app/server-fns/works";
 import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
 
-/** 1 ストアあたりに出す作品数。新着を追うのが目的なので過去分は打ち切る (企画書 §5) */
+/** 1 ストアあたりに出す作品数。新着を追うのが目的なので過去分は打ち切る */
 const WORKS_PER_STORE = 30;
 
 /**
  * 声優ページに出す出演アニメの上限。本人の識別 (「この人どのキャラの人だっけ」) が目的なので、
- * 全出演歴は並べない。並べるとアニメのキャスト DB になり、設計書 §1 の線を越える
+ * 全出演歴は並べない。並べるとアニメのキャスト DB になり、docs/product.md の「作らないもの」の線を越える
  */
 const ANIME_PER_ACTOR = 8;
 
 /**
- * 声優ページ (企画書 §13)。「{声優名} ASMR」「{声優名} Audible」のような
- * 実体検索での流入を受ける想定なので、中身は全部 SSR で出しインデックスさせる (企画書 §14)。
+ * 声優ページ。「{声優名} ASMR」「{声優名} Audible」のような
+ * 実体検索での流入を受ける想定なので、中身は全部 SSR で出しインデックスさせる。
  *
  * クライアントでしか決まらないのはフォローボタンの状態だけ
  */
@@ -49,7 +49,7 @@ export const Route = createFileRoute("/voice-actors/$slug")({
       })),
     );
 
-    // 追跡対象は AniList 由来の 2,500 人規模 (T13)。DB にはクロール履歴を残すために全員入れるが、
+    // 追跡対象は AniList 由来の 2,500 人規模。DB にはクロール履歴を残すために全員入れるが、
     // その大半は音声作品を出していない。中身の無いページを 200 で返すと、検索エンジンから見て
     // 薄いページが 2,000 枚並ぶことになるので、作品が 1 件も無い声優は 404 にする。
     // 声優そのものは `getActorBySlug` が返し続ける (管理用)
@@ -97,7 +97,7 @@ export const Route = createFileRoute("/voice-actors/$slug")({
 });
 
 /**
- * 検索エンジンに「この URL は人物のページ」と伝える (企画書 §14 の実体クエリ狙い)。
+ * 検索エンジンに「この URL は人物のページ」と伝える (実体クエリでの流入狙い)。
  * name は表示言語に関わらず canonicalName のまま。構造化データは実体の正規表記を出す場所で、
  * 画面の表示言語で揺らすものではない
  */
@@ -189,7 +189,7 @@ function StoreSection({ storeSlug, items }: { storeSlug: StoreSlug; items: WorkW
 
 /**
  * 出演アニメ。本人を特定するための手がかりとして出すので、役名と作品名だけに留める。
- * あらすじも話数も持たない (設計書 §1 の「アニメのキャスト DB ではない」)
+ * あらすじも話数も持たない (docs/product.md の「作らないもの」)
  */
 function AnimeSection({ items }: { items: ActorAnimeAppearance[] }) {
   const t = useT();

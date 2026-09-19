@@ -2,7 +2,7 @@ import type { EntityTable } from "dexie";
 import { create } from "zustand";
 
 /**
- * フォロー状態 (企画書 §16)。アカウントを作らせないので、ブラウザの IndexedDB にだけ持つ。
+ * フォロー状態。アカウントを作らせないので、ブラウザの IndexedDB にだけ持つ。
  *
  * SSR では何も読めないため、サーバーでは常に `status: "idle"` / 空配列で描画し、
  * クライアントがマウントしてから `init()` で読み込む。初期状態がサーバーと
@@ -34,7 +34,7 @@ type FollowState = {
   /** createdAt の新しい順 */
   follows: FollowedActor[];
   /**
-   * 最後にフィードを描画した日時 (ISO 8601)。未読の印の基準 (設計書 §10)。
+   * 最後にフィードを描画した日時 (ISO 8601)。未読の印の基準。
    * このブラウザで一度も見ていなければ null
    */
   lastSeenFeedAt: string | null;

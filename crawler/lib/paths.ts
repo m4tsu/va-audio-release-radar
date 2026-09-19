@@ -8,7 +8,7 @@ import path from "node:path";
  */
 export const CRAWLER_DIR = path.resolve(import.meta.dirname, "..");
 export const CACHE_DIR = path.join(CRAWLER_DIR, ".cache");
-/** 生の HTML / JSON の保存先 (企画書 §20 のデバッグ用) */
+/** 生の HTML / JSON の保存先 (デバッグ用) */
 export const SNAPSHOT_DIR = path.join(CACHE_DIR, "snapshots");
 /** `cli.ts diff` が前回結果を置く場所 */
 export const LAST_RESULT_DIR = path.join(CACHE_DIR, "last");

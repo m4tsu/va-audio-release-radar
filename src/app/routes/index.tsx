@@ -16,7 +16,7 @@ import { fetchFeed, fetchLatestWorks } from "@/app/server-fns/works";
 import { useFollowStore } from "@/app/store/follow-store";
 
 /**
- * フィードが遡る期間 (設計書 §10)。3 段目「それ以前」の下限でもある。
+ * フィードが遡る期間。3 段目「それ以前」の下限でもある。
  * 段分け (今後の発売 / 30 日以内 / それ以前) はサーバーが `freshness` として付けてくる
  */
 const FEED_SINCE_DAYS = 90;
@@ -33,7 +33,7 @@ const LATEST_LIMIT = 24;
 const SEASON_ANIME_LIMIT = 6;
 
 /**
- * トップ (企画書 §13)。
+ * トップ。
  *
  * SSR で出すのは検索欄・全声優の新着・声優一覧まで。フォローはブラウザ内にしか無いので、
  * 「フォロー中の新着」はマウント後にフォロー ID を読んでから server function で取りに行く
@@ -198,7 +198,7 @@ function FollowingFeed() {
  * 未読の基準になる「前回フィードを見た日時」。
  *
  * 描画に使うのは更新前の値。先に保存してしまうと、開いた瞬間に全件が既読になって
- * 印が一度も出ない。初回 (null) は印を出さずに今の時刻だけ保存する (設計書 §10)
+ * 印が一度も出ない。初回 (null) は印を出さずに今の時刻だけ保存する
  */
 function useFeedSeenBaseline(ready: boolean): string | null {
   const status = useFollowStore((state) => state.status);
@@ -219,7 +219,7 @@ function useFeedSeenBaseline(ready: boolean): string | null {
 }
 
 /**
- * フィードの 3 段 (設計書 §10)。段の判定はサーバー側 (`freshness`) に寄せてあるので、
+ * フィードの 3 段。段の判定はサーバー側 (`freshness`) に寄せてあるので、
  * ここは並んできたものを切り分けるだけ。上 2 段が空でも 3 段目が残り画面が空にならない
  */
 function FeedTiers({ items }: { items: FeedItem[] }) {
@@ -361,7 +361,7 @@ function earliestFirstSeen(listings: FeedItem["listings"]): string | undefined {
 }
 
 /**
- * 今期アニメからの入口 (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md`)。
+ * 今期アニメからの入口。
  *
  * 声優名を知らない利用者はここから入る。フォロー済みの利用者にも隠さないのは、
  * 「知らなかった出演」を見つける経路でもあるため

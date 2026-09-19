@@ -18,7 +18,7 @@ import {
 
 /**
  * ネットワークに出る部分 (main) は単体テストしない。集計・整形・絞り込みだけを固定で押さえる。
- * `actors.json` は実際に配る値なので、形が崩れていないことをここで検出する
+ * `actors.generated.json` は実際に配る値なので、形が崩れていないことをここで検出する
  */
 
 const UEDA: ActorSeed = {
@@ -51,7 +51,7 @@ function outcome(
   };
 }
 
-/** 取得はできたが ingest への送信に失敗した 1 行 (T16) */
+/** 取得はできたが ingest への送信に失敗した 1 行 */
 function saveFailed(
   actor: ActorSeed,
   storeSlug: StoreSlug,
@@ -112,9 +112,9 @@ describe("summarize", () => {
     });
   });
 
-  it("取得できたのに保存に失敗した件数を、取得成功と別に数える (T16)", () => {
+  it("取得できたのに保存に失敗した件数を、取得成功と別に数える", () => {
     // 取得は 3 件とも成功しているが、保存まで届いたのは 1 件だけ。
-    // これを「取得 3 成功」だけで報告したのが前回の事故
+    // これを「取得 3 成功」だけで報告すると保存の失敗が見えない
     const summary = summarize([
       outcome(UEDA, "dlsite", "ok", 30, 30, 4),
       saveFailed(UEDA, "audible", 7, true),
@@ -153,7 +153,7 @@ describe("formatOutcomeTable", () => {
     expect(table.split("\n")[1]).toMatch(/^梶裕貴\s+3\s+3\s+-\s+-\s+-\s+-$/);
   });
 
-  it("空白入り別名で確定したときは queryUsed を備考に出す (T8)", () => {
+  it("空白入り別名で確定したときは queryUsed を備考に出す", () => {
     // status が ok でも canonicalName と違う語で確定したことは分かるようにする
     const table = formatOutcomeTable([
       outcome(UEDA, "audible", "ok", 7, 1, 0, "上田 麗奈"),
@@ -164,13 +164,13 @@ describe("formatOutcomeTable", () => {
     );
   });
 
-  it("取得できたのに保存に失敗したストアを備考に出す (T16)", () => {
+  it("取得できたのに保存に失敗したストアを備考に出す", () => {
     // status は ok のままなので、備考に出さないと 0 件だった声優と見分けが付かない
     const table = formatOutcomeTable([saveFailed(UEDA, "dlsite", 12, true)]);
     expect(table.split("\n")[1]).toContain("dlsite:save-failed");
   });
 
-  it("ポケドラは tag_id で引いたことが備考に出る (T23)", () => {
+  it("ポケドラは tag_id で引いたことが備考に出る", () => {
     // 名前で検索していないので、queryUsed が canonicalName と違う。列も独立して出る
     const table = formatOutcomeTable([outcome(UEDA, "pokedora", "ok", 5, 2, 0, "tag_id=1554")]);
     expect(table.split("\n")[1]).toMatch(
@@ -178,7 +178,7 @@ describe("formatOutcomeTable", () => {
     );
   });
 
-  it("失敗を crawl_runs にも残せなかったときは備考でそう書く (T16)", () => {
+  it("失敗を crawl_runs にも残せなかったときは備考でそう書く", () => {
     const table = formatOutcomeTable([saveFailed(UEDA, "audible", 12, false)]);
     expect(table.split("\n")[1]).toContain("audible:save-failed(未記録)");
   });
@@ -244,7 +244,7 @@ describe("filterActors", () => {
 
 describe("buildSearchNames", () => {
   it("空白入りの検証済み alias を canonicalName より先に置く", () => {
-    // T8: Audible は「石見舞菜香」だと該当なしになり、「石見 舞菜香」だと見つかる
+    // Audible は「石見舞菜香」だと該当なしになり、「石見 舞菜香」だと見つかる
     expect(
       buildSearchNames({
         id: "va_iwami-manaka",
@@ -260,7 +260,7 @@ describe("buildSearchNames", () => {
   });
 
   it("未検証の alias は canonicalName の後ろに置く", () => {
-    // T13: 自動生成のリストは当てずっぽうの切り方で候補を持つ。adapter は 1 件でも取れたら
+    // 自動生成のリストは当てずっぽうの切り方で候補を持つ。adapter は 1 件でも取れたら
     // 打ち切るので、canonicalName を先に試せば大多数の声優で余分な検索が出ない
     expect(
       buildSearchNames({
@@ -286,36 +286,8 @@ describe("buildSearchNames", () => {
   });
 });
 
-describe("actors.json", () => {
-  it("id は va_{slug} で、slug が重複しない", async () => {
-    const seeds = await loadActorSeeds();
-    expect(seeds.length).toBeGreaterThan(0);
-    for (const seed of seeds) {
-      expect(seed.id).toBe(`va_${seed.slug}`);
-      expect(seed.slug).toMatch(/^[a-z]+(-[a-z]+)*$/);
-      expect(seed.canonicalName).not.toBe("");
-      expect(seed.nameKana).toBeTruthy();
-    }
-    expect(new Set(seeds.map((seed) => seed.slug)).size).toBe(seeds.length);
-  });
-
-  it("全員に Audible 表記 (姓 名) の検証済み alias がある", async () => {
-    // Audible は「上田 麗奈」のように姓名の間に空白を入れる。normalizeName でも吸収できるが、
-    // 管理画面で表記揺れを確認できるよう明示的に持たせている
-    for (const seed of await loadActorSeeds()) {
-      const aliases = seed.aliases ?? [];
-      expect(aliases.length).toBeGreaterThan(0);
-      expect(aliases.some((alias) => alias.name.includes(" "))).toBe(true);
-      for (const alias of aliases) {
-        expect(alias.source).toBe("manual");
-        expect(alias.verified).toBe(true);
-      }
-    }
-  });
-});
-
 /**
- * 自動生成された対象声優リスト (T13)。`crawler/discovery/build-actors.ts` の出力で、
+ * 自動生成された対象声優リスト。`crawler/discovery/build-actors.ts` の出力で、
  * 生成元の `.cache/discovery/anilist-staff.json` はリポジトリに入らないので
  * 生成物のほうを検証する。ここが崩れたら ingest の zod が全件を弾く
  */
@@ -335,7 +307,7 @@ describe("actors.generated.json", () => {
   });
 
   it("空白入り候補が無いのは fullName が 1 語の芸名だけ", async () => {
-    // 2 文字以上の姓名を持つ声優は文字数に応じた切り方 (T14) で必ず候補が付く。
+    // 2 文字以上の姓名を持つ声優は文字数に応じた切り方 で必ず候補が付く。
     // 候補が付かないのは「ゆかな」「麦人」「KENN」のように fullName が 1 語で
     // 姓と名の境界が無い芸名の人だけ。この集合は build-actors.ts の no-slug 除外だった
     // 68 人と一致するので、大きく増えたら生成規則の劣化を疑う
@@ -348,7 +320,7 @@ describe("actors.generated.json", () => {
   });
 });
 
-describe("send (取り込み失敗の可視化, T16)", () => {
+describe("send (取り込み失敗の可視化)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -392,7 +364,7 @@ describe("send (取り込み失敗の可視化, T16)", () => {
   });
 
   it("POST が失敗したら失敗ペイロードを送り直して crawl_runs に残す", async () => {
-    // 前回の事故では失敗が DB に残らず、管理画面から 0 件の声優と区別が付かなかった
+    // 失敗が DB に残らないと、管理画面から 0 件の声優と区別が付かない
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ error: "payload が不正" }, 400))

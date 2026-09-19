@@ -9,7 +9,7 @@ import {
 } from "@/domain/types";
 
 /**
- * D1 (SQLite) のスキーマ。設計書 (docs/design/architecture.md) §5 に対応する。
+ * D1 (SQLite) のスキーマ。ここがスキーマの正。
  *
  * - 列挙は src/domain/types.ts の値配列をそのまま enum に渡す。
  *   DB 側だけ選択肢が増減してドメインとずれるのを防ぐため、ここで再定義しない
@@ -67,7 +67,7 @@ export const audioWorks = sqliteTable(
     coverImageUrl: text("cover_image_url"),
     durationSeconds: integer("duration_seconds"),
     /**
-     * 年齢区分 (設計書 §14)。既定を "unknown" にしてあるのは、区分を読めなかった作品を
+     * 年齢区分。既定を "unknown" にしてあるのは、区分を読めなかった作品を
      * 「全年齢」と言い切らないため。読み取り側は R18 を除外する形で絞る
      */
     ageRating: text("age_rating", { enum: AGE_RATINGS }).notNull().default("unknown"),
@@ -148,7 +148,7 @@ export const crawlRuns = sqliteTable(
     status: text("status", { enum: CRAWL_RUN_STATUSES }).notNull(),
     error: text("error"),
     /**
-     * ストアが出している検索結果の総件数 (設計書 §13)。読み取れなければ NULL。
+     * ストアが出している検索結果の総件数。読み取れなければ NULL。
      * `work_count` は許可した年齢区分だけの保存件数なので、総件数と一致しないことがある。
      * 網羅できたかどうかの判定には下の `coverage_complete` を使う
      */
@@ -156,12 +156,12 @@ export const crawlRuns = sqliteTable(
     /** 総件数ぶんを取り切れたか。総件数が読めなければ NULL (真偽を決められない) */
     coverageComplete: integer("coverage_complete", { mode: "boolean" }),
   },
-  // 「同じストア × 同じ声優の前回の結果」を引いて件数の急減を検知する (設計書 §5)
+  // 「同じストア × 同じ声優の前回の結果」を引いて件数の急減を検知する
   (t) => [index("crawl_runs_store_actor_started_idx").on(t.storeSlug, t.voiceActorId, t.startedAt)],
 );
 
 /**
- * アニメ 1 作品 (設計書 docs/feature-proposals/anime-season-entry-design-2026-09-18.md §3)。
+ * アニメ 1 作品。
  * あらすじ・話数・放送局は持たない。アニメ事典にしないための歯止め (同 §5)
  */
 export const animeTitles = sqliteTable(

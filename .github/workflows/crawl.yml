@@ -2,7 +2,7 @@ name: 定期クロール
 
 # 声優ごとに DLsite / Audible を巡回し、本番の POST /api/admin/ingest に投げる。
 # クローラーを Worker 内で動かさないのは Cloudflare からの egress とサブリクエスト上限を避けるため
-# (docs/design/architecture.md §1)。必要な Secrets は INGEST_URL と INGEST_TOKEN。
+# (docs/architecture.md)。必要な Secrets は INGEST_URL と INGEST_TOKEN。
 on:
   schedule:
     - cron: "0 20 * * *" # 毎日 05:00 JST
@@ -54,7 +54,7 @@ jobs:
           if [ -n "$STORE" ]; then args+=(--store "$STORE"); fi
           node crawler/run.ts --base-url "$INGEST_URL" "${args[@]}"
       - name: 取得した生データを残す
-        # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる (企画書 §20)
+        # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる
         if: always()
         uses: actions/upload-artifact@v5
         with:

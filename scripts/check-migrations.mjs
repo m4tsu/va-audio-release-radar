@@ -2,7 +2,7 @@
 //
 // なぜ: マイグレーションを生成 (`npm run db:generate`) しただけで適用を忘れると、
 // コードは新しいスキーマ前提で動くのにローカル D1 は古いままになり、画面が落ちたり
-// 実行中のクロールが記録も残さず静かに壊れたりする (docs/design/decisions.md §14 の事故)。
+// 実行中のクロールが記録も残さず静かに壊れたりする。
 // ルール文書に書くだけでは読まれないことがあったため、`npm run check` の先頭で
 // 機械的に検出する。
 //
@@ -84,7 +84,7 @@ export function formatMissingMessage(missingFiles) {
     "次を実行してローカル D1 に適用してください:",
     "  npx wrangler d1 migrations apply DB --local",
     "",
-    "コードと D1 のスキーマが食い違うと画面が落ち、実行中のクロールが記録も残さず壊れます (docs/design/decisions.md §14)。",
+    "コードと D1 のスキーマが食い違うと画面が落ち、実行中のクロールが記録も残さず壊れます (.claude/rules/migrations.md)。",
   ].join("\n");
 }
 

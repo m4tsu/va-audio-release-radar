@@ -99,7 +99,6 @@ describe("intersect", () => {
         staff({ anilistStaffId: 20, nativeName: "居ない人" }),
       ],
       worksByName,
-      new Set<string>(),
     );
     expect(result.rows.map((row) => row.nativeName)).toEqual(["上田麗奈"]);
     expect(result.rows[0]?.workCount).toBe(2);
@@ -110,30 +109,15 @@ describe("intersect", () => {
     const result = intersect(
       [staff({ anilistStaffId: 30, nativeName: "佐藤健", ambiguous: true })],
       worksByName,
-      new Set<string>(),
     );
     expect(result.rows).toHaveLength(0);
     expect(result.ambiguousRows.map((row) => row.nativeName)).toEqual(["佐藤健"]);
   });
 
   it("交差しなかった DLsite 側の名前を作品数の多い順に返す", () => {
-    const result = intersect(
-      [staff({ anilistStaffId: 10, nativeName: "上田麗奈" })],
-      worksByName,
-      new Set<string>(),
-    );
+    const result = intersect([staff({ anilistStaffId: 10, nativeName: "上田麗奈" })], worksByName);
     expect(result.dlsiteOnly.map((stat) => stat.displayNames[0])).toEqual(["同人声優A", "佐藤健"]);
     expect(result.dlsiteOnly[0]?.worknos).toHaveLength(2);
-  });
-
-  it("シードに居るかを印として付ける", () => {
-    const result = intersect(
-      [staff({ anilistStaffId: 10, nativeName: "上田麗奈" })],
-      worksByName,
-      // シード側は正規化済みの名前で渡す
-      new Set(["上田麗奈"]),
-    );
-    expect(result.rows[0]?.inSeed).toBe(true);
   });
 });
 

@@ -19,7 +19,7 @@ import { siteOriginForLoader } from "@/app/server-fns/site";
 import { fetchWork } from "@/app/server-fns/works";
 
 /**
- * 作品ページ (企画書 §13)。
+ * 作品ページ。
  *
  * `$id` は "dlsite:RJ01698658" の形。コロンを含むので sitemap は "%3A" に符号化して出す。
  * ルーターはパスパラメータを復号して渡すが、経路によっては符号化されたまま来るため念のため復号する
@@ -181,7 +181,7 @@ function WorkPage() {
 
 /**
  * クレジット 1 件。名寄せ済みなら声優ページへ送る。
- * 未解決のものはストア上の表記のまま出す (確証の無い同一視をしない。企画書 §7.3)
+ * 未解決のものはストア上の表記のまま出す (確証の無い同一視をしない)
  */
 function CreditName({ credit }: { credit: WorkCredit }) {
   const locale = useLocale();
@@ -196,7 +196,7 @@ function CreditName({ credit }: { credit: WorkCredit }) {
       </Link>
     );
   }
-  // 名寄せできていない表記はストア上の書き方のまま出す (企画書 §7.3)
+  // 名寄せできていない表記はストア上の書き方のまま出す
   return <span>{credit.creditedName}</span>;
 }
 

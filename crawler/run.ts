@@ -29,14 +29,13 @@ import {
 import { CRAWLER_DIR } from "./lib/paths.ts";
 
 /**
- * 定期実行の本体 (設計書 §2 / §6)。GitHub Actions の cron からも手元からも同じものを動かす。
+ * 定期実行の本体。GitHub Actions の cron からも手元からも同じものを動かす。
  *
  *   INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199
  *
  * 手順:
- *   1. 声優リスト (既定 `crawler/actors.json`、`--actors` で切り替え) を
- *      `POST /api/admin/actors` で upsert する (名寄せの材料を先に揃える)。
- *      自動生成のリスト (`crawler/actors.generated.json`、T13) は 2,500 人規模なので分割して送る
+ *   1. 対象声優リスト (既定 `crawler/actors.generated.json`、`--actors` で切り替え) を
+ *      `POST /api/admin/actors` で upsert する (名寄せの材料を先に揃える)。2,500 人規模なので分割して送る
  *   2. 声優 × ストアごとに adapter で取得し、`IngestPayload` を `POST /api/admin/ingest` に送る
  *   3. 集計表を標準出力に出す
  *
@@ -59,14 +58,14 @@ const STORE_COLUMN_LABELS: Record<StoreSlug, string> = {
   pokedora: "ポケドラ",
 };
 
-const ACTORS_JSON = path.join(CRAWLER_DIR, "actors.json");
+const ACTORS_JSON = path.join(CRAWLER_DIR, "actors.generated.json");
 
 const USAGE = `使い方:
   INGEST_TOKEN=... node crawler/run.ts --base-url https://example.workers.dev [オプション]
 
 オプション:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
-  --actors <path>           使う声優リスト (既定 crawler/actors.json)
+  --actors <path>           使う声優リスト (既定 crawler/actors.generated.json)
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
   --store <slug>            1 つのストアだけを対象にする (dlsite / audible / pokedora)
   --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
@@ -96,10 +95,10 @@ function isStoreSlug(value: string): value is StoreSlug {
 // --- 集計 ------------------------------------------------------------------
 
 /**
- * 保存の結果 (T16)。adapter の取得結果 (`AdapterStatus`) とは別に持つ。
+ * 保存の結果。adapter の取得結果 (`AdapterStatus`) とは別に持つ。
  *
- * 混ぜていたせいで、取得は成功したのに ingest が HTTP 400 で捨てられた 420 人ぶんを
- * 「取得 386 成功」と報告してしまった。取得の成否と保存の成否は別の事実なので別に数える
+ * 混ぜると、取得は成功したのに ingest に拒否された声優が「取得成功」に数えられる。
+ * 取得の成否と保存の成否は別の事実なので別に数える
  *
  * - `saved`: ingest が受け取って保存まで終えた
  * - `failed`: ingest に届かなかった / 受け付けられなかった
@@ -120,11 +119,11 @@ export type RunOutcome = {
   unmatchedCount: number;
   /** empty / error の理由、または送信そのものに失敗した理由 */
   reason?: string;
-  /** 実際に検索に使った語。Audible は空白入り別名フォールバックがあるため canonicalName と違うことがある (T8) */
+  /** 実際に検索に使った語。Audible は空白入り別名フォールバックがあるため canonicalName と違うことがある */
   queryUsed?: string;
   save: SaveStatus;
   /**
-   * `save: "failed"` のとき、失敗したことを `crawl_runs` に残せたか (T16)。
+   * `save: "failed"` のとき、失敗したことを `crawl_runs` に残せたか。
    * false なら DB 上は何も起きなかったことになるので、最終集計で別枠にして人に見せる
    */
   failureRecorded?: boolean;
@@ -198,8 +197,8 @@ export function formatOutcomeTable(outcomes: readonly RunOutcome[]): string {
     const notes = group.flatMap((outcome) => {
       const parts: string[] = [];
       if (outcome.status !== "ok") parts.push(`${outcome.storeSlug}:${outcome.status}`);
-      // 取得できたのに保存できなかったことは、取得失敗とは別に必ず表に出す (T16)。
-      // 前回の事故ではこれが表に出ず、0 件の声優と見分けが付かなかった
+      // 取得できたのに保存できなかったことは、取得失敗とは別に必ず表に出す。
+      // 表に出さないと、0 件の声優と見分けが付かない
       if (outcome.save === "failed") {
         parts.push(
           outcome.failureRecorded === true
@@ -276,8 +275,8 @@ export async function loadActorSeeds(file: string = ACTORS_JSON): Promise<ActorS
  *
  * 順番は 検証済みの空白入り alias → canonicalName → 未検証の空白入り alias。
  *
- * - 検証済みが先頭なのは T8 の結論どおり (「石見舞菜香」は該当なし、「石見 舞菜香」だと 2 件)
- * - 未検証を canonicalName の後ろに置くのは、自動生成のリスト (T13) では 2,501 人ぶんの
+ * - 検証済みが先頭なのは実測どおり (「石見舞菜香」は該当なし、「石見 舞菜香」だと 2 件)
+ * - 未検証を canonicalName の後ろに置くのは、自動生成のリスト では 2,501 人ぶんの
  *   候補が当てずっぽうの切り方だから。adapter は 1 件以上取れた時点で打ち切るので、
  *   canonicalName で引ける大多数の声優に対して余分な検索リクエストが出ない
  * - それでも未検証を候補に含めるのは、含めないと自動生成の声優が
@@ -290,7 +289,7 @@ export function buildSearchNames(actor: ActorSeed): string[] {
 }
 
 /**
- * `--offset` / `--limit` で対象を切り出す (T16)。
+ * `--offset` / `--limit` で対象を切り出す。
  *
  * `--offset` があるのは、途中で落ちた走行を続きから再開するため。500 人のクロールは
  * 3 時間かかるので、81 人目から失敗したときに先頭からやり直すと相手サイトへの往復が
@@ -447,18 +446,18 @@ export async function main(argv: readonly string[]): Promise<number> {
           process.stderr.write(`[警告] ${actor.canonicalName} ${storeSlug}: ${warning}\n`);
         }
         // ストアが出している声優 ID (ポケドラの tag_id) を貯める。
-        // 「同じ tag_id なら同一人物」はストア由来の事実で、別名義の根拠に使える (T23)
+        // 「同じ tag_id なら同一人物」はストア由来の事実で、別名義の根拠に使える
         await appendActorRefs(result.observedActorRefs ?? []);
         // この走行で詳細まで取った作品を既知に足す。共演の多いストアでは同じ作品が
         // 何人もの一覧に出るので、これが無いと同じ詳細ページを人数分だけ引き直す。
         // ポケドラの BL ドラマ CD は 1 作品に十数名が出るため、延べ 8,593 件のうち
         // かなりが重複になる。credit は作品に紐づいて既に保存されているので、
-        // 2 人目以降で詳細を飛ばしても出演者は落ちない (設計書 §6 の upsert は credit を消さない)
+        // 2 人目以降で詳細を飛ばしても出演者は落ちない (upsert は credit を消さない)
         markFetched(knownIds, storeSlug, result.works);
         forActor.push(await send(client, actor, storeSlug, result, runDate));
       }
     } catch (error) {
-      // 版ずれ。残り全員も確実に同じ結果になるので、ここで打ち切る (T16)
+      // 版ずれ。残り全員も確実に同じ結果になるので、ここで打ち切る
       if (!(error instanceof IngestProtocolMismatchError)) throw error;
       aborted = error.message;
       outcomes.push(...forActor);
@@ -484,7 +483,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   process.stdout.write(`\n${formatOutcomeTable(outcomes)}\n`);
   const summary = summarize(outcomes);
   // 取得と保存を分けて出す。まとめると、取得できたのに 1 件も保存されていない状態が
-  // 「成功」に見えてしまう (実際にそれで 420 人ぶんの取りこぼしを 3 時間見逃した)
+  // 「成功」に見えてしまう
   process.stdout.write(
     `\n声優 ${summary.actors} 人 / 取得 ${summary.ok} 成功・${summary.empty} 空・` +
       `${summary.error} 失敗 (作品 ${summary.fetched} 件)\n` +
@@ -512,7 +511,7 @@ function progressLine(
   skippedStores: readonly StoreSlug[] = [],
 ): string {
   const parts = outcomes.map((outcome) => {
-    // 保存に失敗した行は件数ではなく失敗と書く。「0件」と並べて出すと見分けが付かない (T16)
+    // 保存に失敗した行は件数ではなく失敗と書く。「0件」と並べて出すと見分けが付かない
     if (outcome.save === "failed") {
       return `${outcome.storeSlug} ${outcome.status} 取得${outcome.fetchedCount}件だが保存失敗`;
     }
@@ -529,7 +528,7 @@ function progressLine(
  * 取得に失敗した (`status: "error"`) ときも `error` 付きで送り、crawl_runs に残す。
  *
  * `IngestProtocolMismatchError` だけは捕まえずに投げ直す。クローラーが古いという意味なので、
- * 残りの声優を回しても同じ結果にしかならず、呼び出し側が走行ごと止めるため (T16)
+ * 残りの声優を回しても同じ結果にしかならず、呼び出し側が走行ごと止めるため
  */
 export async function send(
   client: AdminApiClient | undefined,
@@ -557,14 +556,14 @@ export async function send(
   // 同じ日に流し直すと上書きされる。ingest 側が冪等なので取り込み結果は変わらない
   const runId = `${runDate}-${storeSlug}-${actor.slug}`;
   const payload: IngestPayload = {
-    // サーバーと形が揃っているかの検査 (T16)。合わなければサーバーが 409 を返す
+    // サーバーと形が揃っているかの検査。合わなければサーバーが 409 を返す
     protocolVersion: INGEST_PROTOCOL_VERSION,
     runId,
     storeSlug,
     voiceActorId: actor.id,
     works: result.works,
     ...(result.status === "error" && result.reason !== undefined ? { error: result.reason } : {}),
-    // 網羅率 (設計書 §13)。総件数を読めなかったストア / 声優では両方とも送らず、
+    // 網羅率。総件数を読めなかったストア / 声優では両方とも送らず、
     // crawl_runs 側を NULL のままにする。「不明」と「全部取れた」を混ぜないため
     ...(result.coverage?.total === undefined ? {} : { totalCount: result.coverage.total }),
     ...(result.coverage?.complete === undefined
@@ -595,7 +594,7 @@ export async function send(
 }
 
 /**
- * 保存に失敗したことを `crawl_runs` に残す (T16)。
+ * 保存に失敗したことを `crawl_runs` に残す。
  *
  * 作品を外した最小ペイロードを送り直す。元の payload そのものが失敗の原因
  * (大きすぎる / 形が古い) であることがあるので、同じものを送り直しても意味がない。
@@ -632,7 +631,7 @@ async function reportFailure(
 /**
  * 1 回の `POST /api/admin/actors` に載せる人数。
  *
- * Worker 側は 1 人ずつ insert するので、2,501 人 (T13 の自動生成リスト) を 1 リクエストで
+ * Worker 側は 1 人ずつ insert するので、2,501 人 (自動生成リスト) を 1 リクエストで
  * 送ると本文も実行時間も膨らむ。分割しても upsert は冪等なので結果は変わらない
  */
 const ACTOR_UPSERT_CHUNK = 200;
@@ -681,7 +680,7 @@ async function loadKnownIds(
 }
 
 /**
- * 取り終えた作品を既知集合に足す (T23)。
+ * 取り終えた作品を既知集合に足す。
  *
  * `--no-skip-known` を指定した走行では `knownIds` に集合そのものが無いので何もしない。
  * 「毎回すべて取り直す」という指定を、走行の途中から勝手に外さないため

@@ -32,7 +32,7 @@ export async function setupDb(actors: ActorSeed[] = [UEDA], now: string = NOW): 
 /**
  * 指定した声優にそれぞれ作品を 1 件ずつ持たせる。
  *
- * T13 以降、一覧・検索・sitemap は作品が 1 件以上ある声優しか返さない。
+ * 一覧・検索・sitemap は作品が 1 件以上ある声優しか返さない。
  * 「表に出ること」を確かめたいテストは、まずここで作品を持たせる必要がある
  */
 export async function giveEachActorAWork(db: AppDb, actors: ActorSeed[], now: string = NOW) {

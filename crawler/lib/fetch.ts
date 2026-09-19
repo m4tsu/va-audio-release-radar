@@ -3,12 +3,12 @@ import path from "node:path";
 import { SNAPSHOT_DIR, safeFileName } from "./paths.ts";
 
 /**
- * 外部サイトへの唯一の fetch 入口 (設計書 §8)。
+ * 外部サイトへの唯一の fetch 入口。
  * ここに UA・レート制限・スナップショット保存・タイムアウト・リトライを集約し、
  * adapter からは素の `fetch` を呼ばせない。相手サイトへの負荷を 1 箇所で制御するため
  */
 
-/** ブラウザ相当の UA。スクレイパー判定で 302 に飛ばされるのを避ける (設計書 §3 の Audible) */
+/** ブラウザ相当の UA。スクレイパー判定で 302 に飛ばされるのを避ける */
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/141.0.0.0 Safari/537.36";
@@ -82,9 +82,9 @@ type RateLimit = { key: string; intervalMs: number };
  * このグループにはパスの限定が無いので、検索 HTML だけでなく `/home/api/=/product.json` を
  * 含む**すべてのパス**に及ぶ。以前は product.json を「負荷の軽い API」とみなして 2 秒に
  * していたが、それは相手の指定より短く、こちらの都合でしかなかった。1 つのキーで 10 秒に揃える
- * (設計書 §13)。全声優のクロールはその分長くなるが、それは意図どおり。
+ *。全声優のクロールはその分長くなるが、それは意図どおり。
  *
- * Audible は連続アクセスで 302 に飛ばされた実績があるため 6 秒 (設計書 §3)
+ * Audible は連続アクセスで 302 に飛ばされた実績があるため 6 秒
  */
 export function rateLimitFor(rawUrl: string): RateLimit {
   const url = new URL(rawUrl);
@@ -97,7 +97,7 @@ export function rateLimitFor(rawUrl: string): RateLimit {
   }
   // ポケドラの robots.txt は `Disallow: /cart/*` と `/mypage/*` だけで Crawl-delay の指定が無い。
   // 指定が無いときに何秒が妥当かは相手にしか分からないので、こちらで保守的に 5 秒を採る。
-  // 声優タグ辞書は 3,161 件の一度きりのバッチで、速く終わらせる必要がない (設計書 §15 の訂正)
+  // 声優タグ辞書は 3,161 件の一度きりのバッチで、速く終わらせる必要がない
   if (host === "pokedora.com" || host.endsWith(".pokedora.com")) {
     return { key: "pokedora", intervalMs: 5_000 };
   }
@@ -106,7 +106,7 @@ export function rateLimitFor(rawUrl: string): RateLimit {
   // (docs.anilist.co/guide/rate-limiting の記載、実測ヘッダ x-ratelimit-limit: 30 の両方で確認)。
   // 90 req/min は平常時の値であって今の実効値ではないので、それを根拠に間隔を詰めない。
   // 上限 30 に対し、閾値非公開のバースト制限の余地も残して 3.0 秒 (= 20 req/min) にする。
-  // 詳細は docs/stores/anilist.md §2。上限が 90 req/min に戻ったら間隔を見直すこと
+  // 詳細は docs/stores/anilist.md の「レート間隔」。上限が 90 req/min に戻ったら間隔を見直すこと
   if (host === "graphql.anilist.co") {
     return { key: "anilist", intervalMs: 3_000 };
   }
@@ -159,7 +159,7 @@ async function attempt(rawUrl: string, options: FetchOptions): Promise<Attempt> 
     response = await fetch(rawUrl, {
       method,
       // リダイレクトは追わない。Audible の /no-search-results への 302 のように、
-      // 飛び先そのものが結果の意味を持つことがあるため、判定は呼び出し側に委ねる (設計書 §3)
+      // 飛び先そのものが結果の意味を持つことがあるため、判定は呼び出し側に委ねる
       redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
       ...(options.body === undefined ? {} : { body: options.body }),
@@ -255,7 +255,7 @@ export async function fetchText(rawUrl: string, options: FetchOptions): Promise<
   return snapshotPath === undefined ? last : { ...last, snapshotPath };
 }
 
-/** 取得した生データを残す。パーサーが壊れたときに再現できるようにするため (企画書 §20) */
+/** 取得した生データを残す。パーサーが壊れたときに再現できるようにするため */
 async function saveSnapshot(
   result: FetchSuccess,
   options: FetchOptions,

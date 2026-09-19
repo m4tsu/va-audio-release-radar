@@ -15,7 +15,7 @@ describe("ingest", () => {
     const works = await db.select().from(audioWorks);
     expect(works).toHaveLength(1);
     expect(works[0]?.id).toBe("dlsite:RJ01698658");
-    // storeCategory "SOU" かつジャンル指定なしなので asmr になる (設計書 §4)
+    // storeCategory "SOU" かつジャンル指定なしなので asmr になる
     expect(works[0]?.category).toBe("asmr");
 
     const credits = await db.select().from(audioCredits);
@@ -197,7 +197,7 @@ describe("ingest", () => {
   it("対象声優がクレジットに居ない作品は保存するが、その声優の credit は作らない", async () => {
     const db = await setupDb();
 
-    // 検索結果には名前が一致しない作品も混ざる。保存はするが声優ページには出さない (設計書 §6)
+    // 検索結果には名前が一致しない作品も混ざる。保存はするが声優ページには出さない
     const result = await ingest(
       db,
       payload({ works: [rawWork({ creditedNames: ["別の声優"] })] }),
@@ -320,7 +320,7 @@ describe("ingest", () => {
   });
 
   it("網羅率が付いていなければ NULL のままにする", async () => {
-    // 総件数を読めなかったことと「全部取れた」ことを DB の段階で混ぜないため (設計書 §13)
+    // 総件数を読めなかったことと「全部取れた」ことを DB の段階で混ぜないため
     const db = await setupDb();
 
     await ingest(db, payload(), NOW);

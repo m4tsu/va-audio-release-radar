@@ -8,7 +8,7 @@ import { actorDisplayName } from "@/app/lib/actor-name";
 import { useFollowStore } from "@/app/store/follow-store";
 
 /**
- * フォロー中の声優一覧 (企画書 §13)。
+ * フォロー中の声優一覧。
  *
  * フォローはブラウザ内 (IndexedDB) にしか無いので、SSR では枠だけを返し、
  * 中身はマウント後に描く。読み込み前を「0 件」と見せないよう status で分ける

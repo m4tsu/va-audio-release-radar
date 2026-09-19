@@ -7,7 +7,7 @@ import { fetchText } from "../lib/fetch.ts";
 import { CACHE_DIR } from "../lib/paths.ts";
 
 /**
- * ポケドラの声優タグ辞書を作る (設計書 §15 の訂正「ポケドラの取得手順」段階 1)。
+ * ポケドラの声優タグ辞書を作る (ポケドラの取得手順の段階 1)。
  *
  *   node crawler/discovery/pokedora-tags.ts --resume
  *
@@ -18,7 +18,7 @@ import { CACHE_DIR } from "../lib/paths.ts";
  * 同じページにストア別の件数内訳が出るので一緒に記録する。これがあると
  * 「この声優がポケドラに何作品あるか」が辞書だけで分かり、段階 3 を交差した声優に絞り込める。
  *
- * 年齢認証の背後にある `store=adt` / `store=adt-bl` のページは引かない (設計書 §14)。
+ * 年齢認証の背後にある `store=adt` / `store=adt-bl` のページは引かない。
  * 既定のストア (一般) のページに 4 ストアぶんの件数が出るので、引く必要もない。
  *
  * DB には一切書き込まない。結果は crawler/.cache/discovery/pokedora-tags.json に置く

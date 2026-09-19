@@ -5,7 +5,7 @@ import {
 } from "../../src/domain/index.ts";
 
 /**
- * Worker 側の管理 API (`/api/admin/*`) を叩くクライアント (設計書 §2 / §6)。
+ * Worker 側の管理 API (`/api/admin/*`) を叩くクライアント。
  *
  * ここは `lib/fetch.ts` を通さない。あちらは外部ストアへの負荷を抑えるためのレート制限を
  * 持っており、自前の API に効かせると 1 声優ごとに無駄な待ちが入る。相手は自分たちの
@@ -29,7 +29,7 @@ export type IngestResponse = {
 
 export type UpsertActorsResponse = { actors: number; aliases: number };
 
-/** `crawler/actors.json` の 1 件。検証そのものはサーバー側の zod に任せる */
+/** 対象声優リスト (`crawler/actors.generated.json`) の 1 件。検証そのものはサーバー側の zod に任せる */
 export type ActorSeed = {
   id: string;
   slug: string;
@@ -40,7 +40,7 @@ export type ActorSeed = {
 };
 
 /**
- * 検証済みの空白入り alias 名を、`actors.json` に書かれた順番のまま返す (T8)。
+ * 検証済みの空白入り alias 名を、リストに書かれた順番のまま返す。
  * Audible はナレーター検索が空白の有無で結果が変わる名前があるため、
  * `crawler/run.ts` と `crawler/cli.ts` がこれを検索候補の先頭に置く
  */
@@ -49,7 +49,7 @@ export function spacedVerifiedAliasNames(actor: Pick<ActorSeed, "aliases">): str
 }
 
 /**
- * 未検証の空白入り alias 名 (T13)。自動生成のリストは「姓を 2 文字で切った形」と
+ * 未検証の空白入り alias 名。自動生成のリストは「姓を 2 文字で切った形」と
  * 「3 文字で切った形」を当てずっぽうで持っているので、検証済みとは分けて扱う。
  * `crawler/run.ts` はこれを canonicalName より後ろの候補に置く
  */
@@ -66,16 +66,16 @@ function spacedAliasNames(actor: Pick<ActorSeed, "aliases">, verified: boolean):
 export class AdminApiError extends Error {}
 
 /**
- * サーバーが 409 を返した、つまり送っている payload の形が古い (T16)。
+ * サーバーが 409 を返した、つまり送っている payload の形が古い。
  *
  * `AdminApiError` と分けてあるのは、呼び出し側の扱いが違うため。ふつうの失敗は
  * その 1 件を失敗として記録して次の声優に進むが、これは残り全員も確実に同じ結果になる。
- * 3 時間かけて 420 人ぶんを捨てた事故を繰り返さないよう、受け取ったら走行ごと止める
+ * 取得済みの結果を丸ごと捨てないよう、受け取ったら走行ごと止める
  */
 export class IngestProtocolMismatchError extends AdminApiError {}
 
 /**
- * ingest に送れなかったことを記録するための最小ペイロード (T16)。
+ * ingest に送れなかったことを記録するための最小ペイロード。
  *
  * 取り込み本体が失敗したときに、作品を外して `error` だけを付けて送り直す。
  * これを送らないと `crawl_runs` に行が 1 つも残らず、管理画面からは

@@ -10,7 +10,7 @@ import { fetchAnimeBySlug } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 
 /**
- * アニメ 1 作品のページ (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md`)。
+ * アニメ 1 作品のページ。
  *
  * 出すのは「この作品の出演者で、音声作品を出している人」だけ。キャスト表ではないので
  * 全員は並べない。絞り込みは `getAnimeBySlug` 側でかけてあり、ここでは並べるだけ

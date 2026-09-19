@@ -189,7 +189,7 @@ describe("PokedoraActor の型", () => {
 describe("intersect の異体字", () => {
   /**
    * 突き合わせの鍵は `normalizeName` だけで、そこに人名の異体字の変換表が入った
-   * (decisions.md §16 / T21)。字体が割れている人が交差に入ることをこの層でも固定する
+   * 。字体が割れている人が交差に入ることをこの層でも固定する
    */
   it("字体が割れていても交差に入れる", () => {
     const result = intersect({

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 /**
- * 画面から呼ぶ声優まわりの server function (設計書 §7)。
+ * 画面から呼ぶ声優まわりの server function。
  *
  * `@/server/**` は D1 バインディングに触るサーバー専用コードで、vite.config.ts の
  * importProtection でクライアントから import できない。handler の中で動的 import すれば

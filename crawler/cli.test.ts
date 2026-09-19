@@ -28,7 +28,7 @@ function result(partial: Partial<AdapterResult> & Pick<AdapterResult, "storeSlug
 }
 
 describe("formatActorOutput", () => {
-  it("企画書 §34 の形式でストアごとに新しい順に並べる", () => {
+  it("ストアごとに新しい順に並べる", () => {
     const output = formatActorOutput([
       result({
         storeSlug: "dlsite",

@@ -13,7 +13,7 @@ import {
 } from "./anime-entity.ts";
 
 /**
- * アニメ導線のデータ生成 (設計 `docs/feature-proposals/anime-season-entry-design-2026-09-18.md` §4)。
+ * アニメ導線のデータ生成。
  *
  *   node crawler/discovery/build-anime.ts
  *
@@ -22,7 +22,7 @@ import {
  *
  * 出力に入れるのは「対象声優が 1 人以上出ている作品」だけ。全キャストを保存すると
  * AniList の Hoarding 禁止に触れ、「アニメのキャスト DB ではない」という製品の線
- * (`docs/design/architecture.md` §1) も越える
+ * (`docs/product.md` の「作らないもの」) も越える
  */
 
 const DISCOVERY_DIR = path.join(CACHE_DIR, "discovery");

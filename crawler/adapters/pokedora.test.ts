@@ -18,14 +18,14 @@ import {
 } from "./pokedora.ts";
 
 // fetchByActor の分岐 (ページ送り・詳細の飛ばし) だけをネットワーク無しで確かめるための差し替え。
-// 解析そのものはフィクスチャ側のテストで見ている (設計書 §8: 素の fetch は呼ばない)
+// 解析そのものはフィクスチャ側のテストで見ている (素の fetch は呼ばない)
 vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
 const { fetchText } = await import("../lib/fetch.ts");
 const fetchTextMock = vi.mocked(fetchText);
 
 /**
  * 実際に取得した HTML (crawler/fixtures/) に対する固定テスト。
- * ポケドラの HTML 構造が変わったらここが落ちる。ネットワークには出ない (設計書 §8)
+ * ポケドラの HTML 構造が変わったらここが落ちる。ネットワークには出ない
  */
 
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
@@ -115,7 +115,7 @@ describe("parseSearchHtml (タグページ)", () => {
       ageRating: "general",
       fetchedAt: FETCHED_AT,
     });
-    // 発売日はポケドラのどのページにも無い (設計書 §7 の初回発見日で新着判定する側に乗る)
+    // 発売日はポケドラのどのページにも無い (初回発見日で新着判定する側に乗る)
     expect(work?.releaseDate).toBeUndefined();
     // 一覧には出演声優が出ない。詳細で埋める
     expect(work?.creditedNames).toEqual([]);
@@ -124,7 +124,7 @@ describe("parseSearchHtml (タグページ)", () => {
   it("BL のページから取った作品は storeSection が bl になる", () => {
     const parsed = parseSearchHtml(tagBlHtml, FETCHED_AT);
     expect(parsed.works.every((work) => work.storeSection === "bl")).toBe(true);
-    // BL は年齢区分ではなく内容の区分なので ageRating は general のまま (設計書 §14)
+    // BL は年齢区分ではなく内容の区分なので ageRating は general のまま
     expect(parsed.works.every((work) => work.ageRating === "general")).toBe(true);
   });
 

@@ -37,7 +37,7 @@ describe("requireIngestProtocolVersion", () => {
   });
 
   it("protocolVersion が無い本文は 409 にする", async () => {
-    // この仕組みが入る前のクローラー。素通りさせると事故がそのまま再発する
+    // この仕組みが入る前のクローラー。素通りさせると古い形のペイロードが記録なしに捨てられる
     const response = requireIngestProtocolVersion({ runId: "run_1", works: [] }, 1);
     expect(response?.status).toBe(409);
     const body = (await response?.json()) as { receivedProtocolVersion: number | null };

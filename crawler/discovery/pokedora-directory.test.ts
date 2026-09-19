@@ -36,7 +36,7 @@ describe("buildDirectory", () => {
   });
 
   it("一般 + BL が 0 件の声優は載せない (引いても必ず 0 件で往復が無駄になる)", () => {
-    // オトナ向けに 56 件あっても、取得対象の 2 区分が 0 なら引かない (設計書 §14)
+    // オトナ向けに 56 件あっても、取得対象の 2 区分が 0 なら引かない
     const directory = buildDirectory([record(1, "佐藤泰臣", { men: 0, bl: 0, adt: 56 })]);
     expect(lookupActor(directory, "佐藤泰臣")).toBeUndefined();
   });

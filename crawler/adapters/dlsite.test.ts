@@ -15,14 +15,14 @@ import {
 } from "./dlsite.ts";
 
 // fetchByActor の分岐 (古い順での補完) だけをネットワーク無しで確かめるための差し替え。
-// 解析そのものは上のフィクスチャ側のテストで見ている (設計書 §8: 素の fetch は呼ばない)
+// 解析そのものは上のフィクスチャ側のテストで見ている (素の fetch は呼ばない)
 vi.mock("../lib/fetch.ts", () => ({ fetchText: vi.fn() }));
 const { fetchText } = await import("../lib/fetch.ts");
 const fetchTextMock = vi.mocked(fetchText);
 
 /**
  * 実際に取得した HTML / JSON (crawler/fixtures/) に対する固定テスト。
- * DLsite の HTML 構造が変わったらここが落ちる。ネットワークには出ない (設計書 §8)
+ * DLsite の HTML 構造が変わったらここが落ちる。ネットワークには出ない
  */
 
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
@@ -98,7 +98,7 @@ describe("parseSearchHtml", () => {
   });
 
   it("埋め込み JSON の総件数を totalCount に載せる", () => {
-    // 上田麗奈は全期間 27 件。1 ページ目だけで取り切れている (設計書 §13)
+    // 上田麗奈は全期間 27 件。1 ページ目だけで取り切れている
     expect(parsed.totalCount).toBe(27);
   });
 
@@ -120,7 +120,7 @@ describe("parseSearchHtml", () => {
       ageRating: "general",
       storeSection: "home",
       fetchedAt: FETCHED_AT,
-      // 一覧に発売日は無い (設計書 §3)。product.json で補う
+      // 一覧に発売日は無い。product.json で補う
       releaseDate: undefined,
     });
   });
@@ -252,7 +252,7 @@ describe("toAgeRating", () => {
     expect(toAgeRating(3)).toBe("r18");
   });
 
-  // 区分が読めなかった作品を「全年齢」と言い切らない (設計書 §14)
+  // 区分が読めなかった作品を「全年齢」と言い切らない
   it("区分が無ければ unknown", () => {
     expect(toAgeRating(undefined)).toBe("unknown");
   });

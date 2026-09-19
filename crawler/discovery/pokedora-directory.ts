@@ -6,7 +6,7 @@ import { CACHE_DIR } from "../lib/paths.ts";
 import type { PokedoraTagRecord, PokedoraTagsCache } from "./pokedora-tags.ts";
 
 /**
- * ポケドラの声優タグ辞書 (段階 1 の成果) を、クロール時に引ける形に直す (T23)。
+ * ポケドラの声優タグ辞書 (段階 1 の成果) を、クロール時に引ける形に直す。
  *
  * ポケドラは名前で検索しない。声優は `tag_id` というタグで、一覧の URL にその ID が要る。
  * 辞書は 3,161 件の一度きりのバッチで作ってあるので (`pokedora-tags.ts`)、
@@ -23,7 +23,7 @@ export const TAGS_JSON = path.join(DISCOVERY_DIR, "pokedora-tags.json");
 /** クロール中に見えた (tag_id, 表記) の蓄積先 */
 export const ACTOR_REFS_JSON = path.join(DISCOVERY_DIR, "pokedora-actor-refs.json");
 
-/** 取得対象のストア区分。オトナ向け 2 つは引かない (設計書 §14) */
+/** 取得対象のストア区分。オトナ向け 2 つは引かない */
 const TARGET_SECTIONS = ["men", "bl"] as const;
 
 /** 正規化した名前 → その名前に付いている tag_id (件数つき) */
@@ -89,7 +89,7 @@ export function lookupActor(
  *
  * `names` を配列で持つのは、同じ tag_id に別の表記が付いて見えたときにそれを残すため。
  * 「同じ tag_id なら同一人物」はストア由来の事実なので、そこに 2 つの表記が並べば
- * それが別名義 / 表記揺れの根拠になる (設計書 §3)
+ * それが別名義 / 表記揺れの根拠になる
  */
 export type PokedoraActorRefRecord = {
   tagId: number;
@@ -143,7 +143,7 @@ export function mergeActorRefs(
  *
  * DB ではなくクローラー側のキャッシュに置いている。tag_id を DB まで運ぶには
  * `RawWork` / `IngestPayload` に項目を足す必要があり、走行中の他ストアのクロールに
- * 影響する版上げを伴うため、今回はそこまで踏み込まない (T23 の報告を参照)。
+ * 影響する版上げを伴うため、今回はそこまで踏み込まない。
  * 一時ファイルに書いてから rename するのは、長いクロールの途中で中断されても
  * JSON が壊れないようにするため
  */

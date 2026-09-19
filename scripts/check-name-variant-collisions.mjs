@@ -1,6 +1,6 @@
 // scripts/check-name-variant-collisions.mjs
 //
-// なぜ: `normalizeName` に人名の異体字の畳み込みを入れると (T21 / decisions.md §16)、
+// なぜ: `normalizeName` に人名の異体字の畳み込みを入れると、
 // 名寄せと検索の鍵が粗くなる。粗くすれば取りこぼしは減るが、**別人が同じ鍵になる**危険が増える。
 // 「増えたのは一致だけで、衝突は増えていない」を実データで確かめないと入れられないので、
 // ローカル D1 の声優 2,569 人を全部通して衝突を数える。
@@ -18,7 +18,7 @@ import { nameVariantPairs, normalizeName } from "../src/domain/normalize.ts";
 const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
 
 /**
- * 異体字を畳む前の `normalizeName` (T21 以前の実装をそのまま写したもの)。
+ * 異体字を畳む前の `normalizeName` (異体字の畳み込みを入れる前の実装をそのまま写したもの)。
  *
  * 現行の実装から畳み込みだけを外す手段が無いので、比較対象をここに固定する。
  * これは「変更前はこうだった」という基準線であり、本番の名寄せには使われない

@@ -12,7 +12,7 @@ import { summarizeRecords } from "./pokedora-tags.ts";
 
 /**
  * ポケドラの声優タグ辞書 (段階 1 の成果) と AniList の 2,569 人を突き合わせ、
- * 交差の規模と段階 3・4 の所要時間を数える (設計書 §15 の訂正「ポケドラの取得手順」段階 2)。
+ * 交差の規模と段階 3・4 の所要時間を数える (ポケドラの取得手順の段階 2)。
  *
  *   node crawler/discovery/pokedora-intersect.ts
  *
@@ -268,7 +268,7 @@ export function buildReport(input: {
   lines.push("");
   lines.push("Date: 2026-09-18");
   lines.push("Status: 段階 1 (声優タグ辞書) 完了 / 段階 2 (交差の測定) 完了");
-  lines.push("Scope: 設計書 §15 の訂正「ポケドラの取得手順」の段階 1・2");
+  lines.push("Scope: ポケドラの取得手順の段階 1 (声優タグ辞書)・2 (交差の測定)");
   lines.push("");
   lines.push("本書の数字はすべて実データから機械的に出した。推測には「(推測)」と明記する。");
   lines.push("再生成: `node crawler/discovery/pokedora-intersect.ts` (ネットワークに出ない)");
@@ -337,7 +337,7 @@ export function buildReport(input: {
     "**この交差は異体字を畳んだ後の数字である。** 両サイトで漢字の字体が割れる実例があり " +
       "(ポケドラ 天﨑滉平 / AniList 天崎滉平)、初回の計測 (2026-09-18) では畳めば交差に入る人が " +
       "8 人 (延べ 60 件) 漏れていた。その後 `normalizeName` に人名の異体字の変換表を入れたので " +
-      "(decisions.md §16 / T21)、上の交差人数にはこの層が含まれている。",
+      "上の交差人数にはこの層が含まれている。",
   );
   lines.push("");
   lines.push(
@@ -351,7 +351,7 @@ export function buildReport(input: {
   lines.push("## 3. 交差した声優の作品数");
   lines.push("");
   lines.push(
-    "オトナ向け 2 ストア (`adt` / `adt-bl`) は設計書 §14 により取得対象外。参考として合計だけ載せる。",
+    "オトナ向け 2 ストア (`adt` / `adt-bl`) は取得対象外 (`docs/decisions/0003-no-r18-keep-bl.md`)。参考として合計だけ載せる。",
   );
   lines.push("");
   lines.push("| 区分 | 合計件数 |");

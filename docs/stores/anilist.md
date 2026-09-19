@@ -1,5 +1,9 @@
 # AniList
 
+読者: `crawler/discovery/anilist.ts` や `build-actors.ts` を触る前の人。公開前に利用規約を確かめる人
+更新: robots.txt・レート制限・利用規約を取り直したら (差分が無くても最終確認日を更新する)
+削除: AniList を対象声優の供給元から外したら
+
 実装: `crawler/discovery/anilist.ts` / `build-actors.ts` / `actor-entity.ts` / `cli.ts`
 共通の原則は [`README.md`](./README.md)。
 
@@ -256,8 +260,8 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 - [`docs/research/discovery-spike-2026-09-18.md`](../research/discovery-spike-2026-09-18.md) —
   12 シーズン 1,176 作品から 2,569 人、DLsite との交差 57 人、`roleCount` の無相関、
   AniList へのリクエストは通し実行で 24 件
-- [`docs/design/decisions.md`](../design/decisions.md) §2 — 対象声優を AniList 交差で機械的に決める
-- [`docs/design/architecture.md`](../design/architecture.md) §2 — slug の生成規則と除外条件
+- [`docs/decisions/0001-target-actors-from-anilist.md`](../decisions/0001-target-actors-from-anilist.md) — 対象声優の定義
+- `crawler/discovery/actor-entity.ts` — slug の生成規則と除外条件
 - <https://anilist.co/robots.txt> / <https://graphql.anilist.co/robots.txt> — 2026-09-19 確認 (§1)
 - <https://docs.anilist.co/guide/rate-limiting> — 2026-09-19 確認 (§2)
 - <https://docs.anilist.co/guide/terms-of-use> — 2026-09-19 確認 (§6)

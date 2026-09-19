@@ -239,73 +239,7 @@ describe("buildActorEntities", () => {
   });
 });
 
-/**
- * 手書きシード 35 人の slug が生成規則でどう変わるかを固定する (T13 の決定)。
- *
- * 25 人はそのまま、10 人は長音の扱いだけが変わる (kito → kitou など)。
- * ここが崩れたら生成規則か AniList のデータが変わったということなので、
- * URL が黙って入れ替わる前に気づけるようにする
- */
-describe("手書きシードとの突き合わせ", () => {
-  /** 長音違いで slug が変わる 10 人。左が手書き、右が生成 */
-  const RENAMED: Array<[canonicalName: string, before: string, after: string]> = [
-    ["鬼頭明里", "kito-akari", "kitou-akari"],
-    ["悠木碧", "yuki-aoi", "yuuki-aoi"],
-    ["東山奈央", "toyama-nao", "touyama-nao"],
-    ["大西沙織", "onishi-saori", "oonishi-saori"],
-    ["伊藤美来", "ito-miku", "itou-miku"],
-    ["日笠陽子", "hikasa-yoko", "hikasa-youko"],
-    ["梶裕貴", "kaji-yuki", "kaji-yuuki"],
-    ["中村悠一", "nakamura-yuichi", "nakamura-yuuichi"],
-    ["斉藤壮馬", "saito-soma", "saitou-souma"],
-    ["小野賢章", "ono-kensho", "ono-kenshou"],
-  ];
-
-  it("25 人は一致し、10 人は長音の扱いだけが変わる", async () => {
-    const seeds = await readJson<
-      Array<{ slug: string; canonicalName: string; anilistStaffId: number }>
-    >(path.join(CRAWLER_DIR, "actors.json"));
-    const overrides = await readJson<ActorOverrides>(
-      path.join(CRAWLER_DIR, "actors-overrides.json"),
-    );
-    const { actors } = buildActorEntities(await readStaff(), overrides);
-    const generatedById = new Map(actors.map((actor) => [actor.anilistStaffId, actor]));
-
-    const unchanged: string[] = [];
-    const renamed: Array<[string, string, string]> = [];
-    for (const seed of seeds) {
-      const generated = generatedById.get(seed.anilistStaffId);
-      expect(generated, `${seed.canonicalName} が生成結果に居ない`).toBeDefined();
-      if (generated === undefined) continue;
-      if (generated.slug === seed.slug) unchanged.push(seed.slug);
-      else renamed.push([seed.canonicalName, seed.slug, generated.slug]);
-    }
-
-    expect(seeds).toHaveLength(35);
-    expect(unchanged).toHaveLength(25);
-    expect(renamed.sort()).toEqual([...RENAMED].sort());
-  });
-
-  it("手書きの nameKana と検証済み別名はオーバーライド経由で全員に引き継がれる", async () => {
-    const seeds = await readJson<
-      Array<{ canonicalName: string; nameKana?: string; anilistStaffId: number }>
-    >(path.join(CRAWLER_DIR, "actors.json"));
-    const overrides = await readJson<ActorOverrides>(
-      path.join(CRAWLER_DIR, "actors-overrides.json"),
-    );
-    const { actors } = buildActorEntities(await readStaff(), overrides);
-    const generatedById = new Map(actors.map((actor) => [actor.anilistStaffId, actor]));
-
-    for (const seed of seeds) {
-      const generated = generatedById.get(seed.anilistStaffId);
-      expect(generated?.nameKana, seed.canonicalName).toBe(seed.nameKana);
-      expect(
-        generated?.aliases.every((alias) => alias.verified),
-        seed.canonicalName,
-      ).toBe(true);
-    }
-  });
-
+describe("オーバーライドとの突き合わせ", () => {
   it("同じローマ字になる別人はオーバーライドで解決済み", async () => {
     const overrides = await readJson<ActorOverrides>(
       path.join(CRAWLER_DIR, "actors-overrides.json"),
@@ -321,7 +255,7 @@ async function readJson<T>(file: string): Promise<T> {
 
 /**
  * テスト用の staff 抜粋。実データ (`crawler/.cache/discovery/anilist-staff.json`) は
- * リポジトリに入らないので、手書きシード 35 人ぶんと、slug が衝突する 2 組、
+ * リポジトリに入らないので、代表的な 35 人ぶんと、slug が衝突する 2 組、
  * fullName が 1 語の例だけを fixtures に切り出してある
  */
 async function readStaff(): Promise<StaffInput[]> {

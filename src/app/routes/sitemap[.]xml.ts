@@ -5,7 +5,7 @@ import { sitemapEntries } from "@/server/queries/works";
 import { siteOrigin } from "@/server/site";
 
 /**
- * sitemap.xml (設計書 §6)。声優ページを検索エンジンにインデックスさせるのが目的なので、
+ * sitemap.xml。声優ページを検索エンジンにインデックスさせるのが目的なので、
  * 声優と作品の URL を並べる。ファイル名の `[.]` は TanStack Router の
  * 「リテラルのドット」のエスケープで、ルートは `/sitemap.xml` になる。
  *

@@ -412,7 +412,7 @@ describe("crawlerHealth", () => {
   });
 
   it("網羅率の記録が無い run は undefined のまま返す", async () => {
-    // 総件数を読めなかった run を「完全」にも「不完全」にも倒さない (設計書 §13)
+    // 総件数を読めなかった run を「完全」にも「不完全」にも倒さない
     const db = await setupDb();
     await addRun(db, { id: "r1", startedAt: daysAgo(1), workCount: 27, status: "ok" });
 

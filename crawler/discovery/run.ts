@@ -2,11 +2,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { normalizeName } from "../../src/domain/normalize.ts";
 import { audibleAdapter } from "../adapters/audible.ts";
 import { parseProductJson } from "../adapters/dlsite.ts";
 import { fetchText } from "../lib/fetch.ts";
-import type { ActorSeed } from "../lib/ingest.ts";
 import { CACHE_DIR, CRAWLER_DIR, SNAPSHOT_DIR, safeFileName } from "../lib/paths.ts";
 import {
   aggregateStaff,
@@ -32,7 +30,7 @@ import {
 } from "./intersect.ts";
 
 /**
- * 発見スパイク (T9 / 設計書 §9)。
+ * 発見スパイク。
  *
  *   node crawler/discovery/run.ts --limit 1500 --audible
  *
@@ -46,7 +44,6 @@ const ANILIST_STAFF_JSON = path.join(DISCOVERY_DIR, "anilist-staff.json");
 const ANILIST_CREDITS_JSON = path.join(DISCOVERY_DIR, "anilist-credits.json");
 const SITEMAP_JSON = path.join(DISCOVERY_DIR, "dlsite-sitemap.json");
 const DLSITE_WORKS_JSON = path.join(DISCOVERY_DIR, "dlsite-works.json");
-const ACTORS_JSON = path.join(CRAWLER_DIR, "actors.json");
 const REPORT_PATH = path.resolve(CRAWLER_DIR, "..", "docs/research/discovery-spike-2026-09-18.md");
 
 /** 集計の基準日。スパイクの実行日 */
@@ -54,12 +51,10 @@ const TODAY = "2026-09-18";
 const WINDOW_DAYS = 90;
 /** 交差の上位何人を表に出すか */
 const TOP_ROWS = 60;
-/** Audible を引く人数 (シードに居ない交差上位) */
+/** Audible を引く人数 (交差上位) */
 const AUDIBLE_SAMPLE = 20;
 /** キャッシュ無しで通しで走らせたときの実測 (2026-09-18)。再生成すると所要時間が短く出るため併記する */
 const FULL_RUN_MINUTES = 64;
-/** T5 の暫定シード 35 人クロールで取れた DLsite 作品の総数 (期間を限定しない値) */
-const SEED_CRAWL_TOTAL_WORKS = 199;
 /** DLsite 側だけの名前の上位何件を表に出すか */
 const DLSITE_ONLY_ROWS = 20;
 /** RJ 番号と発売日の関係を測るための先頭サンプル数 */
@@ -437,7 +432,7 @@ async function runAniListPhase(options: {
 }): Promise<AniListPhaseResult> {
   if (!options.refresh) {
     const cached = await readJson<AniListPhaseResult>(ANILIST_STAFF_JSON);
-    // 取得条件が違う中間結果を黙って使うと、シーズン数を増やしたのに数字が変わらない事故になる。
+    // 取得条件が違う中間結果を黙って使うと、シーズン数を増やしたのに数字が変わらないことになる。
     // クエリの指紋も見るのは、取得項目を増やしたときに「形は新しいが中身が古い」中間結果を
     // 再利用してしまうため (2026-09-18 に実際に踏んだ。キャラクター名が全件空のまま通った)
     const sameScope =
@@ -494,7 +489,7 @@ async function runAudiblePhase(
   const probes: AudibleProbe[] = [];
   for (const row of rows) {
     // 空白入りの候補は AniList の fullName (ローマ字) からは作れないので、
-    // DLsite 側の表記に空白があるときだけ足す (T8 の Audible 検索の揺れ対策)
+    // DLsite 側の表記に空白があるときだけ足す (Audible 検索の揺れ対策)
     const searchNames =
       row.spacedName === undefined ? [row.nativeName] : [row.spacedName, row.nativeName];
     const result = await audibleAdapter.fetchByActor(
@@ -525,10 +520,6 @@ async function readJson<T>(filePath: string): Promise<T | undefined> {
 async function writeJson(filePath: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-async function loadSeeds(): Promise<ActorSeed[]> {
-  return JSON.parse(await readFile(ACTORS_JSON, "utf8")) as ActorSeed[];
 }
 
 // --- 本体 ------------------------------------------------------------------
@@ -579,12 +570,9 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   const targetWorks = filterTargetWorks(dlsite.works, windowStartIso);
   const worksByName = indexWorksByName(targetWorks);
-  const seeds = await loadSeeds();
-  const seedNormalized = new Set(seeds.map((seed) => normalizeName(seed.canonicalName)));
+  const result = intersect(anilist.staff, worksByName);
 
-  const result = intersect(anilist.staff, worksByName, seedNormalized);
-
-  const audibleTargets = result.rows.filter((row) => !row.inSeed).slice(0, AUDIBLE_SAMPLE);
+  const audibleTargets = result.rows.slice(0, AUDIBLE_SAMPLE);
   const audibleProbes =
     values.audible === true ? await runAudiblePhase(audibleTargets, snapshot) : [];
 
@@ -596,7 +584,6 @@ export async function main(argv: readonly string[]): Promise<number> {
     targetWorks,
     worksByName,
     result,
-    seeds,
     audibleProbes,
     elapsedMinutes,
     limit,
@@ -620,7 +607,6 @@ type ReportInput = {
     ReturnType<typeof indexWorksByName> extends Map<string, infer V> ? V : never
   >;
   result: ReturnType<typeof intersect>;
-  seeds: ActorSeed[];
   audibleProbes: AudibleProbe[];
   elapsedMinutes: number;
   limit: number;
@@ -637,13 +623,6 @@ function buildReport(input: ReportInput): string {
     for (const workno of row.worknos) ambiguousWorknos.add(workno);
   }
 
-  // シードの 90 日作品数を同じデータから数え直す。T5 の 199 件は期間を限定しない総数なので比較できない
-  const seedWorknos = new Set<string>();
-  for (const seed of input.seeds) {
-    const stat = input.worksByName.get(normalizeName(seed.canonicalName));
-    for (const workno of stat?.worknos ?? []) seedWorknos.add(workno);
-  }
-
   const workCounts = result.rows.map((row) => row.workCount);
   const distribution = describeDistribution(workCounts);
   const allNameCounts = [...input.worksByName.values()].map((stat) => stat.worknos.length);
@@ -652,7 +631,7 @@ function buildReport(input: ReportInput): string {
   const pearsonValue = pearson(roleCounts, workCounts);
   const spearmanValue = spearman(roleCounts, workCounts);
 
-  // Audible を引いたのは交差上位のうちシードに居ない一部だけなので、引いていない人は "-" にする
+  // Audible を引いたのは交差上位の一部だけなので、引いていない人は "-" にする
   const audibleByName = new Map(input.audibleProbes.map((probe) => [probe.nativeName, probe]));
   const audibleCell = (nativeName: string): string => {
     const probe = audibleByName.get(nativeName);
@@ -661,24 +640,20 @@ function buildReport(input: ReportInput): string {
     return `${probe.workCount}`;
   };
 
-  const staffByNormalized = new Map(
-    anilist.staff.map((person) => [normalizeName(person.nativeName), person]),
-  );
-
   const lines: string[] = [];
   const push = (...values: string[]) => lines.push(...values);
 
   push(
     "# 発見スパイク: AniList × DLsite sitemap の交差 (2026-09-18)",
     "",
-    "設計書 §9「対象声優の定義」を実データで確かめた記録。DB には書き込んでいない。",
+    "対象声優の定義 (AniList × DLsite の交差、当時の案) を実データで確かめた記録。DB には書き込んでいない。",
     "",
     `- 集計対象期間: **${input.windowStartIso} 〜 ${TODAY}** (${WINDOW_DAYS} 日 = ${weeks.toFixed(1)} 週)`,
     `- 実行: \`node crawler/discovery/run.ts --limit ${input.limit}${input.audibleProbes.length > 0 ? " --audible" : ""}\``,
     `- この出力の所要時間: 約 ${input.elapsedMinutes.toFixed(0)} 分`,
     `- キャッシュ無しの通し実行は **${FULL_RUN_MINUTES} 分** (2026-09-18 実施)。AniList と DLsite は`,
     "  レート制限の枠が別なので同時に走らせており、全体の時間は DLsite への間隔で決まる",
-    "  (この 64 分は product.json を 2 秒間隔で引いていた頃の実測。T12 で robots.txt の",
+    "  (この 64 分は product.json を 2 秒間隔で引いていた頃の実測。その後 robots.txt の",
     "  Crawl-delay: 10 に揃えたため、いま同じことをすればもっとかかる)",
     `- 外部へのリクエスト: AniList ${anilist.requestCount + anilist.cachedCount} 件、DLsite ${dlsite.stats.requested + dlsite.sitemapStats.length + 1} 件 (sitemap ${dlsite.sitemapStats.length + 1} 本を含む)、Audible ${input.audibleProbes.length} 件`,
     "",
@@ -687,7 +662,6 @@ function buildReport(input: ReportInput): string {
     `- 交差した声優: **${result.rows.length} 人** (同名で曖昧なもの ${result.ambiguousRows.length} 人は別枠)`,
     `- その ${WINDOW_DAYS} 日の DLsite 全年齢音声作品: **${intersectedWorknos.size} 件 = 週 ${(intersectedWorknos.size / weeks).toFixed(1)} 件**`,
     `- 1 人あたりの作品数: 中央値 ${distribution.median} 件、上位 25% は ${distribution.p75} 件以上、最大 ${distribution.max} 件`,
-    `- 同じ 90 日で暫定シード ${input.seeds.length} 人が拾えるのは ${seedWorknos.size} 件 (週 ${(seedWorknos.size / weeks).toFixed(1)} 件)。交差はその ${seedWorknos.size === 0 ? "-" : (intersectedWorknos.size / seedWorknos.size).toFixed(1)} 倍`,
     `- \`roleCount\` (アニメでの役の多さ) と DLsite の作品数はほぼ無相関 (スピアマン ${formatCorrelation(spearmanValue)})。**主役級ほど音声作品が多い、ということはない**`,
     "",
     "## 2. AniList 側 (需要側)",
@@ -775,16 +749,15 @@ function buildReport(input: ReportInput): string {
     "",
     `### 交差の上位 ${TOP_ROWS} 人`,
     "",
-    "`Audible` 列は `--audible` で実際に引いた人だけ入る (交差上位のうちシードに居ない " +
-      `${AUDIBLE_SAMPLE} 人)。引いていない人は "-"。`,
+    `\`Audible\` 列は \`--audible\` で実際に引いた人だけ入る (交差上位 ${AUDIBLE_SAMPLE} 人)。引いていない人は "-"。`,
     "",
-    `| # | 名前 | AniList id | roleCount | 主役 | ${WINDOW_DAYS}日作品数 | シード | Audible | 最新シーズン |`,
-    "|---:|---|---:|---:|---:|---:|---|---:|---|",
+    `| # | 名前 | AniList id | roleCount | 主役 | ${WINDOW_DAYS}日作品数 | Audible | 最新シーズン |`,
+    "|---:|---|---:|---:|---:|---:|---:|---|",
     ...result.rows
       .slice(0, TOP_ROWS)
       .map(
         (row, index) =>
-          `| ${index + 1} | ${row.nativeName} | ${row.anilistStaffId} | ${row.roleCount} | ${row.mainRoleCount} | ${row.workCount} | ${row.inSeed ? "有" : "-"} | ${audibleCell(row.nativeName)} | ${row.latestSeason} |`,
+          `| ${index + 1} | ${row.nativeName} | ${row.anilistStaffId} | ${row.roleCount} | ${row.mainRoleCount} | ${row.workCount} | ${audibleCell(row.nativeName)} | ${row.latestSeason} |`,
       ),
     "",
   );
@@ -808,56 +781,10 @@ function buildReport(input: ReportInput): string {
     );
   }
 
-  // シードの取りこぼし
-  const seedRows = input.seeds.map((seed) => {
-    const normalized = normalizeName(seed.canonicalName);
-    const inAniList = staffByNormalized.has(normalized);
-    const stat = input.worksByName.get(normalized);
-    const matched = result.rows.some((row) => normalizeName(row.nativeName) === normalized);
-    const ambiguousMatched = result.ambiguousRows.some(
-      (row) => normalizeName(row.nativeName) === normalized,
-    );
-    return { seed, inAniList, workCount: stat?.worknos.length ?? 0, matched, ambiguousMatched };
-  });
-  const missed = seedRows.filter((row) => !row.matched);
-
   push(
-    `## 5. 現在のシード ${input.seeds.length} 人との突き合わせ`,
+    `## 5. 交差に入らなかった DLsite 側の名前 (上位 ${DLSITE_ONLY_ROWS})`,
     "",
-    `交差に入った: **${seedRows.length - missed.length} 人** / 入らなかった: **${missed.length} 人**`,
-    "",
-    "| 名前 | AniList の対象シーズンに居るか | DLsite の対象期間作品 | 理由 |",
-    "|---|---|---:|---|",
-    ...missed.map((row) => {
-      const reason = row.ambiguousMatched
-        ? "同名の別 staff が居るため曖昧扱い"
-        : !row.inAniList && row.workCount === 0
-          ? "AniList の対象シーズンに出演なし かつ DLsite に対象期間の作品なし"
-          : !row.inAniList
-            ? "AniList の対象シーズンに出演なし"
-            : "DLsite に対象期間の全年齢音声作品なし";
-      return `| ${row.seed.canonicalName} | ${row.inAniList ? "有" : "無"} | ${row.workCount} | ${reason} |`;
-    }),
-    "",
-    "### シードの実績との比較",
-    "",
-    `T5 で記録した「DLsite ${SEED_CRAWL_TOTAL_WORKS} 作品」は**期間を限定しない総数**で、`,
-    "声優ごとの検索結果 1 ページ目 (最大 30 件) を 35 人ぶん足したものだった。",
-    `同じ 90 日の枠で数え直すと、シード ${input.seeds.length} 人の作品は **${seedWorknos.size} 件**しかない。`,
-    "フィード密度を比べるならこちらが正しい基準になる。",
-    "",
-    "| 集計 | 対象声優 | 90 日の作品数 | 週あたり |",
-    "|---|---:|---:|---:|",
-    `| 暫定シード | ${input.seeds.length} | ${seedWorknos.size} | ${(seedWorknos.size / weeks).toFixed(1)} |`,
-    `| 今回の交差 | ${result.rows.length} | ${intersectedWorknos.size} | ${(intersectedWorknos.size / weeks).toFixed(1)} |`,
-    `| DLsite 全年齢音声のすべて (交差前) | ${input.worksByName.size} 名義 | ${targetWorks.length} | ${(targetWorks.length / weeks).toFixed(1)} |`,
-    "",
-    `交差はシードの ${seedWorknos.size === 0 ? "-" : (intersectedWorknos.size / seedWorknos.size).toFixed(1)} 倍の作品を拾い、`,
-    `DLsite 全年齢音声全体の ${((intersectedWorknos.size / Math.max(1, targetWorks.length)) * 100).toFixed(0)}% を覆う。`,
-    "",
-    `## 6. 交差に入らなかった DLsite 側の名前 (上位 ${DLSITE_ONLY_ROWS})`,
-    "",
-    "「アニメと接続しない同人声優」の規模感。設計書 §9 ではフォロー対象にしないが、",
+    "「アニメと接続しない同人声優」の規模感。対象声優の定義ではフォロー対象にしないが、",
     "クレジット表記としては残す層。",
     "",
     "| # | 名前 | 作品数 |",
@@ -873,7 +800,7 @@ function buildReport(input: ReportInput): string {
 
   if (input.audibleProbes.length > 0) {
     push(
-      "## 7. Audible の裏取り (交差上位のうちシードに居ない人)",
+      "## 6. Audible の裏取り (交差上位)",
       "",
       "| 名前 | 検索に使った語 | 結果 | 作品数 |",
       "|---|---|---|---:|",
@@ -885,14 +812,14 @@ function buildReport(input: ReportInput): string {
       `Audible に作品がある人: ${input.audibleProbes.filter((probe) => probe.workCount > 0).length} / ${input.audibleProbes.length}`,
       "",
       "この表は交差上位のうちシードに居ない声優だけを引いたもので、交差の判定には使っていない。",
-      "設計書 §9 の定義は「DLsite 全年齢音声か Audible に作品がある人」なので、Audible 側だけに",
+      "当時の定義は「DLsite 全年齢音声か Audible に作品がある人」なので、Audible 側だけに",
       "作品がある声優は今回の交差には現れない。その層の規模は別途測る必要がある。",
       "",
     );
   }
 
   push(
-    "## 8. 判断のメモ",
+    "## 7. 判断のメモ",
     "",
     "- **90 日境界の決め方 (一番迷った点)**: sitemap に発売日は無く、`lastmod` は再編集でも動くので",
     "  期間で直接絞れない。当初は「新しい順 200 件の (RJ 番号, regist_date) から最小二乗法で",
@@ -910,7 +837,7 @@ function buildReport(input: ReportInput): string {
         : "`--limit` は効いていないので、この期間の作品は sitemap に載っている範囲で全件見ている"),
     `- **sitemap に載っていても引けない作品**: product.json が \`[]\` を返す作品が ${dlsite.stats.notFound} 件あった`,
     `  (引いた ${dlsite.stats.requested} 件の ${((dlsite.stats.notFound / Math.max(1, dlsite.stats.requested)) * 100).toFixed(1)}%)。予約ページなど、一覧には出るが API には無いものと見られる。数から除いている`,
-    "- **sitemap の網羅性を別経路で確認した**: T5 で声優名検索から取った product.json のうち",
+    "- **sitemap の網羅性を別経路で確認した**: 暫定シード 35 人の声優名検索から取った product.json のうち",
     "  対象期間の SOU 全年齢だったもの 14 件は、**14 件とも sitemap に載っていた**。",
     "  sitemap 経由の発見が検索経由より取りこぼすということは無い",
     "- **同名の扱い**: AniList に同じ `nativeName` を持つ staff が複数居るとき、DLsite の名前から",

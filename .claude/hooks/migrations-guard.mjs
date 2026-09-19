@@ -8,7 +8,7 @@
  *
  * なぜ Stop が本命か: `npm run db:generate` は drizzle-kit が migrations/*.sql を
  * 直接書き出すので Edit / Write ツールを通らない。ファイルがどう作られたかに関係なく
- * 捕まえられるのは Stop だけ。2 回の事故 (docs/design/decisions.md §14) はこの経路だった。
+ * 捕まえられるのは Stop だけ。
  *
  * 設計上の約束:
  * - 編集やコマンド実行はブロックしない。PostToolUse は「実行後に促す」だけ
@@ -16,10 +16,10 @@
  *   Claude Code 本体が「Stop フックでは stop_hook_active を見て true の間は成功を返せ」
  *   と案内しているため。無限ループを作らない
  * - ローカル D1 が無い / 検査スクリプトが無い / 検査が起動できない、はすべて成功扱い。
- *   hook の不調でターンが終われなくなる事故を作らない
+ *   hook の不調でターンが終われなくなる状態を作らない
  * - jq に依存しない。hook の入力 JSON は stdin から node が読む
  *
- * 実体の検査は scripts/check-migrations.mjs (T17) が行う。
+ * 実体の検査は scripts/check-migrations.mjs が行う。
  */
 
 import { spawnSync } from "node:child_process";
@@ -113,7 +113,7 @@ process.stderr.write(
   [
     headline,
     "適用しないとコードと DB が食い違い、画面が落ちる。実行中のクロールがあれば静かに壊れる",
-    "(docs/design/decisions.md §14)。",
+    "(.claude/rules/migrations.md)。",
     detail ? `\n${CHECKER} の出力:\n${detail}` : "",
   ]
     .filter(Boolean)

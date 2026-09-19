@@ -152,7 +152,7 @@ export const ja = {
   },
 
   storeLink: {
-    /** 買う場所に合わせて動詞を変える (企画書 §15) */
+    /** 買う場所に合わせて動詞を変える */
     dlsite: "DLsite で見る",
     audible: "Audible で聴く",
     pokedora: "ポケドラで聴く",

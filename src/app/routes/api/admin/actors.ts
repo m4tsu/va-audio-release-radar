@@ -7,7 +7,7 @@ import { actorSeedSchema, upsertActors } from "@/server/queries/actors";
 import { summarizeIssues } from "@/server/validation";
 
 /**
- * 追跡する声優のシード投入。`crawler/actors.json` をそのまま流し込む想定で、
+ * 追跡する声優のシード投入。`crawler/actors.generated.json` をそのまま流し込む想定で、
  * ingest と同じ Bearer トークンを使う (どちらもクローラー側の運用操作のため)
  */
 

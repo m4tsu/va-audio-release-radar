@@ -1,5 +1,5 @@
 /**
- * wrangler secret / `.dev.vars` から注入される秘匿値の型 (設計書 §6)。
+ * wrangler secret / `.dev.vars` から注入される秘匿値の型。
  *
  * `worker-configuration.d.ts` は `wrangler types` の生成物で、wrangler.jsonc に書いた
  * バインディング (DB) しか載らない。secret はここで宣言のマージで足す。

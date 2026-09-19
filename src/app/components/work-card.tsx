@@ -15,9 +15,9 @@ import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkWithListings } from "@/app/lib/view-types";
 
 /**
- * 新着一覧の 1 作品。企画書 §6 のホーム画面に出す情報をこの 1 枚に収める。
+ * 新着一覧の 1 作品。ホーム画面に出す情報をこの 1 枚に収める。
  *
- * 評価もおすすめ度も出さない。出すのは「誰が出ている、どこで買える、いつ出た、いくら」だけ (企画書 §7)
+ * 評価もおすすめ度も出さない。出すのは「誰が出ている、どこで買える、いつ出た、いくら」だけ
  */
 export function WorkCard({
   item,
@@ -32,7 +32,7 @@ export function WorkCard({
   actors?: Array<{ id: string; slug: string; name: string; nameEn?: string }>;
   /**
    * 前回フィードを見たとき以降の作品。ブラウザにしか無い状態なので SSR では常に false で、
-   * ハイドレーション後にだけ印が付く (設計書 §10)
+   * ハイドレーション後にだけ印が付く
    */
   unread?: boolean;
 }) {

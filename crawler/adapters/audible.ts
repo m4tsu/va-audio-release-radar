@@ -13,7 +13,7 @@ import type {
 } from "./types.ts";
 
 /**
- * Audible Japan のアダプタ。手順は設計書 §3 のとおり:
+ * Audible Japan のアダプタ。手順:
  *
  * 1. `?searchNarrator={名前}` の 1 ページ目 (20 件) を取る
  * 2. 総件数が 1 ページに収まらないときは `&page=2`、`&page=3` … と順に足して和集合を取る
@@ -35,7 +35,7 @@ import type {
  * 最後の行は `sort` の**値を問わず**、`searchNarrator` との組み合わせそのものを禁じている。
  * 以前ここには並び順を変えた 1 ページ目を足していく実装 (SORT_LADDER) があったが、
  * その 6 種類はすべて禁止対象だった。同日中に取り下げた経緯は決定記録を参照
- * (`docs/design/decisions.md`)。パラメータの順序を入れ替えれば字面の一致は外せるが、
+ *。パラメータの順序を入れ替えれば字面の一致は外せるが、
  * コメントに `#Block alternative sort order for /search` と意図が書かれている以上、
  * それは規約の回避であって遵守ではない。
  *
@@ -56,7 +56,7 @@ import type {
  */
 
 const STORE_SLUG = "audible" as const;
-/** Audible は朗読以外の判定をしないので、ストア固有分類は 1 種類だけ (設計書 §4) */
+/** Audible は朗読以外の判定をしないので、ストア固有分類は 1 種類だけ */
 const AUDIBLE_STORE_CATEGORY = "audiobook";
 
 /**
@@ -94,7 +94,7 @@ const FIRST_PAGE = 1;
 const MAX_PAGES = 10;
 
 /**
- * 「検索語が広すぎる」と判断する一致率の下限 (T22-D)。
+ * 「検索語が広すぎる」と判断する一致率の下限。
  *
  * `searchNarrator=` は完全一致ではなく姓だけでも拾う。「佐藤 元」で引くと総件数 355 件が返るが、
  * 1 ページ目のナレーターは佐藤恵・佐藤詩乃・佐藤弘樹・佐藤佑暉・佐藤慧・佐藤正宏で、
@@ -122,13 +122,13 @@ export function buildSearchUrl(narratorName: string, page: number = FIRST_PAGE):
 
 /**
  * 商品 URL は正規形 (`/pd/{ASIN}`) を組み立てる。一覧の href は `/pd/{slug}/{ASIN}` の形で
- * スラッグ部分がタイトル変更で変わりうるため、そちらは使わない (設計書 §3)
+ * スラッグ部分がタイトル変更で変わりうるため、そちらは使わない
  */
 export function buildProductUrl(asin: string): string {
   return `https://www.audible.co.jp/pd/${asin}`;
 }
 
-/** 「ナレーター検索に該当なし」のときに飛ばされる先 (設計書 §3) */
+/** 「ナレーター検索に該当なし」のときに飛ばされる先 */
 const NO_SEARCH_RESULTS_PATH = "/no-search-results";
 
 /** 302 の Location が該当なしページかどうか。相対 URL で来ることがあるので絶対化して見る */
@@ -151,7 +151,7 @@ export function isNoSearchResultsLocation(location: string | undefined): boolean
  * - ちょうど 1 件 … 「検索結果 1 件」。`のうち` が出ない
  *
  * 500 人のクロールで総件数を読めなかった 73 件は**すべて取得 1 件**で、この後者の表記だった。
- * `のうち` だけを見ていたので取り逃していた (T22-C)。
+ * `のうち` だけを見ていたので取り逃していた。
  * 桁区切りのカンマは実測では出ていないが、4 桁以上で出たときに黙って落ちないよう許容する
  */
 const TOTAL_COUNT_PATTERNS = [/検索結果\s*([\d,]+)\s*のうち/, /検索結果\s*([\d,]+)\s*件/] as const;
@@ -200,7 +200,7 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       creditedNames: narrators,
       storeCategory: AUDIBLE_STORE_CATEGORY,
       // Audible は年齢区分を公開していないので「全年齢」とは言い切れない。
-      // unknown にしておき、表示側は R18 を除く形で絞る (設計書 §14)
+      // unknown にしておき、表示側は R18 を除く形で絞る
       ageRating: "unknown",
       fetchedAt,
     };
@@ -210,7 +210,7 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
   const validated = validateRawWorks(candidates);
   const totalCount = parseTotalCount(html);
   // 取りこぼしの警告はここでは積まない。2 ページ目以降を足した後でないと
-  // 網羅率が確定しないため、判断は fetchByActor に集める (T12)
+  // 網羅率が確定しないため、判断は fetchByActor に集める
   return totalCount === undefined ? validated : { ...validated, totalCount };
 }
 
@@ -262,7 +262,7 @@ export function parsePrice(text: string): number | undefined {
  * Audible は名前によって空白の有無で結果が変わる (実測: 「石見舞菜香」は空白なしだと
  * `no-search-results` へ 302、空白ありの「石見 舞菜香」だと 2 件返る。上田麗奈は両方 7 件)。
  * `actor.searchNames` を先頭から順に試し、1 件以上の結果 (`status: "ok"`) が返った時点で確定する。
- * 個々の候補が `error` になっても他の候補は試す。全滅したときだけ全体を `error` にする (T8)
+ * 個々の候補が `error` になっても他の候補は試す。全滅したときだけ全体を `error` にする
  */
 async function fetchByActor(
   actor: ActorQuery,
@@ -300,7 +300,7 @@ async function fetchByActor(
     if (!result.ok) {
       // 2026-09-18 の実測: 存在しない名前でも `/no-search-results` へ 302 され、その直後に
       // 別の名前を投げると 200 が返る。つまりこの 302 は「ナレーター検索に該当なし」であって
-      // アクセス制限ではない。よって失敗ではなく empty (成功・0 件) として返す (設計書 §3)。
+      // アクセス制限ではない。よって失敗ではなく empty (成功・0 件) として返す。
       // 取り込み側は 0 件でも既存の listing / credit を消さないので、将来ここに制限が混ざっても
       // データが失われることはない。件数の急減は管理画面の警告で拾う
       if (isNoSearchResultsLocation(result.location)) {
@@ -340,7 +340,7 @@ async function fetchByActor(
 }
 
 /**
- * 2 ページ目以降を順に足していき、ASIN の和集合を作る (T25)。
+ * 2 ページ目以降を順に足していき、ASIN の和集合を作る。
  *
  * 総件数に応じて必要な分だけ引き、それ以上は引かない。500 人の実測では総件数 20 以下が 380 人、
  * 21〜40 が 38 人、41 以上は 9 人しかいないので、ほとんどの声優ではリクエストが 1 回のまま増えない。
@@ -408,7 +408,7 @@ async function collectAcrossPages(
   }
 
   // 総件数の表示を読めないまま最後に引いたページが埋まらなかった = そこが最終ページ =
-  // 見えた分がその声優の全作品。ここまで言えるので「不明」にせず全件扱いにする (T22-C)
+  // 見えた分がその声優の全作品。ここまで言えるので「不明」にせず全件扱いにする
   if (total === undefined && lastPageItemCount < PAGE_SIZE) total = works.size;
 
   const coverage = judgeCoverage([...works.values()], { total, pages, actorNames }, (warning) =>
@@ -436,7 +436,7 @@ async function collectAcrossPages(
 }
 
 /**
- * 網羅率を決め、必要な警告を積む (T22-D)。
+ * 網羅率を決め、必要な警告を積む。
  *
  * `searchNarrator=` が姓だけでも一致してしまうので、**総件数をそのまま分母にはできない**。
  * 取得した作品のうち本人がクレジットされている割合を測り、極端に低ければ
@@ -466,7 +466,7 @@ function judgeCoverage(
     ...buildCoverage(works.length, looseMatch ? undefined : total, pages),
     matched,
   };
-  // 全ページを辿っても総件数に届かない声優。管理画面で気づけるようにする (企画書 §21)。
+  // 全ページを辿っても総件数に届かない声優。管理画面で気づけるようにする。
   // 一致率が低いときは complete 自体が undefined になるので、ここは鳴らない
   if (coverage.complete === false) {
     warn(`網羅率 ${coverage.fetched}/${coverage.total}`);

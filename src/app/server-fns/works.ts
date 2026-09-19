@@ -2,11 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { STORE_SLUGS } from "@/domain/types";
 
-/** 作品・新着まわりの server function (設計書 §7)。import の方針は server-fns/actors.ts と同じ */
+/** 作品・新着まわりの server function。import の方針は server-fns/actors.ts と同じ */
 
 /**
  * 既定値はスキーマと「引数なしで呼べる」ための default の両方で使うので定数にする。
- * 期間は設計書 §10 のフィード (直近 90 日 + 発売予定) に合わせる
+ * 期間はフィード (直近 90 日 + 発売予定) に合わせる
  */
 const PERIOD_DEFAULTS = { sinceDays: 90, limit: 50 };
 

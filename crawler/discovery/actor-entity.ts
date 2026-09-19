@@ -1,5 +1,5 @@
 /**
- * AniList の staff 集計から「対象声優」のエンティティを組み立てる純粋関数 (T13 / 設計書 §9)。
+ * AniList の staff 集計から「対象声優」のエンティティを組み立てる純粋関数。
  *
  * ここは fetch も fs も触らない。CLI 側 (`build-actors.ts`) が読み書きを持ち、
  * 規則そのものはここに閉じる。slug は URL に出て後から変えられないので、
@@ -31,7 +31,7 @@ export type ActorOverride = {
   aliases?: string[];
   /**
    * slug を人手で決めた場合の値。生成規則が別人と衝突したときにだけ使う。
-   * 自動で連番を振ると同名別人を取り違えるので、解決は必ず人が書く (設計書 §9)
+   * 自動で連番を振ると同名別人を取り違えるので、解決は必ず人が書く
    */
   slug?: string;
 };
@@ -40,7 +40,7 @@ export type ActorOverrides = Record<string, ActorOverride>;
 
 export type ActorAlias = { name: string; source: "manual"; verified: boolean };
 
-/** `crawler/actors.json` と同じ形。`crawler/run.ts` と ingest の zod がそのまま受け取れる */
+/** `crawler/actors.generated.json` の 1 件。`crawler/run.ts` と ingest の zod がそのまま受け取れる */
 export type ActorEntity = {
   id: string;
   slug: string;
@@ -98,13 +98,13 @@ function tokenizeFullName(fullName: string): string[] {
  * **AniList のワープロ式表記をそのまま使う**。`Akari Kitou` → `kitou-akari`、
  * `Aoi Yuuki` → `yuuki-aoi`。長音を潰して `kito` / `yuki` に寄せることはしない。
  * 「ou」「uu」が長音とは限らず (井上 = Inoue、松浦 = Matsuura)、潰すと別の名前を壊すため。
- * 手書きシードの 10 人はこの規則で slug が変わるが、未公開なので許容する (T13 の決定)。
+ * 手書きシードの 10 人はこの規則で slug が変わるが、未公開なので許容する。
  *
  * 語が 3 つ以上のとき (「ブリドカット・セーラ・恵美」= Sarah Emi Bridcutt) は
  * 最後の語を姓、残りを名として前から並べる → `bridcutt-sarah-emi`
  *
  * 1 語しかない名義 (「ゆかな」「麦人」「KENN」) は姓と名に分けられないので、
- * その語をそのまま slug にする (T13 の T14 での見直し。除外すると実在の声優が
+ * その語をそのまま slug にする (除外すると実在の声優が
  * 対象声優リストから丸ごと落ちるため)。記号だけで中身が残らない場合だけ undefined を返す
  */
 export function toActorSlug(fullName: string | undefined): string | undefined {
@@ -121,7 +121,7 @@ export function toActorSlug(fullName: string | undefined): string | undefined {
 /**
  * `fullName` が 1 語かどうか。1 語の名義には姓と名の境界が無いので、
  * `spacedNameCandidates` の機械的な区切りを適用すると誤った空白を混ぜることになる。
- * そのため `buildAliases` はこの語のときだけ生成候補を作らない (T14)
+ * そのため `buildAliases` はこの語のときだけ生成候補を作らない
  */
 function isSingleWordFullName(fullName: string | undefined): boolean {
   if (fullName === undefined) return false;
@@ -132,11 +132,11 @@ function isSingleWordFullName(fullName: string | undefined): boolean {
 
 /**
  * 姓をこの文字数で切って空白を入れるか。名前の長さによって姓の文字数の相場が変わるため、
- * canonicalName の長さで切り方を変える (T14)。
+ * canonicalName の長さで切り方を変える。
  *
  * - 2 文字 (「林勇」) → 1 文字切りしか作りようがない
  * - 3 文字 (「林大地」) → 1 文字切りと 2 文字切り (姓が 1 文字か 2 文字かは名前からは分からない)
- * - 4 文字以上 (「上田麗奈」) → 実測 (T13) で正解の表記が 6/6 含まれた 2 文字切りと 3 文字切り
+ * - 4 文字以上 (「上田麗奈」) → 実測で正解の表記が 6/6 含まれた 2 文字切りと 3 文字切り
  *
  * どの長さでも候補は常に 2 個以下 (Audible への試行回数を増やさないため)
  */
@@ -151,7 +151,7 @@ function surnameCutLengthsFor(nameLength: number): readonly number[] {
  *
  * Audible のナレーター検索は名前によって空白の有無で結果が変わる
  * (実測: 「石見舞菜香」は該当なし、「石見 舞菜香」だと 2 件)。どこで切るのが正しいかは
- * AniList から分からないので、両方を候補として持たせて adapter に順に試させる (T8)
+ * AniList から分からないので、両方を候補として持たせて adapter に順に試させる
  */
 export function spacedNameCandidates(canonicalName: string): string[] {
   // 「﨑」のような異体字やサロゲートペアを 1 文字として数えるため、コードポイントで割る
@@ -169,7 +169,7 @@ export function spacedNameCandidates(canonicalName: string): string[] {
  * 無ければ自動生成の候補を未検証として持たせる。
  *
  * `singleWordName` が true (fullName が 1 語) のときは、姓と名の境界が無く
- * 機械的な区切りが当てずっぽうにしかならないので候補を作らない (T14)
+ * 機械的な区切りが当てずっぽうにしかならないので候補を作らない
  */
 export function buildAliases(
   canonicalName: string,

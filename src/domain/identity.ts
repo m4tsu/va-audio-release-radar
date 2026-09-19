@@ -7,7 +7,7 @@ export type ResolvedCredit = {
 };
 
 /**
- * ストア上のクレジット表記から声優を特定する (設計書 §4 / 企画書 §9 の 4 段階)。
+ * ストア上のクレジット表記から声優を特定する (4 段階)。
  *
  * 1. `creditedName` が `canonicalName` と完全一致 → verified
  * 2. `creditedName` が検証済み (`verified: true`) エイリアスと完全一致 → verified

@@ -28,7 +28,7 @@ export type IngestResult = {
   new: number;
   /** 声優を特定できなかった credit の数。管理画面の未解決キューに積まれる */
   unmatched: number;
-  /** 許可していない年齢区分として捨てた作品数 (設計書 §14。現状は R18) */
+  /** 許可していない年齢区分として捨てた作品数 (現状は R18) */
   skippedByRating: number;
 };
 
@@ -41,7 +41,7 @@ export type IngestOptions = {
 };
 
 /**
- * クローラーからの取り込み (設計書 §6)。
+ * クローラーからの取り込み。
  *
  * D1 には対話的なトランザクションが無いので、途中で失敗すると部分的に書かれた状態が残る。
  * 各文が upsert で冪等なため、同じ payload を送り直せば整合するようにしてある
@@ -109,7 +109,7 @@ export async function ingest(
   return result;
 }
 
-/** 作品 ID は "{storeSlug}:{storeProductId}"。MVP ではストア横断のマージをしない (設計書 §4) */
+/** 作品 ID は "{storeSlug}:{storeProductId}"。MVP ではストア横断のマージをしない */
 export function buildWorkId(storeSlug: StoreSlug, storeProductId: string): string {
   return `${storeSlug}:${storeProductId}`;
 }
@@ -246,7 +246,7 @@ type ResolvedCredit = ReturnType<typeof resolveCredit>;
  *
  * ここで作るのは `creditedNames` に実際に載っていた名前の credit だけ。対象声優
  * (`payload.voiceActorId`) の名前がどれにも解決されなくても、その声優への credit は作らない。
- * ストア検索は名前が一致しない作品も返すため、作ってしまうと声優ページがノイズで埋まる (設計書 §6)
+ * ストア検索は名前が一致しない作品も返すため、作ってしまうと声優ページがノイズで埋まる
  */
 function resolveCredits(
   work: RawWork,
@@ -299,7 +299,7 @@ function creditUpsert(
 }
 
 /**
- * クローラー健全性の記録 (設計書 §5)。`payload.error` があれば取得自体が失敗しているので
+ * クローラー健全性の記録。`payload.error` があれば取得自体が失敗しているので
  * status を error にする (このとき works は空で送られてくる)
  */
 async function recordRun(
@@ -317,7 +317,7 @@ async function recordRun(
     newCount: result.new,
     status: payload.error ? ("error" as const) : ("ok" as const),
     error: payload.error ?? null,
-    // 網羅率 (設計書 §13)。クローラーが総件数を読めなかったときは NULL のまま残す。
+    // 網羅率。クローラーが総件数を読めなかったときは NULL のまま残す。
     // 「分からない」と「全部取れた」を DB の段階で混ぜないため
     totalCount: payload.totalCount ?? null,
     coverageComplete: payload.coverageComplete ?? null,

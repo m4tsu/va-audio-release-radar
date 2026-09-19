@@ -12,7 +12,7 @@ import {
 } from "./actor-entity.ts";
 
 /**
- * 対象声優リストの生成 (T13 / 設計書 §9)。
+ * 対象声優リストの生成。
  *
  *   node crawler/discovery/build-actors.ts
  *
@@ -120,7 +120,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   for (const [reason, count] of countByReason(result.excluded)) {
     process.stdout.write(`    ${describeExclusionReason(reason)}: ${count} 人\n`);
   }
-  // no-slug は fullName が無い/記号だけの人なので、書き損じでないか目視で確認できるよう名前も出す (T14)
+  // no-slug は fullName が無い/記号だけの人なので、書き損じでないか目視で確認できるよう名前も出す
   const noSlugNames = result.excluded
     .filter((item) => item.reason === "no-slug")
     .map((item) => item.nativeName);

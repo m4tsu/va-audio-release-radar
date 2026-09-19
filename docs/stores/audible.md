@@ -1,12 +1,13 @@
 # Audible Japan
 
+読者: `crawler/adapters/audible.ts` を触る前の人
+更新: robots.txt を取り直したら (差分が無くても最終確認日を更新する)。使う URL の形やセレクタを変えたら
+削除: Audible を対応ストアから外したら
+
 実装: `crawler/adapters/audible.ts`
 共通の原則は [`README.md`](./README.md)。
 
-> **方針 (2026-09-19 に確定)**: **並び順 (`sort=`) は使わない。robots.txt 違反だからである。**
-> 網羅はページング (`&page=N`) で行う。
-> このファイルの細部は T25 による `crawler/adapters/audible.ts` の書き換え直後の実装に基づく。
-> 実装がさらに動いたらここも更新する。
+> **並び順 (`sort=`) は使わない。robots.txt が禁じている。** 網羅はページング (`&page=N`) で行う。
 
 ---
 
@@ -129,7 +130,7 @@ https://www.audible.co.jp/pd/{ASIN}
 ### まだ使っていないが、許可が確認できている形
 
 日次クロールを「声優 1 人ずつ検索」から「ストアの新着一覧」に変える案の入力
-(`docs/research/new-release-feeds-2026-09-19.md` §2)。**採否は未決。**
+(`docs/research/new-release-feeds-2026-09-19.md` の Audible の節)。**採否は未決。**
 
 ```
 Disallow: /newreleases
@@ -166,26 +167,11 @@ Allow: /coming-soon?page=
 | `/no-search-results…` | `Disallow: /no-search-results`。302 の行き先だが追わない |
 | パラメータの順序を入れ替えて `sort=` の一致を外した URL | 字面は外れるが、`#Block alternative sort order for /search` と意図が書かれている以上、回避であって遵守ではない |
 
-### 過去にここで間違えた
-
-- **並び順のはしご (SORT_LADDER) を実装した。** `pubdate-desc-rank` など 6 種類の 1 ページ目を
-  足して和集合を取る仕組みで、**6 種類すべてが robots 違反**だった。
-  2026-09-19 に実装し、同日中に発覚して取り下げた
-- **「robots が `page=` を禁じている」と読んで、ページングを選択肢から外していた。**
-  実際には `node=` などとの組み合わせだけが禁止で、`searchNarrator` + `page` は使えた。
-  **使える手段を自分で潰し、その埋め合わせに違反する手段を実装した**という並びになっている
-- 結果として網羅率も落ちていた (2026-09-19 実測)
-
-| 方式 | 斉藤壮馬 (総件数 164) | リクエスト数 |
-|---|---:|---:|
-| 並び順のはしご (robots 違反) | 83 / 164 (50.6%) | 6 |
-| 並び順 10 種類すべて (robots 違反) | 84 / 164 | 10 |
-| ページング | **164 / 164 (100%)** | 9 |
-
-上田麗奈 (7 件) は 1 ページで完結し、2 ページ目を引かない。
 
 **`sort` を単独で付ければ HTTP 200 が返る。それは事実だが、根拠にならない。**
 応答は「技術的に取れるか」しか答えない。「取ってよいか」に答えるのは robots.txt の条文だけである。
+
+ページングは並び順を使わずに網羅率を上げられる (斉藤壮馬 164 件を 9 ページで 164/164、2026-09-19)。
 
 ---
 
@@ -224,7 +210,7 @@ Allow: /coming-soon?page=
     本人名がタイトルに入る番組があるため
 - **`searchNarrator=` 自体も空白の有無で結果が変わる。**
   「石見舞菜香」は該当なし、「石見 舞菜香」だと 2 件。
-  だから声優ごとに空白入りの別名候補を持たせている (`docs/design/architecture.md` §2)
+  だから声優ごとに空白入りの別名候補を持たせている (`crawler/discovery/actor-entity.ts`)
 - **総件数サマリの表記が 2 通りある。**
   2 件以上は「検索結果 164 のうち 1 - 20 件」、ちょうど 1 件は「検索結果 1 件」で `のうち` が出ない。
   `のうち` だけを見ていたため、500 人のクロールで総件数を読めなかった 73 件は**すべて取得 1 件**だった
@@ -267,9 +253,6 @@ Allow: /coming-soon?page=
 
 ## 8. 出典
 
-- [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) §2 —
+- [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) —
   robots の再確認、`sort=` 違反の発見、`/newreleases` と `/coming-soon` の許可される形、実測
-- [`docs/design/decisions.md`](../design/decisions.md) — 並び順の取り下げと、ページングへの移行
-- [`docs/design/architecture.md`](../design/architecture.md) §2 (別名候補) / §6 (取得手順)
-- `crawler/adapters/audible.ts` のファイル冒頭コメント — robots の引用と、
-  `page` が 1 始まりであることの実測 (T25)
+- `crawler/adapters/audible.ts` のファイル冒頭コメント — robots の引用と、`page` が 1 始まりであることの実測

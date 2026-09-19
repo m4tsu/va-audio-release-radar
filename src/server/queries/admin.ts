@@ -11,7 +11,7 @@ import { loadActorIndex } from "./actors";
 const SAMPLE_WORKS_PER_GROUP = 3;
 /** 健全性の判定に読む run の上限。声優数 × ストア数 × 数日分を賄えれば足りる */
 const HEALTH_RUN_SCAN_LIMIT = 2000;
-/** 前回より件数がここまで落ちたら警告する (企画書 §21) */
+/** 前回より件数がここまで落ちたら警告する */
 const WORK_COUNT_DROP_RATIO = 0.5;
 
 export type UnmatchedCreditGroup = {
@@ -42,7 +42,7 @@ export type CrawlRunSummary = {
   newCount: number;
   status: "ok" | "error";
   error?: string;
-  /** ストアが出していた検索結果の総件数 (設計書 §13)。読めなかった run では undefined */
+  /** ストアが出していた検索結果の総件数。読めなかった run では undefined */
   totalCount?: number;
   /** 総件数ぶんを取り切れたか。総件数が読めなければ undefined (不明) */
   coverageComplete?: boolean;
@@ -168,7 +168,7 @@ export type ReresolveResult = {
 /**
  * 未解決クレジットを今の名寄せ規則で解決し直す。
  *
- * `normalizeName` を変えたとき (T21 の異体字の畳み込みなど) や、後から声優が登録されたときに、
+ * `normalizeName` を変えたとき (異体字の畳み込みなど) や、後から声優が登録されたときに、
  * 過去の `unmatched` が解けるようになる。ingest は取り込み時点の規則で判定して終わりなので、
  * 遡って直す入口がここに要る。
  *
@@ -234,7 +234,7 @@ export async function reresolveUnmatchedCredits(db: AppDb): Promise<ReresolveRes
 }
 
 /**
- * クローラー健全性 (企画書 §21)。声優 × ストアごとに直近の run と前回の成功 run を並べ、
+ * クローラー健全性。声優 × ストアごとに直近の run と前回の成功 run を並べ、
  * 取得件数が急に落ちていたら警告を立てる。サイト側の HTML 変更でパーサーが壊れると
  * 「エラーにはならないが 0 件」になるため、成否だけでは気づけない
  */
