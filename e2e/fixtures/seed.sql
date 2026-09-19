@@ -97,3 +97,21 @@ VALUES
   ('e2e-run-dlsite-beta-1', 'dlsite', 'va_e2e-beta',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'),
    0, 0, 'error', 'E2E 用の失敗記録', NULL, NULL);
+
+-- アニメ 1 本 --------------------------------------------------------------
+-- アニメからの導線 (/anime → 最新シーズン → 作品ページ) の確認用。
+-- 出演者はアルファ (音声作品あり) とガンマ (音声作品なし) の 2 人。
+-- 一覧にも作品ページにも出るのは音声作品がある人だけなので、ガンマは出ない
+INSERT OR REPLACE INTO anime_titles
+  (id, slug, title_native, title_romaji, title_english, season_year, season, cover_image_url, created_at, updated_at)
+VALUES
+  ('anilist:9000001', 'e2e-anime-alpha', 'テストアニメアルファ', 'Test Anime Alpha', 'Test Anime Alpha',
+   2026, 'FALL', NULL,
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+INSERT OR REPLACE INTO anime_appearances
+  (id, anime_title_id, voice_actor_id, character_id, character_name_native, character_name_full,
+   character_image_url, role)
+VALUES
+  (9000001, 'anilist:9000001', 'va_e2e-alpha', 'anilist:9100001', 'テストキャラアルファ', NULL, NULL, 'main'),
+  (9000002, 'anilist:9000001', 'va_e2e-gamma', 'anilist:9100002', 'テストキャラガンマ', NULL, NULL, 'supporting');

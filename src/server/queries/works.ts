@@ -181,18 +181,34 @@ export async function worksByActor(
   });
 }
 
-/** 全声優横断の新着。フォローが 0 件のときのトップ画面で使う */
+/**
+ * 全声優横断の新着。トップで使う。
+ *
+ * `storeSlug` を渡すとそのストアに掲載がある作品だけになる。絞ってもカードに出す掲載は
+ * 全ストアぶん (`loadListings`) のまま。同じ作品が他のストアにもあることは隠さない
+ */
 export async function latestWorks(
   db: AppDb,
-  options: { limit?: number; sinceDays?: number; now?: string } = {},
+  options: { limit?: number; sinceDays?: number; storeSlug?: StoreSlug; now?: string } = {},
 ): Promise<WorkWithListings[]> {
-  const { limit = 50, sinceDays = FEED_WINDOW_DAYS, now = new Date().toISOString() } = options;
+  const {
+    limit = 50,
+    sinceDays = FEED_WINDOW_DAYS,
+    storeSlug,
+    now = new Date().toISOString(),
+  } = options;
 
   const rows = await db
     .select(workSelection)
     .from(audioWorks)
     .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
-    .where(and(notAdultRated, withinPeriod(now, sinceDays)))
+    .where(
+      and(
+        notAdultRated,
+        withinPeriod(now, sinceDays),
+        storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
+      ),
+    )
     .groupBy(audioWorks.id)
     .orderBy(...feedOrder)
     .limit(limit);

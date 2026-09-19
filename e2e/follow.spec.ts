@@ -1,25 +1,14 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { waitForHydration } from "./hydration";
 
 const NAME = "テスト声優アルファ";
-
-/**
- * トップの検索欄は制御された input なので、ハイドレーション前に文字を入れても
- * React が空に戻してしまう。フォロー状態を読み終えたときだけ出る説明文を
- * 「クライアントが動き出した」合図として待つ
- */
-async function waitForHydration(page: Page): Promise<void> {
-  await expect(page.getByText("声優をフォローすると")).toBeVisible();
-}
 
 /**
  * フォローはブラウザ内 (IndexedDB) にしか無い。Playwright はテストごとに新しい
  * コンテキストを作るので、毎回フォロー 0 件から始まる
  */
-test("フォローするとトップがフィードに変わり、/following に出て、解除で消える", async ({
-  page,
-}) => {
+test("検索からフォローすると、フォロー中のページに作品が並び、解除で消える", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "新着の音声作品" })).toBeVisible();
   await waitForHydration(page);
 
   await page.getByLabel("声優名で検索").fill(NAME);
@@ -28,21 +17,20 @@ test("フォローするとトップがフィードに変わり、/following に
   const row = results.getByRole("listitem").filter({ hasText: NAME });
   await row.getByRole("button", { name: "フォロー", exact: true }).click();
 
-  // トップの主役が「フォロー中の新着」に入れ替わる
-  await expect(page.getByRole("heading", { level: 1, name: "フォロー中の新着" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "テスト用ASMR作品アルファ" })).toBeVisible();
+  // トップはフォローの有無で中身が入れ替わらない。変わるのはフォロー中への導線が出ることだけ
+  await expect(page.getByRole("heading", { level: 2, name: "新着の音声作品" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "フォロー中の新着" })).toBeVisible();
 
   await page.getByRole("link", { name: "フォロー中", exact: true }).click();
   await expect(page).toHaveURL(/\/following$/);
+
+  // このページの主役は作品。フォロー中の声優はその上の管理欄に出る
+  await expect(page.getByRole("link", { name: "テスト用ASMR作品アルファ" })).toBeVisible();
   const followingList = page.getByRole("list", { name: "フォロー中の声優" });
   await expect(followingList.getByRole("link", { name: NAME })).toBeVisible();
 
-  await page.getByRole("button", { name: "フォロー解除" }).click();
+  await page.getByRole("button", { name: `${NAME}のフォローを解除` }).click();
   await expect(page.getByText("まだ誰もフォローしていません")).toBeVisible();
-
-  // 解除はトップにも効く
-  await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "新着の音声作品" })).toBeVisible();
 });
 
 /**
@@ -54,11 +42,10 @@ test("フィードは段に分かれ、発売予定の作品が先頭の段に�
   await page.getByRole("button", { name: "フォロー", exact: true }).click();
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
 
-  await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "フォロー中の新着" })).toBeVisible();
+  await page.goto("/following");
+  await expect(page.getByRole("heading", { level: 1, name: "フォロー中" })).toBeVisible();
 
-  const upcoming = page.getByRole("heading", { level: 2, name: /今後の発売/ });
-  await expect(upcoming).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /今後の発売/ })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: /30 日以内の新作/ })).toBeVisible();
 
   // 発売予定の作品は上の段にだけ出て、発売日ではなく「発売予定」として表示される

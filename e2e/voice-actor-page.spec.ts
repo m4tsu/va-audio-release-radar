@@ -57,8 +57,8 @@ test("作品が 1 件も無い声優は 404 になり、一覧にも sitemap に
   const page = await request.get("/voice-actors/e2e-gamma");
   expect(page.status()).toBe(404);
 
-  const top = await request.get("/");
-  expect(await top.text()).not.toContain("テスト声優ガンマ");
+  const directory = await request.get("/voice-actors");
+  expect(await directory.text()).not.toContain("テスト声優ガンマ");
 
   const sitemap = await request.get("/sitemap.xml");
   const xml = await sitemap.text();

@@ -63,16 +63,10 @@ function SeasonPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t("anime.seasonTitle", { season: label })}
-        description={t("anime.seasonDescription")}
-      />
+      <PageHeader title={t("anime.seasonTitle", { season: label })} />
 
       {anime.length === 0 ? (
-        <EmptyState
-          title={t("anime.seasonEmptyTitle")}
-          description={t("anime.seasonEmptyDescription", { season: label })}
-        />
+        <EmptyState title={t("anime.seasonEmptyTitle", { season: label })} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {anime.map((item) => (

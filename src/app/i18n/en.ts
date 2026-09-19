@@ -17,6 +17,8 @@ export const en: Translations = {
 
   nav: {
     home: "Home",
+    voiceActors: "Voice actors",
+    anime: "Anime",
     following: "Following",
   },
 
@@ -87,44 +89,48 @@ export const en: Translations = {
     follow: "Follow",
     following: "Following",
     unfollow: "Unfollow",
+    unfollowActor: "Unfollow {{name}}",
   },
 
   home: {
-    followPrompt:
-      "Follow a voice actor and their new releases will show up here. No account needed.",
+    heroTitle: "Your favorite voice actors' audio works, across every store",
     latestTitle: "New audio works",
-    latestEmptyTitle: "No new releases",
-    latestEmptyDescription: "New works will appear here as they come out.",
-    actorDirectoryTitle: "All voice actors",
-    feedTitle: "New from the voice actors you follow",
-    feedSummary: {
-      one: "Upcoming releases and works from the last {{days}} days, from the {{count}} voice actor you follow.",
-      other:
-        "Upcoming releases and works from the last {{days}} days, from the {{count}} voice actors you follow.",
+    latestStoreTabsLabel: "Filter by store",
+    latestStoreEmptyTitle: "No new releases on {{store}}",
+    latestToFollowing: "New from your follows",
+    browseTitle: "Other ways to browse",
+    browseActorsTitle: "Browse voice actors",
+    browseAnimeTitle: "Browse by anime",
+  },
+
+  following: {
+    metaTitle: "New from the voice actors you follow | {{app}}",
+    title: "Following",
+    storageNote: "Saved in this browser only",
+    manageTitle: {
+      one: "{{count}} voice actor followed",
+      other: "{{count}} voice actors followed",
     },
-    feedErrorTitle: "Could not load new releases",
-    feedErrorDescription: "Please try reloading in a moment.",
+    listLabel: "Voice actors you follow",
+    emptyTitle: "You are not following anyone yet",
+    emptyAction: "Find voice actors",
+    errorTitle: "Could not load new releases",
+    errorDescription: "Please try reloading in a moment.",
     feedEmptyTitle: "Nothing new in this period",
-    feedEmptyDescription: "Following more voice actors makes new releases easier to find.",
-    feedEmptyAction: "See the voice actors you follow",
+    feedEmptyAction: "Find voice actors",
     tierUpcoming: "Coming soon",
     tierRecent: "Released in the last {{days}} days",
     tierOlder: "Earlier (within {{days}} days)",
     tierExpand: "Expand",
     tierCollapse: "Collapse",
-    seasonTitle: "Browse by {{season}} anime",
-    seasonSeeAll: "See all ({{count}})",
   },
 
-  following: {
-    metaTitle: "Voice actors you follow | {{app}}",
-    title: "Following",
-    description:
-      "Your follows are saved only in this browser. They will not carry over to other devices.",
-    emptyTitle: "You are not following anyone yet",
-    emptyDescription: "Voice actors you follow will appear here.",
-    emptyAction: "Find voice actors",
-    listLabel: "Voice actors you follow",
+  voiceActors: {
+    metaTitle: "Voice actors | {{app}}",
+    metaDescription:
+      "Every voice actor with ASMR, audiobooks or audio dramas we have found. Pick a name to see their works.",
+    title: "Voice actors",
+    emptyTitle: "No voice actors found",
   },
 
   actor: {
@@ -207,9 +213,8 @@ export const en: Translations = {
     seasonMetaDescription:
       "Voice actors in {{season}} anime who have ASMR, audiobooks or audio dramas, all in one place.",
     seasonTitle: "{{season}} anime",
-    seasonDescription: "Only anime whose cast members have audio works are shown.",
-    seasonEmptyTitle: "No anime found",
-    seasonEmptyDescription: "No cast members with audio works were found in {{season}} anime.",
+    seasonEmptyTitle: "No {{season}} anime",
+    indexEmptyTitle: "No anime found",
   },
 
   admin: {

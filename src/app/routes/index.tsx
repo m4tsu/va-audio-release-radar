@@ -1,419 +1,203 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import { ActorSearch } from "@/app/components/actor-search";
 import { EmptyState } from "@/app/components/empty-state";
-import { Badge } from "@/app/components/ui/badge";
+import { storeLabel } from "@/app/components/store-badge";
 import { WorkCard } from "@/app/components/work-card";
-import { useLocale, useT } from "@/app/i18n";
-import { actorDisplayName } from "@/app/lib/actor-name";
-import { isUnreadSince } from "@/app/lib/format";
-import { safeHttpsUrl } from "@/app/lib/safe-url";
-import { seasonLabel, toSeasonSlug } from "@/app/lib/season";
-import type { ActorSummary, AnimeSummary, FeedItem } from "@/app/lib/view-types";
-import { fetchAllActors } from "@/app/server-fns/actors";
-import { fetchLatestAnimeSeason, fetchSeasonAnime } from "@/app/server-fns/anime";
-import { fetchFeed, fetchLatestWorks } from "@/app/server-fns/works";
+import { useT } from "@/app/i18n";
+import { cn } from "@/app/lib/utils";
+import type { WorkWithListings } from "@/app/lib/view-types";
+import { fetchLatestWorks } from "@/app/server-fns/works";
 import { useFollowStore } from "@/app/store/follow-store";
+import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
 
-/**
- * フィードが遡る期間。3 段目「それ以前」の下限でもある。
- * 段分け (今後の発売 / 30 日以内 / それ以前) はサーバーが `freshness` として付けてくる
- */
-const FEED_SINCE_DAYS = 90;
-/**
- * 2 段目の見出しに出す日数。判定そのものはサーバー (`RECENT_DAYS`) が持っているので、
- * ここは表示用の写し。サーバーはクライアントから import できない (D1 に触るため)
- */
-const FEED_RECENT_DAYS = 30;
-const FEED_LIMIT = 60;
-/** フォロー 0 件のときの「最近の新着」。こちらは見出しどおり直近 30 日に絞る */
+/** トップに出す新着の範囲。ストアごとに引くので、1 ストアあたりの件数で考える */
 const LATEST_SINCE_DAYS = 30;
-const LATEST_LIMIT = 24;
-/** トップに並べる今期アニメの件数。続きはシーズンのページで見せる */
-const SEASON_ANIME_LIMIT = 6;
+const LATEST_LIMIT = 12;
+/** 最初に開くタブ。作品数がいちばん多いストア */
+const DEFAULT_STORE: StoreSlug = "dlsite";
 
 /**
  * トップ。
  *
- * SSR で出すのは検索欄・全声優の新着・声優一覧まで。フォローはブラウザ内にしか無いので、
- * 「フォロー中の新着」はマウント後にフォロー ID を読んでから server function で取りに行く
+ * 出すのは「このサービスは何か」「誰を追いたいか (検索)」「今どんな作品が出ているか」の 3 つだけ。
+ * フォロー中の作品一覧は /following、一覧からたどる経路は /voice-actors と /anime にあるので、
+ * ここではフォローの有無で中身を入れ替えない (初めて来た人と常連が別の画面を見ることになるため)
  */
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [latest, actors, season] = await Promise.all([
-      fetchLatestWorks({ data: { sinceDays: LATEST_SINCE_DAYS, limit: LATEST_LIMIT } }),
-      fetchAllActors(),
-      // 「今期」を日付から決めない。実際にデータがあるシーズンを出す (queries/anime.ts)
-      fetchLatestAnimeSeason(),
-    ]);
-    const seasonAnime = season === null ? [] : await fetchSeasonAnime({ data: season });
-    return { latest, actors, season, seasonAnime };
+    // ストアごとに引くのは、同じ数だけ並べても 1 ストアの発売予定で埋まってしまうため。
+    // 3 ストアぶんをまとめて渡し、タブの切り替えでは取り直さない
+    const latestByStore = await Promise.all(
+      STORE_SLUGS.map(async (storeSlug) => ({
+        storeSlug,
+        items: await fetchLatestWorks({
+          data: { sinceDays: LATEST_SINCE_DAYS, limit: LATEST_LIMIT, storeSlug },
+        }),
+      })),
+    );
+    return { latestByStore };
   },
   component: HomePage,
 });
 
+type StoreWorks = { storeSlug: StoreSlug; items: WorkWithListings[] };
+
 function HomePage() {
-  const { latest, actors, season, seasonAnime } = Route.useLoaderData();
-  const follows = useFollowStore((state) => state.follows);
-  const status = useFollowStore((state) => state.status);
+  const { latestByStore } = Route.useLoaderData();
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
+      <Hero />
+      <LatestSection latestByStore={latestByStore} />
+      <BrowseSection />
+    </div>
+  );
+}
+
+/** 見出しと検索。初めて来た人がここで名前を入れてフォローに進む */
+function Hero() {
+  const t = useT();
+  return (
+    <section className="space-y-4">
+      <h1 className="font-semibold text-2xl tracking-tight sm:text-3xl">{t("home.heroTitle")}</h1>
       <ActorSearch />
-
-      {season && seasonAnime.length > 0 ? (
-        <SeasonAnimeSection season={season} anime={seasonAnime} />
-      ) : null}
-
-      {follows.length > 0 ? (
-        <FollowingFeed />
-      ) : (
-        <>
-          {status === "ready" ? <FollowPrompt /> : null}
-          <LatestSection latest={latest} />
-          <ActorDirectory actors={actors} />
-        </>
-      )}
-    </div>
-  );
-}
-
-/** フォローが 0 件のときだけ出す説明。何をすればこのサービスが動き出すかを 1 行で示す */
-function FollowPrompt() {
-  const t = useT();
-  return (
-    <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">{t("home.followPrompt")}</p>
-  );
-}
-
-function LatestSection({ latest }: { latest: Awaited<ReturnType<typeof fetchLatestWorks>> }) {
-  const t = useT();
-  return (
-    <section className="space-y-4">
-      <h1 className="font-semibold text-2xl tracking-tight">{t("home.latestTitle")}</h1>
-      {latest.length === 0 ? (
-        <EmptyState
-          title={t("home.latestEmptyTitle")}
-          description={t("home.latestEmptyDescription")}
-        />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {latest.map((item) => (
-            <WorkCard key={item.work.id} item={item} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
-  const t = useT();
-  const locale = useLocale();
-
-  if (actors.length === 0) return null;
-  return (
-    <section className="space-y-4">
-      <h2 className="font-semibold text-xl tracking-tight">{t("home.actorDirectoryTitle")}</h2>
-      <ul className="flex flex-wrap gap-2">
-        {actors.map((actor) => (
-          <li key={actor.id}>
-            <Link
-              to="/voice-actors/$slug"
-              params={{ slug: actor.slug }}
-              className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-            >
-              {actorDisplayName(actor, locale)}
-              <Badge variant="secondary">{actor.workCount}</Badge>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-type FeedState = { phase: "loading" } | { phase: "ready"; items: FeedItem[] } | { phase: "error" };
-
-/**
- * フォロー中の声優の新着。
- *
- * フォロー ID はサーバーが知らないので、毎回まとめて送って引き直す。
- * フォローの増減でキーが変わったときだけ取り直す
- */
-function FollowingFeed() {
-  const t = useT();
-  const follows = useFollowStore((state) => state.follows);
-  const [state, setState] = useState<FeedState>({ phase: "loading" });
-
-  // 配列は毎レンダリング作り直されるため、依存には中身から作った文字列を使う
-  const followKey = follows
-    .map((actor) => actor.voiceActorId)
-    .sort()
-    .join(",");
-
-  useEffect(() => {
-    if (followKey.length === 0) return;
-    let current = true;
-    setState({ phase: "loading" });
-
-    fetchFeed({
-      data: {
-        voiceActorIds: followKey.split(","),
-        sinceDays: FEED_SINCE_DAYS,
-        limit: FEED_LIMIT,
-      },
-    })
-      .then((items) => {
-        if (current) setState({ phase: "ready", items });
-      })
-      .catch(() => {
-        if (current) setState({ phase: "error" });
-      });
-
-    return () => {
-      current = false;
-    };
-  }, [followKey]);
-
-  return (
-    <section className="space-y-4">
-      <h1 className="font-semibold text-2xl tracking-tight">{t("home.feedTitle")}</h1>
-      <p className="text-muted-foreground text-sm">
-        {t("home.feedSummary", { count: follows.length, days: FEED_SINCE_DAYS })}
-      </p>
-
-      {state.phase === "loading" ? (
-        <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
-      ) : null}
-      {state.phase === "error" ? (
-        <EmptyState title={t("home.feedErrorTitle")} description={t("home.feedErrorDescription")} />
-      ) : null}
-      {state.phase === "ready" ? <FeedTiers items={state.items} /> : null}
     </section>
   );
 }
 
 /**
- * 未読の基準になる「前回フィードを見た日時」。
+ * 新着。ストアごとのタブで出し分ける。
  *
- * 描画に使うのは更新前の値。先に保存してしまうと、開いた瞬間に全件が既読になって
- * 印が一度も出ない。初回 (null) は印を出さずに今の時刻だけ保存する
+ * 混ぜて新着順に並べると、発売日を先に公開するストア (Audible) の発売予定だけで埋まる。
+ * 3 ストアぶんを loader で受け取っているので、タブを切り替えても取り直しは起きない
  */
-function useFeedSeenBaseline(ready: boolean): string | null {
-  const status = useFollowStore((state) => state.status);
-  const lastSeenFeedAt = useFollowStore((state) => state.lastSeenFeedAt);
-  const markFeedSeen = useFollowStore((state) => state.markFeedSeen);
-  const [baseline, setBaseline] = useState<string | null>(null);
-  const captured = useRef(false);
-
-  useEffect(() => {
-    // Dexie の読み込みが終わり、フィードが描けてから 1 度だけ控える
-    if (!ready || status !== "ready" || captured.current) return;
-    captured.current = true;
-    setBaseline(lastSeenFeedAt);
-    void markFeedSeen(new Date().toISOString());
-  }, [ready, status, lastSeenFeedAt, markFeedSeen]);
-
-  return baseline;
-}
-
-/**
- * フィードの 3 段。段の判定はサーバー側 (`freshness`) に寄せてあるので、
- * ここは並んできたものを切り分けるだけ。上 2 段が空でも 3 段目が残り画面が空にならない
- */
-function FeedTiers({ items }: { items: FeedItem[] }) {
+function LatestSection({ latestByStore }: { latestByStore: StoreWorks[] }) {
   const t = useT();
-  const lastSeenFeedAt = useFeedSeenBaseline(items.length > 0);
+  const baseId = useId();
+  const [active, setActive] = useState<StoreSlug>(DEFAULT_STORE);
+  const tabRefs = useRef(new Map<StoreSlug, HTMLButtonElement | null>());
+  const current = latestByStore.find((store) => store.storeSlug === active);
 
-  if (items.length === 0) {
-    return (
-      <EmptyState
-        title={t("home.feedEmptyTitle")}
-        description={t("home.feedEmptyDescription")}
-        action={
-          <Link to="/following" className="text-sm underline underline-offset-4">
-            {t("home.feedEmptyAction")}
-          </Link>
-        }
-      />
-    );
-  }
-
-  const upcoming = items.filter((item) => item.freshness === "upcoming");
-  const recent = items.filter((item) => item.freshness === "recent");
-  const older = items.filter((item) => item.freshness === "older");
-
-  return (
-    <div className="space-y-8">
-      {upcoming.length > 0 ? (
-        <FeedTier title={t("home.tierUpcoming")} items={upcoming} lastSeenFeedAt={lastSeenFeedAt} />
-      ) : null}
-      {recent.length > 0 ? (
-        <FeedTier
-          title={t("home.tierRecent", { days: FEED_RECENT_DAYS })}
-          items={recent}
-          lastSeenFeedAt={lastSeenFeedAt}
-        />
-      ) : null}
-      {older.length > 0 ? (
-        <CollapsibleTier
-          title={t("home.tierOlder", { days: FEED_SINCE_DAYS })}
-          items={older}
-          lastSeenFeedAt={lastSeenFeedAt}
-          // 上 2 段が空なら畳んだままでは画面が空に見える。そのときだけ開いて出す
-          defaultOpen={upcoming.length === 0 && recent.length === 0}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function FeedTier({
-  title,
-  items,
-  lastSeenFeedAt,
-}: {
-  title: string;
-  items: FeedItem[];
-  lastSeenFeedAt: string | null;
-}) {
-  const t = useT();
-  return (
-    <div className="space-y-3">
-      <h2 className="font-medium text-lg">
-        {title}
-        <span className="ml-2 text-muted-foreground text-sm">
-          {t("common.worksCount", { count: items.length })}
-        </span>
-      </h2>
-      <FeedCards items={items} lastSeenFeedAt={lastSeenFeedAt} />
-    </div>
-  );
-}
-
-/** 3 段目は件数が多く、目的は「取りこぼしの確認」なので既定では畳んでおく */
-function CollapsibleTier({
-  title,
-  items,
-  lastSeenFeedAt,
-  defaultOpen,
-}: {
-  title: string;
-  items: FeedItem[];
-  lastSeenFeedAt: string | null;
-  defaultOpen: boolean;
-}) {
-  const t = useT();
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="space-y-3">
-      <h2 className="font-medium text-lg">
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          title={open ? t("home.tierCollapse") : t("home.tierExpand")}
-          className="inline-flex items-center gap-2 hover:underline"
-        >
-          {title}
-          <span className="text-muted-foreground text-sm">
-            {t("common.worksCount", { count: items.length })}
-          </span>
-          <span aria-hidden="true" className="text-muted-foreground text-sm">
-            {open ? "▲" : "▼"}
-          </span>
-        </button>
-      </h2>
-      {open ? <FeedCards items={items} lastSeenFeedAt={lastSeenFeedAt} /> : null}
-    </div>
-  );
-}
-
-function FeedCards({
-  items,
-  lastSeenFeedAt,
-}: {
-  items: FeedItem[];
-  lastSeenFeedAt: string | null;
-}) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {items.map((item) => (
-        <WorkCard
-          key={item.work.id}
-          item={item}
-          actors={item.actors}
-          unread={isUnreadSince(item.work, earliestFirstSeen(item.listings), lastSeenFeedAt)}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** その作品をどのストアであれ最初に見つけた日時。未読判定の材料 */
-function earliestFirstSeen(listings: FeedItem["listings"]): string | undefined {
-  return listings
-    .map((listing) => listing.firstSeenAt)
-    .sort()
-    .at(0);
-}
-
-/**
- * 今期アニメからの入口。
- *
- * 声優名を知らない利用者はここから入る。フォロー済みの利用者にも隠さないのは、
- * 「知らなかった出演」を見つける経路でもあるため
- */
-function SeasonAnimeSection({
-  season,
-  anime,
-}: {
-  season: { seasonYear: number; season: AnimeSummary["season"] };
-  anime: AnimeSummary[];
-}) {
-  const t = useT();
-  const locale = useLocale();
-  const slug = toSeasonSlug(season.seasonYear, season.season);
+  // ← → でタブを移動する (WAI-ARIA の tabs の作法)。端では反対側へ回す
+  const moveFocus = (offset: number) => {
+    const index = STORE_SLUGS.indexOf(active);
+    const next = STORE_SLUGS[(index + offset + STORE_SLUGS.length) % STORE_SLUGS.length];
+    if (!next) return;
+    setActive(next);
+    tabRefs.current.get(next)?.focus();
+  };
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-semibold text-xl tracking-tight">
-          {t("home.seasonTitle", {
-            season: seasonLabel(season.seasonYear, season.season, locale),
-          })}
-        </h2>
-        <Link to="/anime/season/$season" params={{ season: slug }} className="text-sm underline">
-          {t("home.seasonSeeAll", { count: anime.length })}
-        </Link>
+        <h2 className="font-semibold text-xl tracking-tight">{t("home.latestTitle")}</h2>
+        <FollowingLink />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {anime.slice(0, SEASON_ANIME_LIMIT).map((item) => (
-          <Link
-            key={item.slug}
-            to="/anime/$slug"
-            params={{ slug: item.slug }}
-            className="flex gap-3 rounded-xl border p-3 transition-colors hover:bg-accent"
-          >
-            {safeHttpsUrl(item.coverImageUrl) ? (
-              <img
-                src={safeHttpsUrl(item.coverImageUrl)}
-                alt=""
-                className="h-20 w-14 shrink-0 rounded-md object-cover"
-                loading="lazy"
-              />
-            ) : null}
-            <div className="min-w-0 space-y-1">
-              <p className="font-medium leading-snug">{item.titleNative}</p>
-              <p className="text-muted-foreground text-xs">
-                {t("anime.actorCount", { count: item.actorCount })}
-              </p>
-            </div>
-          </Link>
-        ))}
+
+      <div
+        role="tablist"
+        aria-label={t("home.latestStoreTabsLabel")}
+        className="flex gap-1 border-b"
+      >
+        {latestByStore.map((store) => {
+          const selected = store.storeSlug === active;
+          return (
+            <button
+              key={store.storeSlug}
+              ref={(element) => {
+                tabRefs.current.set(store.storeSlug, element);
+              }}
+              type="button"
+              role="tab"
+              id={`${baseId}-tab-${store.storeSlug}`}
+              aria-selected={selected}
+              aria-controls={`${baseId}-panel-${store.storeSlug}`}
+              // 選択中のタブだけがタブ順に入る。残りは矢印キーで移動する
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setActive(store.storeSlug)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowRight") {
+                  event.preventDefault();
+                  moveFocus(1);
+                } else if (event.key === "ArrowLeft") {
+                  event.preventDefault();
+                  moveFocus(-1);
+                }
+              }}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-2 text-sm transition-colors",
+                selected
+                  ? "border-foreground font-medium text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {storeLabel(store.storeSlug)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* パネル自体は tabbable にしない。中の作品リンクが順に拾われるので回る先はある */}
+      <div
+        role="tabpanel"
+        id={`${baseId}-panel-${active}`}
+        aria-labelledby={`${baseId}-tab-${active}`}
+      >
+        {current && current.items.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {current.items.map((item) => (
+              <WorkCard key={item.work.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title={t("home.latestStoreEmptyTitle", { store: storeLabel(active) })} />
+        )}
       </div>
     </section>
+  );
+}
+
+/**
+ * フォロー中の新着への近道。フォローが 0 件のときは行っても空なので出さない。
+ * フォローはブラウザ内にしか無いため、SSR では必ず出ない
+ */
+function FollowingLink() {
+  const t = useT();
+  const follows = useFollowStore((state) => state.follows);
+  const status = useFollowStore((state) => state.status);
+
+  if (status !== "ready" || follows.length === 0) return null;
+  return (
+    <Link to="/following" className="text-sm underline underline-offset-4">
+      {t("home.latestToFollowing")}
+    </Link>
+  );
+}
+
+/** 名前を知らない人の入口。一覧そのものはページが分かれているので、ここには入口だけ置く */
+function BrowseSection() {
+  const t = useT();
+  return (
+    <section className="space-y-4">
+      <h2 className="font-semibold text-xl tracking-tight">{t("home.browseTitle")}</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <BrowseCard to="/voice-actors" title={t("home.browseActorsTitle")} />
+        <BrowseCard to="/anime" title={t("home.browseAnimeTitle")} />
+      </div>
+    </section>
+  );
+}
+
+function BrowseCard({ to, title }: { to: "/voice-actors" | "/anime"; title: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center justify-between gap-3 rounded-xl border p-4 font-medium transition-colors hover:bg-accent"
+    >
+      {title}
+      <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+    </Link>
   );
 }

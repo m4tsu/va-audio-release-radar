@@ -45,13 +45,19 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
   });
 
 export const fetchLatestWorks = createServerFn({ method: "GET" })
-  .validator(periodSchema.default(PERIOD_DEFAULTS))
+  .validator(
+    periodSchema.extend({ storeSlug: z.enum(STORE_SLUGS).optional() }).default(PERIOD_DEFAULTS),
+  )
   .handler(async ({ data }) => {
     const [{ getDb }, { latestWorks }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/works"),
     ]);
-    return latestWorks(getDb(), { limit: data.limit, sinceDays: data.sinceDays });
+    return latestWorks(getDb(), {
+      limit: data.limit,
+      sinceDays: data.sinceDays,
+      ...(data.storeSlug ? { storeSlug: data.storeSlug } : {}),
+    });
   });
 
 /**

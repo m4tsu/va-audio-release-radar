@@ -103,6 +103,30 @@ describe("latestWorks", () => {
 
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:NODATE"]);
   });
+
+  it("ストアで絞り込める", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);
+    await ingest(
+      db,
+      payload({
+        runId: "run-audible",
+        storeSlug: "audible",
+        works: [
+          rawWork({
+            storeSlug: "audible",
+            storeProductId: "B0ABC",
+            productUrl: "https://www.audible.co.jp/pd/B0ABC",
+          }),
+        ],
+      }),
+      NOW,
+    );
+
+    expect((await latestWorks(db, { now: NOW })).map((item) => item.work.id)).toHaveLength(2);
+    const audibleOnly = await latestWorks(db, { storeSlug: "audible", now: NOW });
+    expect(audibleOnly.map((item) => item.work.id)).toEqual(["audible:B0ABC"]);
+  });
 });
 
 describe("feedForActors", () => {

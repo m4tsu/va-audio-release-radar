@@ -125,6 +125,22 @@ function RootLayout() {
               {t("nav.home")}
             </Link>
             <Link
+              to="/voice-actors"
+              activeProps={{ className: "font-medium text-foreground" }}
+              inactiveProps={{ className: "text-muted-foreground" }}
+              className="hover:text-foreground"
+            >
+              {t("nav.voiceActors")}
+            </Link>
+            <Link
+              to="/anime"
+              activeProps={{ className: "font-medium text-foreground" }}
+              inactiveProps={{ className: "text-muted-foreground" }}
+              className="hover:text-foreground"
+            >
+              {t("nav.anime")}
+            </Link>
+            <Link
               to="/following"
               activeProps={{ className: "font-medium text-foreground" }}
               inactiveProps={{ className: "text-muted-foreground" }}

@@ -28,6 +28,8 @@ export const Route = createFileRoute("/sitemap.xml")({
 
         const urls = [
           buildUrl(origin, "/"),
+          // 声優ページへの内部リンクを集めた一覧。声優ページを見つけてもらう経路なので載せる
+          buildUrl(origin, "/voice-actors"),
           buildUrl(origin, "/terms"),
           buildUrl(origin, "/privacy"),
           ...actors.map((actor) =>

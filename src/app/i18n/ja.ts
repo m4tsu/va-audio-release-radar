@@ -20,6 +20,8 @@ export const ja = {
 
   nav: {
     home: "ホーム",
+    voiceActors: "声優から探す",
+    anime: "アニメから探す",
     following: "フォロー中",
   },
 
@@ -101,41 +103,53 @@ export const ja = {
     follow: "フォロー",
     following: "フォロー中",
     unfollow: "フォロー解除",
+    /** 解除ボタンが名前ごとに並ぶ場所の読み上げ用。見た目はアイコンだけ */
+    unfollowActor: "{{name}}のフォローを解除",
   },
 
   home: {
-    followPrompt: "声優をフォローすると、その声優の新作がここに並びます。登録は不要です。",
+    /** トップの h1 */
+    heroTitle: "好きな声優の音声作品を、ストアをまたいで追う",
     latestTitle: "新着の音声作品",
-    latestEmptyTitle: "新着の作品はありません",
-    latestEmptyDescription: "新しい作品が出るとここに並びます。",
-    actorDirectoryTitle: "声優一覧",
-    feedTitle: "フォロー中の新着",
-    feedSummary:
-      "フォロー中の声優 {{count}} 人の、発売予定と直近 {{days}} 日以内に発売された音声作品です。",
-    feedErrorTitle: "新着を読み込めませんでした",
-    feedErrorDescription: "しばらくしてから再読み込みしてください。",
+    /** ストアのタブ。値はストア名 (`STORE_LABELS`) なので辞書には持たない */
+    latestStoreTabsLabel: "ストアで絞り込む",
+    latestStoreEmptyTitle: "{{store}} の新着はありません",
+    /** フォローが 1 人以上のときだけ出す、フォロー中の作品一覧への導線 */
+    latestToFollowing: "フォロー中の新着",
+    browseTitle: "ほかの探し方",
+    browseActorsTitle: "声優から探す",
+    browseAnimeTitle: "アニメから探す",
+  },
+
+  following: {
+    metaTitle: "フォロー中の声優の新着 | {{app}}",
+    title: "フォロー中",
+    /** このブラウザにしか無いことは、消えたときに困る事実なので残す */
+    storageNote: "このブラウザにのみ保存されます",
+    /** 作品一覧の上に置く、フォロー中の声優と解除ボタンの見出し */
+    manageTitle: "フォロー中の声優 {{count}} 人",
+    listLabel: "フォロー中の声優",
+    emptyTitle: "まだ誰もフォローしていません",
+    emptyAction: "声優を探す",
+    errorTitle: "新着を読み込めませんでした",
+    /** 次にすべきことなので残す */
+    errorDescription: "しばらくしてから再読み込みしてください。",
     feedEmptyTitle: "この期間の新着はありません",
-    feedEmptyDescription: "フォローする声優を増やすと、新作が見つかりやすくなります。",
-    feedEmptyAction: "フォロー中の声優を見る",
+    feedEmptyAction: "声優を探す",
     tierUpcoming: "今後の発売",
     tierRecent: "{{days}} 日以内の新作",
     tierOlder: "それより前 ({{days}} 日以内)",
     /** 3 段目の開閉。畳んだ状態と開いた状態で読み上げを変える */
     tierExpand: "開く",
     tierCollapse: "畳む",
-    /** `{{season}}` には「2026 年秋」のようなシーズン名が入る */
-    seasonTitle: "{{season}}アニメから探す",
-    seasonSeeAll: "すべて見る ({{count}})",
   },
 
-  following: {
-    metaTitle: "フォロー中の声優 | {{app}}",
-    title: "フォロー中",
-    description: "フォローはこのブラウザにのみ保存されます。他の端末には引き継がれません。",
-    emptyTitle: "まだ誰もフォローしていません",
-    emptyDescription: "声優をフォローすると、ここに並びます。",
-    emptyAction: "声優を探す",
-    listLabel: "フォロー中の声優",
+  voiceActors: {
+    metaTitle: "声優から探す | {{app}}",
+    metaDescription:
+      "ASMR・朗読・ボイスドラマなどの音声作品が見つかっている声優の一覧です。名前を選ぶとその人の作品が見られます。",
+    title: "声優から探す",
+    emptyTitle: "声優が見つかりません",
   },
 
   actor: {
@@ -223,9 +237,9 @@ export const ja = {
     seasonMetaDescription:
       "{{season}}のアニメに出演している声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある人をまとめています。",
     seasonTitle: "{{season}}アニメ",
-    seasonDescription: "出演声優に音声作品があるアニメだけを表示しています。",
-    seasonEmptyTitle: "アニメがありません",
-    seasonEmptyDescription: "{{season}}のアニメで、音声作品がある出演者は見つかりませんでした。",
+    seasonEmptyTitle: "{{season}}のアニメはありません",
+    /** /anime は最新シーズンへ送るだけの入口。送り先が無いときだけこれが出る */
+    indexEmptyTitle: "アニメがありません",
   },
 
   /** 管理画面。読むのは運用者なので、仕組みの語 (クローラー・クロール) をそのまま使う */
