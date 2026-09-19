@@ -35,6 +35,13 @@
 `.dev.vars` (秘匿値。例は `.dev.vars.example`)、`crawler/.cache/` (取得した生データ)、`work/` (作業状態)。
 いずれも `.gitignore` 済み。無視の指定を外さない。
 
+## issue からの作業
+
+`/issue-task <issue 番号 | 要件の文章>`。worktree を切り、実装・レビュー・main への fast-forward マージまでを
+一続きで行う。手順と、node_modules / ローカル D1 の複製方法は `.claude/skills/issue-task/SKILL.md`。
+`/issue-batch` は `ready` ラベルの issue を集め、issue ごとに Agent を起動して同じ手順を並列に回す司令塔。
+手順は `.claude/skills/issue-batch/SKILL.md`。
+
 ## コマンド
 
 一覧は [`README.md`](README.md) の「コマンド」。コミット前に `npm run check` を通す。

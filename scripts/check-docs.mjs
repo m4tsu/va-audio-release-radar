@@ -23,6 +23,7 @@ const EXCLUDED = [
   "scripts/check-docs.mjs",
   "scripts/check-docs.test.ts",
   ".claude/rules/docs.md",
+  ".claude/worktrees",
   "crawler/fixtures",
   "crawler/.cache",
   "src/app/routeTree.gen.ts",
