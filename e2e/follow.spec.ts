@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { waitForHydration } from "./hydration";
 
 const NAME = "テスト声優アルファ";
+const NAME_EN = "E2E Actor Alpha";
 
 /**
  * フォローはブラウザ内 (IndexedDB) にしか無い。Playwright はテストごとに新しい
@@ -51,6 +52,28 @@ test("フィードは段に分かれ、発売予定の作品が先頭の段に�
   // 発売予定の作品は上の段にだけ出て、発売日ではなく「発売予定」として表示される
   await expect(page.getByRole("link", { name: "テスト用発売予定作品アルファ" })).toBeVisible();
   await expect(page.getByText(/発売予定 \d+月\d+日/)).toBeVisible();
+});
+
+/**
+ * フォロー一覧の名前はブラウザに保存した行だけで描く (サーバーに引き直さない)。
+ * ローマ字がその行に入っていることをこの経路で確かめる
+ */
+test("英語表示でフォローすると、フォロー一覧にもローマ字で出る", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([{ name: "locale", value: "en", url: baseURL ?? "" }]);
+  await page.goto("/voice-actors/e2e-alpha");
+  await page.getByRole("button", { name: "Follow", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Following" })).toBeVisible();
+
+  await page.goto("/following");
+  await expect(
+    page
+      .getByRole("list", { name: "Voice actors you follow" })
+      .getByRole("link", { name: NAME_EN }),
+  ).toBeVisible();
 });
 
 test("フォローはページをまたいで保持される", async ({ page }) => {

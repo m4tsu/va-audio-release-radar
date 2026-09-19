@@ -16,6 +16,12 @@ export type FollowedActor = {
   voiceActorId: string;
   slug: string;
   canonicalName: string;
+  /**
+   * 英語表示に出すローマ字表記 (`actorDisplayName` が見る)。
+   * フォロー一覧はサーバーに問い合わせずこの行だけで名前を描くので、名前と一緒に持たせる。
+   * 持っていない声優と、この列が増える前にフォローした行は漢字表記のまま出る
+   */
+  nameEn?: string;
   /** フォローした日時 (ISO 8601)。一覧を「追加した順」で並べるために持つ */
   createdAt: string;
 };

@@ -10,16 +10,17 @@
 -- ガンマは作品を 1 件も持たない。DB には居るが表には出ないことの確認用 (T13)
 -- デルタは名前順ではアルファより後ろだが作品数はいちばん多い。
 -- 一覧の「作品数の多い順」が名前順と違う並びになることの確認用
+-- ベータの name_en は NULL。ローマ字を持たない声優が英語表示でも漢字表記のまま出ることの確認用
 INSERT OR REPLACE INTO voice_actors
-  (id, slug, canonical_name, name_kana, anilist_staff_id, image_url, status, created_at, updated_at)
+  (id, slug, canonical_name, name_kana, name_en, anilist_staff_id, image_url, status, created_at, updated_at)
 VALUES
-  ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'てすとせいゆうあるふぁ', NULL, NULL, 'active',
+  ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'てすとせいゆうあるふぁ', 'E2E Actor Alpha', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, NULL, 'active',
+  ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', NULL, NULL, 'active',
+  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', 'E2E Actor Gamma', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'てすとせいゆうでるた', NULL, NULL, 'active',
+  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'てすとせいゆうでるた', 'E2E Actor Delta', NULL, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO voice_actor_aliases (id, voice_actor_id, name, source, verified)

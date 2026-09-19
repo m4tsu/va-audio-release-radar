@@ -219,6 +219,17 @@ describe("getActorBySlug", () => {
     expect((await getActorBySlug(db, UEDA.slug))?.id).toBe(UEDA.id);
   });
 
+  it("シードのローマ字表記を保存して返す", async () => {
+    const db = await setupDb([{ ...UEDA, nameEn: "Reina Ueda" }]);
+    expect((await getActorBySlug(db, UEDA.slug))?.nameEn).toBe("Reina Ueda");
+  });
+
+  it("ローマ字表記の無いシードでは nameEn を持たない", async () => {
+    // 英語表示はここが無いと canonicalName に落ちる。null を undefined に畳んでおく
+    const db = await setupDb();
+    expect(await getActorBySlug(db, UEDA.slug)).not.toHaveProperty("nameEn");
+  });
+
   it("alias 込みで返す", async () => {
     const db = await setupDb([
       { ...UEDA, aliases: [{ name: "上田 麗奈", source: "manual", verified: true }] },

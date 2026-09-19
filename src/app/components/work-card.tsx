@@ -27,7 +27,7 @@ export function WorkCard({
   item: WorkWithListings;
   /**
    * フィードで「フォロー中の誰で引っかかったか」を出すとき。声優ページでは省く。
-   * `nameEn` は入っていれば英語表示で使う (今は DB が全件 NULL)
+   * `nameEn` は入っていれば英語表示で使う
    */
   actors?: Array<{ id: string; slug: string; name: string; nameEn?: string }>;
   /**

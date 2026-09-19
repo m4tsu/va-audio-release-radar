@@ -9,6 +9,7 @@ import { waitForHydration } from "./hydration";
  * 作品数の多い順は デルタ → アルファ → ベータ になる
  */
 const ALPHA = "テスト声優アルファ";
+const ALPHA_EN = "E2E Actor Alpha";
 const BETA = "テスト声優ベータ";
 const DELTA = "テスト声優デルタ";
 
@@ -59,6 +60,24 @@ test("絞り込んだ結果が 0 人でも画面は空にならない", async ({
   await storeFilter(page).getByRole("button", { name: "ポケドラ" }).click();
   await expect(page.getByText("ポケドラ に作品がある声優はいません")).toBeVisible();
   await expect(page.getByText("0 人")).toBeVisible();
+});
+
+test("英語表示では、ローマ字を持つ声優はローマ字、持たない声優は漢字表記で出る", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.addCookies([{ name: "locale", value: "en", url: baseURL ?? "" }]);
+  await page.goto("/voice-actors");
+
+  // 一覧の aria-label も英語になるので、日本語のときとは別に取り直す
+  const list = page.getByRole("list", { name: "Voice actors" });
+  await expect(list.getByRole("link", { name: ALPHA_EN })).toBeVisible();
+  // ベータには name_en が無い。英語表示でも名前が消えず日本語表記のまま出る
+  await expect(list.getByRole("link", { name: BETA })).toBeVisible();
+
+  await page.goto("/voice-actors/e2e-alpha");
+  await expect(page.getByRole("heading", { level: 1, name: ALPHA_EN })).toBeVisible();
 });
 
 test("一覧からフォローすると、声優ページでもフォロー済みになっている", async ({ page }) => {

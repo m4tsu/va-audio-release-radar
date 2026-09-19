@@ -12,7 +12,7 @@ export type ActorSummary = {
   slug: string;
   canonicalName: string;
   nameKana?: string;
-  /** 英語表示のときだけ使う表記。画面側の actorDisplayName が見る (今は全件 NULL) */
+  /** 英語表示のときだけ使う表記。画面側の actorDisplayName が見る */
   nameEn?: string;
   imageUrl?: string;
   status: VoiceActor["status"];
