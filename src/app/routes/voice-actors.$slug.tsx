@@ -6,6 +6,8 @@ import { storeLabel } from "@/app/components/store-badge";
 import { WorkCard } from "@/app/components/work-card";
 import { createTranslator, useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
+import { animeDisplayTitle } from "@/app/lib/anime-title";
+import { characterDisplayName } from "@/app/lib/character-name";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { seasonLabel } from "@/app/lib/season";
 import type { ActorAnimeAppearance, ActorDetail, WorkWithListings } from "@/app/lib/view-types";
@@ -208,11 +210,11 @@ function AnimeSection({ items }: { items: ActorAnimeAppearance[] }) {
               />
             ) : null}
             <div className="min-w-0 space-y-1">
-              <p className="font-medium leading-snug">{item.titleNative}</p>
+              <p className="font-medium leading-snug">{animeDisplayTitle(item, locale)}</p>
               <p className="text-muted-foreground text-xs">
-                {/* 役名は AniList 由来のデータなので訳さない */}
+                {/* 作品名も役名も AniList 由来のデータ。訳さず、表示言語に合う表記を選ぶだけ */}
                 {[
-                  item.characterNameNative,
+                  characterDisplayName(item, locale),
                   item.role === "main" ? t("anime.roleMain") : t("anime.roleSupporting"),
                   seasonLabel(item.seasonYear, item.season, locale),
                 ].join(t("common.slashSeparator"))}

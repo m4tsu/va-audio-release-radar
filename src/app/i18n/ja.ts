@@ -235,8 +235,8 @@ export const ja = {
     metaDescription:
       "{{title}}の出演声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある {{count}} 人とその作品。",
     castTitle: "音声作品がある出演者",
-    /** 「2026 年秋 ／ Frieren」。`{{english}}` は AniList 由来なので訳さない */
-    subtitle: "{{season}} ／ {{english}}",
+    /** 「2026 年秋 ／ Frieren」。`{{alternate}}` は見出しに出していないほうのアニメ名 */
+    subtitle: "{{season}} ／ {{alternate}}",
     hasAudioWorks: "音声作品あり",
     workCount: "{{category}} {{count}}",
     roleMain: "主演",

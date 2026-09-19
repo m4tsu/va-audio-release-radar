@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
 import { createTranslator, useLocale, useT } from "@/app/i18n";
+import { animeDisplayTitle } from "@/app/lib/anime-title";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { parseSeasonSlug, seasonLabel } from "@/app/lib/season";
 import type { AnimeSummary } from "@/app/lib/view-types";
@@ -80,6 +81,7 @@ function SeasonPage() {
 
 function AnimeCard({ anime }: { anime: AnimeSummary }) {
   const t = useT();
+  const locale = useLocale();
   const cover = safeHttpsUrl(anime.coverImageUrl);
 
   return (
@@ -97,7 +99,7 @@ function AnimeCard({ anime }: { anime: AnimeSummary }) {
         />
       ) : null}
       <div className="min-w-0 space-y-1">
-        <p className="font-medium leading-snug">{anime.titleNative}</p>
+        <p className="font-medium leading-snug">{animeDisplayTitle(anime, locale)}</p>
         <p className="text-muted-foreground text-xs">
           {t("anime.actorCount", { count: anime.actorCount })}
         </p>

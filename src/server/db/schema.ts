@@ -172,7 +172,7 @@ export const animeTitles = sqliteTable(
     slug: text("slug").notNull(),
     titleNative: text("title_native").notNull(),
     titleRomaji: text("title_romaji").notNull(),
-    // AniList で実際に null のことがある。表示側は title_romaji で埋める
+    // AniList で実際に null のことがある
     titleEnglish: text("title_english"),
     seasonYear: integer("season_year").notNull(),
     season: text("season", { enum: ANIME_SEASONS }).notNull(),

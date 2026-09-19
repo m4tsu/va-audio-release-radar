@@ -294,6 +294,17 @@ describe("animeByActor", () => {
 
     expect(await animeByActor(db, UEDA.id)).toHaveLength(1);
   });
+
+  it("英語名が無い作品でもローマ字名を返す", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime({ titleEnglish: undefined })], NOW);
+
+    const [item] = await animeByActor(db, UEDA.id);
+
+    // 英語名が無い作品は画面がローマ字名で代えるので、英語名だけでは足りない
+    expect(item?.titleEnglish).toBeUndefined();
+    expect(item?.titleRomaji).toBe("Kusuriya no Hitorigoto 3rd Season");
+  });
 });
 
 describe("animeSitemapEntries", () => {

@@ -2,6 +2,8 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { PageHeader } from "@/app/components/page-header";
 import { createTranslator, useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
+import { animeAlternateTitle, animeDisplayTitle } from "@/app/lib/anime-title";
+import { characterDisplayName } from "@/app/lib/character-name";
 import { categoryLabel } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { seasonLabel } from "@/app/lib/season";
@@ -31,11 +33,13 @@ export const Route = createFileRoute("/anime/$slug")({
     const anime = loaderData?.anime;
     if (!anime) return {};
 
-    // 作品名は AniList 由来のデータ。英語表示でも訳さず titleNative のまま出す
-    const t = createTranslator(match.context.locale);
-    const title = t("anime.metaTitle", { title: anime.titleNative });
+    // 作品名は AniList 由来のデータ。訳さず、表示言語に合う表記を選ぶだけ
+    const locale = match.context.locale;
+    const t = createTranslator(locale);
+    const animeTitle = animeDisplayTitle(anime, locale);
+    const title = t("anime.metaTitle", { title: animeTitle });
     const description = t("anime.metaDescription", {
-      title: anime.titleNative,
+      title: animeTitle,
       count: anime.actorCount,
     });
     const canonical = absoluteUrl(loaderData?.origin, `/anime/${params.slug}`);
@@ -61,6 +65,7 @@ function absoluteUrl(origin: string | undefined, path: string): string {
 
 function AnimePage() {
   const t = useT();
+  const locale = useLocale();
   const { anime } = Route.useLoaderData();
   const cover = safeHttpsUrl(anime.coverImageUrl);
 
@@ -76,7 +81,10 @@ function AnimePage() {
           />
         ) : null}
         <div className="min-w-0 flex-1">
-          <PageHeader title={anime.titleNative} description={<AnimeSubtitle anime={anime} />} />
+          <PageHeader
+            title={animeDisplayTitle(anime, locale)}
+            description={<AnimeSubtitle anime={anime} />}
+          />
         </div>
       </div>
 
@@ -92,16 +100,15 @@ function AnimePage() {
   );
 }
 
-/** シーズンと英語タイトル。英語タイトルが無い作品ではローマ字で代える */
+/** シーズンと、見出しに出していないほうのアニメ名 */
 function AnimeSubtitle({ anime }: { anime: AnimeDetail }) {
   const t = useT();
   const locale = useLocale();
-  const english = anime.titleEnglish ?? anime.titleRomaji;
   return (
     <>
       {t("anime.subtitle", {
         season: seasonLabel(anime.seasonYear, anime.season, locale),
-        english,
+        alternate: animeAlternateTitle(anime, locale),
       })}
     </>
   );
@@ -128,7 +135,7 @@ function CastCard({ member }: { member: AnimeCastMember }) {
       ) : null}
       <div className="min-w-0 space-y-1">
         <div className="flex items-baseline gap-2">
-          <span className="font-medium">{member.characterNameNative}</span>
+          <span className="font-medium">{characterDisplayName(member, locale)}</span>
           <span className="text-muted-foreground text-xs">
             {member.role === "main" ? t("anime.roleMain") : t("anime.roleSupporting")}
           </span>

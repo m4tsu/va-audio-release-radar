@@ -207,7 +207,7 @@ export const en: Translations = {
         "{{count}} voice actors from {{title}} with ASMR, audiobooks or audio dramas, and their works.",
     },
     castTitle: "Cast with audio works",
-    subtitle: "{{season}} / {{english}}",
+    subtitle: "{{season}} / {{alternate}}",
     hasAudioWorks: "Has audio works",
     workCount: "{{category}} {{count}}",
     roleMain: "Main",

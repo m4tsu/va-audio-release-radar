@@ -97,7 +97,7 @@ export type AnimeTitle = {
   slug: string; // titleRomaji 由来 ("sousou-no-frieren")
   titleNative: string;
   titleRomaji: string;
-  // AniList で実際に null のことがある。表示は titleEnglish ?? titleRomaji で埋める
+  // AniList で実際に null のことがある
   titleEnglish?: string;
   seasonYear: number;
   season: AnimeSeason;

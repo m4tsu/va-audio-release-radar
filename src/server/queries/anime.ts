@@ -181,6 +181,7 @@ export type AnimeDetail = AnimeSummary & { cast: AnimeCastMember[] };
 export type ActorAnimeAppearance = {
   slug: string;
   titleNative: string;
+  titleRomaji: string;
   titleEnglish?: string;
   seasonYear: number;
   season: AnimeSeason;
@@ -355,6 +356,7 @@ export async function animeByActor(
     .select({
       slug: animeTitles.slug,
       titleNative: animeTitles.titleNative,
+      titleRomaji: animeTitles.titleRomaji,
       titleEnglish: animeTitles.titleEnglish,
       seasonYear: animeTitles.seasonYear,
       season: animeTitles.season,
@@ -373,6 +375,7 @@ export async function animeByActor(
     .map((row) => ({
       slug: row.slug,
       titleNative: row.titleNative,
+      titleRomaji: row.titleRomaji,
       ...(row.titleEnglish ? { titleEnglish: row.titleEnglish } : {}),
       seasonYear: row.seasonYear,
       season: row.season,
