@@ -179,6 +179,8 @@ export const ja = {
     duration: "再生時間",
     castTitle: "出演",
     castEmpty: "出演者の情報はありません。",
+    /** 新着のカードで、名前を出し切らなかったぶんの人数 */
+    castMore: "他 {{count}} 名",
     purchaseTitle: "購入",
     priceUnknown: "価格不明",
     unavailable: "現在は販売されていない可能性があります。",

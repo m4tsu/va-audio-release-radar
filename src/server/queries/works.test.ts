@@ -127,6 +127,33 @@ describe("latestWorks", () => {
     const audibleOnly = await latestWorks(db, { storeSlug: "audible", now: NOW });
     expect(audibleOnly.map((item) => item.work.id)).toEqual(["audible:B0ABC"]);
   });
+
+  it("名寄せ済みの声優を添え、未解決のクレジットは添えない", async () => {
+    const db = await setupDb([{ ...UEDA, nameEn: "Reina Ueda" }, HANAZAWA]);
+    await ingest(
+      db,
+      payload({
+        works: [rawWork({ creditedNames: ["上田麗奈", "花澤香菜", "名寄せできない表記"] })],
+      }),
+      NOW,
+    );
+
+    const [latest] = await latestWorks(db, { now: NOW });
+
+    expect(latest?.actors).toEqual([
+      { id: UEDA.id, slug: UEDA.slug, name: "上田麗奈", nameEn: "Reina Ueda" },
+      { id: HANAZAWA.id, slug: HANAZAWA.slug, name: "花澤香菜" },
+    ]);
+  });
+
+  it("クロールのきっかけになった声優ではなく、クレジットが指す声優を添える", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["花澤香菜"] })] }), NOW);
+
+    const [latest] = await latestWorks(db, { now: NOW });
+
+    expect(latest?.actors.map((actor) => actor.id)).toEqual([HANAZAWA.id]);
+  });
 });
 
 describe("feedForActors", () => {

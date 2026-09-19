@@ -7,7 +7,7 @@ import { storeLabel } from "@/app/components/store-badge";
 import { WorkCard } from "@/app/components/work-card";
 import { useT } from "@/app/i18n";
 import { cn } from "@/app/lib/utils";
-import type { WorkWithListings } from "@/app/lib/view-types";
+import type { LatestWork } from "@/app/lib/view-types";
 import { fetchLatestWorks } from "@/app/server-fns/works";
 import { useFollowStore } from "@/app/store/follow-store";
 import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
@@ -17,6 +17,11 @@ const LATEST_SINCE_DAYS = 30;
 const LATEST_LIMIT = 12;
 /** 最初に開くタブ。作品数がいちばん多いストア */
 const DEFAULT_STORE: StoreSlug = "dlsite";
+/**
+ * カード 1 枚に名前を出す声優の数。出演者が多い作品でカードの高さが伸び続けないように切る。
+ * 残りは人数だけを出し、全員は作品ページで見る
+ */
+const CARD_ACTOR_LIMIT = 3;
 
 /**
  * トップ。
@@ -42,7 +47,7 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
-type StoreWorks = { storeSlug: StoreSlug; items: WorkWithListings[] };
+type StoreWorks = { storeSlug: StoreSlug; items: LatestWork[] };
 
 function HomePage() {
   const { latestByStore } = Route.useLoaderData();
@@ -148,7 +153,12 @@ function LatestSection({ latestByStore }: { latestByStore: StoreWorks[] }) {
         {current && current.items.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {current.items.map((item) => (
-              <WorkCard key={item.work.id} item={item} />
+              <WorkCard
+                key={item.work.id}
+                item={item}
+                actors={item.actors}
+                actorLimit={CARD_ACTOR_LIMIT}
+              />
             ))}
           </div>
         ) : (

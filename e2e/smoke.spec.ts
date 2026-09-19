@@ -45,6 +45,22 @@ test("トップの新着はストアのタブで切り替わり、既定は DLsi
   await expect(page.getByText("ポケドラ の新着はありません")).toBeVisible();
 });
 
+test("トップの新着カードは名寄せ済みの出演声優を出す", async ({ page, request }) => {
+  // 名前は SSR の時点で入っている。カードから声優ページへ行けることが目的なのでリンクで見る
+  const html = await (await request.get("/")).text();
+  expect(html).toMatch(/href="\/voice-actors\/e2e-alpha"/);
+
+  await page.goto("/");
+  const card = page.getByRole("article").filter({ hasText: "テスト用ASMR作品アルファ" });
+  await expect(card.getByRole("link", { name: "テスト声優アルファ" })).toBeVisible();
+  await expect(card.getByRole("link", { name: "テスト声優デルタ" })).toBeVisible();
+  // ストアの表記のまま残っている未解決のクレジットは出さない
+  await expect(card.getByText("テスト未解決表記")).toBeHidden();
+
+  await card.getByRole("link", { name: "テスト声優アルファ" }).click();
+  await expect(page).toHaveURL(/\/voice-actors\/e2e-alpha$/);
+});
+
 test("声優一覧は SSR で声優ページへのリンクを並べる", async ({ page, request }) => {
   const raw = await request.get("/voice-actors");
   expect(raw.status()).toBe(200);

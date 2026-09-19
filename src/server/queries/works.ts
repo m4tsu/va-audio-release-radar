@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
@@ -73,10 +73,16 @@ export type WorkCredit = {
 
 export type WorkDetail = WorkWithListings & { credits: WorkCredit[] };
 
-/** フォロー中の声優ごとにまとめやすいよう、どの声優で拾った作品かを添える */
-export type FeedItem = WorkWithListings & {
-  actors: Array<{ id: string; slug: string; name: string }>;
-};
+/** 作品に出ている声優のうち、名寄せ済みの 1 人。カードから声優ページへ行けるだけの情報を持つ */
+export type WorkActor = { id: string; slug: string; name: string; nameEn?: string };
+
+/**
+ * 出ている声優を添えた作品。新着のカードは誰が出ているかを名前で出す。
+ * フィードでは「フォロー中の誰で引っかかったか」に絞った分だけが入る
+ */
+export type WorkWithActors = WorkWithListings & { actors: WorkActor[] };
+
+export type FeedItem = WorkWithActors;
 
 export type SitemapEntries = {
   actors: Array<{ slug: string; updatedAt: string }>;
@@ -190,7 +196,7 @@ export async function worksByActor(
 export async function latestWorks(
   db: AppDb,
   options: { limit?: number; sinceDays?: number; storeSlug?: StoreSlug; now?: string } = {},
-): Promise<WorkWithListings[]> {
+): Promise<WorkWithActors[]> {
   const {
     limit = 50,
     sinceDays = FEED_WINDOW_DAYS,
@@ -214,28 +220,32 @@ export async function latestWorks(
     .limit(limit);
 
   const workIds = rows.map((row) => row.id);
-  const [listings, actorIdsByWork, baselines] = await Promise.all([
+  const [listings, actorsByWork, baselines] = await Promise.all([
     loadListings(db, workIds),
-    loadCreditedActorIds(db, workIds),
+    loadWorkActors(db, workIds),
     loadCrawlBaselines(db),
   ]);
 
   const classified = rows.map((row) => {
     const workListings = listings.get(row.id) ?? [];
+    const actors = actorsByWork.get(row.id) ?? [];
     return {
       row,
       listings: workListings,
+      actors,
       ...classifyWork(
         row.releaseDate,
         workListings,
-        actorIdsByWork.get(row.id) ?? [],
+        actors.map((actor) => actor.id),
         baselines,
         now,
       ),
     };
   });
 
-  return classified.sort(compareFeedOrder).map(toWorkWithListings);
+  return classified
+    .sort(compareFeedOrder)
+    .map((item) => ({ ...toWorkWithListings(item), actors: item.actors }));
 }
 
 /**
@@ -276,7 +286,7 @@ export async function feedForActors(
   const workIds = rows.map((row) => row.id);
   const [listings, actorsByWork, baselines] = await Promise.all([
     loadListings(db, workIds),
-    loadFeedActors(db, workIds, voiceActorIds),
+    loadWorkActors(db, workIds, voiceActorIds),
     loadCrawlBaselines(db),
   ]);
 
@@ -387,27 +397,6 @@ async function loadCrawlBaselines(db: AppDb): Promise<CrawlBaselines> {
   for (const row of rows)
     baselines.set(baselineKey(row.voiceActorId, row.storeSlug), row.startedAt);
   return baselines;
-}
-
-/** 作品ごとの、名寄せ済みクレジットの声優 id。発売日が無い作品のベースライン選びに使う */
-async function loadCreditedActorIds(db: AppDb, workIds: string[]): Promise<Map<string, string[]>> {
-  const byWork = new Map<string, string[]>();
-  if (workIds.length === 0) return byWork;
-
-  for (const ids of chunked(workIds)) {
-    const rows = await db
-      .select({ audioWorkId: audioCredits.audioWorkId, voiceActorId: audioCredits.voiceActorId })
-      .from(audioCredits)
-      .where(and(inArray(audioCredits.audioWorkId, ids), isNotNull(audioCredits.voiceActorId)));
-
-    for (const row of rows) {
-      if (!row.voiceActorId) continue;
-      const list = byWork.get(row.audioWorkId);
-      if (list) list.push(row.voiceActorId);
-      else byWork.set(row.audioWorkId, [row.voiceActorId]);
-    }
-  }
-  return byWork;
 }
 
 /**
@@ -588,16 +577,24 @@ async function loadListings(db: AppDb, workIds: string[]): Promise<Map<string, W
   return byWork;
 }
 
-/** フィードの各作品に「フォロー中の誰で引っかかったか」を付ける */
-async function loadFeedActors(
+/**
+ * 作品ごとの、名寄せ済みクレジットの声優。名前順で、ストアの表記のまま残っている
+ * 未解決のクレジットは入らない (voice_actors と結合できないため)。
+ * 発売日が無い作品のベースライン選びと、カードに出す名前の両方がこの結果を使う。
+ *
+ * `onlyActorIds` を渡すとその中の声優だけになる。フィードが「フォロー中の誰で引っかかったか」
+ * を出すのに使う。表記違いで同じ声優に解決された credit が複数あると同じ声優が複数回入るので、
+ * 名前として出す側で重複を除く (`dedupeCredits`)
+ */
+async function loadWorkActors(
   db: AppDb,
   workIds: string[],
-  voiceActorIds: string[],
-): Promise<Map<string, Array<{ id: string; slug: string; name: string }>>> {
-  const byWork = new Map<string, Array<{ id: string; slug: string; name: string }>>();
+  onlyActorIds?: string[],
+): Promise<Map<string, WorkActor[]>> {
+  const byWork = new Map<string, WorkActor[]>();
   if (workIds.length === 0) return byWork;
 
-  const followed = new Set(voiceActorIds);
+  const allowed = onlyActorIds ? new Set(onlyActorIds) : undefined;
   for (const ids of chunked(workIds)) {
     const rows = await db
       .select({
@@ -605,6 +602,7 @@ async function loadFeedActors(
         id: voiceActors.id,
         slug: voiceActors.slug,
         name: voiceActors.canonicalName,
+        nameEn: voiceActors.nameEn,
       })
       .from(audioCredits)
       .innerJoin(voiceActors, eq(voiceActors.id, audioCredits.voiceActorId))
@@ -612,11 +610,16 @@ async function loadFeedActors(
       .orderBy(asc(voiceActors.canonicalName));
 
     for (const row of rows) {
-      if (!followed.has(row.id)) continue;
-      const entry = { id: row.id, slug: row.slug, name: row.name };
+      if (allowed && !allowed.has(row.id)) continue;
+      const actor: WorkActor = {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        ...(row.nameEn ? { nameEn: row.nameEn } : {}),
+      };
       const list = byWork.get(row.audioWorkId);
-      if (list) list.push(entry);
-      else byWork.set(row.audioWorkId, [entry]);
+      if (list) list.push(actor);
+      else byWork.set(row.audioWorkId, [actor]);
     }
   }
   return byWork;

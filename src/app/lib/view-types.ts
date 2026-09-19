@@ -1,7 +1,12 @@
 import type { fetchActorBySlug, fetchAllActors } from "@/app/server-fns/actors";
 import type { fetchCrawlerHealth, fetchUnmatchedCredits } from "@/app/server-fns/admin";
 import type { fetchAnimeByActor, fetchAnimeBySlug, fetchSeasonAnime } from "@/app/server-fns/anime";
-import type { fetchFeed, fetchLatestWorks, fetchWork } from "@/app/server-fns/works";
+import type {
+  fetchFeed,
+  fetchLatestWorks,
+  fetchWork,
+  fetchWorksByActor,
+} from "@/app/server-fns/works";
 
 /**
  * 画面が扱うデータの型。
@@ -12,7 +17,9 @@ import type { fetchFeed, fetchLatestWorks, fetchWork } from "@/app/server-fns/wo
  * server-fns の 1 箇所に集まり、import の経路も増えない
  */
 
-export type WorkWithListings = Awaited<ReturnType<typeof fetchLatestWorks>>[number];
+/** 作品カードが出せる最小の形。新着 (`LatestWork`) とフィード (`FeedItem`) はこれに声優を足したもの */
+export type WorkWithListings = Awaited<ReturnType<typeof fetchWorksByActor>>[number];
+export type LatestWork = Awaited<ReturnType<typeof fetchLatestWorks>>[number];
 export type WorkSummary = WorkWithListings["work"];
 export type WorkListing = WorkWithListings["listings"][number];
 export type WorkDetail = NonNullable<Awaited<ReturnType<typeof fetchWork>>>;

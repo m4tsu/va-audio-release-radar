@@ -159,6 +159,7 @@ export const en: Translations = {
     duration: "Running time",
     castTitle: "Cast",
     castEmpty: "No cast information available.",
+    castMore: "+{{count}} more",
     purchaseTitle: "Where to buy",
     priceUnknown: "Price unknown",
     unavailable: "This may no longer be on sale.",

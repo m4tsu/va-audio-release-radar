@@ -22,14 +22,21 @@ import type { WorkWithListings } from "@/app/lib/view-types";
 export function WorkCard({
   item,
   actors,
+  actorLimit,
   unread = false,
 }: {
   item: WorkWithListings;
   /**
-   * フィードで「フォロー中の誰で引っかかったか」を出すとき。声優ページでは省く。
+   * 出す声優。新着ではその作品に出ている名寄せ済みの声優、フィードでは「フォロー中の誰で
+   * 引っかかったか」。声優ページでは省く (そのページの声優なので重ねて出さない)。
    * `nameEn` は入っていれば英語表示で使う
    */
   actors?: Array<{ id: string; slug: string; name: string; nameEn?: string }>;
+  /**
+   * 名前を出す人数の上限。渡さなければ全員出す。
+   * 超えた分は人数だけを添える (全員はその作品のページで見る)
+   */
+  actorLimit?: number;
   /**
    * 前回フィードを見たとき以降の作品。ブラウザにしか無い状態なので SSR では常に false で、
    * ハイドレーション後にだけ印が付く
@@ -43,7 +50,10 @@ export function WorkCard({
   // (この配列は常に名寄せ済みの声優なので voiceActorId 相当の id で重複排除すれば足りる)
   const dedupedActors = actors
     ? dedupeCredits(actors, (actor) => ({ voiceActorId: actor.id, creditedName: actor.name }))
-    : undefined;
+    : [];
+  // 上限は重複を除いた後にかける。表記違いの分で枠が埋まると出る人数が作品ごとに変わる
+  const shownActors = actorLimit === undefined ? dedupedActors : dedupedActors.slice(0, actorLimit);
+  const hiddenActorCount = dedupedActors.length - shownActors.length;
   const upcoming = item.freshness === "upcoming";
 
   return (
@@ -86,9 +96,9 @@ export function WorkCard({
           </Link>
         </h3>
 
-        {dedupedActors && dedupedActors.length > 0 ? (
+        {shownActors.length > 0 ? (
           <p className="flex flex-wrap gap-x-2 gap-y-1 text-sm">
-            {dedupedActors.map((actor) => (
+            {shownActors.map((actor) => (
               <Link
                 key={actor.id}
                 to="/voice-actors/$slug"
@@ -101,6 +111,12 @@ export function WorkCard({
                 )}
               </Link>
             ))}
+            {hiddenActorCount > 0 ? (
+              // 残りはここでは開かない。全員はその作品のページで見る
+              <span className="text-muted-foreground">
+                {t("work.castMore", { count: hiddenActorCount })}
+              </span>
+            ) : null}
           </p>
         ) : null}
 
