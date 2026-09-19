@@ -239,8 +239,9 @@ export function buildActorEntity(
   const slug = override?.slug ?? toActorSlug(staff.fullName);
   if (slug === undefined) return { excluded: { ...base, reason: "no-slug" } };
 
-  // 手で書いた表記が AniList のワープロ式より優先される。書いていない人は AniList のまま
-  const nameEn = override?.nameEn ?? toActorNameEn(staff.fullName);
+  // 手で書いた表記が AniList のワープロ式より優先される。書いていない人は AniList のまま。
+  // 手書き側も同じ空白の正規化を通す (書き損じの空白が生成物に残らないようにするため)
+  const nameEn = toActorNameEn(override?.nameEn) ?? toActorNameEn(staff.fullName);
 
   return {
     actor: {

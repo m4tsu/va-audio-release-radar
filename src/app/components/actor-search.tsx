@@ -122,7 +122,6 @@ function SearchResults({
               voiceActorId: actor.id,
               slug: actor.slug,
               canonicalName: actor.canonicalName,
-              // フォロー一覧はサーバーに引き直さずこの値で名前を描くので、英語表記も一緒に渡す
               ...(actor.nameEn ? { nameEn: actor.nameEn } : {}),
             }}
           />

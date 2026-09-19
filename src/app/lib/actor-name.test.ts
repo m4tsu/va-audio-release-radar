@@ -10,7 +10,6 @@ describe("actorDisplayName", () => {
     expect(actorDisplayName(withoutEn, "ja")).toBe("上田麗奈");
   });
 
-  /** name_en は今は全件 NULL。入ったときに自動で効くことをここで固定する */
   test("英語表示では name_en があればそれを使う", () => {
     expect(actorDisplayName(withEn, "en")).toBe("Reina Ueda");
   });

@@ -183,6 +183,13 @@ describe("buildActorEntity", () => {
     expect("actor" in result && result.actor.slug).toBe("hikasa-youko");
   });
 
+  it("手で書いた nameEn も空白を詰め、空なら AniList の表記に戻す", () => {
+    const written = buildActorEntity(staff(), { 上田麗奈: { nameEn: " Reina  Ueda " } });
+    expect("actor" in written && written.actor.nameEn).toBe("Reina Ueda");
+    const blank = buildActorEntity(staff(), { 上田麗奈: { nameEn: "  " } });
+    expect("actor" in blank && blank.actor.nameEn).toBe("Reina Ueda");
+  });
+
   it("nameEn を書いていない声優は AniList の表記のまま", () => {
     const result = buildActorEntity(staff(), { 上田麗奈: { nameKana: "うえだれいな" } });
     expect("actor" in result && result.actor.nameEn).toBe("Reina Ueda");
