@@ -13,7 +13,6 @@ import {
   parseRuntimeSeconds,
   parseSearchHtml,
   parseTotalCount,
-  SORT_LADDER,
   toIsoDate,
 } from "./audible.ts";
 
@@ -38,44 +37,51 @@ const looseMatchHtml = readFileSync(
   path.join(FIXTURES_DIR, "audible-search-sato-hajime.html"),
   "utf8",
 );
+// ページングの実 HTML。斉藤壮馬 (総件数 164) の 1 ページ目と最終ページ (T25)。
+// 1 ページ目は 20 件で埋まり、9 ページ目は 4 件しかない
+const pagedFirstHtml = readFileSync(
+  path.join(FIXTURES_DIR, "audible-search-saito-souma-page1.html"),
+  "utf8",
+);
+const pagedLastHtml = readFileSync(
+  path.join(FIXTURES_DIR, "audible-search-saito-souma-page9.html"),
+  "utf8",
+);
 
 describe("buildSearchUrl", () => {
-  it("sort=pubdate-desc-rank を付けて発売日降順にする", () => {
-    // 既定 (sort 無し) は人気順で、20 件を超える声優は新作が 1 ページ目に載らない。
-    // pageSize / page を足すと no-search-results へ 302 されるが、sort 単独なら 200 (実測、設計書 §3)
+  it("1 ページ目は searchNarrator だけの素の URL にする", () => {
+    // sort= は robots.txt (#Block searchAuthor/Narrator/Provider &sort=) が値を問わず禁じている。
+    // page= は searchNarrator と 2 つだけの形を禁じる規則が無いので使える (設計書 §3)
     expect(buildSearchUrl("上田麗奈")).toBe(
-      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88&sort=pubdate-desc-rank",
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88",
     );
-  });
-});
-
-describe("buildSearchUrl", () => {
-  it("既定は新しい順 (pubdate-desc-rank)", () => {
     expect(buildSearchUrl("上田 麗奈")).toBe(
-      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&sort=pubdate-desc-rank",
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88",
     );
   });
 
-  it("古い順は sort だけが変わる", () => {
-    expect(buildSearchUrl("上田 麗奈", "pubdate-asc-rank")).toBe(
-      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&sort=pubdate-asc-rank",
+  it("2 ページ目以降だけ &page=N を足す", () => {
+    expect(buildSearchUrl("上田 麗奈", 2)).toBe(
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&page=2",
+    );
+    expect(buildSearchUrl("上田 麗奈", 9)).toBe(
+      "https://www.audible.co.jp/search?searchNarrator=%E4%B8%8A%E7%94%B0%20%E9%BA%97%E5%A5%88&page=9",
     );
   });
-});
 
-describe("SORT_LADDER", () => {
-  it("新しい順から始まり、同じキーの昇順が 2 番目に来る", () => {
-    // 1 番目が新作レーダーの本体。2 番目を同じキー (pubdate) の逆向きにすると、
-    // 「上位 20 件」と「下位 20 件」で必ず重ならないので、総件数 40 以下は定義上 全件取れる (T22)
-    expect(SORT_LADDER[0]).toBe("pubdate-desc-rank");
-    expect(SORT_LADDER[1]).toBe("pubdate-asc-rank");
+  it("page=1 は素の URL と同じ形にする", () => {
+    // 実測で page=1 と page 無しは ASIN まで完全に一致した。パラメータが少ないほうを正規形にする
+    expect(buildSearchUrl("上田 麗奈", 1)).toBe(buildSearchUrl("上田 麗奈"));
   });
 
-  it("並び順は重複せず、上限は 6 リクエスト", () => {
-    // 10 種すべて使っても実測 (斉藤壮馬 164 件) では 6 種の 83 件から 84 件にしか増えない。
-    // 声優 1 人あたりの所要時間に見合わないので 6 で打ち切る
-    expect(new Set(SORT_LADDER).size).toBe(SORT_LADDER.length);
-    expect(SORT_LADDER).toHaveLength(6);
+  it("robots.txt の Disallow に一致しない形になっている", () => {
+    // sort= を含まないこと、node= を含まないこと、searchNarrator 以外の `=` が page= だけであること。
+    // Disallow: /search*searchNarrator=*=*=*= は searchNarrator= の後ろに `=` が 3 つ要るので、
+    // page= を 1 つ足しただけでは一致しない
+    const url = buildSearchUrl("斉藤 壮馬", 9);
+    expect(url).not.toContain("sort=");
+    expect(url).not.toContain("node=");
+    expect(url.split("searchNarrator=")[1]?.split("=").length).toBe(2);
   });
 });
 
@@ -171,7 +177,7 @@ describe("parseSearchHtml", () => {
 
 describe("parseTotalCount", () => {
   // 実測 HTML 断片 (石田彰の検索結果、38 件中 20 件表示)。フィクスチャ
-  // (audible-search-ueda-reina.html) は sort 無しで取得したもので、この表示自体が無い
+  // (audible-search-ueda-reina.html) は商品リストだけを残したもので、この表示自体が無い
   const summaryHtml =
     '<span class="bc-text\n    resultsSummarySubheading \n    \n    \n    bc-color-secondary"  >検索結果 38  のうち 1 - 20 件</span>';
 
@@ -201,7 +207,7 @@ describe("parseSearchHtml の totalCount", () => {
   const summaryHtml = '<span class="resultsSummarySubheading">検索結果 38  のうち 1 - 20 件</span>';
 
   it("総件数を totalCount に載せる。取りこぼしの判断はここではしない", () => {
-    // 並び順違いの 1 ページ目を足した後でないと網羅率は決まらないので、警告は fetchByActor 側 (T12)
+    // 2 ページ目以降を足した後でないと網羅率は決まらないので、警告は fetchByActor 側 (T12)
     const html = `${summaryHtml}${htmlWithOneWorkFixture("B000000009")}`;
     const parsed = parseSearchHtml(html, FETCHED_AT);
     expect(parsed.totalCount).toBe(38);
@@ -212,6 +218,38 @@ describe("parseSearchHtml の totalCount", () => {
     const parsed = parseSearchHtml(searchHtml, FETCHED_AT);
     expect(parsed.totalCount).toBeUndefined();
     expect(parsed.warnings).toEqual([]);
+  });
+});
+
+describe("parseSearchHtml (ページングした実 HTML)", () => {
+  const first = parseSearchHtml(pagedFirstHtml, FETCHED_AT);
+  const last = parseSearchHtml(pagedLastHtml, FETCHED_AT);
+
+  it("1 ページ目は 20 件で埋まり、総件数 164 を読める", () => {
+    expect(first.works).toHaveLength(20);
+    expect(first.invalidCount).toBe(0);
+    expect(first.totalCount).toBe(164);
+  });
+
+  it("最終ページ (9 ページ目) は 4 件で、総件数は同じ 164", () => {
+    // 164 = 20 × 8 + 4。「埋まっていないページが来たら打ち切ってよい」の根拠になる実データ
+    expect(last.works).toHaveLength(4);
+    expect(last.invalidCount).toBe(0);
+    expect(last.totalCount).toBe(164);
+  });
+
+  it("1 ページ目と最終ページで ASIN が重複しない", () => {
+    // 並び順のはしごと違い、ページングでは同じ作品が 2 度出てこない (9 ページ 164 件で重複 0 を実測)
+    const firstIds = new Set(first.works.map((work) => work.storeProductId));
+    expect(last.works.some((work) => firstIds.has(work.storeProductId))).toBe(false);
+  });
+
+  it("sort= を外して人気順のままでも本人名義の作品が並ぶ", () => {
+    // 20 件中 19 件が本人名義。残り 1 件は本人の冠番組でナレーター欄が空
+    const credited = first.works.filter((work) =>
+      work.creditedNames.some((name) => name.replace(/\s/g, "") === "斉藤壮馬"),
+    );
+    expect(credited).toHaveLength(19);
   });
 });
 
@@ -358,7 +396,7 @@ describe("fetchByActor", () => {
     expect(result.status).toBe("ok");
   });
 
-  // --- 網羅率と並び順のはしご (T12 / T22) ---------------------------------
+  // --- 網羅率とページング (T12 / T22 / T25) -------------------------------
 
   /** 複数件ヒット時の総件数サマリ。1 件のときだけ表記が変わる (parseTotalCount のテスト参照) */
   function summary(total: number): string {
@@ -374,18 +412,19 @@ describe("fetchByActor", () => {
 
   const ACTOR = { canonicalName: "上田麗奈", searchNames: ["上田麗奈"] };
 
-  it("総件数が 1 ページに収まるなら追加の並び順を引かない", async () => {
+  it("総件数が 1 ページに収まるなら 2 ページ目を引かない", async () => {
     fetchTextMock.mockResolvedValueOnce(ok(`${summary(7)}${page(1, 7)}`));
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
     expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(fetchTextMock.mock.calls[0]?.[0]).toBe(buildSearchUrl("上田麗奈"));
     expect(result.coverage).toEqual({ fetched: 7, total: 7, complete: true, pages: 1, matched: 7 });
   });
 
   it("総件数が 1 ページに収まるなら、取得件数が足りなくても引き直さない", async () => {
-    // ページングが起きていないので、どの並び順を引いても同じ 1 ページが返る。
-    // 解析落ちで件数が合わないときに 5 回引き直しても、相手に負荷をかけるだけで増えない
+    // 2 ページ目が存在しないので、解析落ちで件数が合わなくても引く先が無い。
+    // 相手に負荷をかけるだけで 1 件も増えない
     fetchTextMock.mockResolvedValueOnce(ok(`${summary(7)}${htmlWithOneWork("B000000010")}`));
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
@@ -401,7 +440,7 @@ describe("fetchByActor", () => {
   });
 
   it("和集合が総件数に届いた時点で打ち切る", async () => {
-    // 総件数 21。新しい順で 20 件、古い順で 1 件足りれば 21 件に届くので 3 種類目は引かない
+    // 総件数 21。1 ページ目で 20 件、2 ページ目の 1 件で 21 件に届くので 3 ページ目は引かない
     fetchTextMock
       .mockResolvedValueOnce(ok(`${summary(21)}${page(1)}`))
       .mockResolvedValueOnce(ok(`${summary(21)}${page(21, 1)}`));
@@ -409,7 +448,7 @@ describe("fetchByActor", () => {
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
     expect(fetchTextMock).toHaveBeenCalledTimes(2);
-    expect(fetchTextMock.mock.calls[1]?.[0]).toBe(buildSearchUrl("上田麗奈", "pubdate-asc-rank"));
+    expect(fetchTextMock.mock.calls[1]?.[0]).toBe(buildSearchUrl("上田麗奈", 2));
     expect(result.coverage).toEqual({
       fetched: 21,
       total: 21,
@@ -420,55 +459,71 @@ describe("fetchByActor", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("重複した ASIN は畳んで 1 件にする", async () => {
-    // 総件数 30 に届かないのではしごを使い切るが、3 種類目以降は既出の ASIN しか返さない
+  it("ページ番号は 1 始まりで、2 ページ目から順に引く", async () => {
+    // 実測 (斉藤壮馬): page 無しと page=1 は同じ 20 件、page=2 は 21 件目から。
+    // 0 始まりだと page=2 が 41 件目からになるが、そうはならなかった
     fetchTextMock
-      .mockResolvedValueOnce(
-        ok(`${summary(30)}${htmlWithOneWork("B000000011")}${htmlWithOneWork("B000000012")}`),
-      )
-      .mockResolvedValue(
-        ok(`${summary(30)}${htmlWithOneWork("B000000012")}${htmlWithOneWork("B000000013")}`),
-      );
+      .mockResolvedValueOnce(ok(`${summary(45)}${page(1)}`))
+      .mockResolvedValueOnce(ok(`${summary(45)}${page(21)}`))
+      .mockResolvedValueOnce(ok(`${summary(45)}${page(41, 5)}`));
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
-    expect(result.works.map((work) => work.storeProductId)).toEqual([
-      "B000000011",
-      "B000000012",
-      "B000000013",
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual([
+      buildSearchUrl("上田麗奈"),
+      buildSearchUrl("上田麗奈", 2),
+      buildSearchUrl("上田麗奈", 3),
     ]);
     expect(result.coverage).toEqual({
-      fetched: 3,
-      total: 30,
-      complete: false,
-      pages: 6,
-      matched: 3,
+      fetched: 45,
+      total: 45,
+      complete: true,
+      pages: 3,
+      matched: 45,
     });
   });
 
-  it("届かないときは SORT_LADDER を使い切って打ち切る", async () => {
-    // 総件数 164 (斉藤壮馬の実測値)。並び順ごとに別の 20 件が返っても 6 種類で止める
-    for (let index = 0; index < SORT_LADDER.length; index += 1) {
-      fetchTextMock.mockResolvedValueOnce(ok(`${summary(164)}${page(1 + index * 20)}`));
+  it("ページ間で ASIN が重複したら畳んだうえで警告に残す", async () => {
+    // ページングでは本来重複しない (実測で 164 件中 0 件)。出たら取得中に並びが動いた合図で、
+    // ずれた分だけ取りこぼしている可能性がある。黙って畳むと気づけない
+    fetchTextMock
+      .mockResolvedValueOnce(ok(`${summary(45)}${page(1)}`))
+      // 1 件ぶんずれて B000000020 が 2 ページ目にも出る
+      .mockResolvedValueOnce(ok(`${summary(45)}${page(20)}`))
+      .mockResolvedValueOnce(ok(`${summary(45)}${page(40, 6)}`));
+
+    const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(new Set(result.works.map((work) => work.storeProductId)).size).toBe(result.works.length);
+    expect(result.works).toHaveLength(45);
+    expect(result.warnings).toContain("2 ページ目に既出の作品が 1 件 (取得中に並びが動いた可能性)");
+  });
+
+  it("届かないときは 10 ページで打ち切り、上限に当たったことを残す", async () => {
+    // 総件数 400。1 声優あたり 20 件 × 10 ページ = 200 件を上限にしている
+    for (let index = 0; index < 12; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(ok(`${summary(400)}${page(1 + index * 20)}`));
     }
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
-    expect(fetchTextMock).toHaveBeenCalledTimes(SORT_LADDER.length);
-    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual(
-      SORT_LADDER.map((sort) => buildSearchUrl("上田麗奈", sort)),
-    );
+    expect(fetchTextMock).toHaveBeenCalledTimes(10);
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual([
+      buildSearchUrl("上田麗奈"),
+      ...Array.from({ length: 9 }, (_value, index) => buildSearchUrl("上田麗奈", index + 2)),
+    ]);
     expect(result.coverage).toEqual({
-      fetched: 120,
-      total: 164,
+      fetched: 200,
+      total: 400,
       complete: false,
-      pages: 6,
-      matched: 120,
+      pages: 10,
+      matched: 200,
     });
-    expect(result.warnings).toContain("網羅率 120/164");
+    expect(result.warnings).toContain("網羅率 200/400");
+    expect(result.warnings).toContain("400 件中 200 件まで取得 (1 声優あたり 10 ページが上限)");
   });
 
-  it("途中の並び順が失敗したら、そこまでの結果で打ち切る", async () => {
+  it("途中のページが失敗したら、そこまでの結果で打ち切る", async () => {
     // 相手が答えられない状態で残りを投げ続けない (fetchText 側で既に 4 回再試行している)
     fetchTextMock
       .mockResolvedValueOnce(ok(`${summary(164)}${page(1)}`))
@@ -486,15 +541,15 @@ describe("fetchByActor", () => {
       pages: 1,
       matched: 20,
     });
-    expect(
-      result.warnings.some((warning) =>
-        warning.startsWith("並び順 pubdate-asc-rank での補完に失敗"),
-      ),
-    ).toBe(true);
+    expect(result.warnings.some((warning) => warning.startsWith("2 ページ目の取得に失敗"))).toBe(
+      true,
+    );
+    // 上限ページまで行っていないので、上限の警告は鳴らさない
+    expect(result.warnings.some((warning) => warning.includes("上限"))).toBe(false);
   });
 
-  it("1 ページ目で総件数を読めなくても、後続の並び順で読めれば拾う", async () => {
-    // 1 ページ目が埋まっていれば続きがあると分かるので、総件数不明でもはしごを進める
+  it("1 ページ目で総件数を読めなくても、後のページで読めれば拾う", async () => {
+    // 1 ページ目が埋まっていれば続きがあると分かるので、総件数不明でも次のページへ進む
     fetchTextMock
       .mockResolvedValueOnce(ok(page(1)))
       .mockResolvedValueOnce(ok(`${summary(30)}${page(21, 10)}`));
@@ -539,23 +594,25 @@ describe("fetchByActor", () => {
     expect(result.coverage).toEqual({ fetched: 1, total: 1, complete: true, pages: 1, matched: 1 });
   });
 
-  it("総件数が読めないまま最後まで埋まっていたら「不明」のままにする", async () => {
-    // ちょうど 20 件で総件数も読めない。続きがあるかどうか分からないので complete を立てない
-    for (let index = 0; index < SORT_LADDER.length; index += 1) {
-      fetchTextMock.mockResolvedValueOnce(ok(page(1)));
+  it("総件数が読めないまま上限ページまで埋まっていたら「不明」のままにする", async () => {
+    // どのページも 20 件ちょうどで総件数も読めない。続きがあるかどうか分からないので
+    // complete を立てない。分母が無いので「200 件まで取得」の警告も鳴らさない
+    for (let index = 0; index < 12; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(ok(page(1 + index * 20)));
     }
 
     const result = await audibleAdapter.fetchByActor(ACTOR, { snapshot: false });
 
-    expect(fetchTextMock).toHaveBeenCalledTimes(SORT_LADDER.length);
-    expect(result.coverage).toEqual({ fetched: 20, pages: 6, matched: 20 });
+    expect(fetchTextMock).toHaveBeenCalledTimes(10);
+    expect(result.coverage).toEqual({ fetched: 200, pages: 10, matched: 200 });
     expect(result.totalCount).toBeUndefined();
+    expect(result.warnings.some((warning) => warning.includes("上限"))).toBe(false);
   });
 
-  it("検証落ちを引いた分は「1 ページが埋まっていない」の判定に入れない", async () => {
+  it("検証落ちを引いた分は「そのページが埋まっていない」の判定に入れない", async () => {
     // 1 ページ 20 件のうち 1 件が検証に落ちる (ここでは表紙がプレースホルダ画像で https URL でない)
-    // と works は 19 件になるが、ページングは起きている。works の数で判断すると
-    // 「20 件未満だから全件」と誤るので、捨てた分を数に戻してから判定する
+    // と works は 19 件になるが、続きのページはある。works の数で判断すると
+    // 「20 件未満だから最終ページだ」と誤るので、捨てた分を数に戻してから判定する
     const brokenItem =
       '<li class="productListItem" id="product-list-item-B099999999">' +
       '<h3><a href="/pd/x/B099999999">壊れた行</a></h3>' +
@@ -584,8 +641,10 @@ describe("fetchByActor", () => {
     // 実測: 「佐藤 元」で引くと総件数 355 件が返るが、1 ページ目のナレーターは
     // 佐藤恵・佐藤詩乃・佐藤弘樹などで佐藤元は 1 件も含まれない。
     // この 355 は佐藤姓のナレーター作品の総数であって、佐藤元の作品数ではない
-    for (let index = 0; index < SORT_LADDER.length; index += 1) {
-      fetchTextMock.mockResolvedValueOnce(ok(`${summary(355)}${page(1, 20, "佐藤 恵")}`));
+    for (let index = 0; index < 12; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(
+        ok(`${summary(355)}${page(1 + index * 20, 20, "佐藤 恵")}`),
+      );
     }
 
     const result = await audibleAdapter.fetchByActor(
@@ -595,23 +654,27 @@ describe("fetchByActor", () => {
 
     // total も complete も落として「不明」にする。complete: false にすると
     // 「佐藤元の作品を取り逃した」という別の主張になってしまう
-    expect(result.coverage).toEqual({ fetched: 20, pages: 6, matched: 0 });
+    expect(result.coverage).toEqual({ fetched: 200, pages: 10, matched: 0 });
     expect(result.totalCount).toBeUndefined();
     expect(result.warnings).toContain(
-      "検索語が広すぎる可能性 (本人名義 0/20 件)。総件数 355 は同姓の別人を含むとみて網羅率は不明とする",
+      "検索語が広すぎる可能性 (本人名義 0/200 件)。総件数 355 は同姓の別人を含むとみて網羅率は不明とする",
     );
     // 網羅率の警告は鳴らさない。分母が信用できないものを取りこぼしとして出し続けても意味がない
     expect(result.warnings.some((warning) => warning.startsWith("網羅率"))).toBe(false);
   });
 
   it("本人名義が大半なら、1 件混ざっても網羅率をそのまま出す", async () => {
-    // 斉藤壮馬は和集合 84 件中 83 件が本人名義。残り 1 件は本人の冠番組でナレーター欄が空。
+    // 斉藤壮馬は全 164 件中 163 件が本人名義。残り 1 件は本人の冠番組でナレーター欄が空。
     // この程度の混入で分母を捨てると、正しく引けている声優の網羅率まで見えなくなる
-    const own = page(1, 19, "斉藤 壮馬");
-    const other = htmlWithOneWork("B000000099", "別人 太郎");
-    for (let index = 0; index < SORT_LADDER.length; index += 1) {
-      fetchTextMock.mockResolvedValueOnce(ok(`${summary(164)}${own}${other}`));
+    // 1 ページ目だけ 19 件 + 別人 1 件。2〜8 ページ目が 20 件ずつ、9 ページ目が 4 件で計 164 件
+    const other = htmlWithOneWork("B000009999", "別人 太郎");
+    fetchTextMock.mockResolvedValueOnce(ok(`${summary(164)}${page(1, 19, "斉藤 壮馬")}${other}`));
+    for (let index = 1; index <= 7; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(
+        ok(`${summary(164)}${page(1 + index * 20, 20, "斉藤 壮馬")}`),
+      );
     }
+    fetchTextMock.mockResolvedValueOnce(ok(`${summary(164)}${page(161, 4, "斉藤 壮馬")}`));
 
     const result = await audibleAdapter.fetchByActor(
       { canonicalName: "斉藤壮馬", searchNames: ["斉藤 壮馬"] },
@@ -619,13 +682,12 @@ describe("fetchByActor", () => {
     );
 
     expect(result.coverage).toEqual({
-      fetched: 20,
+      fetched: 164,
       total: 164,
-      complete: false,
-      pages: 6,
-      matched: 19,
+      complete: true,
+      pages: 9,
+      matched: 163,
     });
-    expect(result.warnings).toContain("網羅率 20/164");
     expect(result.warnings.some((warning) => warning.startsWith("検索語が広すぎる"))).toBe(false);
   });
 
@@ -681,6 +743,57 @@ describe("fetchByActor", () => {
     );
 
     expect(result.coverage?.matched).toBe(1);
+  });
+
+  // --- 実 HTML を使ったページングの筋 (T25) ------------------------------
+
+  it("実 HTML の 1 ページ目と最終ページを含めて 164 件を網羅する", async () => {
+    // 2026-09-19 の実測どおりの筋。斉藤壮馬は 9 ページで 164/164 (以前の並び順のはしごは 84/164)。
+    // 1 ページ目と 9 ページ目は実 HTML、間の 7 ページは同じ形の 20 件で埋める
+    fetchTextMock.mockResolvedValueOnce(ok(pagedFirstHtml));
+    for (let index = 1; index <= 7; index += 1) {
+      fetchTextMock.mockResolvedValueOnce(
+        ok(`${summary(164)}${page(1 + index * 20, 20, "斉藤 壮馬")}`),
+      );
+    }
+    fetchTextMock.mockResolvedValueOnce(ok(pagedLastHtml));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "斉藤壮馬", searchNames: ["斉藤 壮馬"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual([
+      buildSearchUrl("斉藤 壮馬"),
+      ...Array.from({ length: 8 }, (_value, index) => buildSearchUrl("斉藤 壮馬", index + 2)),
+    ]);
+    expect(result.works).toHaveLength(164);
+    expect(result.coverage).toEqual({
+      fetched: 164,
+      total: 164,
+      complete: true,
+      pages: 9,
+      matched: 163,
+    });
+    // ページ間の重複は実測で 0 件。警告が出ていないことで確かめる
+    expect(result.warnings.some((warning) => warning.includes("既出の作品"))).toBe(false);
+    expect(result.warnings.some((warning) => warning.startsWith("網羅率"))).toBe(false);
+  });
+
+  it("実 HTML (上田麗奈 7 件) は 1 ページで終わり、2 ページ目を引かない", async () => {
+    // このフィクスチャには総件数サマリが無い。7 件 = 1 ページが埋まっていないので、
+    // 総件数を読めなくても「これで全部」と判断してよい (T22-C)
+    fetchTextMock.mockResolvedValue(ok(searchHtml));
+
+    const result = await audibleAdapter.fetchByActor(
+      { canonicalName: "上田麗奈", searchNames: ["上田 麗奈"] },
+      { snapshot: false },
+    );
+
+    expect(fetchTextMock).toHaveBeenCalledTimes(1);
+    expect(fetchTextMock.mock.calls[0]?.[0]).toBe(buildSearchUrl("上田 麗奈"));
+    expect(result.works).toHaveLength(7);
+    expect(result.coverage).toEqual({ fetched: 7, total: 7, complete: true, pages: 1, matched: 7 });
   });
 
   it("該当なし (empty) でも網羅率は 0/0 として残す", async () => {

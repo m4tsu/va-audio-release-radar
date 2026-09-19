@@ -102,7 +102,7 @@
 | T10 | フィードの 3 段構成、`freshness`、未読 | `src/server/queries/works.ts`, `src/app/routes/index.tsx` |
 | T11 | Audible の `sort=pubdate-desc-rank` 対応 | `crawler/adapters/audible.ts` |
 | T12 | 網羅率 (`totalCount` / `coverageComplete`) と古い順での補完 | `crawler/adapters/coverage.ts`, `crawl_runs` の 2 列 |
-| T13 | 対象声優の自動生成 (2,569 人)、作品 0 件の声優をページ・一覧・sitemap から外す | `crawler/discovery/actor-entity.ts`, `crawler/actors.generated.json` |
+| T13 | 対象声優の自動生成、作品 0 件の声優をページ・一覧・sitemap から外す | `crawler/discovery/actor-entity.ts`, `crawler/actors.generated.json` |
 | T14 | 生成規則の修正 (1 語名義を除外しない、姓の切り方を名前の長さで変える) | 同上 |
 | T15 | `adult: boolean` → `ageRating` の列挙、`storeSection` の追加 | `src/domain/types.ts`, `src/server/db/schema.ts`, `migrations/` |
 
@@ -137,11 +137,11 @@
 | | 内容 | 状態 |
 |---|---|---|
 | S1 | 上位 500 人のスイープ (DLsite / Audible)。対象声優の厚みを実データで測る | 実行中 (2〜4 時間) |
-| S2 | ポケドラの声優タグ辞書の構築 (`crawler/discovery/pokedora-tags.ts`、3,161 件 × 5 秒) | 実行中 (4.4 時間) |
+| S2 | ポケドラの声優タグ辞書の構築 (`crawler/discovery/pokedora-tags.ts`、声優タグ 3,161 件) | 実行中。所要時間の見積もりは [`../stores/pokedora.md`](../stores/pokedora.md) の「全件クロールのコスト」 |
 
 S1 / S2 が終わってから着手するもの:
 
-1. S2 の辞書を AniList 2,569 人と交差させる (`crawler/discovery/pokedora-intersect.ts`)。
+1. S2 の辞書を AniList 対象声優と交差させる (`crawler/discovery/pokedora-intersect.ts`)。
    ネットワークに出ないので S2 の完了直後に回せる
 2. ポケットドラマ CD の adapter 実装 (一般 + BL の 2 区分。年齢確認・Cookie 不要)。
    `StoreSlug` に `pokedora` を追加する。取得仕様は `architecture.md` §6

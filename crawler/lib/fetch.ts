@@ -102,9 +102,13 @@ export function rateLimitFor(rawUrl: string): RateLimit {
     return { key: "pokedora", intervalMs: 5_000 };
   }
   // AniList は 1 分あたりのリクエスト上限があり、超えると 429 + Retry-After を返す。
-  // 公称 90 req/min に対し余裕を取って 1.5 秒 (= 40 req/min) にする
+  // 公称は 90 req/min だが、2026-09-19 時点は API が劣化状態で 30 req/min に制限されている
+  // (docs.anilist.co/guide/rate-limiting の記載、実測ヘッダ x-ratelimit-limit: 30 の両方で確認)。
+  // 90 req/min は平常時の値であって今の実効値ではないので、それを根拠に間隔を詰めない。
+  // 上限 30 に対し、閾値非公開のバースト制限の余地も残して 3.0 秒 (= 20 req/min) にする。
+  // 詳細は docs/stores/anilist.md §2。上限が 90 req/min に戻ったら間隔を見直すこと
   if (host === "graphql.anilist.co") {
-    return { key: "anilist", intervalMs: 1_500 };
+    return { key: "anilist", intervalMs: 3_000 };
   }
   // 未知のホストにも間隔を入れる。設定漏れで連打するより遅いほうが安全
   return { key: host, intervalMs: 5_000 };

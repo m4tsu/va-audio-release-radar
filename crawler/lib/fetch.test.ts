@@ -24,10 +24,13 @@ describe("rateLimitFor", () => {
     });
   });
 
-  it("AniList は 1 分あたりの上限があるので 1.5 秒", () => {
+  it("AniList は劣化状態の上限 30 req/min に対し余裕を取って 3.0 秒", () => {
+    // 2026-09-19 時点、docs.anilist.co/guide/rate-limiting と実測ヘッダの両方が
+    // 30 req/min を示している (docs/stores/anilist.md §2)。公称の 90 req/min は
+    // 平常時の値であって現在の実効値ではない
     expect(rateLimitFor("https://graphql.anilist.co")).toEqual({
       key: "anilist",
-      intervalMs: 1_500,
+      intervalMs: 3_000,
     });
   });
 

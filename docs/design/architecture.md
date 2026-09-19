@@ -33,8 +33,13 @@ ASMR / 朗読 / ドラマ CD の媒体区別は二次的な絞り込みにすぎ
 
 > **対象声優 = AniList にアニメ出演記録がある日本語声優**
 
-直近 12 シーズン (2024 WINTER 〜 2026 FALL) のアニメ 1,176 作品から、キャラクターの日本語 voiceActors を
-集めた **2,569 人**。人が名前を挙げるのではなく、AniList から機械的に決める。
+直近 12 シーズン (2024 WINTER 〜 2026 FALL) のアニメから、キャラクターの日本語 voiceActors を
+集める。人が名前を挙げるのではなく、AniList から機械的に決める。
+
+**人数は測定値で、AniList 側の登録が変われば動く。** 2026-09-18 の実測で
+1,176 作品から **2,569 人** だった ([`../research/discovery-spike-2026-09-18.md`](../research/discovery-spike-2026-09-18.md))。
+翌日の再生成では 2,567 人になっている。**現在の実数は `crawler/actors.generated.json` の
+行数が正**で、この設計書の数字は規模感を示すためのものにすぎない。
 DLsite にしか居ない同人 ASMR の声優はフォロー対象にしない (クレジット表記としては保存する)。
 
 ### 自動生成の規則 (`crawler/discovery/`)
@@ -62,11 +67,11 @@ slug は URL に出て後から変えられないため。
 衝突解決の `slug`。overrides に書いてあるが AniList 側に居ないキーは書き損じとして報告される。
 
 `crawler/actors.json` (35 人) は手書きの暫定シードで、動作確認用に残してある。
-`crawler/run.ts` の既定はこちらで、本番の 2,569 人は `--actors crawler/actors.generated.json` で指定する。
+`crawler/run.ts` の既定はこちらで、本番の全対象声優は `--actors crawler/actors.generated.json` で指定する。
 
 ### 作品 0 件の声優はページを作らない
 
-2,569 人の大半は音声作品を出していない。クロール履歴を残すため DB には全員入れるが、
+対象声優の大半は音声作品を出していない。クロール履歴を残すため DB には全員入れるが、
 音声作品が 1 件も無い声優の `/voice-actors/{slug}` は **404 を返す**。
 中身の無いページを 200 で返すと、検索エンジンから見て薄いページが 2,000 枚並ぶため。
 sitemap にも出さない。声優データそのものは管理用に引き続き取得できる。
@@ -102,7 +107,7 @@ crawler/                 # Node スクリプト。src/domain にだけ依存す�
 ├── fixtures/            # 実 HTML / JSON を切り詰めた固定データ (パーサーのテスト用)
 ├── lib/                 # fetch ラッパー (レート制限・スナップショット保存)、ingest クライアント
 ├── actors.json          # 手書きの暫定シード 35 人 (run.ts の既定)
-├── actors.generated.json # AniList 由来 2,569 人 (build-actors.ts の出力)
+├── actors.generated.json # AniList 由来の対象声優 (build-actors.ts の出力)
 ├── actors-overrides.json # 手で持つ情報だけ (かな・検証済み別名・slug 衝突解決)
 ├── cli.ts               # 調査用。`node crawler/cli.ts actor "上田麗奈"` / `diff`
 └── run.ts               # 定期実行の本体。`node crawler/run.ts --base-url ...`
@@ -318,22 +323,24 @@ ingest 側は **ジャンル情報があるときだけカテゴリを更新す�
 
 ## 6. データ取得
 
-外部サイトへの fetch は `crawler/lib/fetch.ts` の 1 箇所だけを通す。
-UA (ブラウザ相当)、ホストごとのレート制限、スナップショット保存、タイムアウト 30 秒、
-リトライ (最大 4 回、429 は `Retry-After` を尊重) をここに集約する。
+> **ストアごとの制約は [`docs/stores/`](../stores/) にある。**
+> robots.txt の該当行の引用、使ってよい / いけない URL の形、セレクタ、既知の落とし穴、
+> 未確認の項目はそちらが正。**`crawler/` を触る前に該当ファイルを読むこと。**
+> 本節は設計としての取得方針を書く。取得方法を変えるときは `docs/stores/` に引用を残す。
 
-| ホスト | 間隔 | 根拠 |
-|---|---:|---|
-| dlsite.com | 10 秒 | robots.txt の `Crawl-delay: 10` |
-| audible.co.jp | 6 秒 | `Crawl-delay` の指定なし |
-| pokedora.com | 5 秒 | `Crawl-delay` の指定なし |
-| graphql.anilist.co | 1.5 秒 | API のレート枠 |
+外部サイトへの fetch は `crawler/lib/fetch.ts` の 1 箇所だけを通す。
+UA (ブラウザ相当)、ホストごとのレート制限、スナップショット保存、タイムアウト、
+リトライ (429 は `Retry-After` を尊重) をここに集約する。
+
+**ホストごとの間隔・タイムアウト・リトライ回数の値は `crawler/lib/fetch.ts` が持ち、
+この設計書には書かない。** なぜその間隔なのかは
+[`docs/stores/`](../stores/) の該当ファイル §2 にある。
 
 ### 取得の基本方針: 声優起点。ストアの全件取得はしない
 
 対象声優を「AniList にアニメ出演がある人」(§2) と定義した時点で、ストア側から声優を発見する必要はない。
-声優名で引けばよい。DLsite で比べると 声優起点 2,569 人 = 7.1 時間 に対し
-sitemap 全件 68,321 作品 = 190 時間 で、**27 倍の差**がある。
+声優名で引けばよい。DLsite で比べると、声優起点は sitemap 全件より **27 倍速い**。
+所要時間の内訳は間隔から導かれる値なので [`docs/stores/dlsite.md`](../stores/dlsite.md) §2 に置いてある。
 
 ### DLsite (全年齢サイト `/home/`)
 
@@ -378,45 +385,90 @@ creaters.voice_by[].name, genres[].name, on_sale, site_id`。
 ### Audible Japan
 
 ```
-https://www.audible.co.jp/search?searchNarrator={名前}&sort={並び順}
+https://www.audible.co.jp/search?searchNarrator={名前}          ← 1 ページ目
+https://www.audible.co.jp/search?searchNarrator={名前}&page=2   ← 2 ページ目以降
 ```
 
-`sort` を単独で付けると HTTP 200 のまま並び順だけが変わる。既定 (sort 無し) は人気順なので、
-20 件を超える声優 (石田彰は 38 件) では新作が 1 ページ目に載らない。
-`pageSize` や `page` を足すと `no-search-results` へ 302 され、robots.txt も `page=` との組み合わせを禁じている。
+**`sort=` は使わない。robots.txt が禁じている** (2026-09-19 に取得して確認):
 
-#### 並び順のはしごで網羅率を上げる (T22)
+```
+#Block alternative sort order for /search
+Disallow: /search*sort=pubdate
+Disallow: /search*sort=title
+Disallow: /search*sort=runtime
+Disallow: /search*sort=review-rank
 
-**1 ページ 20 件の制約は外せない**ので、並び順を変えた 1 ページ目を足して ASIN の和集合を取る。
-使える `sort` は 10 種類 (`popularity-rank` / `pubdate-desc-rank` / `pubdate-asc-rank` / `review-rank` /
-`price-asc-rank` / `price-desc-rank` / `runtime-asc-rank` / `runtime-desc-rank` /
-`title-asc-rank` / `title-desc-rank`)。このうち 6 種類を次の順で必要な分だけ引く。
+#Block searchAuthor/Narrator/Provider &sort=
+Disallow: /search?searchAuthor=*&sort=
+Disallow: /search?searchNarrator=*&sort=
+Disallow: /search?searchProvider=*&sort=
+```
 
-| # | 並び順 | 意味 |
+最後のグループは **`sort` の値を問わず**、`searchNarrator` と `sort` の組み合わせそのものを禁じている。
+`#Block alternative sort order for /search` というコメントで意図も明示されている。
+パラメータの順序を入れ替えれば字面の一致は外せるが、それは規約の回避であって遵守ではない。
+`User-agent` グループは `*` の 1 つだけで `Crawl-delay` の指定は無い。
+間隔とその根拠は [`docs/stores/audible.md`](../stores/audible.md) §2。
+
+**代わりにページングを使う。ページングは許可されている。** `page=` を禁じる規則はどれも
+別のパラメータとの組み合わせを条件にしていて、`searchNarrator` + `page` だけの形に一致するものが無い:
+
+| robots.txt の行 | 一致に必要なもの | 我々の URL |
 |---|---|---|
-| 1 | `pubdate-desc-rank` | 新しい順 |
-| 2 | `pubdate-asc-rank` | 古い順 |
-| 3 | `runtime-asc-rank` | 再生時間が短い順 |
-| 4 | `title-asc-rank` | タイトル昇順 |
-| 5 | `price-desc-rank` | 価格が高い順 |
-| 6 | `review-rank` | レビュー順 |
+| `Disallow: /search*title=*page=` | `title=` | 無い |
+| `Disallow: /search*keywords=*page=` | `keywords=` | 無い |
+| `Disallow: /search*node=*searchNarrator=*page=` | `node=` | 無い |
+| `Disallow: /search?advsearchKeywords=*page=` | `advsearchKeywords=` | 無い |
+| `Disallow: /*&sort*&page=` | `sort` | 無い |
+| `Disallow: /search*searchNarrator=*=*=*=` | `searchNarrator=` の後に `=` が 3 つ | `page=` の 1 つだけ |
 
-**保証できる範囲**は並び順の定義から出る。`K-asc` は「K が小さい方から 20 件」、`K-desc` は
-「K が大きい方から 20 件」なので、同じキーの asc と desc は必ず重ならない。よって:
+#### ページ番号は 1 始まり (実測)
 
-- 総件数 20 以下 … ページングが起きないので 1 リクエストで全件。実測 500 人中 380 人がここ
-- 総件数 40 以下 … 1 番目と 2 番目 (同じ `pubdate` キーの逆向き) で全件。声優が誰でも成り立つ。実測 38 人
-- 総件数 41 以上 … 保証は無く、相関の低いキーを足す最善努力になる。実測 9 人
+`/newreleases` の robots.txt には `&page=0` と `&page=2` の `Allow` があり `page=1` が抜けているため、
+0 始まりの可能性があった。**推測せず、斉藤壮馬 (総件数 164) で実際に引いて確かめた** (2026-09-19):
 
-3 番目以降の並びは、斉藤壮馬 (総件数 164) で 10 種すべてを 1 回ずつ引いて重なりを測って決めた
-(2026-09-19)。`popularity` / `review` / `price-desc` / `runtime-desc` / `title-desc` / `pubdate-desc` は
-互いに 9〜19 件重なる (人気・高額・長時間・新しいは同じ有名作に集まる) 一方、
-`runtime-asc` と `title-asc` は `pubdate-desc` と重なりが 0 だった。重なりの小さいものから順に置いてある。
-6 種類で 83/164 (50.6%)、10 種類すべてでも 84/164 にしかならないので、**上限は 6 リクエスト**とする。
+| URL | 検索結果サマリ | 件数 |
+|---|---|---:|
+| `?searchNarrator=斉藤 壮馬` | 検索結果 164 のうち **1 - 20** 件 | 20 |
+| `&page=1` | 検索結果 164 のうち **1 - 20** 件 (`page` 無しと ASIN が完全一致) | 20 |
+| `&page=2` | 検索結果 164 のうち **21 - 40** 件 | 20 |
+| `&page=9` | 検索結果 164 のうち **161 - 164** 件 | 4 |
 
-引くのをやめる条件は 3 つ。和集合が総件数に達した / はしごを使い切った / 取得に失敗した。
-総件数が 1 ページに収まるときは、どの並び順でも同じ集合が返るので 2 種類目以降は引かない。
-はしごを使い切っても届かなければ網羅率を警告に積む。
+`page=N` は `20 * (N - 1) + 1` 件目から。0 始まりなら `page=2` が 41 件目からになるはずで、そうならなかった。
+`page` 省略時は `page=1` と同じなので、**1 ページ目は `page` を付けない素の URL で引く**。
+
+#### ページングで網羅率を上げる (T25。T22 の並び順のはしごを置き換えた)
+
+**1 ページ 20 件の制約は外せない**ので、`&page=2`、`&page=3` … と順に引いて ASIN の和集合を取る。
+
+引くのをやめる条件は 4 つ。
+
+1. 和集合が総件数に達した … もう取るものが無い
+2. 直前のページが 20 件に満たなかった … そこが最終ページなので続きが無い
+3. 10 ページ (200 件) に達した … 上限
+4. 取得に失敗した … 相手が答えられない状態で残りを投げ続けない。そこまでの結果で続行する
+
+条件 2 は総件数の表示に頼らず「実際に返ってきた件数」だけで言えるので、総件数が読めなくても効く。
+総件数が 1 ページに収まるときは 2 ページ目を引かない (実測 500 人中 380 人がここ)。
+
+上限を 10 ページに置くのは、`searchNarrator=` が姓だけでも一致して総件数 355 のような値が返ることが
+あるため (次の「一致率」の節)。そこで 18 ページ引いても取れるのは同姓の別人の作品で、往復が無駄になる。
+上限に当たった声優は `{総件数} 件中 {取得数} 件まで取得 (1 声優あたり 10 ページが上限)` を警告に積み、
+管理画面で拾う。
+
+**ページ間で ASIN は重複しない** (斉藤壮馬の 9 ページ 164 件で重複 0 を実測)。
+重複が出たとすれば取得中に並びが動いた合図で、ずれた分だけ取りこぼしている可能性がある。
+黙って畳むと気づけないので `{N} ページ目に既出の作品が {M} 件 (取得中に並びが動いた可能性)` を警告に積む。
+
+**実測 (2026-09-19)**
+
+| 声優 | 総件数 | ページ数 | 取得 | 網羅率 |
+|---|---:|---:|---:|---:|
+| 斉藤壮馬 | 164 | 9 | 164 | **100%** |
+| 上田麗奈 | 7 | 1 | 7 | **100%** |
+
+並び順のはしご (6 リクエスト) では斉藤壮馬が 83/164 (50.6%)、10 種すべてでも 84/164 だった。
+`sort=` を捨ててページングに替えたことで、robots.txt に従いながら網羅率が上がった。
 
 #### 一致率 — 総件数を分母にしてよいかの判定 (T22-D)
 
@@ -438,7 +490,7 @@ https://www.audible.co.jp/search?searchNarrator={名前}&sort={並び順}
 - 警告は `検索語が広すぎる可能性 (本人名義 M/N 件)。総件数 T は同姓の別人を含むとみて網羅率は不明とする`
 
 しきい値を 0.2 に置けるのは、実測で 0 に近い側と 1 に近い側がはっきり分かれるため
-(佐藤元 0/20、斉藤壮馬 82/83)。`matched` は `crawl_runs` には保存せず、警告としてだけ残す。
+(佐藤元 0/20、斉藤壮馬 163/164)。`matched` は `crawl_runs` には保存せず、警告としてだけ残す。
 
 **緩い一致による保存量の増加は小さい。** Audible の作品 1,764 件のうち、追跡対象の声優が
 1 人もクレジットされていないものは 87 件 (4.9%)。その多くは佐藤元の検索由来ではなく、
@@ -454,9 +506,9 @@ https://www.audible.co.jp/search?searchNarrator={名前}&sort={並び順}
 - ちょうど 1 件 … 「検索結果 1 件」。`のうち` が出ない
 
 `のうち` だけを見ていたため、500 人のクロールで総件数を読めなかった 73 件は**すべて取得 1 件**だった。
-両方の表記を読む。それでも読めないときは、**1 ページ目が 20 件に満たなければページングが起きていない**ので
-「見えた分が全件」と判断する。ちょうど 20 件で総件数も読めないときだけ「不明」として残す。
-この判定は検証落ちを引く前の件数で行う (捨てた分を引くと「20 件未満だから全件」と誤るため)。
+両方の表記を読む。それでも読めないときは、**最後に引いたページが 20 件に満たなければそこが最終ページ**なので
+「見えた分が全件」と判断する。上限ページまでどれも 20 件ちょうどで総件数も読めないときだけ「不明」として残す。
+この判定は検証落ちを引く前の件数で行う (捨てた分を引くと「20 件未満だから最終ページ」と誤るため)。
 
 - `/no-search-results?keywords=null` への 302 は **「ナレーター検索に該当なし」の意味**で、頻度制限ではない。
   adapter は `status: "empty"` (成功・0 件) として返し、`crawl_runs.work_count = 0` で記録する。
@@ -474,29 +526,82 @@ https://www.audible.co.jp/search?searchNarrator={名前}&sort={並び順}
 - 正規の商品 URL: `https://www.audible.co.jp/pd/{ASIN}`
 - Audible は年齢区分を公開していないので `ageRating` は `unknown`、`storeCategory` は `audiobook` 固定
 
+#### 日次の新着取得に使える URL (`/newreleases` / `/coming-soon`)
+
+声優 1 人ずつ引く方式から「ストアの新着一覧を取ってクレジットを照合する」方式へ移す土台
+(調査の全文は `docs/research/new-release-feeds-2026-09-19.md`)。**まだ実装していない。**
+
+robots.txt は `/newreleases` を一度 `Disallow` したうえで、**許可する URL を 1 本ずつ
+`$` 付きで列挙している** (`Allow` は 52 行)。`$` は終端一致なので、
+**パラメータの順序も末尾も 1 文字違えば禁止側に落ちる**。
+実装では許可された文字列を**そのまま定数で持ち、URL を組み立て直してはいけない**。
+
+```
+Disallow: /newreleases
+Allow: /newreleases$
+Allow: /newreleases?submitted=1$
+```
+
+残り 49 行は次の 1 本を土台に、パラメータを 1 種類だけ足した形になっている
+(`F` = `feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051`。
+robots のコメントによれば前者が言語、後者がフォーマットのフィルタ)。
+
+| 足すもの | 形 | 使える値 | 本数 |
+|---|---|---|---:|
+| 並び順 | `/newreleases?{F}&sort={値}&submitted=1$` | `pubdate-desc-rank` `pubdate-asc-rank` `price-asc-rank` `price-desc-rank` `review-rank` `runtime-asc-rank` `runtime-desc-rank` `title-asc-rank` `title-desc-rank` (`popularity-rank` は無い) | 9 |
+| ページ | `/newreleases?{F}&submitted=1&page={値}$` | **`0` と `2` だけ**。`1` も `3` 以降も列挙に無い | 2 |
+| カテゴリ | `/newreleases?{F}&node={値}&submitted=1$` | 8191646051 / 8191647051 / 8191648051 / 8191649051 / 8191651051 / 8191652051 / 8191654051 / 8191655051 / 8191658051 / 8191659051 / 8191661051 / 8191662051 / 8191665051 / 8191666051 | 14 |
+| 配信日 | `/newreleases?{F}&publication_date={範囲}&submitted=1$` | `20251106-20251204` / `20251113-20251204` / `20251120-20251127` / `20251120-20251204` のみ。**任意の日付範囲は指定できない** | 4 |
+| 言語 (2 個目) | `/newreleases?feature_six_browse-bin=8199814051&feature_six_browse-bin={値}&feature_twelve_browse-bin=8199774051&submitted=1$` | 8199792051 / 8199799051 / 8199801051 / 8199804051 / 8199805051 / 8199813051 / 8199827051 / 8199828051 / 8199831051 / 8199836051 / 8199837051 | 11 |
+| `feature_seven` | `/newreleases?feature_seven_browse-bin={値}&{F}&submitted=1$` (この順) | 8199768051 / 8199769051 / 8199770051 / 8199771051 / 8199773051 | 5 |
+| `feature_nine` | `/newreleases?feature_nine_browse-bin={値}&{F}&submitted=1$` (この順) | 8199743051 / 8199744051 | 2 |
+| フォーマット (2 個目) | `/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&feature_twelve_browse-bin=8213296051&submitted=1$` | 固定 1 本 | 1 |
+| 単独フィルタ | `/newreleases?feature_six_browse-bin=8199814051&submitted=1$` と `/newreleases?feature_twelve_browse-bin=8199774051&submitted=1$` | 固定 2 本 | 2 |
+
+**`sort` と `page` の併用はできない。** `Disallow: /*&sort*&page=` に一致する。
+グローバルな `Disallow: /*feature_six_browse-bin` もあるが、上の `Allow` のほうがパターンとして
+長いため最長一致で許可が勝つ。
+
+予約・配信予定は `/coming-soon` で、こちらは**ページ送りが無制限に許可されている**
+(`$` が付いていない):
+
+```
+Disallow: /coming-soon
+Allow: /coming-soon$
+Allow: /coming-soon?page=
+```
+
+実測の中身 (2026-09-19、§2.3〜§2.7): `/newreleases` は 1 ページ 20 件・新着枠 105 件・
+配信日は 5 日ぶん (1 日あたり約 21 件)。一覧に配信日とナレーター名が載るので、
+既存の `parseSearchHtml` / `parseTotalCount` / `toIsoDate` がそのまま通り、照合に作品ページは要らない。
+ただし **80 件中 14 件 (18%) はナレーター欄が空**で、その分は照合できない。
+
 ### ポケットドラマ CD (実装済み。T23)
 
 運営は株式会社アニメイト。robots.txt は `Disallow: /cart/*` と `/mypage/*` のみで、
 商品一覧・商品詳細・タグはすべて許可。`Crawl-delay` の指定は無い。
 
-**声優タグ起点で取る。全件取得はしない** (sitemap の商品 URL は 76,731 件あり、5 秒間隔で 106 時間かかる)。
+**声優タグ起点で取る。全件取得はしない。** 商品 sitemap を全件辿る形は禁止ではないが、
+URL 数が多すぎて間隔に見合わない ([`docs/stores/pokedora.md`](../stores/pokedora.md) §4)。
 
-| 段階 | 内容 | コスト |
-|---|---|---|
-| 1 | 声優タグ辞書の構築。`sitemap_tags_1.xml.gz` の `tag_type=1` 3,161 件について、各タグページの `<title>` (`声優【小林千晃】の…` の形) から名前を取る | 3,161 × 5 秒 = 4.4 時間 (一度きり。実施済み) |
-| 2 | AniList 2,569 人との交差を測る。副産物としてポケドラに居る声優の全リストが手に入る | 0 |
-| 3 | 対象声優のタグページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100&store={men\|bl}&pageno={n}`) | 1,142 枚 = 1.6 時間 |
-| 4 | 出てきた作品の詳細を引く (全クレジット取得のため必須) | ユニーク作品数 × 5 秒 (上限 2,277 = 3.2 時間) |
+取得は 4 段階で行う。
+
+1. 声優タグ辞書の構築。`sitemap_tags_1.xml.gz` の `tag_type=1` について、
+   各タグページの `<title>` (`声優【小林千晃】の…` の形) から名前を取る (一度きり。実施済み)
+2. 対象声優との交差を測る。副産物としてポケドラに居る声優の全リストが手に入る
+3. 交差した声優のタグページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100&store={men\|bl}&pageno={n}`)
+4. 出てきた作品の詳細を引く (全クレジット取得のため必須)
+
+**件数と所要時間の見積もりは [`docs/stores/pokedora.md`](../stores/pokedora.md)
+の「全件クロールのコスト」が正。** 間隔から導かれる値なのでここには写さない。
 
 同じタグページに 4 ストアぶんの件数内訳が出る (`li.category_tab_el-{men|bl|adt|adt-bl}`) ので、
 段階 3 の対象を辞書だけで絞り込める。件数が 0 の区分はページを引かない。
 
-**全件クロールの見積もりは 13.4 時間から 4.8 時間になった** (上限。実測 5.03 秒/リクエスト)。
-段階 4 を「延べ 8,593 件」で見積もっていたのを、**走行中に取り終えた作品を既知集合へ足す**
-仕組み (`crawler/run.ts` の `markFetched`) でユニーク件数に落としたため。1 作品に十数名が出る
-BL ドラマ CD では、これが無いと同じ詳細ページを出演者の人数ぶん引き直す。
-credit は作品に紐づいて既に保存されており、2 人目以降で詳細を飛ばしても出演者は落ちない。
-ユニーク件数の上限 2,277 は一般 1,366 + BL 911 (両ストアの全作品数) で、実際はこれより少ない。
+段階 4 は**走行中に取り終えた作品を既知集合へ足す**仕組み (`crawler/run.ts` の `markFetched`) で
+延べ件数ではなくユニーク件数になる。1 作品に十数名が出る BL ドラマ CD では、これが無いと
+同じ詳細ページを出演者の人数ぶん引き直す。credit は作品に紐づいて既に保存されており、
+2 人目以降で詳細を飛ばしても出演者は落ちない。
 
 **辞書に無い声優はポケドラを引かない**。名前から tag_id を引く API が無く (`/sapi/json.php` は 404)、
 総当たりで探す手段もないため。`crawler/run.ts` がその声優のストアごと飛ばす
@@ -665,7 +770,7 @@ RSS は一般ユーザーが使わないので主手段にしない。
 R18 を載せない理由は 2 つだけで、どちらも実測に基づく。
 
 - **実利がゼロ**。DLsite maniax (R18) を代表 10 名で調べたところ、R18 側だけに存在する作品は 0 件。
-  maniax の検索結果は home と完全に同一だった。ポケドラのオトナ向けも AniList 2,569 人との一致が 0 名
+  maniax の検索結果は home と完全に同一だった。ポケドラのオトナ向けも AniList 対象声優との一致が 0 名
 - **Amazon アソシエイトのリスク**。「露骨な性的描写がある場合」は参加申請をお断りするサイト例に明記されている。
   R18 を載せると Audible の送客経路を失う可能性がある
 

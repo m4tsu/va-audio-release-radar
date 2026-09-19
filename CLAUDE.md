@@ -10,6 +10,14 @@
 - 企画書 [`docs/development-plan.md`](docs/development-plan.md) は最初の草案で、**多くの決定が既に覆っている**。設計の根拠には使わない
 - 文書の入口は [`docs/README.md`](docs/README.md)
 
+## 同じ事実を 2 か所に書かない
+
+- 同じ事実を 2 か所に書かない。出典を 1 つ決め、他はそこを指す
+- 実装の値 (レート間隔、タイムアウト、リトライ回数、ポート、既定値) の出典は**コード**。ドキュメントやコメントに値を複製しない
+- 測定値は必ず日付とセットで書く。日付の無い数字は古くなったことに誰も気づけない
+- コードとドキュメントが食い違ったら、**動作を決めているコードが正**
+- 経緯は [`docs/design/decisions.md`](docs/design/decisions.md) §19
+
 ## ローカルの共有資源
 
 複数のセッションが同じリポジトリで並行して作業している。次はセッション間で共有される。
@@ -22,10 +30,10 @@
 
 ## 外部サイトへのアクセス
 
+- **`crawler/` を触る前に [`docs/stores/`](docs/stores/) の該当ファイルを読む**。robots.txt の引用・使ってよい URL・過去の誤りがまとまっている
 - クローラーの外部アクセスは **`crawler/lib/fetch.ts` の 1 箇所を必ず通す**。adapter から素の `fetch` を呼ばない
-- ホストごとの最小間隔: DLsite 10 秒 / Audible 6 秒 / ポケットドラマ CD 5 秒 / AniList 1.5 秒
-- **レートリミッタはプロセス単位**。同じホストに対して 2 つのプロセスから同時にアクセスしない。
-  クロールが動いている間に、同じストアを叩く別のスクリプトを走らせない
+- ホストごとの最小間隔は `crawler/lib/fetch.ts` の `rateLimitFor()` が持つ (根拠は [`docs/stores/`](docs/stores/) 該当ファイル §2)
+- **レートリミッタはプロセス単位**。同じホストに 2 プロセスから同時アクセスしない。クロール中は同じストアを叩く別スクリプトを走らせない
 
 ## コミットしてはいけないもの
 
@@ -47,5 +55,5 @@
 
 マイグレーションの扱いには追加の規則がある。`migrations/` や `src/server/db/schema.ts` を
 触るときは [`.claude/rules/migrations.md`](.claude/rules/migrations.md) が自動で読み込まれる。
-同様に `e2e/` や `playwright.config.ts` を触るときは
-[`.claude/rules/e2e.md`](.claude/rules/e2e.md) が読み込まれる。
+同様に `e2e/` なら [`.claude/rules/e2e.md`](.claude/rules/e2e.md)、
+`crawler/` なら [`.claude/rules/crawler.md`](.claude/rules/crawler.md) が読み込まれる。
