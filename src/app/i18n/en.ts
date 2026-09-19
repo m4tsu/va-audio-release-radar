@@ -12,7 +12,7 @@ export const en: Translations = {
     // ブランド名なので訳さない
     name: "Voice Actor Audio Release Radar",
     description:
-      "Follow the voice actors you like and track their new audio works across multiple stores in one place.",
+      "Follow your favorite voice actors and keep up with their new ASMR, audiobooks and audio dramas on DLsite, Audible and Pocket Drama CD.",
   },
 
   nav: {
@@ -21,8 +21,10 @@ export const en: Translations = {
   },
 
   footer: {
-    unofficial: "Unofficial service. Work information comes from each store's public pages.",
-    price: "Prices are from the time they were collected. Check each store for the current price.",
+    unofficial:
+      "This is an unofficial service with no affiliation to any store. Work information is based on each store's public pages.",
+    price:
+      "Prices are as of when they were last checked. Please see each store for the current price and availability.",
   },
 
   common: {
@@ -48,21 +50,20 @@ export const en: Translations = {
 
   notFound: {
     title: "Page not found",
-    description:
-      "The URL may have changed, or this voice actor or work has not been collected yet.",
+    description: "The URL may be wrong, or the page may have moved.",
     toTop: "Go to the top page",
   },
 
   errorScreen: {
     title: "Could not display this page",
-    unknownCause: "The cause could not be identified.",
+    unknownCause: "An unexpected error occurred.",
     retry: "Try again",
     toTop: "Go to the top page",
   },
 
   search: {
-    label: "Find a voice actor to follow",
-    placeholder: "Voice actor name (e.g. 上田麗奈)",
+    label: "Search by voice actor",
+    placeholder: "e.g. 上田麗奈",
     searching: "Searching…",
     noResults: "No voice actor matched “{{query}}”.",
     resultsLabel: "Search results",
@@ -76,21 +77,21 @@ export const en: Translations = {
 
   home: {
     followPrompt:
-      "Follow the voice actors you like and this turns into a feed of their new releases across DLsite and Audible. No account is needed, and follows are stored only in this browser.",
-    latestTitle: "Latest releases (all voice actors)",
-    latestEmptyTitle: "No releases yet",
-    latestEmptyDescription: "Works will appear here once the crawler collects them.",
+      "Follow a voice actor and their new releases will show up here. No account needed.",
+    latestTitle: "New audio works",
+    latestEmptyTitle: "No new releases",
+    latestEmptyDescription: "New works will appear here as they come out.",
     actorDirectoryTitle: "All voice actors",
     feedTitle: "New from the voice actors you follow",
     feedSummary: {
-      one: "Audio works released in the last {{days}} days or coming soon, from {{count}} voice actor you follow.",
+      one: "Upcoming releases and works from the last {{days}} days, from the {{count}} voice actor you follow.",
       other:
-        "Audio works released in the last {{days}} days or coming soon, from {{count}} voice actors you follow.",
+        "Upcoming releases and works from the last {{days}} days, from the {{count}} voice actors you follow.",
     },
-    feedErrorTitle: "Could not load the feed",
-    feedErrorDescription: "Try reloading in a little while.",
+    feedErrorTitle: "Could not load new releases",
+    feedErrorDescription: "Please try reloading in a moment.",
     feedEmptyTitle: "Nothing new in this period",
-    feedEmptyDescription: "Follow more voice actors, or come back later.",
+    feedEmptyDescription: "Following more voice actors makes new releases easier to find.",
     feedEmptyAction: "See the voice actors you follow",
     tierUpcoming: "Coming soon",
     tierRecent: "Released in the last {{days}} days",
@@ -105,23 +106,20 @@ export const en: Translations = {
     metaTitle: "Voice actors you follow | {{app}}",
     title: "Following",
     description:
-      "Follows are stored only in this browser. They do not carry over to another device.",
+      "Your follows are saved only in this browser. They will not carry over to other devices.",
     emptyTitle: "You are not following anyone yet",
-    emptyDescription:
-      "Search for a voice actor on the top page and follow them, and they will show up here and in your feed.",
+    emptyDescription: "Voice actors you follow will appear here.",
     emptyAction: "Find voice actors",
     listLabel: "Voice actors you follow",
   },
 
   actor: {
-    title: "New audio works by {{name}}",
-    metaTitle: "New audio works by {{name}} | DLsite & Audible",
+    title: "Audio works by {{name}}",
+    metaTitle:
+      "Audio works by {{name}} (ASMR, audiobooks, audio drama) | DLsite, Audible, Pocket Drama CD",
     metaDescription:
-      "ASMR and voice works on DLsite and audiobooks on Audible featuring {{name}}, newest first.",
-    subtitle: "Newest first, across DLsite and Audible",
-    subtitleWithKana: "{{kana}} / Newest first, across DLsite and Audible",
-    storeEmptyTitle: "Nothing found yet",
-    storeEmptyDescription: "No works by this voice actor on {{store}} have been collected yet.",
+      "ASMR, audiobooks and audio dramas featuring {{name}} on DLsite, Audible and Pocket Drama CD, newest first.",
+    storeEmptyTitle: "No works found on {{store}}",
     animeTitle: "Anime appearances",
   },
 
@@ -133,11 +131,11 @@ export const en: Translations = {
     releaseDate: "Release date",
     duration: "Running time",
     castTitle: "Cast",
-    castEmpty: "Credit information has not been collected.",
+    castEmpty: "No cast information available.",
     purchaseTitle: "Where to buy",
     priceUnknown: "Price unknown",
     unavailable: "This may no longer be on sale.",
-    priceSeenAt: "Price collected at {{at}}",
+    priceSeenAt: "Price as of {{at}}",
     badgeNew: "NEW",
     badgeUpcoming: "Releases {{date}}",
     unread: "Unread",
@@ -148,7 +146,7 @@ export const en: Translations = {
     dlsite: "View on DLsite",
     audible: "Listen on Audible",
     pokedora: "Listen on Pokedora",
-    missing: "No link to this store has been collected.",
+    missing: "No link available.",
   },
 
   category: {
@@ -177,11 +175,11 @@ export const en: Translations = {
   anime: {
     metaTitle: "Audio works by the cast of {{title}}",
     metaDescription: {
-      one: "{{count}} voice actor from {{title}} who also releases ASMR, audiobooks or drama CDs, and how many works they have.",
+      one: "{{count}} voice actor from {{title}} with ASMR, audiobooks or audio dramas, and their works.",
       other:
-        "{{count}} voice actors from {{title}} who also release ASMR, audiobooks or drama CDs, and how many works they have.",
+        "{{count}} voice actors from {{title}} with ASMR, audiobooks or audio dramas, and their works.",
     },
-    castTitle: "Cast members who release audio works",
+    castTitle: "Cast with audio works",
     subtitle: "{{season}} / {{english}}",
     hasAudioWorks: "Has audio works",
     workCount: "{{category}} {{count}}",
@@ -193,12 +191,11 @@ export const en: Translations = {
     },
     seasonMetaTitle: "Audio works by the cast of {{season}} anime",
     seasonMetaDescription:
-      "Voice actors in {{season}} anime who also release ASMR, audiobooks or drama CDs, collected in one place.",
+      "Voice actors in {{season}} anime who have ASMR, audiobooks or audio dramas, all in one place.",
     seasonTitle: "{{season}} anime",
-    seasonDescription: "Only shows anime whose cast members release audio works.",
-    seasonEmptyTitle: "Nothing found yet",
-    seasonEmptyDescription:
-      "No cast members with audio works have been collected for {{season}} anime yet.",
+    seasonDescription: "Only anime whose cast members have audio works are shown.",
+    seasonEmptyTitle: "No anime found",
+    seasonEmptyDescription: "No cast members with audio works were found in {{season}} anime.",
   },
 
   admin: {

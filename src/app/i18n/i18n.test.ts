@@ -72,7 +72,7 @@ describe("translate", () => {
       "「上田」に一致する声優は見つかりませんでした。",
     );
     expect(translate("en", "actor.title", { name: "Reina Ueda" })).toBe(
-      "New audio works by Reina Ueda",
+      "Audio works by Reina Ueda",
     );
   });
 
@@ -109,7 +109,7 @@ describe("translate", () => {
       key: string,
       params?: Record<string, string | number>,
     ) => string;
-    expect(partial("ja", "actor.title", {})).toBe("{{name}}の新着音声作品");
+    expect(partial("ja", "actor.title", {})).toBe("{{name}}の音声作品");
   });
 });
 

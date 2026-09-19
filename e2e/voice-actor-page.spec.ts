@@ -9,11 +9,13 @@ test("声優ページは title と作品一覧を SSR で返す", async ({ reque
   expect(res.status()).toBe(200);
 
   const html = await res.text();
-  expect(html).toContain(`<title>${NAME}の新着音声作品 | DLsite・Audible</title>`);
-  expect(html).toContain(`${NAME}が出演する DLsite の ASMR・ボイス作品`);
+  expect(html).toContain(
+    `<title>${NAME}の音声作品 (ASMR・朗読・ボイスドラマ) | DLsite・Audible・ポケットドラマCD</title>`,
+  );
+  expect(html).toContain(`${NAME}が出演する ASMR・朗読・ボイスドラマを`);
   // 作品名が生 HTML に含まれる = 検索エンジンが中身を読める
   // ハイドレーション用のデータではなく、描画済みのマークアップに入っていることを見る
-  expect(html).toMatch(new RegExp(`<h1[^>]*>${NAME}の新着音声作品</h1>`));
+  expect(html).toMatch(new RegExp(`<h1[^>]*>${NAME}の音声作品</h1>`));
   expect(html).toMatch(/<h2[^>]*>DLsite<\/h2>/);
   expect(html).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
   expect(html).toMatch(/<a[^>]*>テスト用朗読作品アルファ<\/a>/);
@@ -37,7 +39,7 @@ test("JSON-LD は < をエスケープして出す", async ({ request }) => {
 
 test("ストアごとのセクションが両方出る", async ({ page }) => {
   await page.goto(`/voice-actors/${SLUG}`);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${NAME}の新着音声作品`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${NAME}の音声作品`);
   await expect(page.getByRole("heading", { level: 2, name: "DLsite" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Audible" })).toBeVisible();
 });
@@ -46,11 +48,8 @@ test("作品が無いストアのセクションも出る", async ({ page }) => 
   // ベータは DLsite にしか作品が無い
   await page.goto("/voice-actors/e2e-beta");
   await expect(page.getByRole("heading", { level: 2, name: "Audible" })).toBeVisible();
-  // 空のストアは複数ある (Audible とポケドラ)。見出し文言だけで引くと strict mode に触れるので、
-  // ストア名が入る説明文で Audible の空表示だけを指す
-  await expect(
-    page.getByText("Audible でのこの声優の作品は、まだ収集できていない。"),
-  ).toBeVisible();
+  // 空のストアは複数ある (Audible とポケドラ)。ストア名が入る空表示の文言で Audible だけを指す
+  await expect(page.getByText("Audible で見つかった作品はありません")).toBeVisible();
 });
 
 test("作品が 1 件も無い声優は 404 になり、一覧にも sitemap にも出ない", async ({ request }) => {

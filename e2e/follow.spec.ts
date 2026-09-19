@@ -8,7 +8,7 @@ const NAME = "テスト声優アルファ";
  * 「クライアントが動き出した」合図として待つ
  */
 async function waitForHydration(page: Page): Promise<void> {
-  await expect(page.getByText("好きな声優をフォローすると")).toBeVisible();
+  await expect(page.getByText("声優をフォローすると")).toBeVisible();
 }
 
 /**
@@ -19,10 +19,10 @@ test("フォローするとトップがフィードに変わり、/following に
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "最近の新着 (全声優)" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "新着の音声作品" })).toBeVisible();
   await waitForHydration(page);
 
-  await page.getByLabel("声優を探してフォローする").fill(NAME);
+  await page.getByLabel("声優名で検索").fill(NAME);
 
   const results = page.getByRole("list", { name: "検索結果" });
   const row = results.getByRole("listitem").filter({ hasText: NAME });
@@ -42,7 +42,7 @@ test("フォローするとトップがフィードに変わり、/following に
 
   // 解除はトップにも効く
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "最近の新着 (全声優)" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "新着の音声作品" })).toBeVisible();
 });
 
 /**

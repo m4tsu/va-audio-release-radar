@@ -7,13 +7,15 @@
  * - 作品名・声優名・サークル名・ストア名といったストア由来の値は辞書に入れない。
  *   翻訳せず、取得したまま画面に出す (設計の決定)
  * - `as const` を外さないこと。外すと値がただの string になり、埋め込み変数の型が取れなくなる
+ * - 文は利用者に向けて書く。クローラー・収集・取得といった仕組みの語を出さない。
+ *   仕組みの都合で見せられないものは「見つかりません」「ありません」と言う
  */
 export const ja = {
   app: {
     /** サービス名。英語表記のブランドなので、英語辞書でも同じ文字列を使う */
     name: "Voice Actor Audio Release Radar",
     description:
-      "好きな声優をフォローすると、複数の音声販売サービスを横断して新しく買える音声作品だけを一か所で追える Web サービス。",
+      "好きな声優をフォローして、ASMR・朗読・ボイスドラマの新作を DLsite・Audible・ポケットドラマCD からまとめてチェック。",
   },
 
   nav: {
@@ -22,8 +24,9 @@ export const ja = {
   },
 
   footer: {
-    unofficial: "非公式サービス。作品情報は各ストアの公開情報に基づく。",
-    price: "価格は取得時点のもの。最新の価格と販売状況は各ストアで確認すること。",
+    unofficial:
+      "各ストアとは関係のない非公式サービスです。作品情報は各ストアの公開ページをもとにしています。",
+    price: "価格は取得時点のものです。最新の価格と販売状況は各ストアでご確認ください。",
   },
 
   common: {
@@ -60,20 +63,20 @@ export const ja = {
 
   notFound: {
     title: "ページが見つかりません",
-    description: "URL が変わったか、その声優・作品をまだ収集していない可能性がある。",
+    description: "URL が間違っているか、ページが移動した可能性があります。",
     toTop: "トップへ",
   },
 
   errorScreen: {
     title: "表示できませんでした",
-    unknownCause: "原因を特定できませんでした。",
+    unknownCause: "予期しないエラーが発生しました。",
     retry: "再試行",
     toTop: "トップへ",
   },
 
   search: {
-    label: "声優を探してフォローする",
-    placeholder: "声優名 (例: 上田麗奈)",
+    label: "声優名で検索",
+    placeholder: "例: 上田麗奈",
     searching: "検索中…",
     noResults: "「{{query}}」に一致する声優は見つかりませんでした。",
     resultsLabel: "検索結果",
@@ -86,22 +89,22 @@ export const ja = {
   },
 
   home: {
-    followPrompt:
-      "好きな声優をフォローすると、ここが DLsite と Audible を横断した「フォロー中の新着」に変わる。アカウント登録は不要で、フォローはこのブラウザにだけ保存される。",
-    latestTitle: "最近の新着 (全声優)",
-    latestEmptyTitle: "まだ新着がありません",
-    latestEmptyDescription: "クローラーが作品を集めるとここに並ぶ。",
+    followPrompt: "声優をフォローすると、その声優の新作がここに並びます。登録は不要です。",
+    latestTitle: "新着の音声作品",
+    latestEmptyTitle: "新着の作品はありません",
+    latestEmptyDescription: "新しい作品が出るとここに並びます。",
     actorDirectoryTitle: "声優一覧",
     feedTitle: "フォロー中の新着",
-    feedSummary: "フォロー中 {{count}} 人の、発売日が直近 {{days}} 日 / 発売予定の音声作品。",
-    feedErrorTitle: "新着を取得できませんでした",
-    feedErrorDescription: "時間をおいて再読み込みすること。",
+    feedSummary:
+      "フォロー中の声優 {{count}} 人の、発売予定と直近 {{days}} 日以内に発売された音声作品です。",
+    feedErrorTitle: "新着を読み込めませんでした",
+    feedErrorDescription: "しばらくしてから再読み込みしてください。",
     feedEmptyTitle: "この期間の新着はありません",
-    feedEmptyDescription: "フォローを増やすか、時間をおいて見ること。",
+    feedEmptyDescription: "フォローする声優を増やすと、新作が見つかりやすくなります。",
     feedEmptyAction: "フォロー中の声優を見る",
     tierUpcoming: "今後の発売",
     tierRecent: "{{days}} 日以内の新作",
-    tierOlder: "それ以前 (直近 {{days}} 日)",
+    tierOlder: "それより前 ({{days}} 日以内)",
     /** 3 段目の開閉。畳んだ状態と開いた状態で読み上げを変える */
     tierExpand: "開く",
     tierCollapse: "畳む",
@@ -113,21 +116,20 @@ export const ja = {
   following: {
     metaTitle: "フォロー中の声優 | {{app}}",
     title: "フォロー中",
-    description: "フォローはこのブラウザにだけ保存される。別の端末には引き継がれない。",
+    description: "フォローはこのブラウザにのみ保存されます。他の端末には引き継がれません。",
     emptyTitle: "まだ誰もフォローしていません",
-    emptyDescription: "トップの検索から声優を探してフォローすると、ここと新着フィードに並ぶ。",
+    emptyDescription: "声優をフォローすると、ここに並びます。",
     emptyAction: "声優を探す",
     listLabel: "フォロー中の声優",
   },
 
   actor: {
-    title: "{{name}}の新着音声作品",
-    metaTitle: "{{name}}の新着音声作品 | DLsite・Audible",
-    metaDescription: "{{name}}が出演する DLsite の ASMR・ボイス作品と Audible の朗読を新着順に。",
-    subtitle: "DLsite・Audible を横断した新着順",
-    subtitleWithKana: "{{kana}} ／ DLsite・Audible を横断した新着順",
-    storeEmptyTitle: "まだ見つかっていません",
-    storeEmptyDescription: "{{store}} でのこの声優の作品は、まだ収集できていない。",
+    title: "{{name}}の音声作品",
+    /** 「{声優名} ASMR」「{声優名} Audible」のような検索で拾わせるため、区分とストア名を入れる */
+    metaTitle: "{{name}}の音声作品 (ASMR・朗読・ボイスドラマ) | DLsite・Audible・ポケットドラマCD",
+    metaDescription:
+      "{{name}}が出演する ASMR・朗読・ボイスドラマを、DLsite・Audible・ポケットドラマCD から新着順にまとめています。",
+    storeEmptyTitle: "{{store}} で見つかった作品はありません",
     animeTitle: "出演アニメ",
   },
 
@@ -139,11 +141,11 @@ export const ja = {
     releaseDate: "発売日",
     duration: "再生時間",
     castTitle: "出演",
-    castEmpty: "クレジット情報を取得できていない。",
+    castEmpty: "出演者の情報はありません。",
     purchaseTitle: "購入",
     priceUnknown: "価格不明",
-    unavailable: "現在は販売されていない可能性がある。",
-    priceSeenAt: "価格の取得時点: {{at}}",
+    unavailable: "現在は販売されていない可能性があります。",
+    priceSeenAt: "{{at}} 時点の価格",
     /** 新着の印。両言語とも短い方が並びが崩れないので英語のまま */
     badgeNew: "NEW",
     badgeUpcoming: "発売予定 {{date}}",
@@ -156,7 +158,7 @@ export const ja = {
     dlsite: "DLsite で見る",
     audible: "Audible で聴く",
     pokedora: "ポケドラで聴く",
-    missing: "このストアへのリンクを取得できていない。",
+    missing: "リンクがありません。",
   },
 
   /**
@@ -191,27 +193,27 @@ export const ja = {
   },
 
   anime: {
-    metaTitle: "{{title}}のキャストが出ている音声作品",
+    metaTitle: "{{title}}の出演声優の音声作品",
     metaDescription:
-      "{{title}}に出演している声優のうち、ASMR・朗読・ドラマ CD を出している {{count}} 人と、その作品数。",
-    castTitle: "この作品の出演者で、音声作品を出している人",
+      "{{title}}の出演声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある {{count}} 人とその作品。",
+    castTitle: "音声作品がある出演者",
     /** 「2026 年秋 ／ Frieren」。`{{english}}` は AniList 由来なので訳さない */
     subtitle: "{{season}} ／ {{english}}",
     hasAudioWorks: "音声作品あり",
     workCount: "{{category}} {{count}}",
     roleMain: "主演",
     roleSupporting: "助演",
-    actorCount: "出演者 {{count}} 人に音声作品",
-    seasonMetaTitle: "{{season}}アニメのキャストが出ている音声作品",
+    actorCount: "音声作品がある出演者 {{count}} 人",
+    seasonMetaTitle: "{{season}}アニメの出演声優の音声作品",
     seasonMetaDescription:
-      "{{season}}のアニメに出演している声優のうち、ASMR・朗読・ドラマ CD を出している人をまとめて。",
+      "{{season}}のアニメに出演している声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある人をまとめています。",
     seasonTitle: "{{season}}アニメ",
-    seasonDescription: "出演者が音声作品を出している作品だけを並べている。",
-    seasonEmptyTitle: "まだ見つかっていません",
-    seasonEmptyDescription:
-      "{{season}}のアニメで、音声作品を出している出演者はまだ収集できていない。",
+    seasonDescription: "出演声優に音声作品があるアニメだけを表示しています。",
+    seasonEmptyTitle: "アニメがありません",
+    seasonEmptyDescription: "{{season}}のアニメで、音声作品がある出演者は見つかりませんでした。",
   },
 
+  /** 管理画面。読むのは運用者なので、仕組みの語 (クローラー・クロール) をそのまま使う */
   admin: {
     unauthorizedTitle: "管理者トークンが必要です",
     unauthorizedConfigured:

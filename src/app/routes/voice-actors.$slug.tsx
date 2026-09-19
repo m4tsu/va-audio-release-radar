@@ -140,11 +140,7 @@ function VoiceActorPage() {
     <div className="space-y-8">
       <PageHeader
         title={t("actor.title", { name })}
-        description={
-          actor.nameKana
-            ? t("actor.subtitleWithKana", { kana: actor.nameKana })
-            : t("actor.subtitle")
-        }
+        description={actor.nameKana ?? undefined}
         actions={
           <FollowButton
             size="default"
@@ -172,10 +168,7 @@ function StoreSection({ storeSlug, items }: { storeSlug: StoreSlug; items: WorkW
     <section className="space-y-3">
       <h2 className="font-semibold text-xl tracking-tight">{storeLabel(storeSlug)}</h2>
       {items.length === 0 ? (
-        <EmptyState
-          title={t("actor.storeEmptyTitle")}
-          description={t("actor.storeEmptyDescription", { store: storeLabel(storeSlug) })}
-        />
+        <EmptyState title={t("actor.storeEmptyTitle", { store: storeLabel(storeSlug) })} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {items.map((item) => (
