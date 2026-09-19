@@ -6,13 +6,18 @@ import type { StoreSlug } from "@/domain/types";
  *
  * どちらもブラウザの中だけで完結させる。一覧は作品のある声優を全員 SSR で出しているので、
  * 操作のたびにサーバーへ取りに行く理由が無く、初期表示 (= 検索エンジンが見る HTML) も
- * 絞り込み前のまま保てる
+ * 絞り込み前のまま保てる。既定の並べ替えも初回描画でここを通るので、SSR が返す HTML が
+ * 既に既定の並びになっている
  */
 
-/** 並べ替えの選択肢。既定は名前順 */
+/**
+ * 並べ替えの選択肢。
+ *
+ * 既定は作品数の多い順。名前順は漢字表記の内部順序なので、開いた最初の画面に手がかりが無い
+ */
 export const ACTOR_SORTS = ["name", "workCount"] as const;
 export type ActorSort = (typeof ACTOR_SORTS)[number];
-export const DEFAULT_ACTOR_SORT: ActorSort = "name";
+export const DEFAULT_ACTOR_SORT: ActorSort = "workCount";
 
 export function isActorSort(value: string): value is ActorSort {
   return (ACTOR_SORTS as readonly string[]).includes(value);

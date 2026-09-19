@@ -134,7 +134,9 @@ function SortSelect({
         aria-label={t("voiceActors.sortLabel", { name: t(SORT_LABEL_KEYS[value]) })}
       >
         <ArrowUpDown aria-hidden="true" />
-        <SelectValue />
+        {/* Radix は選ばれた項目の文言を SelectItem から流し込む。開くまで項目が描かれず
+            SSR では空のまま返るので、文言をここで直接渡す */}
+        <SelectValue>{t(SORT_LABEL_KEYS[value])}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {ACTOR_SORTS.map((option) => (

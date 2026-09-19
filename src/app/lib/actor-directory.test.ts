@@ -14,12 +14,16 @@ const ACTORS: Row[] = [
 const slugs = (rows: Row[]) => rows.map((row) => row.slug);
 
 describe("arrangeActors", () => {
-  test("既定は名前順で、サーバーが返した順のまま", () => {
+  test("既定は作品数の多い順", () => {
     expect(slugs(arrangeActors(ACTORS, { sort: DEFAULT_ACTOR_SORT, store: null }))).toEqual([
-      "a",
       "b",
       "c",
+      "a",
     ]);
+  });
+
+  test("名前順ではサーバーが返した順のまま", () => {
+    expect(slugs(arrangeActors(ACTORS, { sort: "name", store: null }))).toEqual(["a", "b", "c"]);
   });
 
   test("作品数の多い順では作品数の多い声優が先に来る", () => {

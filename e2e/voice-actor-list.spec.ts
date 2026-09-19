@@ -5,8 +5,8 @@ import { waitForHydration } from "./hydration";
  * 声優一覧の並べ替え・絞り込み・フォロー。
  *
  * e2e/fixtures/seed.sql の 4 人のうち、一覧に出るのは作品がある 3 人。
- * 名前順は アルファ (3 作品) → デルタ (4 作品) → ベータ (1 作品)、
- * 作品数の多い順は デルタ → アルファ → ベータ になる
+ * 既定の作品数の多い順は デルタ (4 作品) → アルファ (3 作品) → ベータ (1 作品)、
+ * 名前順は アルファ → デルタ → ベータ になる
  */
 const ALPHA = "テスト声優アルファ";
 const ALPHA_EN = "E2E Actor Alpha";
@@ -21,19 +21,41 @@ function storeFilter(page: Page) {
   return page.getByRole("group", { name: "ストアで絞り込む" });
 }
 
-test("並び替えを作品数の多い順にすると、作品数の多い声優が先に来る", async ({ page }) => {
+test("並び替えは既定の作品数の多い順と名前順を行き来できる", async ({ page }) => {
   await page.goto("/voice-actors");
   await waitForHydration(page);
 
-  // 何も操作していない状態は名前順。SSR が返す並びと同じ
+  // 何も操作していない状態は作品数の多い順
+  await expect(directory(page).getByRole("listitem").first()).toContainText(DELTA);
+
+  await page.getByRole("combobox", { name: "並び替え: 作品数の多い順" }).click();
+  await page.getByRole("option", { name: "名前順" }).click();
+
   await expect(directory(page).getByRole("listitem").first()).toContainText(ALPHA);
+  // 並べ替えても人数は変わらない
+  await expect(page.getByText("3 人")).toBeVisible();
 
   await page.getByRole("combobox", { name: "並び替え: 名前順" }).click();
   await page.getByRole("option", { name: "作品数の多い順" }).click();
 
   await expect(directory(page).getByRole("listitem").first()).toContainText(DELTA);
-  // 並べ替えても人数は変わらない
-  await expect(page.getByText("3 人")).toBeVisible();
+});
+
+/**
+ * 既定の並びはサーバーが返した HTML の時点で付いている。
+ * クライアントが動き出してから並び替わると、最初に目に入る順が別物になる
+ */
+test("サーバーが返す HTML が既に作品数の多い順になっている", async ({ request }) => {
+  const html = await (await request.get("/voice-actors")).text();
+  const position = (slug: string) => html.indexOf(`href="/voice-actors/${slug}"`);
+
+  expect(position("e2e-delta")).toBeGreaterThan(-1);
+  expect(position("e2e-delta")).toBeLessThan(position("e2e-alpha"));
+  expect(position("e2e-alpha")).toBeLessThan(position("e2e-beta"));
+
+  // 並び替えの操作も、作品数の多い順を選んだ状態で返っている
+  expect(html).toContain('aria-label="並び替え: 作品数の多い順"');
+  expect(html).toContain(">作品数の多い順<");
 });
 
 test("ストアで絞ると、そのストアに作品がある声優だけが残る", async ({ page }) => {
