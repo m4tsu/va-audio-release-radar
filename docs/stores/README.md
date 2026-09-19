@@ -13,6 +13,7 @@ robots.txt の引用、レート間隔、使ってよい URL の形、取得で�
 | Audible Japan | [`audible.md`](./audible.md) | 実装済み |
 | ポケットドラマ CD | [`pokedora.md`](./pokedora.md) | 実装済み |
 | AniList (ストアではなく声優の供給元) | [`anilist.md`](./anilist.md) | 実装済み |
+| Wikimedia (ストアではなく声優のかなの入手元) | [`wikimedia.md`](./wikimedia.md) | 調査済み / 取り込み未実装 |
 | audiobook.jp | ファイルなし | **未着手**。利用規約が「事前の許可なく情報解析をする行為」を禁じており、運営元への照会が済むまで着手しない |
 
 ## なぜこのディレクトリがあるか
@@ -27,6 +28,10 @@ robots.txt の引用、レート間隔、使ってよい URL の形、取得で�
 adapter から素の `fetch` を呼ばない。UA・レート制限・スナップショット保存・タイムアウト・
 リトライ (429 は `Retry-After` を尊重) をここに集約している。
 **タイムアウトの秒数とリトライ回数も `fetch.ts` の定数が持つ。ここには写さない。**
+
+**UA は相手によって要求が逆になる。** 今の UA は、スクレイパー判定で 302 に飛ばす相手
+([`audible.md`](./audible.md)) に合わせてある。ブラウザの UA を名乗ることを禁じている相手もいるので、
+そちらへアクセスする前に [`wikimedia.md`](./wikimedia.md) の「既知の落とし穴」を読む。
 
 ### 2. 取得方法を変えるときは robots.txt の該当行を確認し、引用を残す
 
@@ -53,6 +58,7 @@ robots のコメント (`#Block alternative sort order for /search` など) に�
 | audible.co.jp | [`audible.md`](./audible.md) |
 | pokedora.com | [`pokedora.md`](./pokedora.md) |
 | graphql.anilist.co | [`anilist.md`](./anilist.md) |
+| ja.wikipedia.org / www.wikidata.org | [`wikimedia.md`](./wikimedia.md) (既定値をそのまま使う根拠) |
 | 上記以外 | 既定値。`rateLimitFor()` の最後の `return` |
 
 短くするなら、相手が示した根拠 (robots の `Crawl-delay`、公開されている API 枠) を

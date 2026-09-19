@@ -76,3 +76,5 @@ back catalog 中心の設計とかみ合う。
 
 - audiobook.jp は利用規約の照会 (運営元への事前確認) が済むまで着手しない
 - AniList の利用規約 (商用利用の売上上限、名称) は公開前に再確認する。`docs/stores/anilist.md`
+- **声優のかなは日本語版 Wikipedia から取り、かなを出す画面に出典とライセンスを添える。**
+  読み 1 つに表示義務があるかは判定しないので、出す側を採る。根拠は `docs/stores/wikimedia.md`
