@@ -42,3 +42,18 @@ function normalizeOrigin(value: string | undefined): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * 問い合わせ窓口。`https:` の URL か `mailto:` だけを通す。
+ * 設定値がそのまま `<a href>` に出るので、それ以外の scheme は未設定と同じ扱いにする
+ */
+export function contactUrl(): string | undefined {
+  const trimmed = env.CONTACT_URL?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" || parsed.protocol === "mailto:" ? parsed.href : undefined;
+  } catch {
+    return undefined;
+  }
+}

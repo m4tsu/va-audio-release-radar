@@ -27,6 +27,21 @@ export const ja = {
     unofficial:
       "各ストアとは関係のない非公式サービスです。作品情報は各ストアの公開ページをもとにしています。",
     price: "価格は取得時点のものです。最新の価格と販売状況は各ストアでご確認ください。",
+    terms: "利用規約",
+    privacy: "プライバシーポリシー",
+  },
+
+  /** 利用規約・プライバシーポリシー。本文は `src/app/legal/` にあり、ここは見出しと meta だけ */
+  legal: {
+    termsTitle: "利用規約",
+    termsMetaTitle: "利用規約 | {{app}}",
+    termsMetaDescription:
+      "{{app}} の利用条件。掲載情報の出所と正確性、外部サイトへのリンク、免責、掲載内容の訂正・削除の申し出について定めます。",
+    privacyTitle: "プライバシーポリシー",
+    privacyMetaTitle: "プライバシーポリシー | {{app}}",
+    privacyMetaDescription:
+      "{{app}} が利用者のブラウザに保存する情報、サーバーに送られる情報、外部サービスへの通信について説明します。",
+    effectiveDate: "制定日: {{date}}",
   },
 
   common: {

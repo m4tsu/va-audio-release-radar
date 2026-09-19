@@ -29,3 +29,12 @@ export async function siteOriginForLoader(): Promise<string> {
   if (onClient) cachedClientOrigin = origin;
   return origin;
 }
+
+/**
+ * 問い合わせ窓口 (`env.CONTACT_URL`)。利用規約とプライバシーポリシーのローダーから呼ぶ。
+ * オリジンと同じく、サーバー側では env を直接読めるがクライアント側は RPC が要る
+ */
+export const fetchContactUrl = createServerFn({ method: "GET" }).handler(async () => {
+  const { contactUrl } = await import("@/server/site");
+  return contactUrl() ?? null;
+});

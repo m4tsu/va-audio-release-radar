@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FollowingRouteImport } from './routes/following'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminCrawlerHealthRouteImport } from './routes/admin/crawler-health'
 import { Route as AdminUnmatchedCreditsRouteImport } from './routes/admin/unmatched-credits'
 import { Route as AnimeSlugRouteImport } from './routes/anime.$slug'
@@ -35,6 +37,11 @@ const FollowingRoute = FollowingRouteImport.update({
   path: '/following',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
@@ -43,6 +50,11 @@ const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCrawlerHealthRoute = AdminCrawlerHealthRouteImport.update({
@@ -104,8 +116,10 @@ const ApiAdminKnownIdsRoute = ApiAdminKnownIdsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/following': typeof FollowingRoute
+  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
@@ -121,8 +135,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/following': typeof FollowingRoute
+  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
@@ -139,8 +155,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/following': typeof FollowingRoute
+  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
@@ -158,8 +176,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/following'
+    | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/terms'
     | '/admin/crawler-health'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
@@ -175,8 +195,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/following'
+    | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/terms'
     | '/admin/crawler-health'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
@@ -192,8 +214,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/following'
+    | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/terms'
     | '/admin/crawler-health'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
@@ -210,8 +234,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FollowingRoute: typeof FollowingRoute
+  PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TermsRoute: typeof TermsRoute
   AdminCrawlerHealthRoute: typeof AdminCrawlerHealthRoute
   AdminUnmatchedCreditsRoute: typeof AdminUnmatchedCreditsRoute
   AnimeSlugRoute: typeof AnimeSlugRoute
@@ -241,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FollowingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/robots.txt': {
       id: '/robots.txt'
       path: '/robots.txt'
@@ -253,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/crawler-health': {
@@ -338,8 +378,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FollowingRoute: FollowingRoute,
+  PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TermsRoute: TermsRoute,
   AdminCrawlerHealthRoute: AdminCrawlerHealthRoute,
   AdminUnmatchedCreditsRoute: AdminUnmatchedCreditsRoute,
   AnimeSlugRoute: AnimeSlugRoute,

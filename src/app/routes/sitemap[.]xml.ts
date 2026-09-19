@@ -28,6 +28,8 @@ export const Route = createFileRoute("/sitemap.xml")({
 
         const urls = [
           buildUrl(origin, "/"),
+          buildUrl(origin, "/terms"),
+          buildUrl(origin, "/privacy"),
           ...actors.map((actor) =>
             buildUrl(origin, `/voice-actors/${actor.slug}`, actor.updatedAt),
           ),

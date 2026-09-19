@@ -149,6 +149,14 @@ function RootLayout() {
         <div className="mx-auto max-w-6xl space-y-1 px-4 py-6 text-muted-foreground text-xs">
           <p>{t("footer.unofficial")}</p>
           <p>{t("footer.price")}</p>
+          <nav className="flex gap-4 pt-2">
+            <Link to="/terms" className="underline-offset-2 hover:underline">
+              {t("footer.terms")}
+            </Link>
+            <Link to="/privacy" className="underline-offset-2 hover:underline">
+              {t("footer.privacy")}
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

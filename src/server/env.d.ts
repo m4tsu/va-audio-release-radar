@@ -28,6 +28,11 @@ interface AppSecrets {
    * 秘匿値ではなく wrangler.jsonc の `vars` に置く。空文字なら未設定としてリクエストのオリジンを使う
    */
   SITE_URL?: string;
+  /**
+   * 利用規約・プライバシーポリシーに載せる問い合わせ窓口 (`https:` の URL か `mailto:`)。
+   * wrangler.jsonc の `vars` に置く。空文字なら未設定として、窓口の案内を出さない
+   */
+  CONTACT_URL?: string;
 }
 
 export {};

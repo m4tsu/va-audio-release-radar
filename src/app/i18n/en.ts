@@ -25,6 +25,20 @@ export const en: Translations = {
       "This is an unofficial service with no affiliation to any store. Work information is based on each store's public pages.",
     price:
       "Prices are as of when they were last checked. Please see each store for the current price and availability.",
+    terms: "Terms of Service",
+    privacy: "Privacy Policy",
+  },
+
+  legal: {
+    termsTitle: "Terms of Service",
+    termsMetaTitle: "Terms of Service | {{app}}",
+    termsMetaDescription:
+      "Conditions for using {{app}}: where the listed information comes from and how accurate it is, links to stores, disclaimers, and how to request corrections or removal.",
+    privacyTitle: "Privacy Policy",
+    privacyMetaTitle: "Privacy Policy | {{app}}",
+    privacyMetaDescription:
+      "What {{app}} stores in your browser, what is sent to its servers, and which third-party services your browser connects to.",
+    effectiveDate: "Effective: {{date}}",
   },
 
   common: {

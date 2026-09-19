@@ -30,6 +30,7 @@ npm run dev                # ポートは vite.config.ts の server.port
 
 秘匿値が要る機能 (取り込み・管理画面) を触るときは `.dev.vars.example` を `.dev.vars` にコピーして値を入れる。
 canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場合は `wrangler.jsonc` の `vars.SITE_URL` に入れる。
+利用規約・プライバシーポリシーの問い合わせ窓口は `vars.CONTACT_URL` (`https://...` か `mailto:...`)。未設定なら窓口の案内は出ない。
 
 ## コマンド
 
