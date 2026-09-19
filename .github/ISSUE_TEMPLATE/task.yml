@@ -1,0 +1,41 @@
+# issue-batch (.claude/skills/issue-batch/) が読む欄。見出しの文言を変えるときは
+# issue-new / issue-batch の SKILL.md と collect.sh も合わせる
+name: タスク
+description: 実装する作業の単位。issue-batch が ready ラベルのものを拾う
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 目的
+      description: 利用者に何が起きるか。1〜2 行
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: 箇条書き。実装とレビューはこれで判定する
+      value: "- "
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 範囲外
+      description: この issue でやらないこと
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: 触る場所の見込み
+      description: 並列に流せるかの判定に使う。スキーマを触るものは同時に 1 つしか動かない
+      options:
+        - label: src/app (画面・ルート・i18n)
+        - label: src/server (D1 クエリ・server-fns)
+        - label: スキーマ (migrations / src/server/db/schema.ts)
+        - label: crawler
+        - label: docs
+  - type: textarea
+    id: deps
+    attributes:
+      label: 依存
+      description: 先に終わっている必要がある issue。1 行に 1 つ、`depends on #12` の形

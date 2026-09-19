@@ -37,6 +37,7 @@
 
 ## issue からの作業
 
+`/issue-new <説明>` で依頼を issue に切り分ける (欄は `.github/ISSUE_TEMPLATE/task.yml`)。
 `/issue-task <issue 番号 | 要件の文章>`。worktree を切り、実装・レビュー・main への fast-forward マージまでを
 一続きで行う。手順と、node_modules / ローカル D1 の複製方法は `.claude/skills/issue-task/SKILL.md`。
 `/issue-batch` は `ready` ラベルの issue を集め、issue ごとに Agent を起動して同じ手順を並列に回す司令塔。
