@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { StoreBadge } from "@/app/components/store-badge";
+import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { Badge } from "@/app/components/ui/badge";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
@@ -132,7 +132,7 @@ export function WorkCard({
               <span key={listing.storeSlug} className="font-medium">
                 {formatPrice(listing.price, locale)}
                 <span className="ml-1 font-normal text-muted-foreground text-xs">
-                  {listing.storeSlug === "dlsite" ? "DLsite" : "Audible"}
+                  {storeLabel(listing.storeSlug)}
                 </span>
               </span>
             ),
