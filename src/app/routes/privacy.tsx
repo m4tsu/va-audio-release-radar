@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LegalDocumentView } from "@/app/components/legal-document";
-import { createTranslator, useLocale, useT } from "@/app/i18n";
-import { privacy } from "@/app/legal/privacy";
+import { createTranslator } from "@/app/i18n";
+import { PrivacyPage } from "@/app/pages/privacy";
 import { fetchContactUrl, siteOriginForLoader } from "@/app/server-fns/site";
 
-/** プライバシーポリシー。本文は `src/app/legal/privacy.ts` */
+/** プライバシーポリシー。画面は `@/app/pages/privacy` */
 export const Route = createFileRoute("/privacy")({
   loader: async () => {
     const [contactUrl, origin] = await Promise.all([fetchContactUrl(), siteOriginForLoader()]);
@@ -28,18 +27,10 @@ export const Route = createFileRoute("/privacy")({
       links: [{ rel: "canonical", href: canonical }],
     };
   },
-  component: PrivacyPage,
+  component: RouteComponent,
 });
 
-function PrivacyPage() {
-  const t = useT();
-  const locale = useLocale();
+function RouteComponent() {
   const { contactUrl } = Route.useLoaderData();
-  return (
-    <LegalDocumentView
-      title={t("legal.privacyTitle")}
-      document={privacy[locale]}
-      contactUrl={contactUrl}
-    />
-  );
+  return <PrivacyPage contactUrl={contactUrl} />;
 }

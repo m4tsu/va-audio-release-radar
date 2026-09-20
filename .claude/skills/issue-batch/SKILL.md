@@ -59,7 +59,7 @@ Agent の worktree は `.claude/worktrees/agent-<id>/`、ブランチは `worktr
 Agent の報告は先頭行の `状態:` で分ける。
 
 - **MERGE_READY**: plan.md を マージ待ち にする。マージ中の issue が無ければ、その Agent に `SendMessage` で
-  「`bash .claude/skills/issue-task/scripts/merge.sh` を実行して結果を報告」と送る (routes か e2e を触っていれば `--e2e`)。
+  「`bash .claude/skills/issue-task/scripts/merge.sh` を実行して結果を報告」と送る。
   マージは常に 1 つずつ。同時に走らせると rebase 後に main が動いて fast-forward が失敗する
 - **MERGED**: `bash .claude/skills/issue-batch/scripts/finish.sh <N> <worktree> <branch>`。
   main を push し、worktree とブランチを消し、issue を閉じる。plan.md を 完了 にし、次のマージ待ちへ進む

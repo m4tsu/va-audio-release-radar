@@ -23,6 +23,13 @@
   `npx wrangler d1 execute DB --local --command "select started_at, store_slug from crawl_runs order by started_at desc limit 3"`
 - **他のセッションの dev サーバーを止めない**。自分が起動していないポートのプロセスは触らない
 
+## 画面
+
+画面は ルート (`src/app/routes/`) → ページ (`src/app/pages/`) → 部品 (`src/app/components/`) の 3 層。
+ルートは loader と head だけを持ち、画面は描かない。ページと部品にはテストを隣に置く。
+E2E に書くのは SSR の応答・ハイドレーション・ブラウザ保存・cookie の 4 つだけ。
+分担と理由は [`.claude/rules/frontend.md`](.claude/rules/frontend.md)。
+
 ## 外部サイトへのアクセス
 
 - **`crawler/` を触る前に [`docs/stores/`](docs/stores/) の該当ファイルを読む**
@@ -46,5 +53,5 @@
 ## コマンド
 
 一覧は [`README.md`](README.md) の「コマンド」。コミット前に `npm run check` を通す。
-`migrations/` や `src/server/db/schema.ts`、`e2e/`、`crawler/`、`src/app/routes/` を触るときは
+`migrations/` や `src/server/db/schema.ts`、`e2e/`、`crawler/`、`src/app/` を触るときは
 `.claude/rules/` の該当ファイルが自動で読み込まれる。

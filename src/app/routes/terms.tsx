@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LegalDocumentView } from "@/app/components/legal-document";
-import { createTranslator, useLocale, useT } from "@/app/i18n";
-import { terms } from "@/app/legal/terms";
+import { createTranslator } from "@/app/i18n";
+import { TermsPage } from "@/app/pages/terms";
 import { fetchContactUrl, siteOriginForLoader } from "@/app/server-fns/site";
 
-/** 利用規約。本文は `src/app/legal/terms.ts` */
+/** 利用規約。画面は `@/app/pages/terms` */
 export const Route = createFileRoute("/terms")({
   loader: async () => {
     const [contactUrl, origin] = await Promise.all([fetchContactUrl(), siteOriginForLoader()]);
@@ -28,18 +27,10 @@ export const Route = createFileRoute("/terms")({
       links: [{ rel: "canonical", href: canonical }],
     };
   },
-  component: TermsPage,
+  component: RouteComponent,
 });
 
-function TermsPage() {
-  const t = useT();
-  const locale = useLocale();
+function RouteComponent() {
   const { contactUrl } = Route.useLoaderData();
-  return (
-    <LegalDocumentView
-      title={t("legal.termsTitle")}
-      document={terms[locale]}
-      contactUrl={contactUrl}
-    />
-  );
+  return <TermsPage contactUrl={contactUrl} />;
 }

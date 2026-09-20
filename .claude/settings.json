@@ -12,6 +12,17 @@
             "statusMessage": "マイグレーションの適用漏れを確認中"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/layers-guard.mjs\"",
+            "timeout": 60,
+            "statusMessage": "画面の層の分担を確認中"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -22,6 +33,16 @@
             "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/migrations-guard.mjs\"",
             "timeout": 60,
             "statusMessage": "マイグレーションの適用漏れを確認中"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/layers-guard.mjs\"",
+            "timeout": 60,
+            "statusMessage": "画面の層の分担を確認中"
           }
         ]
       }

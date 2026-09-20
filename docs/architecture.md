@@ -69,6 +69,12 @@ crawler  →  src/domain
 `/api/health`、`/api/admin/*`、`sitemap.xml`、`robots.txt` だけ。
 声優ページは検索エンジンのインデックス対象で、作品 0 件なら 404。フォロー一覧はブラウザごとに違うので noindex。
 
+画面は 3 層に分かれ、依存は ルート (`src/app/routes/`) → ページ (`src/app/pages/`) → 部品 (`src/app/components/`)
+の一方向。ルートは loader と head だけを持ち、画面を描かない。ページはデータを props で受け取る。
+ルートは E2E が HTTP で、ページと部品は jsdom の隣接テストが検証する。
+分担と E2E に残す範囲は [`.claude/rules/frontend.md`](../.claude/rules/frontend.md)、
+検査は `scripts/check-app-layers.mjs` と `biome.json`。
+
 ## 秘匿値
 
 `INGEST_TOKEN` (クローラー → 管理 API) と `ADMIN_TOKEN` (管理画面) を wrangler secret で持つ。

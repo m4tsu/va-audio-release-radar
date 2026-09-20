@@ -115,6 +115,54 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/app/pages/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/app/server-fns", "@/app/server-fns/**"],
+                    "message": "ページはデータを props で受け取る。取得はルートの loader が行う"
+                  },
+                  {
+                    "group": ["@/app/routes", "@/app/routes/**"],
+                    "message": "ページはルートに依存してはならない (依存はルート → ページの一方向)"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/app/components/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["@/app/routes", "@/app/routes/**"],
+                    "message": "部品はルートに依存してはならない"
+                  },
+                  {
+                    "group": ["@/app/pages", "@/app/pages/**"],
+                    "message": "部品はページに依存してはならない (依存はページ → 部品の一方向)"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

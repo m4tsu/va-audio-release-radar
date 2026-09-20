@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 # ブランチを main に fast-forward で取り込む。worktree の中で実行する。
 # コンフリクトの解消は必ずこの worktree (ブランチ側) で行い、main の作業ツリーでは何も解消しない。
-# --e2e を付けると npm run check の後に npm run test:e2e も実行する
+# E2E を走らせるかは差分から決める (scripts/needs-e2e.sh)。呼び出し側は指定しない
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
-
-run_e2e=0
-[ "${1:-}" = "--e2e" ] && run_e2e=1
 
 root=$(git rev-parse --show-toplevel)
 main=$(main_root)
@@ -35,13 +32,18 @@ if [ -n "$overlap" ]; then
   exit 1
 fi
 
-# 3. rebase 後の状態で検査する
+# 3. rebase 後の状態で検査する。
+#    E2E は差分が E2E の守備範囲に触れたときだけ。ページと部品だけの変更では走らせない
 npm run check
-if [ "$run_e2e" = 1 ]; then
+if e2e_reason=$(bash scripts/needs-e2e.sh main); then
+  echo "E2E を実行する (差分が E2E の範囲に触れている):"
+  echo "$e2e_reason" | sed 's/^/  - /'
   if ss -ltn 2>/dev/null | grep -q ":5399 "; then
     die "E2E 用ポート 5399 が使用中 (別の worktree の E2E)。空いてから再実行する"
   fi
   npm run test:e2e
+else
+  echo "E2E は省略する (差分が src/app/pages と src/app/components に収まっている)"
 fi
 
 # 4. fast-forward だけで main を進める

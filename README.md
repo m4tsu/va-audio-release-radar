@@ -15,7 +15,7 @@
 | UI | Tailwind v4, shadcn/ui (`src/app/components/ui` にコード同梱) |
 | DB | Cloudflare D1 (SQLite) + Drizzle ORM (`src/server/db`) |
 | 検証 | Zod |
-| テスト | Vitest (`node` / `app` の 2 プロジェクト)、Playwright (E2E: `e2e/`) |
+| テスト | Vitest + Testing Library (`node` / `app` の 2 プロジェクト)、Playwright (E2E: `e2e/`) |
 | Lint / Format | Biome |
 | 配信 | Cloudflare Workers (`@cloudflare/vite-plugin`) |
 | クローラー | Node.js 24 + cheerio (`crawler/`。Worker 内では動かさない) |
@@ -37,11 +37,11 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 | コマンド | 何をするか |
 |---|---|
 | `npm run dev` | 開発サーバー (SSR) |
-| `npm run check` | マイグレーション未適用の検出、文書とコメントの検査、型、lint、単体テスト。コミット前に通す |
+| `npm run check` | マイグレーション未適用の検出、文書とコメントの検査、画面の層の検査、型、lint、単体テスト。コミット前に通す |
 | `npm run build` | 本番ビルド |
 | `npm run preview` | ビルド成果物を Workers ランタイムで確認 |
 | `npm run deploy` | build + wrangler deploy |
-| `npm run test:e2e` | Playwright。E2E 専用の D1 を作り直して実行する |
+| `npm run test:e2e` | Playwright。E2E 専用の D1 を作り直して実行する。走らせるかの判定は `scripts/needs-e2e.sh` |
 | `npm run db:generate` | スキーマの差分から `migrations/*.sql` を生成する。続けて適用まで行う |
 | `npm run db:migrate:local` / `db:migrate:remote` | ローカル / 本番 D1 に適用 |
 | `npm run radar:crawl` | クローラー本体。オプションは `node crawler/run.ts --help` |
@@ -85,7 +85,7 @@ scripts/         # npm run check から呼ぶ検査
 src/
 ├── domain/      # 純粋な型・正規化・名寄せ・カテゴリ判定 (React / DB / fetch に依存しない)
 ├── server/      # Worker 側でだけ動くコード (D1 アクセス。クライアントから import 不可)
-└── app/         # React (routes / server-fns / components / store / lib / i18n)
+└── app/         # React (routes / pages / components / server-fns / store / lib / i18n / test)
 ```
 
 依存方向と、それを守らせている仕組みは [`docs/architecture.md`](./docs/architecture.md)。
