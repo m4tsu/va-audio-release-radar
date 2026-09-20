@@ -94,9 +94,11 @@ robots.txt が無く `Crawl-delay` の指定が無いので、何秒が妥当か
 「調査方法とリクエスト実績」。全件 1 巡と日次のコストも同じ文書の「全商品を 1 巡するコスト」にある。
 
 **UA は `userAgentFor()` の既定 (ブラウザ相当) のまま。** このホストが UA に何を求めるかは
-公開されたものが見つかっていない (§7)。既定のまま 39 リクエストを送り、**存在しない 2 ファイル
-(`/robots.txt` と `/sitemap.xml`) の 404 以外の 37 件が HTTP 200 で返った**実績が同じ調査にある、
-というだけの根拠である。
+公開されたものが見つかっていない (§7)。**既定のまま送った取得が、存在しないファイルの 404 以外
+すべて HTTP 200 で返った**実績が 2 回の調査にある、というだけの根拠である。件数は
+[`stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) と
+[`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
+リクエスト実績にある。
 
 ---
 
@@ -243,7 +245,9 @@ https://www.stellaplayer.jp/product/{id}
   このストアは声優起点で引けず、新着一覧と全件走査でしか作品を集められない
 - **1 つの作品が通常版・限定版・特典違いで別 ID に分かれる。** 束ねる手段はある。
   `editionGroup.activeEditions[]` に版ごとの `name` と `product.id` が入り、自分自身も含まれる。
-  観測した 28 件のうち 10 件が非 `null` で、うち 1 件は 4 版に分かれていた
+  **珍しくない。**埋まり具合は
+  [`stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) と
+  [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) にある
 - **`editionGroup` には版違いでないものも入る。** 同じシリーズの巻
   (`第1巻：…` `第2巻：…` `第3巻：…`) が `activeEditions[]` に並ぶ例がある。
   **`name` を見ずに束ねると別の作品を 1 つにしてしまう**
