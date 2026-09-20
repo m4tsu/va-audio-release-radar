@@ -1,4 +1,4 @@
-import { toStoredKana } from "./actor-kana.ts";
+import { toStoredKana } from "./kana-text.ts";
 
 /**
  * AniList の staff 集計から「対象声優」のエンティティを組み立てる純粋関数。

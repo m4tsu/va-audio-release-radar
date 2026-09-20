@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { toStoredKana } from "./actor-kana.ts";
+import { toStoredKana } from "./kana-text.ts";
 
 /**
  * 日本語版 Wikipedia の記事 HTML から、声優のかなに要る事実だけを取り出す純粋関数。

@@ -126,6 +126,19 @@ describe("kanaFromArticle", () => {
     );
   });
 
+  it("「声優」を含むカテゴリなら管理用のカテゴリでも条件を満たす", () => {
+    // 条件は docs/research/actor-kana-sources-2026-09-20.md の字面どおり「声優」を含むこと。
+    // 記事の整備状況を表すカテゴリ (注意がある記事 (声優) など) しか無い記事もこれで通る
+    const article: WikipediaArticle = {
+      pageName: "架空声優",
+      categories: ["注意がある記事 (声優)", "声優関連のスタブ項目"],
+      furigana: "かくう せいゆう",
+    };
+    expect(
+      kanaFromArticle({ requestedTitle: "架空声優", canonicalName: "架空声優", article }),
+    ).toEqual({ kana: "かくうせいゆう", raw: "かくう せいゆう", source: "furigana" });
+  });
+
   it("読みが無く名前もかなでなければ取らない", () => {
     const article: WikipediaArticle = { pageName: "麦人", categories: ["日本の男性声優"] };
     expect(kanaFromArticle({ requestedTitle: "麦人", canonicalName: "麦人", article })).toEqual({

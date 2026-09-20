@@ -2,13 +2,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { type FetchFailure, fetchText } from "../lib/fetch.ts";
+import { type FetchFailure, fetchText, rateLimitFor } from "../lib/fetch.ts";
 import { writeJsonAtomic } from "../lib/json-file.ts";
 import { CRAWLER_DIR } from "../lib/paths.ts";
 import {
   type ActorKanaCache,
   type ActorKanaRecord,
   KANA_JSON,
+  pendingNames,
   readKanaCache,
 } from "./actor-kana.ts";
 import {
@@ -45,8 +46,13 @@ const CONSECUTIVE_FAILURE_LIMIT = 10;
 const NOT_FOUND = 404;
 const FORBIDDEN = 403;
 const TOO_MANY_REQUESTS = 429;
-/** 進捗の見込みに使う 1 人あたりの秒数。rateLimitFor() の未知ホストの既定値と同じ */
-const ESTIMATED_MS_PER_ACTOR = 5_000;
+/**
+ * 進捗の見込みに使う 1 人あたりの時間。間隔は `rateLimitFor()` が持つので、そこから読む。
+ * 記事が無い人は `_(声優)` で 2 回引くため、実際はこの見込みより長くかかる
+ */
+function estimatedMsPerActor(): number {
+  return rateLimitFor(articleUrl("上田麗奈")).intervalMs;
+}
 
 // --- 結果 ------------------------------------------------------------------
 
@@ -187,6 +193,16 @@ function failureRecord(
   };
 }
 
+/** 取得でも解析でもない例外 (ディスク書き込みなど) を、失敗した 1 人として残す */
+function errorRecord(canonicalName: string, error: unknown): ActorKanaRecord {
+  return {
+    canonicalName,
+    status: "failed",
+    reason: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 export async function crawlActorKana(options: {
   canonicalNames: readonly string[];
   cache: ActorKanaCache;
@@ -199,7 +215,10 @@ export async function crawlActorKana(options: {
   let done = 0;
 
   for (const canonicalName of options.canonicalNames) {
-    const record = await fetchActorKana(canonicalName, { snapshot: options.snapshot });
+    // 1 人の例外で数時間の走行を落とさない。記録して次の人へ進む
+    const record = await fetchActorKana(canonicalName, { snapshot: options.snapshot }).catch(
+      (error: unknown) => errorRecord(canonicalName, error),
+    );
     cache.records.push(record);
     cache.updatedAt = record.fetchedAt;
     await writeJsonAtomic(options.outFile, cache);
@@ -304,12 +323,10 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(`  続きから: 取得済み ${cache.records.length} 人を飛ばす\n`);
   }
 
-  const doneNames = new Set(cache.records.map((record) => record.canonicalName));
-  let pending = canonicalNames.filter((name) => !doneNames.has(name));
-  if (limit !== undefined) pending = pending.slice(0, limit);
+  const pending = pendingNames(canonicalNames, cache.records, limit);
 
   process.stdout.write(
-    `これから引く: ${pending.length} 人 (見込み ${formatDuration(pending.length * ESTIMATED_MS_PER_ACTOR)})\n`,
+    `これから引く: ${pending.length} 人 (最短 ${formatDuration(pending.length * estimatedMsPerActor())})\n`,
   );
 
   const { stop } = await crawlActorKana({

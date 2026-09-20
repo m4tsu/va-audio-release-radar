@@ -101,7 +101,10 @@ export async function loadFetchedKana(file: string): Promise<FetchedKana> {
  *
  * 取得結果は `crawler/.cache/` にあって追跡されないのに、出力は追跡される。
  * 取得結果を持たない場所で生成し直すと、取得済みのかなが黙って全員分落ちた出力ができる。
- * 書き出す前に気づけるよう、消える人を数える
+ * 書き出す前に気づけるよう、消える人を数える。
+ *
+ * 出力から声優ごと消える場合 (`--min-role-count` で絞ったときなど) は数えない。
+ * それは意図して選んだ結果であって、かなを取りこぼしたのとは別のことだから
  */
 export async function kanaLosses(
   outFile: string,
@@ -115,9 +118,13 @@ export async function kanaLosses(
     return [];
   }
   if (!Array.isArray(previous)) return [];
-  const next = new Map(actors.map((actor) => [actor.canonicalName, actor.nameKana]));
+  const next = new Map(actors.map((actor) => [actor.canonicalName, actor]));
   return (previous as ActorEntity[])
-    .filter((actor) => actor.nameKana !== undefined && next.get(actor.canonicalName) === undefined)
+    .filter((actor) => {
+      if (actor.nameKana === undefined) return false;
+      const rebuilt = next.get(actor.canonicalName);
+      return rebuilt !== undefined && rebuilt.nameKana === undefined;
+    })
     .map((actor) => actor.canonicalName);
 }
 

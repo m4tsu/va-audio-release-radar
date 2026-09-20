@@ -3,10 +3,10 @@ import path from "node:path";
 import { CACHE_DIR } from "../lib/paths.ts";
 
 /**
- * 取得した声優のかなの形と置き場所。
+ * 取得した声優のかなの置き場所。
  *
- * 取得そのものは `wikipedia-kana.ts`、記事 HTML の解析は `wikipedia-article.ts`。
- * 対象声優リストを作る `build-actors.ts` はここだけを見るので、
+ * 取得そのものは `wikipedia-kana.ts`、記事 HTML の解析は `wikipedia-article.ts`、
+ * かなの文字列の形は `kana-text.ts`。対象声優リストを作る `build-actors.ts` はここだけを見るので、
  * 生成の側に取得の依存 (fetch / HTML 解析) が入らない
  */
 
@@ -81,42 +81,18 @@ export async function readKanaCache(
   return parsed as ActorKanaCache;
 }
 
-// --- かなの形 --------------------------------------------------------------
-
-/** カタカナの範囲 (ァ〜ヶ)。ひらがなとは 0x60 ずれている */
-const KATAKANA_START = 0x30a1;
-const KATAKANA_END = 0x30f6;
-const KANA_OFFSET = 0x60;
-/** 空白と中黒は落とす。手で書いた既存のかなも、どちらも入れない形で持っている */
-const SEPARATORS = /[\s・･]+/gu;
-/** 保存してよい形。ひらがなと長音符だけ */
-const HIRAGANA_ONLY = /^[ぁ-ゖー]+$/u;
-
 /**
- * 記事の値を保存する形に直す。区切りを落とし、カタカナをひらがなに寄せる。
+ * まだ引いていない人を、引く順に返す。`limit` を渡すとその人数で切る。
  *
- * Wikipedia は姓と名の間に空白を入れ、名前がラテン文字の声優にはカタカナの読みを載せる。
- * `src/domain/normalize.ts` の `normalizeName` は空白と中黒を落とすがかなとカナは畳まないので、
- * カタカナのまま入れるとひらがなで引いた検索に当たらない。
- * ひらがなと長音符以外が残る値は、読みとして取り出せていないので捨てる
+ * 全員だと数時間かかるので、人数を区切った実行を何度も重ねて進める。
+ * 取得済みの人 (取れなかった人も含む) を飛ばさないと、実行のたびに先頭から引き直してしまう
  */
-export function toStoredKana(raw: string): string | undefined {
-  const plain = raw
-    // 脚注より後ろは読みではない
-    .replace(/<ref[\s\S]*$/i, "")
-    .replace(/\{\{[\s\S]*?\}\}/g, "")
-    // 内部リンクは表示側だけ残す ([[のがみ ゆかな|ゆかな]] → ゆかな)
-    .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, "$1")
-    .replace(/<[^>]*>/g, "")
-    .replace(SEPARATORS, "");
-
-  let hiragana = "";
-  for (const character of plain) {
-    const code = character.codePointAt(0) ?? 0;
-    hiragana +=
-      code >= KATAKANA_START && code <= KATAKANA_END
-        ? String.fromCodePoint(code - KANA_OFFSET)
-        : character;
-  }
-  return HIRAGANA_ONLY.test(hiragana) ? hiragana : undefined;
+export function pendingNames(
+  canonicalNames: readonly string[],
+  records: readonly ActorKanaRecord[],
+  limit?: number,
+): string[] {
+  const done = new Set(records.map((record) => record.canonicalName));
+  const pending = canonicalNames.filter((name) => !done.has(name));
+  return limit === undefined ? pending : pending.slice(0, limit);
 }

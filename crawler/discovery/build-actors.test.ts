@@ -38,9 +38,9 @@ describe("kanaLosses", () => {
     ).toEqual(["上田麗奈"]);
   });
 
-  it("声優ごと消えた場合もかなを失う", async () => {
+  it("声優ごと出力から消えた場合は数えない (絞り込みは意図した結果)", async () => {
     const file = await outFileWith([actor()]);
-    expect(await kanaLosses(file, [])).toEqual(["上田麗奈"]);
+    expect(await kanaLosses(file, [])).toEqual([]);
   });
 
   it("かなが増えるだけなら何も失わない", async () => {

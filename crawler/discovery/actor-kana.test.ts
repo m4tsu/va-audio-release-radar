@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   type ActorKanaRecord,
   kanaByCanonicalName,
+  pendingNames,
   readKanaCache,
-  toStoredKana,
 } from "./actor-kana.ts";
 
 function record(overrides: Partial<ActorKanaRecord> = {}): ActorKanaRecord {
@@ -19,38 +19,6 @@ function record(overrides: Partial<ActorKanaRecord> = {}): ActorKanaRecord {
     ...overrides,
   };
 }
-
-describe("toStoredKana", () => {
-  it("姓名の間の空白を落とす", () => {
-    expect(toStoredKana("うえだ れいな")).toBe("うえだれいな");
-  });
-
-  it("中黒で区切られた読みも受け取る", () => {
-    expect(toStoredKana("ブリドカット・セーラ・めぐみ")).toBe("ぶりどかっとせーらめぐみ");
-  });
-
-  it("カタカナはひらがなに寄せる (ひらがなで引いた検索に当てるため)", () => {
-    expect(toStoredKana("みどう ダリア")).toBe("みどうだりあ");
-    expect(toStoredKana("ソンド")).toBe("そんど");
-  });
-
-  it("長音符は残す", () => {
-    expect(toStoredKana("ひろせ ゆうすけー")).toBe("ひろせゆうすけー");
-  });
-
-  it("内部リンクと脚注は落とす", () => {
-    expect(toStoredKana("[[のがみ ゆかな|ゆかな]]")).toBe("ゆかな");
-    expect(
-      toStoredKana('あまの さとみ<ref name="x">{{Cite web|url=http://example.com}}</ref>'),
-    ).toBe("あまのさとみ");
-  });
-
-  it("かな以外が残る値は読みとして扱わない", () => {
-    expect(toStoredKana("上田 麗奈")).toBeUndefined();
-    expect(toStoredKana("KENN")).toBeUndefined();
-    expect(toStoredKana("")).toBeUndefined();
-  });
-});
 
 describe("kanaByCanonicalName", () => {
   it("かなが取れた人だけを返す", () => {
@@ -96,5 +64,34 @@ describe("readKanaCache", () => {
     await writeFile(file, JSON.stringify({ records: [record()] }), "utf8");
     const cache = await readKanaCache(file);
     expect(cache?.records).toHaveLength(1);
+  });
+});
+
+describe("pendingNames", () => {
+  const names = ["上田麗奈", "ゆかな", "満島ひかり", "杉田智和"];
+
+  it("取得済みの人を飛ばす (取れなかった人も引き直さない)", () => {
+    const done = [
+      record(),
+      record({ canonicalName: "満島ひかり", status: "rejected", kana: undefined }),
+    ];
+    expect(pendingNames(names, done)).toEqual(["ゆかな", "杉田智和"]);
+  });
+
+  it("limit で人数を区切る", () => {
+    expect(pendingNames(names, [], 2)).toEqual(["上田麗奈", "ゆかな"]);
+  });
+
+  it("続きから区切ると、飛ばした後の先頭から数える", () => {
+    expect(pendingNames(names, [record()], 2)).toEqual(["ゆかな", "満島ひかり"]);
+  });
+
+  it("全員取得済みなら空", () => {
+    expect(
+      pendingNames(
+        names,
+        names.map((name) => record({ canonicalName: name })),
+      ),
+    ).toEqual([]);
   });
 });

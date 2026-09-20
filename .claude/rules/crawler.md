@@ -14,6 +14,7 @@ paths:
 | `crawler/adapters/audible.ts` | [`docs/stores/audible.md`](../../docs/stores/audible.md) |
 | `crawler/adapters/pokedora.ts`、`discovery/pokedora-*.ts` | [`docs/stores/pokedora.md`](../../docs/stores/pokedora.md) |
 | `crawler/discovery/anilist.ts`、`build-actors.ts` | [`docs/stores/anilist.md`](../../docs/stores/anilist.md) |
+| `crawler/discovery/wikipedia-*.ts` | [`docs/stores/wikimedia.md`](../../docs/stores/wikimedia.md) |
 | `crawler/lib/fetch.ts` | [`docs/stores/README.md`](../../docs/stores/README.md) |
 
 ## 取得する URL の形を変えるなら、robots.txt を確認して引用を残す
