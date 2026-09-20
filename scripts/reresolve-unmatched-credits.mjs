@@ -65,10 +65,24 @@ export function planReresolve(db) {
     }));
   const byId = new Map(actors.map((actor) => [actor.id, actor]));
 
+  // 対象声優でないと印を付けた表記は解決し直さない。人が「この人ではない」と決めた表記を
+  // 後から自動で結ぶと、実在の人物に出演していない作品を並べることになる。
+  // 表そのものがまだ無い DB でも動くよう、有無を見てから条件を足す
+  const hasExcluded =
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get("excluded_credit_names") !== undefined;
+  const excludeCondition = hasExcluded
+    ? `AND NOT EXISTS (
+         SELECT 1 FROM excluded_credit_names x
+         WHERE x.credited_name = audio_credits.credited_name
+           AND x.source_store_slug = audio_credits.source_store_slug)`
+    : "";
+
   const groups = db
     .prepare(
       `SELECT credited_name, source_store_slug, count(*) AS n
-       FROM audio_credits WHERE confidence = 'unmatched'
+       FROM audio_credits WHERE confidence = 'unmatched' ${excludeCondition}
        GROUP BY 1, 2`,
     )
     .all();

@@ -163,10 +163,10 @@ export type ExcludedCreditName = {
 };
 
 /**
- * 対象声優ではないと印を付ける。未解決キューから外れる。
+ * 対象声優ではないと印を付ける。未解決キューから外れ、解決し直す対象からも外れる。
  *
  * 作品側の credit は触らない。取り込みが見つけた「この作品にこの表記があった」という事実は
- * 変わらないため。同じ名前に二度付けても結果は変わらない (印は 1 件だけ残る)
+ * 変わらないため。同じ名前に二度付けても印は 1 件のままで、初回の日時が残る
  */
 export async function excludeCreditName(
   db: AppDb,
@@ -181,11 +181,17 @@ export async function excludeCreditName(
       note: input.note ?? null,
       createdAt: now,
     })
-    // 付け直しても初回の日時を残す。理由だけは書き直せるようにする
+    // 付け直しても初回の日時を残す。理由は渡したときだけ書き換え、渡さなければ前のまま残す
+    // (理由なしで付け直して既に書いた理由を消さないため)
     .onConflictDoUpdate({
       target: [excludedCreditNames.creditedName, excludedCreditNames.sourceStoreSlug],
-      set: { note: input.note ?? null },
+      set: input.note === undefined ? { note: keepNote() } : { note: input.note },
     });
+}
+
+/** 上書きしないことを表す。SQLite の DO UPDATE SET では修飾なしの列名が既存行の値を指す */
+function keepNote() {
+  return sql`${excludedCreditNames.note}`;
 }
 
 /** 印を外す。未解決キューに戻る */
@@ -250,6 +256,7 @@ export type ReresolveResult = {
  *
  * **`confidence = 'unmatched'` の行しか触らない。** 手で割り当てた行 (`assignCredit` が
  * verified にしたもの) や、取り込み時に解決済みの行は対象外なので、実行しても剥がれない。
+ * **対象声優でないと印を付けた表記も触らない** (`excludeCreditName`)。
  * 解決できなかった行はそのまま残るだけなので、何度実行しても結果は同じ (冪等)
  */
 export async function reresolveUnmatchedCredits(db: AppDb): Promise<ReresolveResult> {
@@ -260,7 +267,10 @@ export async function reresolveUnmatchedCredits(db: AppDb): Promise<ReresolveRes
       count: sql<number>`count(*)`,
     })
     .from(audioCredits)
-    .where(eq(audioCredits.confidence, "unmatched"))
+    // 対象声優でないと印を付けた表記は解決し直さない。人が「この人ではない」と決めた表記を
+    // 後から自動で結ぶと、実在の人物に出演していない作品を並べることになる
+    // (`docs/product.md` の「別名義」)
+    .where(and(eq(audioCredits.confidence, "unmatched"), notExcluded(db)))
     .groupBy(audioCredits.creditedName, audioCredits.sourceStoreSlug);
 
   const scannedCredits = groups.reduce((sum, group) => sum + Number(group.count), 0);

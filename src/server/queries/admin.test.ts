@@ -333,6 +333,26 @@ describe("reresolveUnmatchedCredits", () => {
   });
 
   /**
+   * 人が「この人ではない」と決めた表記を、後から自動で結んではならない。
+   * 実在の人物に出演していない作品を並べることになるため (`docs/product.md` の「別名義」)
+   */
+  it("対象外の印を付けた表記は解決し直さない", async () => {
+    const db = await setupDb([]);
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["上田 麗奈"] })] }), NOW);
+    await excludeCreditName(db, { creditedName: "上田 麗奈", sourceStoreSlug: "dlsite" }, NOW);
+    // 印を付けた後に声優が登録され、名寄せでは当たるようになる
+    await upsertActors(db, [UEDA], NOW);
+
+    const result = await reresolveUnmatchedCredits(db);
+
+    expect(result.scannedGroups).toBe(0);
+    expect(result.resolvedCredits).toBe(0);
+    const credits = await db.select().from(audioCredits);
+    expect(credits[0]?.confidence).toBe("unmatched");
+    expect(credits[0]?.voiceActorId).toBeNull();
+  });
+
+  /**
    * 手で割り当てた行 (verified) を巻き込まないことを固定する。
    * `addAlias: false` にしてあるので名寄せは今も失敗する表記だが、行は触ってはならない
    */
@@ -669,5 +689,19 @@ describe("excludeCreditName / unexcludeCreditName", () => {
     expect(excluded).toHaveLength(1);
     expect(excluded[0]?.createdAt).toBe(daysAgo(2));
     expect(excluded[0]?.note).toBe("後から書いた理由");
+  });
+
+  it("理由を渡さずに付け直しても、書いてある理由は消えない", async () => {
+    const db = await setupDb();
+    await excludeCreditName(
+      db,
+      { creditedName: "謎の人", sourceStoreSlug: "dlsite", note: "同人サークルの名義" },
+      daysAgo(2),
+    );
+
+    await excludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" }, NOW);
+
+    const excluded = await listExcludedCreditNames(db);
+    expect(excluded[0]?.note).toBe("同人サークルの名義");
   });
 });
