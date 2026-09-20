@@ -334,6 +334,31 @@ describe("feedForActors の段", () => {
     expect(initial?.isNew).toBe(false);
   });
 
+  /**
+   * ベースラインは取り込んだ時刻 (`finished_at`) で取る。クローラーが取得を始めた時刻
+   * (`started_at`) で取ると、走行にかかった時間ぶんだけ first_seen_at が後ろにずれ、
+   * 初回クロールで見つかった全作品が新着になる
+   */
+  it("取得を始めた時刻を送っても、初回クロールの作品は新着にならない", async () => {
+    const db = await setupDb();
+    // 取得を始めたのは取り込みの 3 時間前。1 回の走行が数時間に及ぶ状況。
+    // 初回クロールを 3 日前にするのは、基準を取得開始時刻で取ったときに
+    // 「3 日前に見つかった新作」として NEW が付いてしまい、差が出るため
+    const ingestedAt = daysAgo(3);
+    const fetchStartedAt = new Date(Date.parse(ingestedAt) - 3 * 60 * 60 * 1000).toISOString();
+    await ingest(
+      db,
+      payload({ startedAt: fetchStartedAt, works: [rawWork({ storeProductId: "INITIAL" })] }),
+      ingestedAt,
+    );
+
+    const feed = await feedForActors(db, [UEDA.id], { now: NOW });
+
+    const initial = feed.find((item) => item.work.id === "dlsite:INITIAL");
+    expect(initial?.isNew).toBe(false);
+    expect(initial?.freshness).toBe("older");
+  });
+
   it("発売日が無い作品は、ベースラインより後 7 日以内の発見で isNew", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "INITIAL" })] }), daysAgo(40));

@@ -257,6 +257,7 @@ export const en: Translations = {
     healthToUnmatched: "Go to unmatched credits",
     healthEmpty: "No crawl has been recorded yet.",
     healthColumnActor: "Voice actor",
+    healthFeedRun: "New releases feed",
     healthColumnStore: "Store",
     healthColumnLatestRun: "Latest run",
     healthColumnWorkCount: "Collected",

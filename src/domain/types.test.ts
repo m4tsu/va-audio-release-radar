@@ -31,8 +31,6 @@ describe("rawWorkSchema", () => {
       coverImageUrl: "https://img.dlsite.jp/example.jpg",
       releaseDate: "2026-08-22",
       durationSeconds: 3600,
-      price: 1584,
-      listPrice: 1980,
       makerName: "テストサークル",
       storeCategory: "SOU",
       genres: ["ボイスドラマ"],

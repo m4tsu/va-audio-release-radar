@@ -286,6 +286,8 @@ export const ja = {
     healthToUnmatched: "未解決クレジットへ",
     healthEmpty: "まだクロールの記録がない。",
     healthColumnActor: "声優",
+    /** 声優に紐付かない走行 (ストアの新着一覧) の行に出す */
+    healthFeedRun: "新着一覧",
     healthColumnStore: "ストア",
     healthColumnLatestRun: "直近の実行",
     healthColumnWorkCount: "取得件数",

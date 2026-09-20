@@ -243,10 +243,12 @@ export async function crawlerHealth(
   db: AppDb,
   now: string = new Date().toISOString(),
 ): Promise<CrawlerHealth> {
+  // 並べるのは取り込んだ時刻。`started_at` はクローラーが取得を始めた時刻で、
+  // 数時間かかる走行では「いつ取り込まれたか」と大きくずれる
   const runs = await db
     .select()
     .from(crawlRuns)
-    .orderBy(desc(crawlRuns.startedAt))
+    .orderBy(desc(crawlRuns.finishedAt), desc(crawlRuns.startedAt))
     .limit(HEALTH_RUN_SCAN_LIMIT);
 
   // 束ねる単位は ストア × 対象。声優に紐付かない走行 (新着一覧) はストアごとに 1 つの束になる
@@ -286,11 +288,11 @@ export async function crawlerHealth(
   // 要対応を上に出す。その中は直近の実行が新しい順
   entries.sort((a, b) => {
     if (a.warning !== b.warning) return a.warning ? -1 : 1;
-    return a.latest.startedAt < b.latest.startedAt ? 1 : -1;
+    return recordedAt(a.latest) < recordedAt(b.latest) ? 1 : -1;
   });
 
   const since = new Date(Date.parse(now) - 24 * 60 * 60 * 1000).toISOString();
-  const recent = runs.filter((run) => run.startedAt >= since);
+  const recent = runs.filter((run) => (run.finishedAt ?? run.startedAt) >= since);
   return {
     entries,
     last24h: {
@@ -302,13 +304,21 @@ export async function crawlerHealth(
 
 // --- 内部 ----------------------------------------------------------------
 
+/** 並べ替えと 24 時間の集計に使う時刻。取り込んだ時刻が無い古い行は開始時刻で代える */
+function recordedAt(run: { startedAt: string; finishedAt?: string }): string {
+  return run.finishedAt ?? run.startedAt;
+}
+
 function judgeWarning(
-  latest: { status: "ok" | "error"; workCount: number },
+  latest: { status: "ok" | "error"; workCount: number; voiceActorId: string | null },
   previousOk: { workCount: number } | undefined,
 ): { warning: boolean; reason?: string } {
   if (latest.status === "error") {
     return { warning: true, reason: "直近の実行が失敗している" };
   }
+  // 声優に紐付かない走行 (新着一覧) は日ごとに件数が揺れるので前回比で判定しない。
+  // この層の健全性は「直近に成功した取り込みがあるか」で見る (decisions/0007)
+  if (latest.voiceActorId === null) return { warning: false };
   if (!previousOk || previousOk.workCount === 0) {
     // 比較対象が無い / 前回も 0 件なら、落ちたのか元からそうなのか判断できない
     return { warning: false };

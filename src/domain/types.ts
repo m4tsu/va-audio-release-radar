@@ -348,6 +348,14 @@ const httpsUrlSchema = z
 /** `YYYY-MM-DD` 固定。ストア側の表記ゆれをここで弾き、DB の並べ替えを文字列比較で成立させる */
 const releaseDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 形式で指定する");
 
+/**
+ * ISO 8601 の UTC 文字列 (`toISOString()` の形)。
+ * 走行の時刻は管理画面の並びと集計が文字列比較で読むので、形が揃っていないと順序が壊れる
+ */
+const isoDateTimeSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/, "ISO 8601 (UTC) で指定する");
+
 export const rawWorkSchema = z.object({
   storeSlug: z.enum(STORE_SLUGS),
   storeProductId: z.string(),
@@ -370,7 +378,7 @@ export const ingestPayloadSchema = z.object({
   runId: z.string(),
   storeSlug: z.enum(STORE_SLUGS),
   voiceActorId: z.string().optional(),
-  startedAt: z.string().optional(),
+  startedAt: isoDateTimeSchema.optional(),
   works: z.array(rawWorkSchema),
   error: z.string().optional(),
   totalCount: z.number().int().nonnegative().optional(),

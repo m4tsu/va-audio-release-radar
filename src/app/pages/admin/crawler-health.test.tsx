@@ -36,6 +36,21 @@ describe("CrawlerHealthPage の表", () => {
     expect(within(table()).getByText("DLsite")).toBeInTheDocument();
   });
 
+  test("声優に紐付かない走行は、声優の欄に何の走行かを出す", () => {
+    const health = crawlerHealth({
+      entries: [
+        crawlerHealthEntry({
+          voiceActorId: undefined,
+          voiceActorName: undefined,
+          voiceActorSlug: undefined,
+        }),
+      ],
+    });
+    renderWithLocale(<CrawlerHealthPage authorized health={health} />);
+
+    expect(within(table()).getByText("新着一覧")).toBeInTheDocument();
+  });
+
   /** エラーにならず件数だけ減る壊れ方は、成否では気づけない。前回比の列で見せる */
   test("前回の成功と比べた増減を符号つきで出す", () => {
     const health = crawlerHealth({

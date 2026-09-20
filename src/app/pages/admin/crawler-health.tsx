@@ -117,7 +117,8 @@ function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
               : entry.voiceActorId}
           </Link>
         ) : (
-          entry.voiceActorId
+          // 声優に紐付かない走行 (新着一覧) は id が無いので、何の走行かを言葉で出す
+          (entry.voiceActorId ?? t("admin.healthFeedRun"))
         )}
       </TableCell>
       <TableCell>{storeLabel(entry.storeSlug)}</TableCell>

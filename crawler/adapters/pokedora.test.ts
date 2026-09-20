@@ -39,7 +39,7 @@ const tagBlHtml = fixture("pokedora-tag-1920-bl.html");
 const detail126232 = fixture("pokedora-detail-126232.html");
 /** 声優 17 名・BL。タイトルの【出演声優：…】は 6 名しか出ない作品 */
 const detail93854 = fixture("pokedora-detail-93854.html");
-/** 期間限定無料。価格が 0 で出る */
+/** 期間限定無料の作品 */
 const detail101656 = fixture("pokedora-detail-101656.html");
 /** BL・特典あり。商品カテゴリが 2 つ付く */
 const detail103703 = fixture("pokedora-detail-103703.html");
@@ -99,7 +99,7 @@ describe("parseSearchHtml (タグページ)", () => {
     expect(parsed.totalCount).toBe(66);
   });
 
-  it("一覧だけで ID・タイトル・価格・区分・表紙が揃う (既知の作品はこれで済ませる)", () => {
+  it("一覧だけで ID・タイトル・区分・表紙が揃う (既知の作品はこれで済ませる)", () => {
     const parsed = parseSearchHtml(tagMenHtml, FETCHED_AT);
     const work = parsed.works.find((item) => item.storeProductId === "139137");
     expect(work).toMatchObject({

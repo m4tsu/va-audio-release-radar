@@ -19,7 +19,7 @@ import type {
  * 1. 声優タグのページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100&store={men|bl}`)。
  *    tag_id は事前に作った辞書 (`crawler/.cache/discovery/pokedora-tags.json`) から
  *    `crawler/run.ts` が渡す。辞書に無い声優はこのストアを引かない
- * 2. 一覧から作品 ID・タイトル・価格・商品カテゴリを取る
+ * 2. 一覧から作品 ID・タイトル・商品カテゴリを取る
  * 3. 作品ごとに詳細ページを引き、出演声優の全員とレーベルを補う
  *
  * 他ストアと違うところ:
@@ -111,7 +111,7 @@ function isPokedoraSection(value: string | undefined): value is PokedoraSection 
 /**
  * タグページ 1 枚を解析する (`SourceAdapter.parseSearchHtml`)。
  *
- * 一覧だけで作品 ID・タイトル・価格・商品カテゴリ・表紙が揃うので、既知の作品では
+ * 一覧だけで作品 ID・タイトル・商品カテゴリ・表紙が揃うので、既知の作品では
  * ここで作った `RawWork` をそのまま使い、詳細取得を飛ばせる (`--skip-known`)。
  * 一覧には出演声優が出ないので `creditedNames` は空になる。ingest は credit を
  * 消さずに残すので、既知の作品の出演者が消えることはない
