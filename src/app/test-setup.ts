@@ -21,9 +21,10 @@ Element.prototype.setPointerCapture = () => {};
 Element.prototype.releasePointerCapture = () => {};
 Element.prototype.scrollIntoView = () => {};
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
   resetRouterStub();
-  // フォローは zustand のモジュール変数。前のテストで付いた状態を次に持ち越さない
-  resetFollowStoreForTest();
+  // フォローは zustand のモジュール変数。前のテストで付いた状態を次に持ち越さない。
+  // 読み込みが走っていれば終わるまで待つ (待たないと後から `ready` になる)
+  await resetFollowStoreForTest();
 });

@@ -164,8 +164,14 @@ export function useIsFollowing(voiceActorId: string): boolean {
   return useFollowStore((state) => state.follows.some((f) => f.voiceActorId === voiceActorId));
 }
 
-/** テスト用。モジュールに溜まった Dexie のハンドルと init の実行済み状態を捨てる */
-export function resetFollowStoreForTest(): void {
+/**
+ * テスト用。モジュールに溜まった Dexie のハンドルと init の実行済み状態を捨てる。
+ *
+ * 走り終える前に捨てない。`init()` は Dexie を動的 import してから状態を書くので、
+ * 先に捨てると読み込みが後から終わって次のテストを `ready` にしてしまう
+ */
+export async function resetFollowStoreForTest(): Promise<void> {
+  await initPromise?.catch(() => {});
   tablePromise = null;
   initPromise = null;
   useFollowStore.setState({ status: "idle", follows: [], lastSeenFeedAt: null });
