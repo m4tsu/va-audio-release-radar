@@ -478,7 +478,7 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
-/** 文字列だけを残した配列。要素に空文字や他の型が混じっていても落とさない */
+/** 文字列の要素だけを残す。空文字や他の型が混じっていても、配列ごと捨てはしない */
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const names: string[] = [];

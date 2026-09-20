@@ -227,14 +227,15 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   > "for AniList"/"for AniChart" to the title/name of the application. Just the
   > titles/names "AniList" and "AniChart" are strictly prohibited
 
-  本プロジェクトは声優の `id` と `name.native` / `name.full` (＋画像 URL) を**自分の DB に
+  本プロジェクトは声優と、その声優が出ている作品・演じたキャラクターを**自分の DB に
   恒久的に保存**し、公開する Web サービスで使う予定。事実として言えることと、
   判断が要ることを分けて書く。
 
-  - **事実**: 保存しているのは声優 (id・名前・画像 URL)、対象声優が出ている作品
-    (id・タイトル・シーズン・形式・人気度・放送日・別名・表紙の URL と代表色)、
-    その声優が演じたキャラクター (id・名前・画像 URL) で、あらすじ・話数・ジャンル・
-    タグ・スタッフ・評価は取っていない。ユーザーデータは一切取っていない
+  - **事実**: 保存しているのは声優 (staff id・名前・画像 URL)、対象声優が出ている作品
+    (media id・タイトル・シーズン・形式・人気度・放送日・別名・表紙の URL と代表色)、
+    その声優が演じたキャラクター (character id・名前・画像 URL)。
+    あらすじ・話数・ジャンル・タグ・制作スタッフ・評価は取っていない。
+    ユーザーデータは一切取っていない
   - **事実**: それでも対象声優の全員分を通しで取得し DB に持ち続ける挙動は、
     「backup or data storage service として使うのは禁止」「hoarding or mass collection は禁止」
     という文言に触れる余地がある。**該当するかどうかは、原文を読んだだけでは判定できない

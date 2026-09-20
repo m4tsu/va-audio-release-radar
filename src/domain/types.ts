@@ -113,11 +113,7 @@ export type AnimeTitle = {
   format?: AnimeFormat;
   /** AniList の人気度。一覧の既定の並びに使う */
   popularity?: number;
-  /**
-   * 放送開始日 / 終了日 ("2026-10-02")。年月日が揃っているときだけ持つ。
-   * AniList の日付は欠けることがあり (放送前の作品の終了日など)、
-   * 欠けた値を入れると日付として比べられなくなる
-   */
+  /** 放送開始日 / 終了日 ("2026-10-02")。揃っていない日付を落とす理由は `crawler/discovery/anilist.ts` */
   startDate?: string;
   endDate?: string;
   /** AniList が持つ別名タイトル ("ロシデレ")。略称や別表記で探すために持つ */

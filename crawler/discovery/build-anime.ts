@@ -189,7 +189,7 @@ export async function main(argv: readonly string[]): Promise<number> {
  * AniList が返さないことがある項目 (放送終了日、別名タイトル、代表色) を後から足したとき、
  * 取り直しを忘れて全件空のまま取り込んでいないかを、この数で見分ける
  */
-function countByField(anime: readonly AnimeEntity[]): Array<[string, number]> {
+export function countByField(anime: readonly AnimeEntity[]): Array<[string, number]> {
   return [
     ["人気度あり", anime.filter((item) => item.popularity !== undefined).length],
     ["形式あり", anime.filter((item) => item.format !== undefined).length],
