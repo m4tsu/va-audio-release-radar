@@ -12,10 +12,13 @@ import {
   countSql,
   exportSql,
   isExcludedRow,
+  insertTarget,
   isSystemTable,
   listDataTables,
   parseCounts,
+  prepareImportSql,
   ROWS_PER_INSERT,
+  splitStatements,
   sqlLiteral,
   truncateSql,
 } from "./d1-data.mjs";
@@ -159,5 +162,71 @@ describe("isSystemTable", () => {
     expect(isSystemTable("_cf_METADATA")).toBe(true);
     expect(isSystemTable("_cf_KV")).toBe(true);
     expect(isSystemTable("audio_works")).toBe(false);
+  });
+});
+
+describe("splitStatements / insertTarget", () => {
+  it("引用符の中の ; と重ね書きの引用符で切らない", () => {
+    const sql = `INSERT INTO "a" ("t") VALUES ('x; y');\nINSERT INTO b VALUES ('it''s');\nPRAGMA x=1;`;
+    const statements = splitStatements(sql);
+    expect(statements).toHaveLength(3);
+    expect(statements[0]).toBe(`INSERT INTO "a" ("t") VALUES ('x; y')`);
+    expect(insertTarget(statements[0])).toBe("a");
+    expect(insertTarget(statements[1])).toBe("b");
+    expect(insertTarget(statements[2])).toBeUndefined();
+  });
+});
+
+describe("prepareImportSql", () => {
+  it("wrangler の書き出しからデータの INSERT だけを残し、親の表から順に並べ直す", () => {
+    // wrangler `d1 export --no-schema` の形 (1 行 1 文。表は作成順で子が先。管理用の表の行を含む)
+    const dump = [
+      "PRAGMA defer_foreign_keys=TRUE;",
+      `INSERT INTO "d1_migrations" ("id","name","applied_at") VALUES(1,'0000_x.sql','2026-09-18 00:00:00');`,
+      `INSERT INTO "audio_credits" ("id","audio_work_id","voice_actor_id","credited_name","source_store_slug") VALUES(1,'dlsite:RJ1','va_a','上田麗奈','dlsite');`,
+      `INSERT INTO "audio_works" ("id","title","price") VALUES('dlsite:RJ1',replace('a\\nb','\\n',char(10)),NULL);`,
+      `INSERT INTO "voice_actors" ("id","canonical_name") VALUES('va_a','It''s');`,
+      `INSERT INTO "sqlite_sequence" ("name","seq") VALUES('audio_credits',1);`,
+    ].join("\n");
+
+    const db = openDb();
+    const tables = listDataTables(db);
+    const prepared = prepareImportSql(dump, tables);
+    expect(prepared.statements).toBe(3);
+    expect(prepared.dropped).toBe(3);
+    expect(prepared.sql).not.toContain("PRAGMA");
+    expect(prepared.sql).not.toContain("d1_migrations");
+    expect(prepared.sql).not.toContain("sqlite_sequence");
+    expect(prepared.sql.indexOf("audio_works")).toBeLessThan(prepared.sql.indexOf("audio_credits"));
+    expect(prepared.sql.indexOf("voice_actors")).toBeLessThan(prepared.sql.indexOf("audio_credits"));
+
+    db.exec("PRAGMA foreign_keys = ON");
+    db.exec(prepared.sql);
+    const title = db.prepare("select title from audio_works").get() as { title: string };
+    expect(title.title).toBe("a\nb");
+  });
+
+  it("このリポジトリの書き出し (複数行の INSERT) もそのまま通る", () => {
+    const source = openDb();
+    seed(source);
+    const { sql, tables, counts } = exportSql(source);
+    const prepared = prepareImportSql(sql, tables);
+    const target = new DatabaseSync(":memory:");
+    target.exec(SCHEMA);
+    target.exec("PRAGMA foreign_keys = ON");
+    target.exec(prepared.sql);
+    for (const table of tables) {
+      const row = target.prepare(`select count(*) as c from "${table}"`).get() as { c: number };
+      expect(row.c).toBe(counts[table]);
+    }
+  });
+
+  it("表を絞った書き出しは親の順序を保つ", () => {
+    const db = openDb();
+    seed(db);
+    const { tables, counts } = exportSql(db, { onlyTables: ["store_listings", "audio_works"] });
+    expect(tables).toEqual(["audio_works", "store_listings"]);
+    expect(Object.keys(counts)).toEqual(["audio_works", "store_listings"]);
+    expect(() => exportSql(db, { onlyTables: ["nope"] })).toThrow("無い表");
   });
 });

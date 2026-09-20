@@ -94,10 +94,16 @@ export function isExcludedRow(table, row, excludeStores) {
 
 /**
  * 全データ表の中身を INSERT 文にして返す。表は外部キーの親から順。
+ * `onlyTables` を渡すとその表だけを書き出す (親の順序は保つ)。
  * 返り値の `counts` は表ごとの書き出した行数で、流し込んだ後の件数照合に使う
  */
-export function exportSql(db, { excludeStores = [] } = {}) {
-  const tables = listDataTables(db);
+export function exportSql(db, { excludeStores = [], onlyTables } = {}) {
+  const all = listDataTables(db);
+  if (onlyTables !== undefined) {
+    const unknown = onlyTables.filter((table) => !all.includes(table));
+    if (unknown.length > 0) throw new Error(`無い表: ${unknown.join(", ")}`);
+  }
+  const tables = onlyTables === undefined ? all : all.filter((table) => onlyTables.includes(table));
   const lines = [];
   const counts = {};
 
@@ -148,4 +154,75 @@ export function formatCounts(counts) {
   return Object.entries(counts)
     .map(([table, count]) => `${table.padEnd(width)}  ${String(count).padStart(7)}`)
     .join("\n");
+}
+
+// --- 書き出したファイルの流し込み --------------------------------------------
+
+/**
+ * SQL を文ごとに分ける。引用符 (' と ") の中の ; では切らない。
+ * wrangler の書き出しは 1 行 1 文だが、このリポジトリの書き出しは 1 文が複数行に及ぶため
+ */
+export function splitStatements(sql) {
+  const statements = [];
+  let current = "";
+  let quote = null;
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i];
+    if (quote !== null) {
+      current += char;
+      if (char === quote) {
+        // 引用符の重ね書き ('' / "") は閉じではない
+        if (sql[i + 1] === quote) {
+          current += quote;
+          i += 1;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === ";") {
+      const trimmed = current.trim();
+      if (trimmed !== "") statements.push(trimmed);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  const rest = current.trim();
+  if (rest !== "") statements.push(rest);
+  return statements;
+}
+
+/** INSERT 文の対象の表名。INSERT 以外は undefined */
+export function insertTarget(statement) {
+  const matched = /^INSERT\s+INTO\s+(?:"([^"]+)"|([^\s(]+))/i.exec(statement);
+  return matched ? (matched[1] ?? matched[2]) : undefined;
+}
+
+/**
+ * 書き出したファイルを、手元の D1 に流せる形に直す。
+ * - データの表への INSERT だけを残す。`PRAGMA`、`CREATE`、`d1_migrations` と `sqlite_sequence` への
+ *   INSERT (wrangler の書き出しに含まれる) は捨てる。マイグレーションの記録は apply が持つため
+ * - 表を外部キーの親から順に並べ直す。wrangler の書き出しは表の作成順で、子が親より先に来ることがある
+ */
+export function prepareImportSql(sql, tables) {
+  const byTable = new Map(tables.map((table) => [table, []]));
+  let dropped = 0;
+  for (const statement of splitStatements(sql)) {
+    const target = insertTarget(statement);
+    const bucket = target === undefined ? undefined : byTable.get(target);
+    if (bucket === undefined) {
+      dropped += 1;
+      continue;
+    }
+    bucket.push(`${statement};`);
+  }
+  const lines = tables.flatMap((table) => byTable.get(table));
+  return { sql: `${lines.join("\n")}\n`, statements: lines.length, dropped };
 }

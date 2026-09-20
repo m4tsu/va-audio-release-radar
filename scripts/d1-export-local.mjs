@@ -5,11 +5,13 @@
 //   npm run db:export:local                      # work/d1-export/local-<日時>.sql に書く
 //   npm run db:export:local -- --output x.sql
 //   npm run db:export:local -- --include-store audible
+//   npm run db:export:local -- --table voice_actors --table audio_works   # 表を絞る (日を分けて流すとき)
 //
 // 既定で Audible の行を除く。手元の Audible のデータには、robots.txt が禁じる並び順付き URL で
 // 取った分が混じっているため (docs/stores/audible.md の robots.txt の節)。
 // スキーマは書き出さない。本番にはマイグレーションで当てる (README の「本番 D1」)。
-// sqlite は読み取り専用で開くので、クロールが書き込み中でも安全
+// sqlite は読み取り専用で開き、全表を 1 つの読み取りトランザクションで読む。クロールが
+// 書き込み中でも、表の間で断面がずれて外部キー違反の SQL になることを避けるため
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -28,6 +30,7 @@ export function main(argv) {
     options: {
       output: { type: "string" },
       "include-store": { type: "string", multiple: true },
+      table: { type: "string", multiple: true },
     },
   });
 
@@ -44,7 +47,9 @@ export function main(argv) {
 
   const db = new DatabaseSync(sqliteFile, { readOnly: true });
   try {
-    const { sql, counts } = exportSql(db, { excludeStores });
+    db.exec("BEGIN");
+    const { sql, counts } = exportSql(db, { excludeStores, onlyTables: values.table });
+    db.exec("ROLLBACK");
     mkdirSync(path.dirname(output), { recursive: true });
     writeFileSync(output, sql, "utf8");
     console.log(`書き出した: ${output}`);

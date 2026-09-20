@@ -60,8 +60,10 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 
 正のデータは本番 D1。手元の D1 はその複製で、壊れても本番から作り直せる。
 Cloudflare の D1 は Workers Free プランでは Time Travel で 7 日しか遡れない (Paid は 30 日) ので、
-`.github/workflows/d1-backup.yml` が週に 1 回書き出して artifact に 90 日残す。
+`.github/workflows/d1-backup.yml` が週に 1 回スキーマ抜きで書き出して artifact に 90 日残す。
 必要な GitHub Secrets は `CLOUDFLARE_API_TOKEN` (権限は Account の D1 の Edit だけ) と `CLOUDFLARE_ACCOUNT_ID`。
+手元への復元は `npm run db:restore:local -- --file <artifact の sql> --yes`。マイグレーションを当てたうえで、
+データの表への INSERT だけを親の表から順に流し込む (`scripts/d1-restore-local.mjs`)。
 
 ### 手元のデータを本番へ移す (初回だけ)
 
@@ -82,10 +84,12 @@ npm run db:counts -- --remote                         # 3. 書き出し時に出
   2026-09-19 より前に robots.txt が禁じる並び順付き URL で取った分が混じっているため
   (`docs/stores/audible.md` の robots.txt の節)。本番の Audible は、月次の補完巡回が許可された URL から取り直す
   (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)
-- 流し込みの途中で止まったら、`npm run db:counts -- --remote` で入った表を見て、同じファイルを流し直す前に
-  `wrangler d1 execute DB --remote --command` で入った表を空にする。主キーが重なると止まるため
-- Free プランの D1 は 1 日に書ける行数に上限がある。書き出し時に出る件数の合計がその範囲に収まることを、
-  Cloudflare の料金ページの D1 の欄で確かめてから流す
+- 流し込みは wrangler が 1 つの取り込みとして行い、途中で失敗すれば元の状態に戻る (wrangler がその旨を表示する)。
+  失敗したら原因を直して同じファイルを流し直す
+- Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数える。書き出し時に出る件数に
+  表ごとの索引の本数 (`migrations/` の `CREATE INDEX`) を掛けた合計が、Cloudflare の料金ページの D1 の欄の
+  上限に収まることを確かめてから流す。収まらなければ `npm run db:export:local -- --table <表>` で表ごとに
+  書き出し、親の表 (声優、作品、アニメ) から順に日を分けて流す
 
 ### プランの確認
 
