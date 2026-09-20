@@ -295,7 +295,7 @@ export const ja = {
     healthColumnDiff: "前回比",
     healthColumnNew: "新規",
     healthColumnStatus: "状態",
-    healthCoverageIncomplete: "検索の 1 ページ目では取り切れていない",
+    healthCoverageIncomplete: "この走行では取り切れていない",
     healthStatusError: "失敗",
     healthStatusWarning: "要確認",
     healthStatusOk: "正常",

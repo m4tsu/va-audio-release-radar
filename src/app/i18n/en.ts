@@ -265,7 +265,7 @@ export const en: Translations = {
     healthColumnDiff: "Change",
     healthColumnNew: "New",
     healthColumnStatus: "Status",
-    healthCoverageIncomplete: "The first page of search results did not cover everything",
+    healthCoverageIncomplete: "This run did not cover everything",
     healthStatusError: "Failed",
     healthStatusWarning: "Check",
     healthStatusOk: "OK",

@@ -107,7 +107,7 @@ describe("CrawlerHealthPage の表", () => {
     });
     renderWithLocale(<CrawlerHealthPage authorized health={health} />);
 
-    const marked = within(table()).getByTitle("検索の 1 ページ目では取り切れていない");
+    const marked = within(table()).getByTitle("この走行では取り切れていない");
     expect(marked).toHaveTextContent("—");
   });
 

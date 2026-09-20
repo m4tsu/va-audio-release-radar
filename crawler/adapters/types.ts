@@ -89,8 +89,9 @@ export type AdapterStatus = "ok" | "empty" | "error";
  * 「その声優の作品を取りこぼしていないか」を数字で残せるようにする。
  *
  * `total` はストアが出す総件数 (DLsite の `pager.count` / Audible の「検索結果 N のうち」)。
- * 表示が無い検索では取れないので undefined になる。そのとき `complete` も undefined にする。
- * 総件数を知らないまま「全部取れた」と記録すると、取りこぼしを見逃す方向に嘘をつくため
+ * 表示が無い検索では取れないので undefined になる。そのとき `complete` はふつう undefined で、
+ * 総件数を知らないまま「全部取れた」とは記録しない。取りこぼしを見逃す方向に嘘をつくため。
+ * 例外は下の `complete` に書いた「総件数抜きでも取りこぼしが確かな」場合だけ
  */
 export type Coverage = {
   /** 検索一覧から集めた作品数 (並び順違いの和集合。重複は除く) */
