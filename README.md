@@ -28,6 +28,9 @@ npm run db:migrate:local   # ローカル D1 にスキーマを作る
 npm run dev                # ポートは vite.config.ts の server.port
 ```
 
+手元の D1 は本番 D1 の複製として扱う。本番から書き出したもの (「本番 D1」の週次バックアップ) があれば
+`npm run db:restore:local -- --file <file> --yes` で作り直せる。
+
 秘匿値が要る機能 (取り込み・管理画面) を触るときは `.dev.vars.example` を `.dev.vars` にコピーして値を入れる。
 canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場合は `wrangler.jsonc` の `vars.SITE_URL` に入れる。
 利用規約・プライバシーポリシーの問い合わせ窓口は `vars.CONTACT_URL` (`https://...` か `mailto:...`)。未設定なら窓口の案内は出ない。
@@ -44,10 +47,50 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 | `npm run test:e2e` | Playwright。E2E 専用の D1 を作り直して実行する。走らせるかの判定は `scripts/needs-e2e.sh` |
 | `npm run db:generate` | スキーマの差分から `migrations/*.sql` を生成する。続けて適用まで行う |
 | `npm run db:migrate:local` / `db:migrate:remote` | ローカル / 本番 D1 に適用 |
+| `npm run db:export:local` | 手元の D1 の中身を本番に流し込める SQL に書き出す (既定で Audible を除く。理由は「本番 D1」) |
+| `npm run db:import:remote -- <file>` | 書き出した SQL を本番 D1 に流し込む。人が実行する |
+| `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す。中身はすべて入れ替わる |
+| `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
 | `npm run radar:crawl` | クローラー本体。オプションは `node crawler/run.ts --help` |
 | `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
 | `npm run radar:test` / `radar:typecheck` | crawler だけのテスト / 型検査 |
 | `npm run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
+
+## 本番 D1
+
+正のデータは本番 D1。手元の D1 はその複製で、壊れても本番から作り直せる。
+Cloudflare の D1 は Workers Free プランでは Time Travel で 7 日しか遡れない (Paid は 30 日) ので、
+`.github/workflows/d1-backup.yml` が週に 1 回書き出して artifact に 90 日残す。
+必要な GitHub Secrets は `CLOUDFLARE_API_TOKEN` (権限は Account の D1 の Edit だけ) と `CLOUDFLARE_ACCOUNT_ID`。
+
+### 手元のデータを本番へ移す (初回だけ)
+
+本番 D1 への書き込みは人が実行する。スキーマはマイグレーションで当て、データは書き出したものを流す。
+書き出しにスキーマと `d1_migrations` の行は含めず、表は外部キーの親から順に並ぶ
+(`scripts/d1-data.mjs`)。
+
+```bash
+npx wrangler whoami                                   # ログイン済みか。無ければ npx wrangler login
+npm run db:counts -- --remote                         # 本番が空であることを見る
+npm run db:migrate:remote                             # 1. スキーマ
+npm run db:export:local -- --output work/d1-export/initial.sql
+npm run db:import:remote -- work/d1-export/initial.sql   # 2. データ (数分かかる)
+npm run db:counts -- --remote                         # 3. 書き出し時に出た件数と一致することを見る
+```
+
+- 書き出しは既定で Audible の listing / credit / 取り込みの記録を除く。手元の Audible のデータには、
+  2026-09-19 より前に robots.txt が禁じる並び順付き URL で取った分が混じっているため
+  (`docs/stores/audible.md` の robots.txt の節)。本番の Audible は、月次の補完巡回が許可された URL から取り直す
+  (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)
+- 流し込みの途中で止まったら、`npm run db:counts -- --remote` で入った表を見て、同じファイルを流し直す前に
+  `wrangler d1 execute DB --remote --command` で入った表を空にする。主キーが重なると止まるため
+- Free プランの D1 は 1 日に書ける行数に上限がある。書き出し時に出る件数の合計がその範囲に収まることを、
+  Cloudflare の料金ページの D1 の欄で確かめてから流す
+
+### プランの確認
+
+Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid かを見る。Time Travel の保持日数が
+変わるだけで、手順は同じ。
 
 ## クローラー
 
