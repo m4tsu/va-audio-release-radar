@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRetryAfterMs, rateLimitFor } from "./fetch.ts";
+import { parseRetryAfterMs, rateLimitFor, userAgentFor } from "./fetch.ts";
 import { safeFileName } from "./paths.ts";
 
 describe("rateLimitFor", () => {
@@ -46,6 +46,41 @@ describe("rateLimitFor", () => {
       key: "example.com",
       intervalMs: 5_000,
     });
+  });
+});
+
+describe("userAgentFor", () => {
+  it("Wikimedia には連絡先つきの自己申告 UA を送る", () => {
+    // ブラウザの UA を名乗ることを User-Agent policy が禁じている
+    // (docs/stores/wikimedia.md の「既知の落とし穴」)
+    const agent = userAgentFor("https://ja.wikipedia.org/wiki/上田麗奈");
+    expect(agent).toContain("bot");
+    expect(agent).toContain("https://github.com/m4tsu/va-audio-release-radar");
+    expect(agent).not.toContain("Mozilla");
+  });
+
+  it("Wikimedia のどのサブドメインでも同じ UA になる", () => {
+    const agent = userAgentFor("https://ja.wikipedia.org/wiki/上田麗奈");
+    for (const url of [
+      "https://www.wikidata.org/wiki/Q16264425",
+      "https://dumps.wikimedia.org/jawiki/latest/",
+      "https://wikitech.wikimedia.org/wiki/Robot_policy",
+    ]) {
+      expect(userAgentFor(url)).toBe(agent);
+    }
+  });
+
+  it("他のホストには今までどおりブラウザ相当の UA を送る", () => {
+    // ストア側はスクレイパー判定で 302 に飛ばすので、要求が逆になる
+    for (const url of [
+      "https://www.dlsite.com/home/fsr/=/language/jp",
+      "https://www.audible.co.jp/search",
+      "https://graphql.anilist.co",
+      // 名前に wikipedia を含むだけの別ホストを Wikimedia 扱いしない
+      "https://wikipedia.org.example.com/wiki/x",
+    ]) {
+      expect(userAgentFor(url)).toContain("Mozilla/5.0");
+    }
   });
 });
 

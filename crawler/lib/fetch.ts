@@ -9,9 +9,50 @@ import { SNAPSHOT_DIR, safeFileName } from "./paths.ts";
  */
 
 /** ブラウザ相当の UA。スクレイパー判定で 302 に飛ばされるのを避ける */
-const USER_AGENT =
+const BROWSER_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/141.0.0.0 Safari/537.36";
+
+/**
+ * Wikimedia 向けの自己申告 UA。ここだけ他のホストと要求が逆で、ブラウザの UA を名乗ることが
+ * User-Agent policy で禁じられている (docs/stores/wikimedia.md の「既知の落とし穴」)。
+ * 形式と連絡先は同じ節の `<クライアント名> (<連絡先>)` に合わせ、"bot" を名前に入れる
+ */
+const WIKIMEDIA_USER_AGENT =
+  "va-audio-release-radar-bot (https://github.com/m4tsu/va-audio-release-radar)";
+
+/**
+ * Wikimedia が運営するドメイン。サブドメイン (ja.wikipedia.org / www.wikidata.org /
+ * dumps.wikimedia.org など) も含めて自己申告 UA に振り分ける。
+ * 同じ policy が Wikimedia の全サイトに及ぶので、プロジェクトのドメインをまとめて並べる
+ */
+const WIKIMEDIA_DOMAINS = [
+  "wikipedia.org",
+  "wikidata.org",
+  "wikimedia.org",
+  "wiktionary.org",
+  "wikibooks.org",
+  "wikiquote.org",
+  "wikisource.org",
+  "wikinews.org",
+  "wikiversity.org",
+  "wikivoyage.org",
+  "wikifunctions.org",
+  "mediawiki.org",
+] as const;
+
+/**
+ * このホストに名乗る UA。Wikimedia だけ自己申告の UA を送り、他は今までどおりブラウザ相当を送る。
+ * 振り分けをホスト名で行うのは、UA の要求が相手サイトごとに違い、呼び出し側の指定に委ねると
+ * 書き漏らしたところだけ policy 違反になるため
+ */
+export function userAgentFor(rawUrl: string): string {
+  const host = new URL(rawUrl).hostname;
+  const isWikimedia = WIKIMEDIA_DOMAINS.some(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
+  return isWikimedia ? WIKIMEDIA_USER_AGENT : BROWSER_USER_AGENT;
+}
 
 const TIMEOUT_MS = 30_000;
 /** リトライ前に待つ時間。相手に連打しないため */
@@ -164,7 +205,7 @@ async function attempt(rawUrl: string, options: FetchOptions): Promise<Attempt> 
       signal: AbortSignal.timeout(TIMEOUT_MS),
       ...(options.body === undefined ? {} : { body: options.body }),
       headers: {
-        "User-Agent": USER_AGENT,
+        "User-Agent": userAgentFor(rawUrl),
         "Accept-Language": "ja-JP,ja;q=0.9",
         Accept:
           options.kind === "json"
