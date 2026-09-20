@@ -86,7 +86,8 @@ Crawl-delay: 10
 | sitemap 全件 | 68,321 作品 | 約 190 時間 |
 
 **27 倍の差**がある。sitemap 全件は「AniList に居ない声優の発見」にしか要らず、それは対象外。
-間隔を変えたらこの表も計算し直すこと。
+間隔を変えたらこの表も計算し直すこと。**取るフロアを増やしたときも同じ。**
+この表は `/home/` 1 フロアぶんで、声優起点の往復はフロアの数に比例する。
 
 ---
 
@@ -95,13 +96,15 @@ Crawl-delay: 10
 ### フロア
 
 DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセレクタもフロア間で同じで、
-違うのは年齢の指定だけ。フロアの名前と対象は、検索結果 HTML のフロア切り替えリンクと
+違うのは年齢の指定だけ。**最終確認日: 2026-09-20。**
+フロアの名前と対象は、`/home/` の検索結果 HTML
+(`crawler/.cache/snapshots/dlsite/search-*.html`) に埋まっているフロア切り替えリンクと
 「他のフロアで検索する」リンクの文言から取った。
 
 | パス | サイト側の文言 | 年齢 | 本プロジェクトの扱い |
 |---|---|---|---|
 | `/home/` | 全年齢 | 全年齢のみ | **取得している** |
-| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | **取ると決めた ([`0011`](../decisions/0011-dlsite-garumani-floor.md))。実装はまだ無い** |
+| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | 取得していない。取るかどうかは未決 (調査は `docs/research/dlsite-female-floors-2026-09-20.md`) |
 | `/girls/` | 「女性向け TL/BLへ」「女性向け（R18）乙女向け/TL作品を検索する」 | R18 を含む | 取得しない |
 | `/bl/` | 「女性向け（R18）BL作品を検索する」 | R18 を含む | 取得しない |
 | `/maniax/` | 「男性向け R18へ」 | R18 を含む | 取得しない |
@@ -249,8 +252,9 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 - **maniax は home の上位集合ではない。** 斉藤壮馬は home に 1 件あるが maniax には 0 件だった
 - **`/home/` は「全年齢の同人」であって「全年齢のすべて」ではない。** `/garumani/` にある
   商業 (`BJ`) の女性向け全年齢音声は `/home/` の検索結果に出ない。
-  男性声優ではここが大きく効き、斉藤壮馬は `/home/` 1 件に対し `/garumani/` 52 件だった
-  (2026-09-20 実測。`docs/research/dlsite-female-floors-2026-09-20.md`)
+  男性声優ではここが大きく効き、斉藤壮馬は `/home/` 1 件 (2026-09-18 実測) に対し
+  `/garumani/` 52 件 (2026-09-20 実測) だった
+  (`docs/research/dlsite-female-floors-2026-09-20.md`)
 - **`/garumani/` の新着一覧には発売日が未来の予約作品が出る。** `/home/` とはここが違う。
   一覧 HTML に「予約」の文字は出ないので、見分けるには `product.json` の `is_reserve_work` が要る
 - 音声カテゴリの総数は home 8,970 / maniax 76,962 (2026-09-18 実測)。
@@ -296,4 +300,3 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   女性向け 3 フロアの切り分け、声優 10 名の件数差、フロアをまたぐ作品 ID、予約作品
 - [`docs/decisions/0002-actor-first-crawling.md`](../decisions/0002-actor-first-crawling.md) — 声優起点
 - [`docs/decisions/0003-no-r18-keep-bl.md`](../decisions/0003-no-r18-keep-bl.md) — R18 を載せない
-- [`docs/decisions/0011-dlsite-garumani-floor.md`](../decisions/0011-dlsite-garumani-floor.md) — 取るフロア
