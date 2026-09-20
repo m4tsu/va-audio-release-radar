@@ -128,10 +128,7 @@ test("シーズンの一覧は SSR で作品まで返す", async ({ request }) =
   expect(html).not.toContain("フォロー中の声優が出ている作品だけ");
 });
 
-/**
- * 既定の並びはサーバーが返した HTML の時点で付いている。
- * クライアントが動き出してから並び替わると、最初に目に入る順が別物になる
- */
+/** 「声優一覧はサーバーが返す HTML の時点で作品数の多い順」と同じ理由 */
 test("シーズンの一覧はサーバーが返す HTML の時点で人気順", async ({ request }) => {
   const html = await (await request.get("/anime/season/2026-fall")).text();
   const position = (slug: string) => html.indexOf(`href="/anime/${slug}"`);

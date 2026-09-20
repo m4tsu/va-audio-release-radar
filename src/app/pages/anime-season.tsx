@@ -4,7 +4,7 @@ import { AnimeCard } from "@/app/components/anime-card";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
 import { SortSelect } from "@/app/components/sort-select";
-import { type TKey, useLocale, useT } from "@/app/i18n";
+import { type PlainTKey, useLocale, useT } from "@/app/i18n";
 import {
   ANIME_SORTS,
   type AnimeSort,
@@ -106,7 +106,7 @@ export function AnimeSeasonPage({
 const SORT_LABEL_KEYS = {
   popularity: "anime.sortPopularity",
   actorCount: "anime.sortActorCount",
-} as const satisfies Record<AnimeSort, TKey>;
+} as const satisfies Record<AnimeSort, PlainTKey>;
 
 /**
  * 前後のシーズンへの導線。行き先は「実際に作品があるシーズン」なので、

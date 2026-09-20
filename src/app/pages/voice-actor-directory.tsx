@@ -7,7 +7,7 @@ import { PageHeader } from "@/app/components/page-header";
 import { SortSelect } from "@/app/components/sort-select";
 import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { Button } from "@/app/components/ui/button";
-import { type TKey, useLocale, useT } from "@/app/i18n";
+import { type PlainTKey, useLocale, useT } from "@/app/i18n";
 import {
   ACTOR_SORTS,
   type ActorSort,
@@ -47,7 +47,7 @@ export function VoiceActorDirectoryPage({ actors }: { actors: ActorSummary[] }) 
 const SORT_LABEL_KEYS = {
   name: "voiceActors.sortName",
   workCount: "voiceActors.sortWorkCount",
-} as const satisfies Record<ActorSort, TKey>;
+} as const satisfies Record<ActorSort, PlainTKey>;
 
 function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
   const t = useT();
