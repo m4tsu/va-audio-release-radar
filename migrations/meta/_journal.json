@@ -57,6 +57,13 @@
       "when": 1789920073635,
       "tag": "0007_gifted_peter_quill",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789920902822,
+      "tag": "0008_parched_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

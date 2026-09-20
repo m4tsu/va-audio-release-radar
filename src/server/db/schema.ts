@@ -165,6 +165,28 @@ export const excludedCreditNames = sqliteTable(
   ],
 );
 
+/**
+ * ホストごとの実行権。同じストアを 2 つのプロセスから同時に叩かないための札。
+ *
+ * レートリミッタはクローラーのプロセス内にあるので、走行が 2 つ動けば実効間隔は半分になる。
+ * 走行主体が GitHub Actions と手元の 2 つになるため、プロセスの外に 1 つだけの札を置く
+ * (`docs/architecture.md` の「取得の周期」)。
+ *
+ * 鍵は `crawler/lib/fetch.ts` の `rateLimitFor()` が返すキー。ストアの slug とは別で、
+ * 声優の供給元 (AniList など) も同じ仕組みで守れるように文字列のまま持つ
+ */
+export const crawlLeases = sqliteTable("crawl_leases", {
+  key: text("key").primaryKey(),
+  /** 札を持っている走行。返却と延長はこれが一致する相手にだけ許す */
+  holder: text("holder").notNull(),
+  acquiredAt: text("acquired_at").notNull(),
+  /**
+   * この時刻を過ぎたら空いているとみなす。
+   * 走行が異常終了しても札が残り続けないよう、返却ではなく期限で解ける形にする
+   */
+  expiresAt: text("expires_at").notNull(),
+});
+
 export const crawlRuns = sqliteTable(
   "crawl_runs",
   {
