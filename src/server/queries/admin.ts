@@ -1,9 +1,16 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { resolveCredit } from "@/domain/identity";
 import { normalizeName } from "@/domain/normalize";
 import type { StoreSlug } from "@/domain/types";
 import { chunked } from "../db/chunked";
-import { audioCredits, audioWorks, crawlRuns, voiceActorAliases, voiceActors } from "../db/schema";
+import {
+  audioCredits,
+  audioWorks,
+  crawlRuns,
+  excludedCreditNames,
+  voiceActorAliases,
+  voiceActors,
+} from "../db/schema";
 import type { AppDb } from "../db/types";
 import { loadActorIndex } from "./actors";
 
@@ -78,7 +85,7 @@ export async function listUnmatchedCredits(
       count: sql<number>`count(*)`,
     })
     .from(audioCredits)
-    .where(eq(audioCredits.confidence, "unmatched"))
+    .where(and(eq(audioCredits.confidence, "unmatched"), notExcluded(db)))
     .groupBy(audioCredits.creditedName, audioCredits.sourceStoreSlug)
     .orderBy(desc(sql`count(*)`), audioCredits.creditedName)
     .limit(limit);
@@ -145,6 +152,74 @@ export async function assignCredit(
   }
 
   return { updated: Number(counted?.count ?? 0), aliasAdded: input.addAlias };
+}
+
+/** 「対象声優ではない」と印を付けた表記 1 件 */
+export type ExcludedCreditName = {
+  creditedName: string;
+  sourceStoreSlug: StoreSlug;
+  note?: string;
+  createdAt: string;
+};
+
+/**
+ * 対象声優ではないと印を付ける。未解決キューから外れる。
+ *
+ * 作品側の credit は触らない。取り込みが見つけた「この作品にこの表記があった」という事実は
+ * 変わらないため。同じ名前に二度付けても結果は変わらない (印は 1 件だけ残る)
+ */
+export async function excludeCreditName(
+  db: AppDb,
+  input: { creditedName: string; sourceStoreSlug: StoreSlug; note?: string },
+  now: string = new Date().toISOString(),
+): Promise<void> {
+  await db
+    .insert(excludedCreditNames)
+    .values({
+      creditedName: input.creditedName,
+      sourceStoreSlug: input.sourceStoreSlug,
+      note: input.note ?? null,
+      createdAt: now,
+    })
+    // 付け直しても初回の日時を残す。理由だけは書き直せるようにする
+    .onConflictDoUpdate({
+      target: [excludedCreditNames.creditedName, excludedCreditNames.sourceStoreSlug],
+      set: { note: input.note ?? null },
+    });
+}
+
+/** 印を外す。未解決キューに戻る */
+export async function unexcludeCreditName(
+  db: AppDb,
+  input: { creditedName: string; sourceStoreSlug: StoreSlug },
+): Promise<void> {
+  await db
+    .delete(excludedCreditNames)
+    .where(
+      and(
+        eq(excludedCreditNames.creditedName, input.creditedName),
+        eq(excludedCreditNames.sourceStoreSlug, input.sourceStoreSlug),
+      ),
+    );
+}
+
+/** 印を付けた表記の一覧。新しい順 */
+export async function listExcludedCreditNames(
+  db: AppDb,
+  limit = 200,
+): Promise<ExcludedCreditName[]> {
+  const rows = await db
+    .select()
+    .from(excludedCreditNames)
+    .orderBy(desc(excludedCreditNames.createdAt), excludedCreditNames.creditedName)
+    .limit(limit);
+
+  return rows.map((row) => ({
+    creditedName: row.creditedName,
+    sourceStoreSlug: row.sourceStoreSlug,
+    ...(row.note === null ? {} : { note: row.note }),
+    createdAt: row.createdAt,
+  }));
 }
 
 export type ReresolvedGroup = {
@@ -435,6 +510,26 @@ function toRunSummary(run: typeof crawlRuns.$inferSelect): CrawlRunSummary {
     ...(run.totalCount === null ? {} : { totalCount: run.totalCount }),
     ...(run.coverageComplete === null ? {} : { coverageComplete: run.coverageComplete }),
   };
+}
+
+/**
+ * 対象声優でないと印を付けた表記を除く条件。
+ *
+ * 印は名前 × ストアで付くので、`audio_credits` の行と同じ組で突き合わせる。
+ * 作品側の credit は未解決のまま残る (印は人の判断で、取り込みが見つけた事実ではない)
+ */
+function notExcluded(db: AppDb) {
+  return notExists(
+    db
+      .select({ one: sql`1` })
+      .from(excludedCreditNames)
+      .where(
+        and(
+          eq(excludedCreditNames.creditedName, audioCredits.creditedName),
+          eq(excludedCreditNames.sourceStoreSlug, audioCredits.sourceStoreSlug),
+        ),
+      ),
+  );
 }
 
 /** 2 つの値を 1 つの Map キーにする。名前に区切り文字が入っても衝突しない形にする */

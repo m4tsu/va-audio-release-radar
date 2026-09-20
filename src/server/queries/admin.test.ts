@@ -5,8 +5,11 @@ import { type ActorSeed, upsertActors } from "./actors";
 import {
   assignCredit,
   crawlerHealth,
+  excludeCreditName,
+  listExcludedCreditNames,
   listUnmatchedCredits,
   reresolveUnmatchedCredits,
+  unexcludeCreditName,
 } from "./admin";
 import { ingest } from "./ingest";
 import { daysAgo, HANAZAWA, NOW, payload, rawWork, setupDb, UEDA } from "./test-fixtures";
@@ -34,6 +37,78 @@ describe("listUnmatchedCredits", () => {
     expect(groups[0]?.sourceStoreSlug).toBe("dlsite");
     expect(groups[0]?.sampleWorks).toHaveLength(2);
     expect(groups[0]?.candidate).toBeUndefined();
+  });
+
+  it("対象外の印を付けた表記はキューから外れる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "A", creditedNames: ["謎の人"] }),
+          rawWork({ storeProductId: "B", creditedNames: ["別の謎"] }),
+        ],
+      }),
+      NOW,
+    );
+
+    await excludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" }, NOW);
+
+    const groups = await listUnmatchedCredits(db);
+    expect(groups.map((group) => group.creditedName)).toEqual(["別の謎"]);
+  });
+
+  it("印はストアごとに効く。同じ名前でも別のストアなら残る", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({ works: [rawWork({ storeProductId: "A", creditedNames: ["謎の人"] })] }),
+      NOW,
+    );
+    await ingest(
+      db,
+      payload({
+        runId: "run-audible",
+        storeSlug: "audible",
+        works: [rawWork({ storeSlug: "audible", storeProductId: "B", creditedNames: ["謎の人"] })],
+      }),
+      NOW,
+    );
+
+    await excludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" }, NOW);
+
+    const groups = await listUnmatchedCredits(db);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.sourceStoreSlug).toBe("audible");
+  });
+
+  it("印を付けても作品側の credit は未解決のまま残る", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["謎の人"] })] }), NOW);
+
+    await excludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" }, NOW);
+
+    const credits = await db
+      .select()
+      .from(audioCredits)
+      .where(eq(audioCredits.creditedName, "謎の人"));
+    expect(credits).toHaveLength(1);
+    expect(credits[0]?.confidence).toBe("unmatched");
+    expect(credits[0]?.voiceActorId).toBeNull();
+  });
+
+  it("印は再取り込みで消えない", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["謎の人"] })] }), daysAgo(1));
+    await excludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" }, daysAgo(1));
+
+    await ingest(
+      db,
+      payload({ runId: "run-2", works: [rawWork({ creditedNames: ["謎の人"] })] }),
+      NOW,
+    );
+
+    expect(await listUnmatchedCredits(db)).toHaveLength(0);
   });
 
   it("後から登録された声優を候補として提示する", async () => {
@@ -552,5 +627,47 @@ describe("crawlerHealth", () => {
     expect(health.entries).toHaveLength(2);
     // 警告のある行が先頭に来る
     expect(health.entries[0]?.voiceActorId).toBe(HANAZAWA.id);
+  });
+});
+
+describe("excludeCreditName / unexcludeCreditName", () => {
+  it("付けた印を一覧で見られ、外すとキューに戻る", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["謎の人"] })] }), NOW);
+
+    await excludeCreditName(
+      db,
+      { creditedName: "謎の人", sourceStoreSlug: "dlsite", note: "同人サークルの名義" },
+      NOW,
+    );
+    const excluded = await listExcludedCreditNames(db);
+    expect(excluded).toEqual([
+      {
+        creditedName: "謎の人",
+        sourceStoreSlug: "dlsite",
+        note: "同人サークルの名義",
+        createdAt: NOW,
+      },
+    ]);
+
+    await unexcludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" });
+    expect(await listExcludedCreditNames(db)).toEqual([]);
+    expect(await listUnmatchedCredits(db)).toHaveLength(1);
+  });
+
+  it("二度付けても 1 件のまま。初回の日時を残して理由だけ書き直せる", async () => {
+    const db = await setupDb();
+
+    await excludeCreditName(db, { creditedName: "謎の人", sourceStoreSlug: "dlsite" }, daysAgo(2));
+    await excludeCreditName(
+      db,
+      { creditedName: "謎の人", sourceStoreSlug: "dlsite", note: "後から書いた理由" },
+      NOW,
+    );
+
+    const excluded = await listExcludedCreditNames(db);
+    expect(excluded).toHaveLength(1);
+    expect(excluded[0]?.createdAt).toBe(daysAgo(2));
+    expect(excluded[0]?.note).toBe("後から書いた理由");
   });
 });

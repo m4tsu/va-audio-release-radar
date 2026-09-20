@@ -138,6 +138,33 @@ export const audioCredits = sqliteTable(
   ],
 );
 
+/**
+ * 対象声優ではないと人が判断したクレジット表記。
+ *
+ * 未解決のクレジットの大半は、対象にしていない同人の声優やナレーターの名義で、どの声優にも
+ * 割り当てられない。印を付けて管理画面のキューから外し、見るべき名前 (対象声優の別名義かも
+ * しれないもの) が埋もれないようにする。
+ *
+ * 作品側 (`audio_credits`) は触らない。印は「この表記は誰にも割り当てない」という人の判断で、
+ * 取り込みが見つけた事実ではないため。再取り込みでこの表は書き換わらない
+ */
+export const excludedCreditNames = sqliteTable(
+  "excluded_credit_names",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    // 表記はストアごとに意味が違うので、名前だけでなくストアまで含めて 1 件とする
+    creditedName: text("credited_name").notNull(),
+    sourceStoreSlug: text("source_store_slug", { enum: STORE_SLUGS }).notNull(),
+    /** 人が書く 1 行。後から見て判断の理由が分かるようにする */
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    // 未解決キューの単位 (名前 × ストア) と同じ組で一意にする
+    uniqueIndex("excluded_credit_names_name_store_unique").on(t.creditedName, t.sourceStoreSlug),
+  ],
+);
+
 export const crawlRuns = sqliteTable(
   "crawl_runs",
   {
