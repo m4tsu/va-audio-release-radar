@@ -38,8 +38,9 @@ jobs:
   crawl:
     name: ストアを巡回して取り込む
     runs-on: ubuntu-latest
-    # 所要は 声優の人数 × ストア数 × ホストごとの間隔 で決まる (crawler/lib/fetch.ts)。
-    # 上の only で対象を絞って使う前提の値
+    # 所要は 声優の人数 × ストアごとの往復数 × ホストごとの間隔 で決まる (crawler/lib/fetch.ts)。
+    # 往復は 1 ストア 1 回とは限らない。DLsite は引くフロアの数だけ増える
+    # (docs/decisions/0011-dlsite-garumani-floor.md)。上の only で対象を絞って使う前提の値
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5

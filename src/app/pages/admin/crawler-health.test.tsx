@@ -93,6 +93,24 @@ describe("CrawlerHealthPage の表", () => {
     expect(within(table()).getByText("30/48")).toBeInTheDocument();
   });
 
+  /**
+   * 検索先の一部を引けなかった run。総件数は読めていないので数字は出せないが、
+   * 取りこぼしは確かなので「読めなかっただけの run」と同じ見た目にはしない
+   */
+  test("総件数が読めなくても取りこぼしが確かなら — に印を付ける", () => {
+    const health = crawlerHealth({
+      entries: [
+        crawlerHealthEntry({
+          latest: crawlRunSummary({ workCount: 30, coverageComplete: false }),
+        }),
+      ],
+    });
+    renderWithLocale(<CrawlerHealthPage authorized health={health} />);
+
+    const marked = within(table()).getByTitle("検索の 1 ページ目では取り切れていない");
+    expect(marked).toHaveTextContent("—");
+  });
+
   test("失敗した run はエラー本文まで出す", () => {
     const health = crawlerHealth({
       entries: [

@@ -533,3 +533,37 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     expect(result.reason).toBe("検索ページの取得に失敗 (home: timeout / garumani: timeout)");
   });
 });
+
+describe("dlsiteAdapter.fetchByActor の年齢区分", () => {
+  beforeEach(() => {
+    fetchTextMock.mockReset();
+  });
+
+  /** `product.json` 1 件ぶんの最小限の応答 */
+  function productJsonFor(workno: string, ageCategory: number): FetchResult {
+    return ok(
+      JSON.stringify([
+        { workno, work_name: `作品 ${workno}`, age_category: ageCategory, site_id: "bldrama" },
+      ]),
+    );
+  }
+
+  /**
+   * 許可していない年齢区分は `product.json` を見て初めて分かる。フロアを増やしても
+   * この除外は一覧ではなく詳細の側で効き続ける (一覧はどのフロアでも general を入れる)
+   */
+  it("/garumani/ の作品でも age_category が全年齢でなければ保存しない", async () => {
+    fetchTextMock.mockImplementation(async (url: string) => {
+      if (url.includes("/garumani/fsr/")) return ok(searchPage(["BJ1", "BJ2"], 2));
+      if (url.includes("/home/fsr/")) return ok(searchPage([], 0));
+      if (url.includes("workno=BJ1")) return productJsonFor("BJ1", 1);
+      if (url.includes("workno=BJ2")) return productJsonFor("BJ2", 3);
+      throw new Error(`想定外の URL: ${url}`);
+    });
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, { snapshot: false });
+
+    expect(result.works.map((work) => work.storeProductId)).toEqual(["BJ1"]);
+    expect(result.warnings).toContain("BJ2: 対象外の年齢区分 (age_category=3) のため除外");
+  });
+});

@@ -55,7 +55,10 @@ export type CrawlRunSummary = {
   error?: string;
   /** ストアが出していた検索結果の総件数。読めなかった run では undefined */
   totalCount?: number;
-  /** 総件数ぶんを取り切れたか。総件数が読めなければ undefined (不明) */
+  /**
+   * 総件数ぶんを取り切れたか。undefined は「真偽を決められない」。
+   * `totalCount` が undefined でも false は入りうる (検索先の一部を引けなかった run)
+   */
   coverageComplete?: boolean;
 };
 
@@ -520,7 +523,8 @@ function toRunSummary(run: typeof crawlRuns.$inferSelect): CrawlRunSummary {
     newCount: run.newCount,
     status: run.status,
     ...(run.error ? { error: run.error } : {}),
-    // NULL は「総件数を読めなかった」なので、false や 0 に丸めずに落とす
+    // NULL は `totalCount` では「総件数を読めなかった」、`coverage_complete` では
+    // 「真偽を決められない」。どちらも false や 0 に丸めずに落とす
     ...(run.totalCount === null ? {} : { totalCount: run.totalCount }),
     ...(run.coverageComplete === null ? {} : { coverageComplete: run.coverageComplete }),
   };

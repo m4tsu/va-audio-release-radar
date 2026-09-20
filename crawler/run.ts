@@ -571,8 +571,10 @@ export async function send(
     ...(startedAt === undefined ? {} : { startedAt }),
     works: result.works,
     ...(result.status === "error" && result.reason !== undefined ? { error: result.reason } : {}),
-    // 網羅率。総件数を読めなかったストア / 声優では両方とも送らず、
-    // crawl_runs 側を NULL のままにする。「不明」と「全部取れた」を混ぜないため
+    // 網羅率。総件数を読めなければ `totalCount` は送らず、crawl_runs 側を NULL のままにする。
+    // 「不明」と「全部取れた」を混ぜないため。
+    // `coverageComplete` は総件数と独立で、取り切れていないことだけが分かる走行
+    // (検索先の一部を引けなかった) では総件数抜きで false が送られる
     ...(result.coverage?.total === undefined ? {} : { totalCount: result.coverage.total }),
     ...(result.coverage?.complete === undefined
       ? {}
