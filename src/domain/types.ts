@@ -72,7 +72,7 @@ export type StoreListing = {
   affiliateUrl?: string;
   titleRaw: string;
   /**
-   * ストアが自分で名乗っている区分をそのまま持つ。DLsite の `home` / `maniax`、
+   * ストアが自分で名乗っている区分をそのまま持つ。DLsite の `home` / `bldrama` / `girlsdrama`、
    * ポケドラの `men` / `bl` / `adt` / `adt-bl` など。解釈せずに保存するのは、
    * ストアが区分を増やしても壊れないようにするためと、BL のような年齢区分でない
    * 切り口で後から絞れるようにするため

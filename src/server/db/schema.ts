@@ -92,7 +92,7 @@ export const storeListings = sqliteTable(
     productUrl: text("product_url").notNull(),
     affiliateUrl: text("affiliate_url"),
     titleRaw: text("title_raw").notNull(),
-    // ストアが名乗っている区分をそのまま持つ (DLsite の home / maniax など)。
+    // ストアが名乗っている区分をそのまま持つ (DLsite の home / bldrama など)。
     // 年齢区分と違って解釈しないので、ストアが区分を増やしても移行が要らない
     storeSection: text("store_section"),
     /**

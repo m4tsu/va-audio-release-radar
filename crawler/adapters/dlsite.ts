@@ -149,7 +149,8 @@ export function parseSearchHtml(
       // そちらの age_category で上書きする (applyProductDetail)
       ageRating: "general",
       // ストア区分は入れない。一覧が分かるのは「どのフロアで見つけたか」であって
-      // 作品の所属ではなく、ストアはフロア名を site_id として返さない。
+      // 作品の所属ではない。site_id は引いたフロアではなく所属を返すので、ここに入れると
+      // 詳細を取れなかった作品だけストアが返さない値になる。
       // 埋まるのは product.json を取れたときだけ (ingest 側もそれを前提に既存値を残す)
       fetchedAt,
     };
