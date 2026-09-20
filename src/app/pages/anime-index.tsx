@@ -13,14 +13,14 @@ import type { AnimeSeasonEntry, AnimeSummary } from "@/app/lib/view-types";
  *
  * 抜粋を先頭に置くのは、開いた人が検索も選択もせずに今のアニメを見られるようにするため。
  * 最新シーズンへ転送しないのは、持っているシーズンのうち 1 つにしか画面から届かなくなるため。
- * 検索と索引を抜粋の下に残すのは、放送時期を覚えていない人と、古い期を見たい人の経路
+ * 検索と索引を抜粋の下に残すのは、放送時期を覚えていない人と、古いシーズンを見たい人の経路
  */
 export function AnimeIndexPage({
   seasons,
   featured,
 }: {
   seasons: AnimeSeasonEntry[];
-  /** 先頭に出す期と、その人気順の先頭数件。出せる作品がある期が無ければ null */
+  /** 先頭に出すシーズンと、その人気順の先頭数件。出せる作品があるシーズンが無ければ null */
   featured: FeaturedSeason | null;
 }) {
   const t = useT();
@@ -47,7 +47,7 @@ export function AnimeIndexPage({
   );
 }
 
-/** 先頭に出す期と、その抜粋。並べ替えとフォローの絞り込みはシーズンのページに置く */
+/** 先頭に出すシーズンと、その抜粋。並べ替えとフォローの絞り込みはシーズンのページに置く */
 export type FeaturedSeason = SeasonKey & { anime: AnimeSummary[] };
 
 function FeaturedSeasonSection({ featured }: { featured: FeaturedSeason }) {

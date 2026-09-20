@@ -319,18 +319,17 @@ export async function listSeasonAnime(
       ),
     )
     .groupBy(animeTitles.id)
-    .orderBy(asc(animeTitles.slug));
+    // 人気の高い順。SQLite は NULL を最小として扱うので、人気度を持たない作品は降順の末尾に来る。
+    // 同じ値は slug 順で安定させる (実行のたびに並びが変わらないように)
+    .orderBy(desc(animeTitles.popularity), asc(animeTitles.slug))
+    // 抜粋だけが要るときは DB 側で切る。SQLite は負の LIMIT を「制限なし」として扱う
+    .limit(limit ?? -1);
 
-  // 人気の高い順。人気度を持たない作品は末尾へ送り、同じ値なら slug 順で安定させる
-  // (実行のたびに並びが変わらないように)。人気度そのものは画面に出さないので返さない。
-  // 件数を切るのは並べ替えた後。SQL の LIMIT で切ると slug 順の先頭が残ってしまう
-  return rows
-    .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug))
-    .slice(0, limit ?? rows.length)
-    .map((row) => {
-      const actorIds = splitIds(row.actorIds);
-      return { ...toAnimeSummary({ ...row, actorCount: actorIds.length }), actorIds };
-    });
+  // 人気度そのものは画面に出さないので返さない
+  return rows.map((row) => {
+    const actorIds = splitIds(row.actorIds);
+    return { ...toAnimeSummary({ ...row, actorCount: actorIds.length }), actorIds };
+  });
 }
 
 /**

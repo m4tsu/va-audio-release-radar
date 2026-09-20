@@ -63,7 +63,7 @@ describe("adjacentSeasons", () => {
 });
 
 describe("currentSeason", () => {
-  test("月から期を決める", () => {
+  test("月からシーズンを決める", () => {
     expect(currentSeason(new Date("2026-01-15T00:00:00Z"))).toEqual({
       seasonYear: 2026,
       season: "WINTER",
@@ -83,7 +83,7 @@ describe("currentSeason", () => {
   });
 
   /** 動かす場所の時刻帯で結果が変わらないよう、日本時間の暦日で決める */
-  test("日本時間で日付が変わった時点で次の期に移る", () => {
+  test("日本時間で日付が変わった時点で次のシーズンに移る", () => {
     // 日本時間の 2026-10-01 00:00 (UTC では 9 月 30 日)
     expect(currentSeason(new Date("2026-09-30T15:00:00Z"))).toEqual({
       seasonYear: 2026,
@@ -111,14 +111,14 @@ describe("featuredSeason", () => {
     { seasonYear: 2024, season: "WINTER" },
   ] as const;
 
-  test("放送中の期に作品があればその期を出す", () => {
+  test("放送中のシーズンに作品があればそのシーズンを出す", () => {
     expect(featuredSeason(SEASONS, new Date("2026-08-01T00:00:00Z"))).toEqual({
       seasonYear: 2026,
       season: "SUMMER",
     });
   });
 
-  test("放送中の期に作品が無ければ、古い方向でいちばん新しい期を出す", () => {
+  test("放送中のシーズンに作品が無ければ、古い方向でいちばん新しいシーズンを出す", () => {
     // 2026 年春に作品は無いので 2024 年冬まで戻る
     expect(featuredSeason(SEASONS, new Date("2026-05-01T00:00:00Z"))).toEqual({
       seasonYear: 2024,
@@ -126,27 +126,27 @@ describe("featuredSeason", () => {
     });
   });
 
-  /** 持っているのが放送前の期だけのとき。空の画面を出すより、いちばん古い期を出す */
-  test("古い方向に無ければ、いちばん古い期を出す", () => {
+  /** 持っているのが放送前のシーズンだけのとき。空の画面を出すより、いちばん古いシーズンを出す */
+  test("古い方向に無ければ、いちばん古いシーズンを出す", () => {
     expect(featuredSeason(SEASONS, new Date("2023-05-01T00:00:00Z"))).toEqual({
       seasonYear: 2024,
       season: "WINTER",
     });
   });
 
-  test("いちばん新しい期より後なら、その期を出す", () => {
+  test("いちばん新しいシーズンより後なら、そのシーズンを出す", () => {
     expect(featuredSeason(SEASONS, new Date("2030-01-01T00:00:00Z"))).toEqual({
       seasonYear: 2026,
       season: "FALL",
     });
   });
 
-  test("期が 1 つも無ければ undefined", () => {
+  test("シーズンが 1 つも無ければ undefined", () => {
     expect(featuredSeason([], new Date("2026-08-01T00:00:00Z"))).toBeUndefined();
   });
 
   /** 作品数のような余分な列を持つ一覧をそのまま渡せる */
-  test("年と期だけを返す", () => {
+  test("年とシーズンだけを返す", () => {
     const entries = [{ seasonYear: 2026, season: "SUMMER", animeCount: 3 }] as const;
     expect(featuredSeason(entries, new Date("2026-08-01T00:00:00Z"))).toEqual({
       seasonYear: 2026,

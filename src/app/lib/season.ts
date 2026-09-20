@@ -51,11 +51,11 @@ export function parseSeasonSlug(
 /** 年とシーズンだけを持つもの。前後を決めるのに要るのはこの 2 つだけ */
 export type SeasonKey = { seasonYear: number; season: AnimeSeason };
 
-/** 日本時間と UTC の差。日付から期を決めるのに使う */
+/** 日本時間と UTC の差。日付からシーズンを決めるのに使う */
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 /**
- * その時点で放送中の期。1〜3 月が冬、4〜6 月が春、7〜9 月が夏、10〜12 月が秋。
+ * その時点で放送中のシーズン。1〜3 月が冬、4〜6 月が春、7〜9 月が夏、10〜12 月が秋。
  *
  * 日本時間の暦日で決める。UTC のままだと 10 月 1 日の朝 9 時まで夏のままになる。
  * `getMonth()` のような時刻帯ごとに変わる読み方をしないのは、動かす場所
@@ -66,7 +66,7 @@ export function currentSeason(now: Date): SeasonKey {
   return { seasonYear: jst.getUTCFullYear(), season: seasonOfMonth(jst.getUTCMonth()) };
 }
 
-/** 0 起点の月 (0 = 1 月) から期を決める */
+/** 0 起点の月 (0 = 1 月) からシーズンを決める */
 function seasonOfMonth(month: number): AnimeSeason {
   if (month < 3) return "WINTER";
   if (month < 6) return "SPRING";
@@ -75,11 +75,11 @@ function seasonOfMonth(month: number): AnimeSeason {
 }
 
 /**
- * `/anime` の先頭に出す期。放送中の期を出し、そこに出せる作品が無ければ
- * 古い方向でいちばん新しい期を出す。
+ * `/anime` の先頭に出すシーズン。放送中のシーズンを出し、そこに出せる作品が無ければ
+ * 古い方向でいちばん新しいシーズンを出す。
  *
- * 古い方向にも無い (持っているのが放送前の期だけ) ときは、いちばん古い期を出す。
- * 出せる作品がある期が 1 つでもあれば画面に一覧が出る状態を保つため。
+ * 古い方向にも無い (持っているのが放送前のシーズンだけ) ときは、いちばん古いシーズンを出す。
+ * 出せる作品があるシーズンが 1 つでもあれば、画面に一覧が出る状態を保つため。
  * undefined を返すのは `seasons` が空のときだけ
  */
 export function featuredSeason(seasons: readonly SeasonKey[], now: Date): SeasonKey | undefined {

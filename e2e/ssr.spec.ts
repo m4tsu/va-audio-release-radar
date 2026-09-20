@@ -116,23 +116,11 @@ test("/anime は転送せず、先頭のシーズンのアニメを JS を動か
   const html = await res.text();
   expect(html).toMatch(/<h1[^>]*>アニメから探す<\/h1>/);
 
-  // 固定データのアニメは 2026 年秋の 2 本だけなので、今日の日付に関わらずこの期が先頭に出る
+  // 固定データのアニメは 2026 年秋の 2 本だけなので、今日の日付に関わらずこのシーズンが先頭に出る
   expect(html).toContain("2026 年秋アニメ");
   expect(html).toMatch(/<a[^>]*href="\/anime\/e2e-anime-beta"/);
   expect(html).toContain("テストアニメベータ");
   expect(html).toContain("このシーズンをすべて見る");
-});
-
-test("/anime は先頭の一覧の下に検索欄とシーズンの索引を残す", async ({ request }) => {
-  const html = await (await request.get("/anime")).text();
-  const position = (needle: string) => html.indexOf(needle);
-
-  expect(position('href="/anime/e2e-anime-beta"')).toBeGreaterThan(-1);
-  expect(position("アニメ名で検索")).toBeGreaterThan(position('href="/anime/e2e-anime-beta"'));
-
-  // シーズンへのリンクは先頭の一覧 (「このシーズンをすべて見る」) にも出るので、索引側は後ろの出現で見る
-  const seasonIndexLink = html.lastIndexOf('href="/anime/season/2026-fall"');
-  expect(seasonIndexLink).toBeGreaterThan(position("アニメ名で検索"));
 });
 
 test("シーズンの一覧は SSR で作品まで返す", async ({ request }) => {

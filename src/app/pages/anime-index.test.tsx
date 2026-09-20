@@ -13,7 +13,7 @@ const SEASONS = [
   animeSeasonEntry({ seasonYear: 2024, season: "WINTER", animeCount: 4 }),
 ];
 
-/** 先頭に出す期。どの期を選ぶかはルート (`featuredSeason`) が決め、画面は受け取って描くだけ */
+/** 先頭に出すシーズン。どれを選ぶかはルート (`featuredSeason`) が決め、画面は受け取って描くだけ */
 const FEATURED: FeaturedSeason = {
   seasonYear: 2026,
   season: "FALL",
@@ -23,13 +23,18 @@ const FEATURED: FeaturedSeason = {
   ],
 };
 
-/** 先頭の一覧。見出しの期名で引ける */
+/** 先頭の一覧。見出しのシーズン名で引ける */
 function featuredSection(name: string) {
   return screen.getByRole("region", { name });
 }
 
+/** `a` が `b` より前に置かれているか */
+function precedes(a: HTMLElement, b: HTMLElement): boolean {
+  return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
 describe("AnimeIndexPage", () => {
-  test("先頭に期の名前を見出しにした一覧を出し、作品のページへ結ぶ", () => {
+  test("先頭にシーズン名を見出しにした一覧を出し、作品のページへ結ぶ", () => {
     renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={FEATURED} />);
 
     const section = featuredSection("2026 年秋アニメ");
@@ -47,7 +52,7 @@ describe("AnimeIndexPage", () => {
     ]);
   });
 
-  test("その期のすべてを見る導線がシーズンのページへ向く", () => {
+  test("そのシーズンのすべてを見る導線がシーズンのページへ向く", () => {
     renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={FEATURED} />);
 
     const link = within(featuredSection("2026 年秋アニメ")).getByRole("link", {
@@ -56,8 +61,8 @@ describe("AnimeIndexPage", () => {
     expect(link).toHaveAttribute("href", "/anime/season/2026-fall");
   });
 
-  /** 期の一覧と抜粋は別々に引く。取り違えで空になっても、行き先だけは出す */
-  test("先頭の期に作品が無ければ、その期にアニメが無いことを言う", () => {
+  /** シーズンの索引と抜粋は別々に引く。取り違えで空になっても、行き先だけは出す */
+  test("先頭のシーズンに作品が無ければ、そのシーズンにアニメが無いことを言う", () => {
     renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={{ ...FEATURED, anime: [] }} />);
 
     expect(screen.getByText("2026 年秋のアニメはありません")).toBeInTheDocument();
@@ -72,6 +77,18 @@ describe("AnimeIndexPage", () => {
     renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={FEATURED} />);
 
     expect(screen.getByLabelText("アニメ名で検索")).toBeInTheDocument();
+  });
+
+  /** 開いた人がまず見るのは放送中のシーズン。検索とシーズンの索引はその下に残る */
+  test("先頭の一覧・検索欄・シーズンの索引の順に並べる", () => {
+    renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={FEATURED} />);
+
+    const featured = featuredSection("2026 年秋アニメ");
+    const search = screen.getByLabelText("アニメ名で検索");
+    const seasonIndex = screen.getByRole("list", { name: "シーズン" });
+
+    expect(precedes(featured, search)).toBe(true);
+    expect(precedes(search, seasonIndex)).toBe(true);
   });
 
   test("シーズンが 1 つも無ければ検索も出さない", () => {

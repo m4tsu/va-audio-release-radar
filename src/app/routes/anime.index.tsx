@@ -13,12 +13,15 @@ export const Route = createFileRoute("/anime/")({
   loader: async () => {
     const [seasons, origin] = await Promise.all([fetchAnimeSeasons(), siteOriginForLoader()]);
 
-    // シーズンの索引を先に引く。どの期に作品があるかが分からないと、放送中の期を出せないときの
-    // 行き先 (古い方向でいちばん新しい期) が決まらないため。索引はたかだか数十行
+    // シーズンの索引を先に引く。どのシーズンに作品があるかが分からないと、放送中のシーズンを
+    // 出せないときの行き先 (古い方向でいちばん新しいシーズン) が決まらない。索引はたかだか数十行
     const key = featuredSeason(seasons, new Date());
-    const featured = key
-      ? { ...key, anime: await fetchSeasonAnime({ data: { ...key, limit: FEATURED_LIMIT } }) }
-      : null;
+    if (!key) return { seasons, origin, featured: null };
+
+    const anime = await fetchSeasonAnime({ data: { ...key, limit: FEATURED_LIMIT } });
+    // 出演者 ID は落とす。フォローの印と絞り込みはシーズンのページにあり、
+    // 抜粋では使わないので応答に載せない
+    const featured = { ...key, anime: anime.map(({ actorIds: _actorIds, ...summary }) => summary) };
 
     return { seasons, origin, featured };
   },
