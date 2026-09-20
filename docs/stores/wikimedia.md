@@ -4,10 +4,11 @@
 更新: robots.txt・利用規約・User-Agent ポリシーを取り直したら (差分が無くても最終確認日を更新する)
 削除: Wikimedia を声優のかなの入手元から外したら
 
-実装: **まだ取り込みは無い。** かなは `crawler/actors-overrides.json` に手で持っている。
-取り込むときは `crawler/lib/fetch.ts` を通せる。GET で HTML を取るだけで、間隔も既定値のままでよい。
-**ただし UA だけは足りない。** `fetch.ts` は全ホストにブラウザ相当の UA を送るが、
-Wikimedia はそれを禁じている (「既知の落とし穴」)。ホストで UA を振り分けてから投げる。
+実装: かなの取得は `crawler/discovery/wikipedia-kana.ts`、記事 HTML の解析は
+`crawler/discovery/wikipedia-article.ts`。外部アクセスは `crawler/lib/fetch.ts` を通り、
+GET で記事 HTML を取るだけで、間隔は既定値のまま。ブラウザ相当の UA を Wikimedia が
+禁じている (「既知の落とし穴」) ので、UA の振り分けは `fetch.ts` の `userAgentFor()` が持つ。
+手で書いたかなは `crawler/actors-overrides.json` に残り、取得した値より優先される。
 共通の原則は [`README.md`](./README.md)。
 
 **ストアではない。** 声優のかなの入手元の候補であり、ここから作品は取らない。

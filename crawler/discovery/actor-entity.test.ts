@@ -174,6 +174,25 @@ describe("buildActorEntity", () => {
     ]);
   });
 
+  it("取得したかなを入れる", () => {
+    const result = buildActorEntity(staff(), {}, { 上田麗奈: "うえだれいな" });
+    expect("actor" in result && result.actor.nameKana).toBe("うえだれいな");
+  });
+
+  it("手で書いたかなは取得した値より優先する", () => {
+    const result = buildActorEntity(
+      staff(),
+      { 上田麗奈: { nameKana: "うえだれいな" } },
+      { 上田麗奈: "うえだれな" },
+    );
+    expect("actor" in result && result.actor.nameKana).toBe("うえだれいな");
+  });
+
+  it("取得できなかった声優はかな無しのまま", () => {
+    const result = buildActorEntity(staff(), {}, { 別の人: "べつのひと" });
+    expect("actor" in result && result.actor.nameKana).toBeUndefined();
+  });
+
   it("オーバーライドの nameEn は AniList の fullName より優先する", () => {
     const result = buildActorEntity(staff({ nativeName: "日笠陽子", fullName: "Youko Hikasa" }), {
       日笠陽子: { nameEn: "Yoko Hikasa" },
@@ -283,6 +302,28 @@ describe("buildActorEntities", () => {
       居ない人: { nameKana: "いないひと" },
     });
     expect(unusedOverrideKeys).toEqual(["居ない人"]);
+  });
+
+  it("手書きと取得値が食い違う声優を、捨てた値と一緒に報告する", () => {
+    const { kanaConflicts, actors } = buildActorEntities(
+      [staff()],
+      { 上田麗奈: { nameKana: "うえだれいな" } },
+      { 上田麗奈: "うえだれな" },
+    );
+    expect(kanaConflicts).toEqual([
+      { canonicalName: "上田麗奈", manual: "うえだれいな", fetched: "うえだれな" },
+    ]);
+    expect(actors[0]?.nameKana).toBe("うえだれいな");
+  });
+
+  it("空白とカタカナの違いだけなら食い違いにしない", () => {
+    // Wikipedia は姓と名の間に空白を入れ、ラテン文字の名前にはカタカナの読みを載せる
+    const { kanaConflicts } = buildActorEntities(
+      [staff()],
+      { 上田麗奈: { nameKana: "うえだれいな" } },
+      { 上田麗奈: "ウエダ レイナ" },
+    );
+    expect(kanaConflicts).toEqual([]);
   });
 
   it("入力の並び順 (roleCount 降順) を保つ", () => {

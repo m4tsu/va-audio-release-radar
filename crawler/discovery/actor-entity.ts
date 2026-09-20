@@ -1,3 +1,5 @@
+import { toStoredKana } from "./wikipedia-article.ts";
+
 /**
  * AniList の staff 集計から「対象声優」のエンティティを組み立てる純粋関数。
  *
@@ -43,6 +45,15 @@ export type ActorOverride = {
 
 export type ActorOverrides = Record<string, ActorOverride>;
 
+/** 取得したかな (canonicalName → かな)。`wikipedia-kana.ts` の結果から作る */
+export type FetchedKana = Record<string, string>;
+
+/**
+ * 手で書いたかなと取得したかなが違う声優。採るのは手で書いたほうで、
+ * 片方が間違っていることに気づけるよう、捨てた値と一緒に呼び出し側へ返す
+ */
+export type KanaConflict = { canonicalName: string; manual: string; fetched: string };
+
 export type ActorAlias = { name: string; source: "manual"; verified: boolean };
 
 /** `crawler/actors.generated.json` の 1 件。`crawler/run.ts` と ingest の zod がそのまま受け取れる */
@@ -83,6 +94,8 @@ export type BuildResult = {
   collisions: SlugCollision[];
   /** overrides に書いてあるが AniList 側に居なかった canonicalName。書き損じの検出用 */
   unusedOverrideKeys: string[];
+  /** 手書きと取得値が食い違った声優 */
+  kanaConflicts: KanaConflict[];
 };
 
 // --- slug ------------------------------------------------------------------
@@ -223,6 +236,7 @@ export function buildAliases(
 export function buildActorEntity(
   staff: StaffInput,
   overrides: ActorOverrides = {},
+  fetchedKana: FetchedKana = {},
 ): { actor: ActorEntity } | { excluded: Exclusion } {
   const canonicalName = staff.nativeName.trim();
   const base = {
@@ -243,12 +257,15 @@ export function buildActorEntity(
   // 手書き側も同じ空白の正規化を通す (書き損じの空白が生成物に残らないようにするため)
   const nameEn = toActorNameEn(override?.nameEn) ?? toActorNameEn(staff.fullName);
 
+  // 手で書いたかなが取得した値より優先される (docs/decisions/0006-actor-kana-from-wikipedia-ja.md の「帰結」)
+  const nameKana = override?.nameKana ?? fetchedKana[canonicalName];
+
   return {
     actor: {
       id: `va_${slug}`,
       slug,
       canonicalName,
-      ...(override?.nameKana === undefined ? {} : { nameKana: override.nameKana }),
+      ...(nameKana === undefined ? {} : { nameKana }),
       ...(nameEn === undefined ? {} : { nameEn }),
       anilistStaffId: staff.anilistStaffId,
       status: "active",
@@ -261,21 +278,24 @@ export function buildActorEntity(
 export function buildActorEntities(
   staff: readonly StaffInput[],
   overrides: ActorOverrides = {},
+  fetchedKana: FetchedKana = {},
 ): BuildResult {
   const actors: ActorEntity[] = [];
   const excluded: Exclusion[] = [];
   const usedOverrideKeys = new Set<string>();
+  const kanaConflicts: KanaConflict[] = [];
 
   for (const record of staff) {
-    const result = buildActorEntity(record, overrides);
+    const result = buildActorEntity(record, overrides, fetchedKana);
     if ("excluded" in result) {
       excluded.push(result.excluded);
       continue;
     }
     actors.push(result.actor);
-    if (overrides[result.actor.canonicalName] !== undefined) {
-      usedOverrideKeys.add(result.actor.canonicalName);
-    }
+    const { canonicalName } = result.actor;
+    if (overrides[canonicalName] !== undefined) usedOverrideKeys.add(canonicalName);
+    const conflict = kanaConflictOf(canonicalName, overrides[canonicalName], fetchedKana);
+    if (conflict !== undefined) kanaConflicts.push(conflict);
   }
 
   return {
@@ -283,7 +303,26 @@ export function buildActorEntities(
     excluded,
     collisions: findSlugCollisions(actors),
     unusedOverrideKeys: Object.keys(overrides).filter((key) => !usedOverrideKeys.has(key)),
+    kanaConflicts,
   };
+}
+
+/**
+ * 手書きと取得値が同じ読みを指しているか。Wikipedia は姓と名の間に空白を入れ、
+ * 名前がラテン文字の声優にはカタカナの読みを載せるので、畳んでから比べないと
+ * 表記の違いを食い違いとして数えてしまう
+ */
+function kanaConflictOf(
+  canonicalName: string,
+  override: ActorOverride | undefined,
+  fetchedKana: FetchedKana,
+): KanaConflict | undefined {
+  const manual = override?.nameKana;
+  const fetched = fetchedKana[canonicalName];
+  if (manual === undefined || fetched === undefined) return undefined;
+  const foldedManual = toStoredKana(manual) ?? manual;
+  const foldedFetched = toStoredKana(fetched) ?? fetched;
+  return foldedManual === foldedFetched ? undefined : { canonicalName, manual, fetched };
 }
 
 /**

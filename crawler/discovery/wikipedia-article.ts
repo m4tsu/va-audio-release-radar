@@ -1,0 +1,245 @@
+import * as cheerio from "cheerio";
+
+/**
+ * 日本語版 Wikipedia の記事 HTML から、声優のかなに要る事実だけを取り出す純粋関数。
+ *
+ * ここは fetch も fs も触らない。取得と再開は `wikipedia-kana.ts` が持つ。
+ * 取ってよい記事の条件 (要求した記事名と着地した記事名の一致 / 声優のカテゴリ /
+ * 曖昧さ回避でないこと) は
+ * `docs/research/actor-kana-sources-2026-09-20.md` の「同名の別人を取り違えない条件」に従う。
+ * 条件を緩めると、同名の別人やユニット・事務所の読みが混ざる
+ */
+
+/** 記事 HTML から取れた事実。どれも無いことがある */
+export type WikipediaArticle = {
+  /** 着地した記事名 (`wgPageName`)。リダイレクトされるとここが要求した名前と変わる */
+  pageName?: string;
+  /** カテゴリ名。`_` は空白に直し、パーセント符号化は戻してある */
+  categories: string[];
+  /** テンプレートの `ふりがな` 引数に書かれていた文字列 (wikitext のまま) */
+  furigana?: string;
+};
+
+/** 記事からかなを取らなかった理由 */
+export type KanaRejection = "redirected" | "disambiguation" | "not-voice-actor" | "no-kana";
+
+export type KanaOutcome =
+  | {
+      /** 保存する形に直したかな (空白なしのひらがな) */
+      kana: string;
+      /** 記事に書かれていたままの値。後から取り違えを追えるように残す */
+      raw: string;
+      /** furigana=テンプレートの引数 / kana-name=名前そのものがかな */
+      source: "furigana" | "kana-name";
+    }
+  | { rejected: KanaRejection };
+
+// --- 記事名と URL ----------------------------------------------------------
+
+/** 記事名に空白を入れると 301 が返り、`fetch.ts` はリダイレクトを追わないので `_` に直す */
+function toArticleTitle(name: string): string {
+  return name.trim().replace(/\s+/g, "_");
+}
+
+/**
+ * 1 人につき要求してよい記事名。この 2 通り以外は引かない。
+ * 3 通目 (`<名前>_(声優、○○)` など) を足すと、記事名の一致だけでは本人と言えなくなる
+ */
+export function articleTitles(canonicalName: string): string[] {
+  const title = toArticleTitle(canonicalName);
+  return title === "" ? [] : [title, `${title}_(声優)`];
+}
+
+/**
+ * 記事の URL。クエリパラメータを付けない (docs/stores/wikimedia.md の「使う URL」)。
+ * `encodeURIComponent` は `_` と `(` `)` をそのまま残すので、記事名の形が URL に出る
+ */
+export function articleUrl(title: string): string {
+  return `https://ja.wikipedia.org/wiki/${encodeURIComponent(title)}`;
+}
+
+// --- HTML の解析 -----------------------------------------------------------
+
+/** `"wgPageName":"上田麗奈"` の値。JSON 文字列としてエスケープされている */
+const PAGE_NAME_PATTERN = /"wgPageName"\s*:\s*("(?:[^"\\]|\\.)*")/;
+
+function parsePageName(html: string): string | undefined {
+  const raw = PAGE_NAME_PATTERN.exec(html)?.[1];
+  if (raw === undefined) return undefined;
+  try {
+    return JSON.parse(raw) as string;
+  } catch {
+    return undefined;
+  }
+}
+
+/** `./Category:日本の女性声優` の形から名前だけ取る。`#` 以降はソートキーなので落とす */
+function parseCategoryHref(href: string): string | undefined {
+  const name = /^\.\/Category:([^#]+)/.exec(href)?.[1];
+  if (name === undefined || name === "") return undefined;
+  let decoded = name;
+  try {
+    decoded = decodeURIComponent(name);
+  } catch {
+    // 不正なパーセント符号化はそのまま使う。判定に使うのは部分一致なので落とすほうが損
+  }
+  return decoded.replace(/_/g, " ");
+}
+
+/**
+ * テンプレート呼び出しの記録 (`data-mw` 属性の JSON) から `ふりがな` 引数を取る。
+ *
+ * `Template:声優` の引数を先に見る。同じ記事に別のテンプレート
+ * (`Template:ActorActress` など) の `ふりがな` があることがあり、人物の情報枠は声優のほうだから
+ */
+const VOICE_ACTOR_TEMPLATE = "./Template:声優";
+
+type TemplatePart = {
+  template?: {
+    target?: { href?: string };
+    params?: Record<string, { wt?: string } | undefined>;
+  };
+};
+
+function furiganaFromDataMw(dataMw: string): { href: string; furigana: string }[] {
+  let parsed: { parts?: unknown };
+  try {
+    parsed = JSON.parse(dataMw) as { parts?: unknown };
+  } catch {
+    return [];
+  }
+  const parts = Array.isArray(parsed.parts) ? (parsed.parts as TemplatePart[]) : [];
+  const found: { href: string; furigana: string }[] = [];
+  for (const part of parts) {
+    const template = part?.template;
+    if (template === undefined) continue;
+    const furigana = template.params?.ふりがな?.wt;
+    if (furigana === undefined || furigana.trim() === "") continue;
+    found.push({ href: template.target?.href ?? "", furigana });
+  }
+  return found;
+}
+
+export function parseArticle(html: string): WikipediaArticle {
+  const $ = cheerio.load(html);
+
+  const categories: string[] = [];
+  for (const element of $('link[rel="mw:PageProp/Category"]').toArray()) {
+    const href = $(element).attr("href");
+    const name = href === undefined ? undefined : parseCategoryHref(href);
+    if (name !== undefined) categories.push(name);
+  }
+
+  const candidates: { href: string; furigana: string }[] = [];
+  for (const element of $("[data-mw]").toArray()) {
+    const dataMw = $(element).attr("data-mw");
+    if (dataMw === undefined) continue;
+    candidates.push(...furiganaFromDataMw(dataMw));
+  }
+  const furigana =
+    candidates.find((item) => item.href === VOICE_ACTOR_TEMPLATE)?.furigana ??
+    candidates[0]?.furigana;
+
+  const pageName = parsePageName(html);
+  return {
+    ...(pageName === undefined ? {} : { pageName }),
+    categories,
+    ...(furigana === undefined ? {} : { furigana }),
+  };
+}
+
+// --- かなの取り出し --------------------------------------------------------
+
+/** カタカナの範囲 (ァ〜ヶ)。ひらがなとは 0x60 ずれている */
+const KATAKANA_START = 0x30a1;
+const KATAKANA_END = 0x30f6;
+const KANA_OFFSET = 0x60;
+/** 保存してよい形。ひらがなと長音符だけ */
+const HIRAGANA_ONLY = /^[ぁ-ゖー]+$/u;
+
+/**
+ * 記事の値を保存する形に直す。空白を落とし、カタカナをひらがなに寄せる。
+ *
+ * Wikipedia は姓と名の間に空白を入れ、名前がラテン文字の声優にはカタカナの読みを載せる。
+ * `src/domain/normalize.ts` の `normalizeName` は空白を落とすがかなとカナは畳まないので、
+ * カタカナのまま入れるとひらがなで引いた検索に当たらない。
+ * ひらがなと長音符以外が残る値は、読みとして取り出せていないので捨てる
+ */
+export function toStoredKana(raw: string): string | undefined {
+  const plain = raw
+    // 脚注より後ろは読みではない
+    .replace(/<ref[\s\S]*$/i, "")
+    .replace(/\{\{[\s\S]*?\}\}/g, "")
+    // 内部リンクは表示側だけ残す ([[のがみ ゆかな|ゆかな]] → ゆかな)
+    .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, "$1")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/gu, "");
+
+  let hiragana = "";
+  for (const character of plain) {
+    const code = character.codePointAt(0) ?? 0;
+    hiragana +=
+      code >= KATAKANA_START && code <= KATAKANA_END
+        ? String.fromCodePoint(code - KANA_OFFSET)
+        : character;
+  }
+  return HIRAGANA_ONLY.test(hiragana) ? hiragana : undefined;
+}
+
+function hasCategoryContaining(article: WikipediaArticle, word: string): boolean {
+  return article.categories.some((category) => category.includes(word));
+}
+
+/** 記事名を比べる形に揃える。`wgPageName` は空白を `_` で持つ */
+function comparableTitle(title: string): string {
+  return title.normalize("NFC").replace(/\s+/g, "_");
+}
+
+/**
+ * 記事 1 本からかなを取る。3 つの条件を全て満たさない記事からは取らない。
+ *
+ * 条件を満たしていて読みが書かれていないときは、名前そのものがかなの声優
+ * (`ゆかな` など。テンプレートの `ふりがな` が空になる) だけ名前をかなとして扱う
+ */
+export function kanaFromArticle(input: {
+  requestedTitle: string;
+  canonicalName: string;
+  article: WikipediaArticle;
+}): KanaOutcome {
+  const { article } = input;
+  if (
+    article.pageName === undefined ||
+    comparableTitle(article.pageName) !== comparableTitle(input.requestedTitle)
+  ) {
+    return { rejected: "redirected" };
+  }
+  if (hasCategoryContaining(article, "曖昧さ回避")) return { rejected: "disambiguation" };
+  if (!hasCategoryContaining(article, "声優")) return { rejected: "not-voice-actor" };
+
+  if (article.furigana !== undefined) {
+    const fromTemplate = toStoredKana(article.furigana);
+    if (fromTemplate !== undefined) {
+      return { kana: fromTemplate, raw: article.furigana, source: "furigana" };
+    }
+  }
+
+  const fromName = toStoredKana(input.canonicalName);
+  if (fromName !== undefined) {
+    return { kana: fromName, raw: input.canonicalName, source: "kana-name" };
+  }
+  return { rejected: "no-kana" };
+}
+
+/** 理由を人が読む 1 行にする */
+export function describeKanaRejection(reason: KanaRejection): string {
+  switch (reason) {
+    case "redirected":
+      return "別の記事に転送された";
+    case "disambiguation":
+      return "曖昧さ回避のページ";
+    case "not-voice-actor":
+      return "声優のカテゴリが無い";
+    case "no-kana":
+      return "読みが書かれていない";
+  }
+}

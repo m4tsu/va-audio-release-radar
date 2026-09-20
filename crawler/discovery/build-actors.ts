@@ -8,18 +8,22 @@ import {
   buildActorEntities,
   describeExclusionReason,
   type ExclusionReason,
+  type FetchedKana,
   type StaffInput,
   toActorNameEn,
 } from "./actor-entity.ts";
+import { KANA_JSON, kanaByCanonicalName, readKanaCache } from "./wikipedia-kana.ts";
 
 /**
  * 対象声優リストの生成。
  *
  *   node crawler/discovery/build-actors.ts
  *
- * 発見スパイクが集めた AniList の staff 集計 (`.cache/discovery/anilist-staff.json`) と、
- * AniList から取れない情報と AniList の表記の訂正を手で持つ `crawler/actors-overrides.json` を合わせて、
- * `crawler/actors.generated.json` を作る。ネットワークには出ない。
+ * 発見スパイクが集めた AniList の staff 集計 (`.cache/discovery/anilist-staff.json`)、
+ * AniList から取れない情報と AniList の表記の訂正を手で持つ `crawler/actors-overrides.json`、
+ * 日本語版 Wikipedia から取ったかな (`.cache/discovery/wikipedia-kana.json`、
+ * 取得は `wikipedia-kana.ts`) を合わせて `crawler/actors.generated.json` を作る。
+ * ネットワークには出ない。
  *
  * 作品が 1 件も無い声優も含めて全員を出力する。クロール履歴を残しておけば、
  * 翌日以降にその声優の作品が出たときに拾える (ページを作るかどうかは表示側で決める)
@@ -36,6 +40,7 @@ const USAGE = `使い方:
 オプション:
   --staff <path>          AniList の staff 集計 (既定 crawler/.cache/discovery/anilist-staff.json)
   --overrides <path>      手書きオーバーライド (既定 crawler/actors-overrides.json)
+  --kana <path>           取得したかな (既定 crawler/.cache/discovery/wikipedia-kana.json)
   --out <path>            出力先 (既定 crawler/actors.generated.json)
   --min-role-count <N>    roleCount がこの値未満の声優を落とす (既定 0 = 全員)
 `;
@@ -43,6 +48,7 @@ const USAGE = `使い方:
 const OPTION_SPEC = {
   staff: { type: "string" },
   overrides: { type: "string" },
+  kana: { type: "string" },
   out: { type: "string" },
   "min-role-count": { type: "string" },
   help: { type: "boolean", short: "h" },
@@ -74,6 +80,19 @@ export async function loadOverrides(file: string): Promise<ActorOverrides> {
   return parsed as ActorOverrides;
 }
 
+/**
+ * 取得したかな。まだ取得していなければ空として扱う (かな無しで生成できる)。
+ * かなが取れなかった人・条件を満たさなかった人は `kanaByCanonicalName` が落とす
+ */
+export async function loadFetchedKana(file: string): Promise<FetchedKana> {
+  const cache = await readKanaCache(file);
+  if (cache === undefined) {
+    process.stdout.write(`取得したかなが無いので手書きのかなだけで生成する: ${file}\n`);
+    return {};
+  }
+  return kanaByCanonicalName(cache.records);
+}
+
 // --- 本体 ------------------------------------------------------------------
 
 export async function main(argv: readonly string[]): Promise<number> {
@@ -99,11 +118,13 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   const staffFile = asString(values.staff) ?? DEFAULT_STAFF_JSON;
   const overridesFile = asString(values.overrides) ?? DEFAULT_OVERRIDES_JSON;
+  const kanaFile = asString(values.kana) ?? KANA_JSON;
   const outFile = asString(values.out) ?? DEFAULT_OUT_JSON;
 
-  const [staff, overrides] = await Promise.all([
+  const [staff, overrides, fetchedKana] = await Promise.all([
     loadStaff(staffFile),
     loadOverrides(overridesFile),
+    loadFetchedKana(kanaFile),
   ]);
 
   // roleCount による絞り込みは除外理由とは別に数える。「AniList に居るが薄い」のと
@@ -111,7 +132,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   const target = staff.filter((record) => (record.roleCount ?? 0) >= minRoleCount);
   const belowMinRoleCount = staff.length - target.length;
 
-  const result = buildActorEntities(target, overrides);
+  const result = buildActorEntities(target, overrides, fetchedKana);
 
   process.stdout.write(`staff: ${staff.length} 人 (${staffFile})\n`);
   if (minRoleCount > 0) {
@@ -129,10 +150,32 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(`      内訳: ${noSlugNames.join("、")}\n`);
   }
   process.stdout.write(`  生成: ${result.actors.length} 人\n`);
+  // 取得した値と手で書いた値を分けて出すのは、どれだけ Wikipedia に頼っているかと、
+  // 手で書く作業がどれだけ残っているかが、この内訳でしか分からないため
+  const manualKana = result.actors.filter(
+    (actor) => overrides[actor.canonicalName]?.nameKana !== undefined,
+  ).length;
+  const fetchedKanaCount = result.actors.filter(
+    (actor) =>
+      overrides[actor.canonicalName]?.nameKana === undefined &&
+      fetchedKana[actor.canonicalName] !== undefined,
+  ).length;
   process.stdout.write(
-    `  かな付き: ${result.actors.filter((actor) => actor.nameKana !== undefined).length} 人 / ` +
+    `  かな付き: ${result.actors.filter((actor) => actor.nameKana !== undefined).length} 人 ` +
+      `(うち取得: ${fetchedKanaCount} 人 / 手で上書き: ${manualKana} 人) / ` +
       `検証済み別名: ${result.actors.filter((actor) => actor.aliases.some((alias) => alias.verified)).length} 人\n`,
   );
+  if (result.kanaConflicts.length > 0) {
+    process.stdout.write(
+      `  かなの食い違い: ${result.kanaConflicts.length} 人 (手で書いたほうを採る)\n`,
+    );
+    for (const conflict of result.kanaConflicts) {
+      process.stdout.write(
+        `    ${conflict.canonicalName}: 手書き「${conflict.manual}」を採り、` +
+          `取得した「${conflict.fetched}」を使わない\n`,
+      );
+    }
+  }
   // 手で上書きした人数を別に出すのは、AniList のワープロ式のまま出ている人が何人残っているかが
   // この差でしか分からないため (英語表示に出る表記を直す作業の残りがそのまま見える)
   process.stdout.write(

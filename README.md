@@ -56,6 +56,7 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 
 対象声優リストは AniList から生成した `crawler/actors.generated.json`。生成は `crawler/discovery/build-actors.ts`、
 手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
+かなは日本語版 Wikipedia からも取る (`crawler/discovery/wikipedia-kana.ts`)。手で書いた値が優先される。
 
 定期実行は `.github/workflows/crawl.yml`。
 
@@ -75,7 +76,7 @@ npm run radar:crawl -- --dry-run --only 上田麗奈
 ```
 crawler/         # Node スクリプト。src/domain にだけ依存する
 ├── adapters/    # ストアごとの取得と解析
-├── discovery/   # 対象声優の発見と生成 (AniList / ポケドラの声優タグ辞書)
+├── discovery/   # 対象声優の発見と生成 (AniList / ポケドラの声優タグ辞書 / Wikipedia のかな)
 ├── fixtures/    # パーサーのテスト用に切り詰めた実 HTML / JSON
 └── lib/         # fetch ラッパー、ingest クライアント
 migrations/      # drizzle-kit が生成する SQL
