@@ -133,6 +133,8 @@ export const ja = {
     errorTitle: "新着を読み込めませんでした",
     /** 次にすべきことなので残す */
     errorDescription: "しばらくしてから再読み込みしてください。",
+    /** フォロー中の声優が出ているアニメ。作品 (音声) の一覧とは別の区画 */
+    animeTitle: "フォロー中の声優が出ているアニメ",
     feedEmptyTitle: "この期間の新着はありません",
     feedEmptyAction: "声優を探す",
     tierUpcoming: "今後の発売",
@@ -247,8 +249,22 @@ export const ja = {
       "{{season}}のアニメに出演している声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある人をまとめています。",
     seasonTitle: "{{season}}アニメ",
     seasonEmptyTitle: "{{season}}のアニメはありません",
-    /** /anime は最新シーズンへ送るだけの入口。送り先が無いときだけこれが出る */
+    /** /anime はシーズンの索引。並べるシーズンが 1 つも無いときだけこれが出る */
     indexEmptyTitle: "アニメがありません",
+    indexTitle: "アニメから探す",
+    indexDescription: "シーズンを選ぶと、その期のアニメが並びます。",
+    indexMetaTitle: "アニメから声優の音声作品を探す | {{app}}",
+    indexMetaDescription:
+      "シーズンごとのアニメから、出演声優の ASMR・朗読・ボイスドラマをたどれます。",
+    seasonListLabel: "シーズン",
+    /** シーズンに入っているアニメの本数。音声作品の数 (common.worksCount) とは別物 */
+    titleCount: "{{count}} 作品",
+    olderSeason: "前のシーズン ({{season}})",
+    newerSeason: "次のシーズン ({{season}})",
+    allSeasons: "すべてのシーズン",
+    followedFilterLabel: "フォロー中の声優が出ている作品だけ",
+    followedMark: "フォロー中の声優が出演",
+    followedEmptyTitle: "フォロー中の声優が出ている作品はありません",
   },
 
   /** 管理画面。読むのは運用者なので、仕組みの語 (クローラー・クロール) をそのまま使う */

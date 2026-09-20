@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { toSeasonSlug } from "@/app/lib/season";
 import { getDb } from "@/server/db/client";
-import { animeSitemapEntries } from "@/server/queries/anime";
+import { animeSitemapEntries, listSeasonsWithAnime } from "@/server/queries/anime";
 import { sitemapEntries } from "@/server/queries/works";
 import { siteOrigin } from "@/server/site";
 
@@ -21,17 +22,25 @@ export const Route = createFileRoute("/sitemap.xml")({
     handlers: {
       GET: async ({ request }) => {
         const origin = siteOrigin(request);
-        const [{ actors, works }, anime] = await Promise.all([
+        const [{ actors, works }, anime, seasons] = await Promise.all([
           sitemapEntries(getDb()),
           animeSitemapEntries(getDb()),
+          listSeasonsWithAnime(getDb()),
         ]);
 
         const urls = [
           buildUrl(origin, "/"),
           // 声優ページへの内部リンクを集めた一覧。声優ページを見つけてもらう経路なので載せる
           buildUrl(origin, "/voice-actors"),
+          // アニメページへの内部リンクを集めた索引。シーズンの一覧を経由して各作品へ届く
+          buildUrl(origin, "/anime"),
           buildUrl(origin, "/terms"),
           buildUrl(origin, "/privacy"),
+          // 出せる作品が 1 件も無いシーズンは listSeasonsWithAnime が返さないので、
+          // 空の一覧が sitemap に載ることはない
+          ...seasons.map((entry) =>
+            buildUrl(origin, `/anime/season/${toSeasonSlug(entry.seasonYear, entry.season)}`),
+          ),
           ...actors.map((actor) =>
             buildUrl(origin, `/voice-actors/${actor.slug}`, actor.updatedAt),
           ),

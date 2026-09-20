@@ -106,11 +106,34 @@ test("利用規約とプライバシーポリシーは SSR で本文まで返る
   expect(await privacy.text()).toContain("1. 基本方針");
 });
 
-test("/anime はデータのある最新シーズンへ送る", async ({ request }) => {
+test("/anime は転送せず、作品があるシーズンを並べる", async ({ request }) => {
   const res = await request.get("/anime");
   expect(res.status()).toBe(200);
-  expect(res.url()).toMatch(/\/anime\/season\/\d{4}-(winter|spring|summer|fall)$/);
-  expect(await res.text()).toMatch(/<h1[^>]*>[^<]*アニメ<\/h1>/);
+  expect(res.url()).toMatch(/\/anime$/);
+
+  const html = await res.text();
+  expect(html).toMatch(/<h1[^>]*>アニメから探す<\/h1>/);
+  expect(html).toContain('href="/anime/season/2026-fall"');
+});
+
+test("シーズンの一覧は SSR で作品まで返す", async ({ request }) => {
+  const res = await request.get("/anime/season/2026-fall");
+  expect(res.status()).toBe(200);
+
+  const html = await res.text();
+  expect(html).toMatch(/<h1[^>]*>2026 年秋アニメ<\/h1>/);
+  expect(html).toContain('href="/anime/e2e-anime-alpha"');
+  // フォローはブラウザにしか無い。SSR の応答に印も絞り込みも入らない
+  expect(html).not.toContain("フォロー中の声優が出演");
+  expect(html).not.toContain("フォロー中の声優が出ている作品だけ");
+});
+
+test("sitemap にアニメの索引とシーズンの一覧が並ぶ", async ({ request }) => {
+  const xml = await (await request.get("/sitemap.xml")).text();
+
+  expect(xml).toContain("<loc>http");
+  expect(xml).toMatch(/<loc>[^<]*\/anime<\/loc>/);
+  expect(xml).toMatch(/<loc>[^<]*\/anime\/season\/2026-fall<\/loc>/);
 });
 
 test("/admin/* は noindex", async ({ request }) => {

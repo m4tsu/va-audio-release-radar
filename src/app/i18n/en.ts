@@ -115,6 +115,7 @@ export const en: Translations = {
     emptyAction: "Find voice actors",
     errorTitle: "Could not load new releases",
     errorDescription: "Please try reloading in a moment.",
+    animeTitle: "Anime with voice actors you follow",
     feedEmptyTitle: "Nothing new in this period",
     feedEmptyAction: "Find voice actors",
     tierUpcoming: "Coming soon",
@@ -222,6 +223,19 @@ export const en: Translations = {
     seasonTitle: "{{season}} anime",
     seasonEmptyTitle: "No {{season}} anime",
     indexEmptyTitle: "No anime found",
+    indexTitle: "Browse by anime",
+    indexDescription: "Pick a season to see the anime that aired in it.",
+    indexMetaTitle: "Browse voice actors' audio works by anime | {{app}}",
+    indexMetaDescription:
+      "Start from a season of anime and follow the cast's ASMR, audiobooks and audio dramas.",
+    seasonListLabel: "Seasons",
+    titleCount: { one: "{{count}} title", other: "{{count}} titles" },
+    olderSeason: "Previous season ({{season}})",
+    newerSeason: "Next season ({{season}})",
+    allSeasons: "All seasons",
+    followedFilterLabel: "Only titles with voice actors you follow",
+    followedMark: "Includes a voice actor you follow",
+    followedEmptyTitle: "No titles with voice actors you follow",
   },
 
   admin: {

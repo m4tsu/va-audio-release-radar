@@ -1,26 +1,41 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { toSeasonSlug } from "@/app/lib/season";
+import { createFileRoute } from "@tanstack/react-router";
+import { createTranslator } from "@/app/i18n";
 import { AnimeIndexPage } from "@/app/pages/anime-index";
-import { fetchLatestAnimeSeason } from "@/app/server-fns/anime";
+import { fetchAnimeSeasons } from "@/app/server-fns/anime";
+import { siteOriginForLoader } from "@/app/server-fns/site";
 
-/**
- * アニメ導線の入口。中身は持たず、データがある最新シーズンへ送る。
- *
- * 一覧そのものは `/anime/season/$season` にあるので、ここで同じ内容を描くと
- * 同じ一覧が 2 つの URL に出る。「今期」を日付から決めないのも同じ理由で、
- * 実際に作品があるシーズンを DB に聞く (queries/anime.ts)。
- * 送り先が無いときの画面は `@/app/pages/anime-index`
- */
+/** アニメ導線の入口。シーズンの索引。画面は `@/app/pages/anime-index` */
 export const Route = createFileRoute("/anime/")({
   loader: async () => {
-    const season = await fetchLatestAnimeSeason();
-    if (season) {
-      throw redirect({
-        to: "/anime/season/$season",
-        params: { season: toSeasonSlug(season.seasonYear, season.season) },
-      });
-    }
-    return null;
+    const [seasons, origin] = await Promise.all([fetchAnimeSeasons(), siteOriginForLoader()]);
+    return { seasons, origin };
   },
-  component: AnimeIndexPage,
+  head: ({ loaderData, match }) => {
+    const t = createTranslator(match.context.locale);
+    const title = t("anime.indexMetaTitle", { app: t("app.name") });
+    const description = t("anime.indexMetaDescription");
+    const canonical = absoluteUrl(loaderData?.origin, "/anime");
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: canonical },
+      ],
+      links: [{ rel: "canonical", href: canonical }],
+    };
+  },
+  component: RouteComponent,
 });
+
+function absoluteUrl(origin: string | undefined, path: string): string {
+  return origin ? `${origin}${path}` : path;
+}
+
+function RouteComponent() {
+  const { seasons } = Route.useLoaderData();
+  return <AnimeIndexPage seasons={seasons} />;
+}
