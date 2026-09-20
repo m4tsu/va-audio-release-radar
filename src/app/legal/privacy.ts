@@ -20,7 +20,7 @@ export const privacy: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: "Voice Actor Audio Release Radar (以下「本サービス」) の運営者 (以下「運営者」) は、本サービスの利用者の情報を次のとおり扱います。",
+            text: "Koenect (以下「本サービス」) の運営者 (以下「運営者」) は、本サービスの利用者の情報を次のとおり扱います。",
           },
           {
             type: "paragraph",
@@ -125,7 +125,7 @@ export const privacy: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: 'The operator (the "Operator") of Voice Actor Audio Release Radar (the "Service") handles information about Users of the Service as described below.',
+            text: 'The operator (the "Operator") of Koenect (the "Service") handles information about Users of the Service as described below.',
           },
           {
             type: "paragraph",

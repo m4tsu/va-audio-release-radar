@@ -15,7 +15,7 @@ export const terms: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: "この利用規約 (以下「本規約」) は、Voice Actor Audio Release Radar (以下「本サービス」) の利用条件を定めるものです。本サービスを利用する方 (以下「利用者」) は、本規約に同意したうえで本サービスを利用するものとします。",
+            text: "この利用規約 (以下「本規約」) は、Koenect (以下「本サービス」) の利用条件を定めるものです。本サービスを利用する方 (以下「利用者」) は、本規約に同意したうえで本サービスを利用するものとします。",
           },
           {
             type: "paragraph",
@@ -194,7 +194,7 @@ export const terms: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: 'These Terms of Service (the "Terms") set out the conditions for using Voice Actor Audio Release Radar (the "Service"). By using the Service, you (the "User") agree to be bound by these Terms.',
+            text: 'These Terms of Service (the "Terms") set out the conditions for using Koenect (the "Service"). By using the Service, you (the "User") agree to be bound by these Terms.',
           },
           {
             type: "paragraph",

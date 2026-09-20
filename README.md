@@ -1,4 +1,4 @@
-# Voice Actor Audio Release Radar
+# Koenect
 
 アニメに出演している声優をフォローすると、その人の音声作品を複数ストア横断
 (DLsite / Audible / ポケットドラマ CD) で追える Web サービス。

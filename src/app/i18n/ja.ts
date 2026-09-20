@@ -12,8 +12,8 @@
  */
 export const ja = {
   app: {
-    /** サービス名。英語表記のブランドなので、英語辞書でも同じ文字列を使う */
-    name: "Voice Actor Audio Release Radar",
+    /** サービス名。言語で変えないブランドなので、英語辞書でも同じ文字列を使う */
+    name: "Koenect",
     description:
       "好きな声優をフォローして、ASMR・朗読・ボイスドラマの新作を DLsite・Audible・ポケットドラマCD からまとめてチェック。",
   },
