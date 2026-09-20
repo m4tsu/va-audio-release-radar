@@ -482,7 +482,8 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
 
     expect(result.status).toBe("ok");
     expect(result.works).toHaveLength(1);
-    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 2 });
+    // 失敗した古い順への往復も数える (`Coverage.pages`)。home 2 + garumani 1
+    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 3 });
     expect(result.warnings).toContain(
       "home: 古い順での補完に失敗 (HTTP 503)。新しい順の結果だけで続行",
     );

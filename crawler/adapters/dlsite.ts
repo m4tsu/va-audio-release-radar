@@ -343,8 +343,7 @@ type FloorListing = {
 /**
  * 検索ページ自体を取れなかったフロア。理由は警告に出す (全フロアが落ちたときだけ
  * `AdapterResult.reason` に入り、crawl_runs の error まで届く)。
- * `pages` は出した往復の数で、失敗した往復も数える。`Coverage.pages` は相手サイトへの
- * 往復が増えていないことを確かめるためのものなので、落ちた往復を隠さない
+ * `pages` は出した往復の数 (`Coverage.pages` の決まりどおり失敗した往復も数える)
  */
 type FloorFailure = { failed: true; reason: string; pages: number };
 
@@ -383,8 +382,8 @@ async function fetchFloorListing(
       kind: "html",
       snapshot: options.snapshot,
     });
+    pages += 1;
     if (oldest.ok) {
-      pages += 1;
       const parsedOldest = parseSearchHtml(oldest.body, fetchedAt, floor);
       invalidCount += parsedOldest.invalidCount;
       warnings.push(...parsedOldest.warnings);

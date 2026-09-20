@@ -529,7 +529,8 @@ describe("fetchByActor", () => {
       fetched: 20,
       total: 164,
       complete: false,
-      pages: 1,
+      // 失敗した 2 ページ目への往復も数える (`Coverage.pages`)
+      pages: 2,
       matched: 20,
     });
     expect(result.warnings.some((warning) => warning.startsWith("2 ページ目の取得に失敗"))).toBe(

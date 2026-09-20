@@ -372,12 +372,13 @@ async function collectAcrossPages(
       kind: "html",
       snapshot: options.snapshot,
     });
+    // 失敗した往復も数える (`Coverage.pages`)。空振りを隠すと往復の数を見る意味が無くなる
+    pages += 1;
     if (!next.ok) {
       warnings.push(`${page} ページ目の取得に失敗 (${next.reason})。ここまでの結果で続行`);
       break;
     }
 
-    pages += 1;
     const parsed = parseSearchHtml(next.body, fetchedAt);
     invalidCount += parsed.invalidCount;
     warnings.push(...parsed.warnings);
