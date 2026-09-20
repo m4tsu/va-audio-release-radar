@@ -71,8 +71,11 @@ audiobook.jp が置いている「当社の事前の許可なく、情報解析�
 
 導けること: **説明文と画像の本体を自分の画面に載せない。** 載せてよいのは、
 事実の記述にあたるタイトル・出演者名・発売日・レーベルと、ストアへのリンクまで。
-カバー画像を出すなら、他ストアと同じく**このストアの配信元 URL を `<img src>` にそのまま渡す**形にして、
-複製物を自分で配らない。
+カバー画像を出すなら、他ストアと同じく**配信元の URL を `<img src>` にそのまま渡す**形にして、
+複製物を自分で配らない。`converted_featured_images` の URL のホストは **`api.stellaplayer.jp`** で、
+§4 で「未調査」としているホストと同じである。ここに載るのは画像だけで、**取得するのは閲覧者の
+ブラウザであって我々のクローラーではない**。クローラーからこのホストへ出す取得は別の話なので、
+§4 の扱いは変わらない。
 
 ---
 
@@ -91,8 +94,9 @@ robots.txt が無く `Crawl-delay` の指定が無いので、何秒が妥当か
 「調査方法とリクエスト実績」。全件 1 巡と日次のコストも同じ文書の「全商品を 1 巡するコスト」にある。
 
 **UA は `userAgentFor()` の既定 (ブラウザ相当) のまま。** このホストが UA に何を求めるかは
-公開されたものが見つかっていない (§7)。既定のまま 39 リクエストを送って全件が HTTP 200 で返った
-実績が同じ調査にある、というだけの根拠である。
+公開されたものが見つかっていない (§7)。既定のまま 39 リクエストを送り、**存在しない 2 ファイル
+(`/robots.txt` と `/sitemap.xml`) の 404 以外の 37 件が HTTP 200 で返った**実績が同じ調査にある、
+というだけの根拠である。
 
 ---
 
@@ -174,7 +178,7 @@ https://www.stellaplayer.jp/product/{id}
 | イラスト | ○ | `creators[]` の `creator_group_id` が `"3"` |
 | タイトル | ○ | `name` |
 | 発売日 | ○ | `release_schedule` |
-| **予約開始日時** | ○ | `preorder_starts_at`。**調べた 6 サイトでこれが取れるのはここだけ** |
+| **予約開始日時** | ○ | `preorder_starts_at`。他のストアには無い項目 ([`store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md)) |
 | 掲載開始日時 | ○ | `publish_starts_at` |
 | カテゴリ区分 | ○ | `top_category` (`GENERAL` / `BL` / `GIRLS`) |
 | 商品カテゴリ | ○ | `category` (ドラマ / シチュエーション / 歌・サントラ) |
@@ -185,7 +189,7 @@ https://www.stellaplayer.jp/product/{id}
 | 収録トラック | ○ | `audio_tracks.tracks[]` (名前だけ) |
 | 版違いの兄弟商品 | ○ | `editionGroup.activeEditions[]` の `name` と `product.id`。同じシリーズの巻も入る (§6) |
 | カバー画像 | ○ | `converted_featured_images` (複数の寸法と形式) |
-| 説明文 | ○ | `converted_descriptions_blocks` (`text` / `headline` / `youtube` のブロック配列)。§1 の第 13 条により本体は載せない |
+| 説明文 | ○ | `converted_descriptions_blocks.product.blocks[]`。`type` は `text` / `headline` / `image` / `youtube` を観測。§1 の第 13 条により本体は載せない |
 | 価格 | ○ | `current_price`。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md)) |
 | **再生時間** | **×** | `contents_size` は `null` |
 | **役名** | **×** | 構造化されていない。タイトルと説明文の自由記述 |
@@ -204,7 +208,7 @@ https://www.stellaplayer.jp/product/{id}
   新着の商品ページを 1 件ずつ引いてからでないと「対象声優が 1 人も出ていない作品は保存しない」
   ([`docs/product.md`](../product.md) の「対象作品」) を判定できない
 - **対象声優に当たるかどうかが `category` で分かれる。** 「ドラマ」の商品では出演者の大半が対象声優に
-  当たり、1 人芝居の「シチュエーション」の商品では 1 人も当たらなかった。
+  当たり、出演者がほぼ 1 名の「シチュエーション」の商品では 1 人も当たらなかった。
   ID を等間隔に引いた標本ではシチュエーションが多数を占めたが、カタログ全体の割合は測っていない。
   測定は [`docs/research/stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) の
   「対象声優との重なり」
