@@ -24,7 +24,14 @@ import { exportSql, formatCounts } from "./d1-data.mjs";
 const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
 const DEFAULT_EXCLUDED_STORES = ["audible"];
 
-export function main(argv) {
+/** `deps` はテストから差し替えるためのもの。既定は手元の D1 を見る */
+export function main(argv, deps = {}) {
+  const {
+    d1StateDir = path.join(process.cwd(), D1_STATE_DIR),
+    log = console.log,
+    error = console.error,
+  } = deps;
+
   const { values } = parseArgs({
     args: argv,
     options: {
@@ -34,9 +41,9 @@ export function main(argv) {
     },
   });
 
-  const sqliteFile = findD1SqliteFile(path.join(process.cwd(), D1_STATE_DIR));
+  const sqliteFile = findD1SqliteFile(d1StateDir);
   if (!sqliteFile) {
-    console.error("手元の D1 が無い (.wrangler/state)。先に npm run db:migrate:local を実行する");
+    error("手元の D1 が無い (.wrangler/state)。先に npm run db:migrate:local を実行する");
     return 1;
   }
 
@@ -52,9 +59,9 @@ export function main(argv) {
     db.exec("ROLLBACK");
     mkdirSync(path.dirname(output), { recursive: true });
     writeFileSync(output, sql, "utf8");
-    console.log(`書き出した: ${output}`);
-    if (excludeStores.length > 0) console.log(`除いたストア: ${excludeStores.join(", ")}`);
-    console.log(formatCounts(counts));
+    log(`書き出した: ${output}`);
+    if (excludeStores.length > 0) log(`除いたストア: ${excludeStores.join(", ")}`);
+    log(formatCounts(counts));
   } finally {
     db.close();
   }

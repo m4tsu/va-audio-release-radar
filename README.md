@@ -28,8 +28,7 @@ npm run db:migrate:local   # ローカル D1 にスキーマを作る
 npm run dev                # ポートは vite.config.ts の server.port
 ```
 
-手元の D1 は本番 D1 の複製として扱う。本番から書き出したもの (「本番 D1」の週次バックアップ) があれば
-`npm run db:restore:local -- --file <file> --yes` で作り直せる。
+手元の D1 の位置づけと作り直し方は「本番 D1」。
 
 秘匿値が要る機能 (取り込み・管理画面) を触るときは `.dev.vars.example` を `.dev.vars` にコピーして値を入れる。
 canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場合は `wrangler.jsonc` の `vars.SITE_URL` に入れる。
@@ -49,7 +48,7 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 | `npm run db:migrate:local` / `db:migrate:remote` | ローカル / 本番 D1 に適用 |
 | `npm run db:export:local` | 手元の D1 の中身を本番に流し込める SQL に書き出す (既定で Audible を除く。理由は「本番 D1」) |
 | `npm run db:import:remote -- <file>` | 書き出した SQL を本番 D1 に流し込む。人が実行する |
-| `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す。中身はすべて入れ替わる |
+| `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す (「本番 D1」)。中身はすべて入れ替わる |
 | `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
 | `npm run radar:crawl` | クローラー本体。オプションは `node crawler/run.ts --help` |
 | `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
@@ -80,16 +79,18 @@ npm run db:import:remote -- work/d1-export/initial.sql   # 2. データ (数分�
 npm run db:counts -- --remote                         # 3. 書き出し時に出た件数と一致することを見る
 ```
 
-- 書き出しは既定で Audible の listing / credit / 取り込みの記録を除く。手元の Audible のデータには、
+- 書き出しは既定で Audible の行を除く。listing と credit と取り込みの記録に加え、作品も除く
+  (作品 ID がストアを含むため。判定は `scripts/d1-data.mjs` の `isExcludedRow`)。手元の Audible のデータには、
   2026-09-19 より前に robots.txt が禁じる並び順付き URL で取った分が混じっているため
   (`docs/stores/audible.md` の robots.txt の節)。本番の Audible は、月次の補完巡回が許可された URL から取り直す
-  (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)
+  (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。手元との件数の差はこの除外ぶん
 - 流し込みは wrangler が 1 つの取り込みとして行い、途中で失敗すれば元の状態に戻る (wrangler がその旨を表示する)。
   失敗したら原因を直して同じファイルを流し直す
-- Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数える。書き出し時に出る件数に
-  表ごとの索引の本数 (`migrations/` の `CREATE INDEX`) を掛けた合計が、Cloudflare の料金ページの D1 の欄の
-  上限に収まることを確かめてから流す。収まらなければ `npm run db:export:local -- --table <表>` で表ごとに
-  書き出し、親の表 (声優、作品、アニメ) から順に日を分けて流す
+- Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数える。表ごとに
+  「書き出し時に出た件数 × (1 + その表の索引の本数)」を足した合計が、Cloudflare の料金ページの D1 の欄の
+  上限に収まることを確かめてから流す。索引の本数は `migrations/` の `CREATE INDEX` と `CREATE UNIQUE INDEX` を
+  両方数える。収まらなければ `npm run db:export:local -- --table <表>` で表ごとに書き出し、
+  親の表 (声優、作品、アニメ) から順に日を分けて流す
 
 ### プランの確認
 

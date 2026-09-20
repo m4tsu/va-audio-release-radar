@@ -25,7 +25,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 export DB --remote --no-schema --output d1-backup.sql -y
       - name: 中身の確認
-        # 空のファイルを控えとして残さない
+        # 空のファイルを控えとして残さない。
+        # 本番へデータを移す前 (README の「手元のデータを本番へ移す」) は本番が空なので、
+        # ここで毎回失敗する。移行が済むまではそれが正しい状態
         run: test -s d1-backup.sql && grep -c "INSERT INTO" d1-backup.sql
       - uses: actions/upload-artifact@v5
         with:

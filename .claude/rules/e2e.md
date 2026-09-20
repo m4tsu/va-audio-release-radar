@@ -10,7 +10,7 @@ paths:
 ## 専用の D1 を使う
 
 E2E のローカル D1 は `.wrangler-e2e/state` に置き、開発用の `.wrangler/state` には読み書きしない。
-開発用 D1 は本番の複製で作り直せるが、作り直すと他のセッションが見ているデータも入れ替わる (`CLAUDE.md` の「ローカルの共有資源」)。
+開発用 D1 の位置づけは `CLAUDE.md` の「ローカルの共有資源」。
 
 - `playwright.config.ts` が `webServer.env` で `RADAR_PERSIST_TO` を渡し、`vite.config.ts` がそれを
   `cloudflare({ persistState })` に渡す。wrangler CLI には `e2e/fixtures/e2e-db.mjs` が `--persist-to` で同じ値を渡す

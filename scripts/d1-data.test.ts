@@ -175,6 +175,19 @@ describe("splitStatements / insertTarget", () => {
     expect(insertTarget(statements[1])).toBe("b");
     expect(insertTarget(statements[2])).toBeUndefined();
   });
+
+  it("コメントの中の ; と引用符で切らず、以降の文を落とさない", () => {
+    const sql = [
+      "-- it's a comment; with a quote",
+      `INSERT INTO "a" ("t") VALUES ('x');`,
+      "/* block ; comment with ' quote */",
+      `INSERT INTO "b" ("t") VALUES ('y');`,
+    ].join("\n");
+    const statements = splitStatements(sql);
+    expect(statements).toHaveLength(2);
+    expect(insertTarget(statements[0])).toBe("a");
+    expect(insertTarget(statements[1])).toBe("b");
+  });
 });
 
 describe("prepareImportSql", () => {
@@ -219,6 +232,13 @@ describe("prepareImportSql", () => {
       const row = target.prepare(`select count(*) as c from "${table}"`).get() as { c: number };
       expect(row.c).toBe(counts[table]);
     }
+  });
+
+  it("今のスキーマに無い表への INSERT があれば投げる", () => {
+    const db = openDb();
+    const tables = listDataTables(db);
+    const dump = `INSERT INTO "old_works" ("id") VALUES('x');`;
+    expect(() => prepareImportSql(dump, tables)).toThrow("old_works");
   });
 
   it("表を絞った書き出しは親の順序を保つ", () => {

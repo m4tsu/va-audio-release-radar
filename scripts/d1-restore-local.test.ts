@@ -3,7 +3,7 @@
 // 実際のローカル D1 と wrangler には触れない。一時ディレクトリの sqlite と、
 // 差し替えた `run` で門 (--yes、ファイル、クロール中の判定) と流し込む内容を確かめる
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -34,8 +34,12 @@ function setup(latestStartedAt?: string) {
   const file = path.join(tempDir, "export.sql");
   writeFileSync(file, `INSERT INTO "voice_actors" ("id", "canonical_name") VALUES ('va', 'x');\n`);
   const calls: string[][] = [];
+  // 流し込み用の中間ファイルは main が消すので、渡された時点で中身を控える
+  const staged: string[] = [];
   const run = (args: string[]) => {
     calls.push(args);
+    const fileIndex = args.indexOf("--file");
+    if (fileIndex >= 0) staged.push(readFileSync(args[fileIndex + 1] ?? "", "utf8"));
     return JSON.stringify([{ results: [{ voice_actors: 1, crawl_runs: 0 }] }]);
   };
   const messages: string[] = [];
@@ -46,7 +50,7 @@ function setup(latestStartedAt?: string) {
     log: (message: string) => messages.push(message),
     error: (message: string) => messages.push(message),
   };
-  return { file, calls, messages, deps };
+  return { file, calls, staged, messages, deps };
 }
 
 describe("latestRunStartedAt", () => {
@@ -81,21 +85,23 @@ describe("main", () => {
     expect(messages.join("\n")).toContain("クロールが終わるまで待つ");
   });
 
-  it("DELETE と INSERT を 1 つのファイルにまとめて 1 回で流す", () => {
+  it("DELETE と INSERT を 1 つのファイルにまとめて 1 回で流し、中間ファイルを残さない", () => {
     const now = Date.parse("2026-09-20T12:00:00.000Z");
-    const { file, calls, deps } = setup("2026-09-20T00:00:00.000Z");
+    const { file, calls, staged, deps } = setup("2026-09-20T00:00:00.000Z");
     expect(main(["--file", file, "--yes"], { ...deps, now })).toBe(0);
 
     expect(calls[0]).toEqual(["d1", "migrations", "apply", "DB", "--local"]);
-    const execute = calls.find((args) => args.includes("--file"));
-    expect(execute).toBeDefined();
-    const staged = readFileSync(execute?.at(-1) ?? "", "utf8");
-    // 子 (crawl_runs は親を持たないが名前順で後) も含めて全表を空にしてから入れる
-    expect(staged).toContain('DELETE FROM "voice_actors";');
-    expect(staged).toContain('DELETE FROM "crawl_runs";');
-    expect(staged.indexOf("DELETE FROM")).toBeLessThan(staged.indexOf("INSERT INTO"));
-    expect(staged).toContain(`INSERT INTO "voice_actors"`);
+    expect(staged).toHaveLength(1);
+    const content = staged[0] ?? "";
+    // 全表を空にしてから入れる
+    expect(content).toContain('DELETE FROM "voice_actors";');
+    expect(content).toContain('DELETE FROM "crawl_runs";');
+    expect(content.indexOf("DELETE FROM")).toBeLessThan(content.indexOf("INSERT INTO"));
+    expect(content).toContain(`INSERT INTO "voice_actors"`);
     // --persist-to を渡さない (E2E 用の D1 に触れない)
     expect(calls.flat()).not.toContain("--persist-to");
+
+    const execute = calls.find((args) => args.includes("--file"));
+    expect(existsSync(execute?.at(-1) ?? "")).toBe(false);
   });
 });

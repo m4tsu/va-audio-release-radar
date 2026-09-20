@@ -159,15 +159,34 @@ export function formatCounts(counts) {
 // --- 書き出したファイルの流し込み --------------------------------------------
 
 /**
- * SQL を文ごとに分ける。引用符 (' と ") の中の ; では切らない。
- * wrangler の書き出しは 1 行 1 文だが、このリポジトリの書き出しは 1 文が複数行に及ぶため
+ * SQL を文ごとに分ける。引用符 (' と ") と、行コメントとブロックコメントの中の ; では切らない。
+ * wrangler の書き出しは 1 行 1 文だが、このリポジトリの書き出しは 1 文が複数行に及ぶ。
+ * コメントを見るのは、コメント中の引用符 1 つで以降の文が丸ごと落ちるのを防ぐため
  */
 export function splitStatements(sql) {
   const statements = [];
   let current = "";
   let quote = null;
+  let comment = null;
+
   for (let i = 0; i < sql.length; i += 1) {
     const char = sql[i];
+
+    if (comment === "line") {
+      if (char === "\n") {
+        comment = null;
+        current += char;
+      }
+      continue;
+    }
+    if (comment === "block") {
+      if (char === "*" && sql[i + 1] === "/") {
+        comment = null;
+        i += 1;
+      }
+      continue;
+    }
+
     if (quote !== null) {
       current += char;
       if (char === quote) {
@@ -179,6 +198,17 @@ export function splitStatements(sql) {
           quote = null;
         }
       }
+      continue;
+    }
+
+    if (char === "-" && sql[i + 1] === "-") {
+      comment = "line";
+      i += 1;
+      continue;
+    }
+    if (char === "/" && sql[i + 1] === "*") {
+      comment = "block";
+      i += 1;
       continue;
     }
     if (char === "'" || char === '"') {
@@ -194,6 +224,7 @@ export function splitStatements(sql) {
     }
     current += char;
   }
+
   const rest = current.trim();
   if (rest !== "") statements.push(rest);
   return statements;
@@ -210,19 +241,37 @@ export function insertTarget(statement) {
  * - データの表への INSERT だけを残す。`PRAGMA`、`CREATE`、`d1_migrations` と `sqlite_sequence` への
  *   INSERT (wrangler の書き出しに含まれる) は捨てる。マイグレーションの記録は apply が持つため
  * - 表を外部キーの親から順に並べ直す。wrangler の書き出しは表の作成順で、子が親より先に来ることがある
+ * - 今のスキーマに無い表への INSERT があれば投げる。表名が変わった後の控えを流したときに、
+ *   行が落ちたまま成功で終わらせないため
  */
 export function prepareImportSql(sql, tables) {
   const byTable = new Map(tables.map((table) => [table, []]));
+  const unknownTables = new Set();
   let dropped = 0;
+
   for (const statement of splitStatements(sql)) {
     const target = insertTarget(statement);
-    const bucket = target === undefined ? undefined : byTable.get(target);
-    if (bucket === undefined) {
+    if (target === undefined) {
+      // INSERT でない文 (PRAGMA / CREATE など) は捨てる
       dropped += 1;
+      continue;
+    }
+    const bucket = byTable.get(target);
+    if (bucket === undefined) {
+      // 管理用の表は捨ててよい。それ以外は今のスキーマに無い表なので、気づけるように集める
+      if (isSystemTable(target)) dropped += 1;
+      else unknownTables.add(target);
       continue;
     }
     bucket.push(`${statement};`);
   }
+
+  if (unknownTables.size > 0) {
+    throw new Error(
+      `今のスキーマに無い表への INSERT がある: ${[...unknownTables].sort().join(", ")}`,
+    );
+  }
+
   const lines = tables.flatMap((table) => byTable.get(table));
   return { sql: `${lines.join("\n")}\n`, statements: lines.length, dropped };
 }

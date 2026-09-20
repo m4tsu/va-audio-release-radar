@@ -17,7 +17,7 @@
 // `--persist-to` を渡さないので E2E 用の D1 (.wrangler-e2e) には触れない
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
@@ -114,7 +114,12 @@ export function main(argv, deps = {}) {
   writeFileSync(staged, `${truncateSql(tables)}\n${prepared.sql}`, "utf8");
   log(`流し込む文: ${prepared.statements} (データでない文を ${prepared.dropped} 捨てた) → ${staged}`);
 
-  run(["d1", "execute", "DB", "--local", "-y", "--file", staged], { stdio: "inherit" });
+  try {
+    run(["d1", "execute", "DB", "--local", "-y", "--file", staged], { stdio: "inherit" });
+  } finally {
+    // DB 全体の複製なので、残すと復元のたびに積み上がる。失敗しても消す (同じファイルは作り直せる)
+    rmSync(staged, { force: true });
+  }
 
   const out = run(["d1", "execute", "DB", "--local", "-y", "--json", "--command", countSql(tables)]);
   log(formatCounts(parseCounts(JSON.parse(out)[0].results[0])));
