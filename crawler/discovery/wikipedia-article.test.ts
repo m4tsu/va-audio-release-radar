@@ -60,9 +60,9 @@ describe("parseArticle", () => {
     expect(parseArticle(fixture("asano-ruri-redirect")).pageName).toBe("朝ノ姉妹ぷろじぇくと");
   });
 
-  it("Template:声優 以外のテンプレートの ふりがな も取れる", () => {
-    const article = parseArticle(fixture("mitsushima-hikari"));
-    expect(article.furigana).toBe("みつしま ひかり");
+  it("Template:声優 以外のテンプレートの ふりがな は取らない", () => {
+    // Template:ActorActress の ふりがな は「みつしま ひかり」だが、本人の読みだと機械では言えない
+    expect(parseArticle(fixture("mitsushima-hikari")).furigana).toBeUndefined();
   });
 });
 
@@ -104,9 +104,7 @@ describe("kanaFromArticle", () => {
     });
   });
 
-  it("声優のカテゴリが無い記事からは取らない (読みが書いてあっても)", () => {
-    const article = parseArticle(fixture("mitsushima-hikari"));
-    expect(article.furigana).toBeDefined();
+  it("声優のカテゴリが無い記事からは取らない", () => {
     expect(kanaOf("mitsushima-hikari", "満島ひかり", "満島ひかり")).toEqual({
       rejected: "not-voice-actor",
     });

@@ -90,8 +90,10 @@ function parseCategoryHref(href: string): string | undefined {
 /**
  * テンプレート呼び出しの記録 (`data-mw` 属性の JSON) から `ふりがな` 引数を取る。
  *
- * `Template:声優` の引数を先に見る。同じ記事に別のテンプレート
- * (`Template:ActorActress` など) の `ふりがな` があることがあり、人物の情報枠は声優のほうだから
+ * `Template:声優` の引数だけを見る。同じ記事に別のテンプレート
+ * (`Template:ActorActress` や家族・共演者の情報枠) の `ふりがな` があることがあり、
+ * それが本人の読みだとは記事名とカテゴリからは言えない。
+ * `docs/research/actor-kana-sources-2026-09-20.md` が数えたのもこのテンプレートの引数
  */
 const VOICE_ACTOR_TEMPLATE = "./Template:声優";
 
@@ -102,7 +104,7 @@ type TemplatePart = {
   };
 };
 
-function furiganaFromDataMw(dataMw: string): { href: string; furigana: string }[] {
+function furiganaFromDataMw(dataMw: string): string[] {
   let parsed: { parts?: unknown };
   try {
     parsed = JSON.parse(dataMw) as { parts?: unknown };
@@ -110,13 +112,13 @@ function furiganaFromDataMw(dataMw: string): { href: string; furigana: string }[
     return [];
   }
   const parts = Array.isArray(parsed.parts) ? (parsed.parts as TemplatePart[]) : [];
-  const found: { href: string; furigana: string }[] = [];
+  const found: string[] = [];
   for (const part of parts) {
     const template = part?.template;
-    if (template === undefined) continue;
+    if (template?.target?.href !== VOICE_ACTOR_TEMPLATE) continue;
     const furigana = template.params?.ふりがな?.wt;
     if (furigana === undefined || furigana.trim() === "") continue;
-    found.push({ href: template.target?.href ?? "", furigana });
+    found.push(furigana);
   }
   return found;
 }
@@ -131,15 +133,13 @@ export function parseArticle(html: string): WikipediaArticle {
     if (name !== undefined) categories.push(name);
   }
 
-  const candidates: { href: string; furigana: string }[] = [];
+  const candidates: string[] = [];
   for (const element of $("[data-mw]").toArray()) {
     const dataMw = $(element).attr("data-mw");
     if (dataMw === undefined) continue;
     candidates.push(...furiganaFromDataMw(dataMw));
   }
-  const furigana =
-    candidates.find((item) => item.href === VOICE_ACTOR_TEMPLATE)?.furigana ??
-    candidates[0]?.furigana;
+  const furigana = candidates[0];
 
   const pageName = parsePageName(html);
   return {

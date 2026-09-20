@@ -8,7 +8,6 @@
 `crawler/discovery/wikipedia-article.ts`。外部アクセスは `crawler/lib/fetch.ts` を通り、
 GET で記事 HTML を取るだけで、間隔は既定値のまま。ブラウザ相当の UA を Wikimedia が
 禁じている (「既知の落とし穴」) ので、UA の振り分けは `fetch.ts` の `userAgentFor()` が持つ。
-手で書いたかなは `crawler/actors-overrides.json` に残り、取得した値より優先される。
 共通の原則は [`README.md`](./README.md)。
 
 **ストアではない。** 声優のかなの入手元の候補であり、ここから作品は取らない。

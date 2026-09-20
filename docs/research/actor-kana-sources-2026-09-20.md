@@ -5,7 +5,7 @@
 削除: 参照する文書が無くなったら
 
 Date: 2026-09-20
-Status: 調査完了 / 取り込み未実装
+Status: 調査完了 (2026-09-20 時点。取り込みの有無は `docs/stores/wikimedia.md` の冒頭が持つ)
 Scope: 対象声優のかな (読み仮名) の入手元。ローマ字と、かなを使った並び替え・索引・検索は範囲外
 
 本書の数字は実データから機械的に出した。推測には「(推測)」と明記する。
@@ -29,8 +29,9 @@ Scope: 対象声優のかな (読み仮名) の入手元。ローマ字と、か
   - UA: `va-audio-release-radar-bot (https://github.com/m4tsu/va-audio-release-radar)`、
     `Accept-Language: ja-JP,ja;q=0.9`。ブラウザ相当の UA を使わない理由は
     [`docs/stores/wikimedia.md`](../stores/wikimedia.md) の「既知の落とし穴」。
-    **`crawler/lib/fetch.ts` はブラウザ相当の UA を全ホストに送るので、この UA は出せない。**
-    同じ手順をクローラーから再現するには、UA をホストで振り分けられるようにする必要がある
+    **調査した時点の `crawler/lib/fetch.ts` はブラウザ相当の UA を全ホストに送っていたので、
+    この UA は出せなかった。**同じ手順をクローラーから再現するには、
+    UA をホストで振り分けられるようにする必要があった
   - 例外として、調査を始めた時点で引いた次の 11 件だけはブラウザ相当の UA で投げた。
     `ja.wikipedia.org` / `www.wikidata.org` / `query.wikidata.org` / `meta.wikimedia.org` /
     `foundation.wikimedia.org` の robots.txt (5 件)、meta と foundation の User-Agent policy (2 件)、
