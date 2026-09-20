@@ -499,8 +499,8 @@ function asAnimeFormat(value: unknown): AnimeFormat | undefined {
  * AniList の `FuzzyDate` を "2026-10-02" にする。
  *
  * year / month / day はそれぞれ null になりうる (放送前の作品の終了日は 3 つとも null。
- * 2026-09-20 の実応答で確認)。欠けたまま保存すると日付として比べられないので、
- * 揃っているときだけ値にする
+ * 2026-09-20 の実応答で確認)。揃っていない日付を持たない理由は
+ * `src/domain/types.ts` の `AnimeTitle`
  */
 function asFuzzyDate(value: unknown): string | undefined {
   const date = asRecord(value);

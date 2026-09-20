@@ -184,7 +184,7 @@ export const animeTitles = sqliteTable(
     format: text("format", { enum: ANIME_FORMATS }),
     /** AniList の人気度。返らないことがあるので NULL 可。一覧の既定の並びに使う */
     popularity: integer("popularity"),
-    /** 放送開始日 / 終了日 ("2026-10-02")。揃っていない日付を落とす理由は `crawler/discovery/anilist.ts` */
+    /** 放送開始日 / 終了日。揃っていない日付を持たない理由は `@/domain/types.ts` の `AnimeTitle` */
     startDate: text("start_date"),
     endDate: text("end_date"),
     createdAt: text("created_at").notNull(),

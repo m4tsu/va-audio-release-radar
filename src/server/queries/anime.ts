@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AnimeRole, AnimeSeason, WorkCategory } from "@/domain/types";
 import { ANIME_FORMATS, ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
-import { chunked, D1_MAX_BOUND_PARAMETERS } from "../db/chunked";
+import { chunked, SQL_IN_CHUNK_SIZE } from "../db/chunked";
 import {
   animeAppearances,
   animeTitleSynonyms,
@@ -172,8 +172,9 @@ async function replaceSynonyms(db: AppDb, animeTitleId: string, names: string[])
   const unique = [...new Set(names)];
   if (unique.length === 0) return 0;
 
-  // 1 行につき (作品 id, 名前) の 2 つを bind するので、IN 句の既定では D1 の上限を超える
-  for (const chunk of chunked(unique, Math.floor(D1_MAX_BOUND_PARAMETERS / 2))) {
+  // 1 行につき (作品 id, 名前) の 2 つを bind するので、IN 句の既定のままでは D1 の上限を超える。
+  // 上限ちょうどではなく既定の半分にして、IN 句と同じだけの余白を残す
+  for (const chunk of chunked(unique, Math.floor(SQL_IN_CHUNK_SIZE / 2))) {
     await db
       .insert(animeTitleSynonyms)
       .values(chunk.map((name) => ({ animeTitleId, name })))
