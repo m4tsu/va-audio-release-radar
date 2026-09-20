@@ -10,7 +10,13 @@ describe("ingest", () => {
 
     const result = await ingest(db, payload(), NOW);
 
-    expect(result).toEqual({ upserted: 1, new: 1, unmatched: 0, skippedByRating: 0 });
+    expect(result).toEqual({
+      upserted: 1,
+      new: 1,
+      unmatched: 0,
+      skippedByRating: 0,
+      skippedByNoTargetActor: 0,
+    });
 
     const works = await db.select().from(audioWorks);
     expect(works).toHaveLength(1);
@@ -223,7 +229,13 @@ describe("ingest", () => {
       NOW,
     );
 
-    expect(result).toEqual({ upserted: 1, new: 1, unmatched: 0, skippedByRating: 1 });
+    expect(result).toEqual({
+      upserted: 1,
+      new: 1,
+      unmatched: 0,
+      skippedByRating: 1,
+      skippedByNoTargetActor: 0,
+    });
     const works = await db.select().from(audioWorks);
     expect(works.map((work) => work.id)).toEqual(["dlsite:RJ01698658"]);
   });
@@ -284,7 +296,13 @@ describe("ingest", () => {
       NOW,
     );
 
-    expect(result).toEqual({ upserted: 0, new: 0, unmatched: 0, skippedByRating: 0 });
+    expect(result).toEqual({
+      upserted: 0,
+      new: 0,
+      unmatched: 0,
+      skippedByRating: 0,
+      skippedByNoTargetActor: 0,
+    });
     const [run] = await db.select().from(crawlRuns);
     expect(run?.status).toBe("error");
     expect(run?.error).toBe("302 で検索結果に飛ばされた");
@@ -316,6 +334,70 @@ describe("ingest", () => {
     expect(run?.voiceActorId).toBeNull();
     // 作品そのものは声優起点と同じように保存される
     expect(await db.select().from(storeListings)).toHaveLength(1);
+  });
+
+  /**
+   * 新着一覧にはこのサービスが追っていない声優の作品が大量に流れてくる。
+   * 保存すると毎日それが積み上がるので、対象声優が 1 人も居ない作品は捨てる
+   */
+  it("新着一覧の走行では、対象声優が 1 人も居ない作品を保存しない", async () => {
+    const db = await setupDb();
+    const { voiceActorId: _omitted, ...base } = payload();
+
+    const result = await ingest(
+      db,
+      {
+        ...base,
+        works: [
+          rawWork({ storeProductId: "KEEP", creditedNames: ["上田麗奈", "知らない人"] }),
+          rawWork({ storeProductId: "DROP", creditedNames: ["知らない人", "別の知らない人"] }),
+        ],
+      },
+      NOW,
+    );
+
+    expect(result.upserted).toBe(1);
+    expect(result.skippedByNoTargetActor).toBe(1);
+    const works = await db.select().from(audioWorks);
+    expect(works.map((work) => work.id)).toEqual(["dlsite:KEEP"]);
+    // 捨てた作品の credit も残らない
+    const credits = await db.select().from(audioCredits);
+    expect(credits.map((credit) => credit.creditedName).sort()).toEqual(["上田麗奈", "知らない人"]);
+  });
+
+  it("捨てた件数は crawl_runs にも残る", async () => {
+    const db = await setupDb();
+    const { voiceActorId: _omitted, ...base } = payload();
+
+    await ingest(
+      db,
+      { ...base, works: [rawWork({ storeProductId: "DROP", creditedNames: ["知らない人"] })] },
+      NOW,
+    );
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.skippedNoTargetActorCount).toBe(1);
+    expect(run?.workCount).toBe(0);
+    // 取得はできているので失敗ではない
+    expect(run?.status).toBe("ok");
+  });
+
+  /**
+   * 声優起点の走行では捨てない。検索した声優の名前が credit に無くても作品は保存する
+   * (`docs/architecture.md` の「データの不変条件」)
+   */
+  it("声優起点の走行では、対象声優が居ない作品も今までどおり保存する", async () => {
+    const db = await setupDb();
+
+    const result = await ingest(
+      db,
+      payload({ works: [rawWork({ storeProductId: "KEEP", creditedNames: ["知らない人"] })] }),
+      NOW,
+    );
+
+    expect(result.upserted).toBe(1);
+    expect(result.skippedByNoTargetActor).toBe(0);
+    expect(await db.select().from(audioWorks)).toHaveLength(1);
   });
 
   it("取得を始めた時刻を受け取れば started_at に入れ、取り込んだ時刻は finished_at に残す", async () => {

@@ -64,6 +64,13 @@
       "when": 1789920902822,
       "tag": "0008_parched_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789922263276,
+      "tag": "0009_dizzy_joseph",
+      "breakpoints": true
     }
   ]
 }

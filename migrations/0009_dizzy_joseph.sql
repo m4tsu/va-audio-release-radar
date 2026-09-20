@@ -1,0 +1,1 @@
+ALTER TABLE `crawl_runs` ADD `skipped_no_target_actor_count` integer DEFAULT 0 NOT NULL;

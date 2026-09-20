@@ -25,6 +25,8 @@ export type IngestResponse = {
   new: number;
   unmatched: number;
   skippedByRating: number;
+  /** 対象声優が 1 人も出ていないとして捨てた作品数 (新着一覧の走行だけ) */
+  skippedByNoTargetActor: number;
 };
 
 export type UpsertActorsResponse = { actors: number; aliases: number };

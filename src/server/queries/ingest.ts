@@ -30,6 +30,11 @@ export type IngestResult = {
   unmatched: number;
   /** 許可していない年齢区分として捨てた作品数 (現状は R18) */
   skippedByRating: number;
+  /**
+   * 対象声優が 1 人も出ていないとして捨てた作品数。
+   * 声優に紐付かない走行 (ストアの新着一覧) でだけ増える
+   */
+  skippedByNoTargetActor: number;
 };
 
 export type IngestOptions = {
@@ -61,18 +66,48 @@ export async function ingest(
   options: IngestOptions = {},
 ): Promise<IngestResult> {
   const { allowedAgeRatings = DEFAULT_ALLOWED_AGE_RATINGS } = options;
-  const result: IngestResult = { upserted: 0, new: 0, unmatched: 0, skippedByRating: 0 };
+  const result: IngestResult = {
+    upserted: 0,
+    new: 0,
+    unmatched: 0,
+    skippedByRating: 0,
+    skippedByNoTargetActor: 0,
+  };
 
   // 許可していない年齢区分は保存しない。件数だけ返してクローラー側の取りこぼしと区別できるようにする
-  const works: RawWork[] = [];
+  const allowed: RawWork[] = [];
   for (const work of payload.works) {
-    if (isAgeRatingAllowed(work.ageRating, allowedAgeRatings)) works.push(work);
+    if (isAgeRatingAllowed(work.ageRating, allowedAgeRatings)) allowed.push(work);
     else result.skippedByRating += 1;
   }
-  result.upserted = works.length;
 
   // 名寄せの材料は作品ごとに引き直さず 1 回だけ読む
   const { actors, aliases } = await loadActorIndex(db);
+
+  // 出演者の名寄せは作品ごとに 1 回だけ行い、結果を後段でも使い回す
+  const resolvedByWork = allowed.map((work) => ({
+    work,
+    credits: resolveCredits(work, actors, aliases),
+  }));
+
+  /**
+   * 声優に紐付かない走行 (ストアの新着一覧) では、対象声優が 1 人も解決できない作品を捨てる。
+   * 新着一覧にはこのサービスが追っていない声優の作品が大量に流れてくるので、
+   * 保存すると毎日それが積み上がる (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
+   *
+   * 声優起点の走行では捨てない。検索した声優の名前が credit に無くても、その作品を
+   * 保存すること自体は「データの不変条件」のとおり
+   */
+  const isFeedRun = payload.voiceActorId === undefined;
+  const kept = isFeedRun
+    ? resolvedByWork.filter((item) =>
+        item.credits.some((credit) => credit.resolved.voiceActorId !== undefined),
+      )
+    : resolvedByWork;
+  result.skippedByNoTargetActor = resolvedByWork.length - kept.length;
+
+  const works = kept.map((item) => item.work);
+  result.upserted = works.length;
 
   // 「今回はじめて見た listing か」は書き込む前に 1 回だけ読んで判定する。
   // 作品ごとに SELECT すると往復が作品数ぶん増えるため
@@ -89,12 +124,12 @@ export async function ingest(
   const listingStatements: BatchItemList = [];
   const creditStatements: BatchItemList = [];
 
-  for (const work of works) {
+  for (const { work, credits } of kept) {
     const workId = buildWorkId(work.storeSlug, work.storeProductId);
     workStatements.push(workUpsert(db, workId, work, now));
     listingStatements.push(listingUpsert(db, workId, work, now));
 
-    for (const { name, resolved } of resolveCredits(work, actors, aliases)) {
+    for (const { name, resolved } of credits) {
       if (resolved.confidence === "unmatched") result.unmatched += 1;
       creditStatements.push(creditUpsert(db, workId, work.storeSlug, name, resolved));
     }
@@ -313,6 +348,7 @@ async function recordRun(
     finishedAt: now,
     workCount: result.upserted,
     newCount: result.new,
+    skippedNoTargetActorCount: result.skippedByNoTargetActor,
     status: payload.error ? ("error" as const) : ("ok" as const),
     error: payload.error ?? null,
     // 網羅率。クローラーが総件数を読めなかったときは NULL のまま残す。
