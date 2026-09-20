@@ -27,19 +27,21 @@ import type { AnimeSeason } from "@/domain/types";
  * ブラウザ内のフォローを突き合わせて出す。サーバーはフォローを知らないので、
  * SSR の応答はフォローの有無で変わらず、印はハイドレーション後に現れる
  */
-export function AnimeSeasonPage({
-  anime,
-  seasonYear,
-  season,
-  older,
-  newer,
-}: {
+export function AnimeSeasonPage(props: SeasonPageProps) {
+  // シーズンを移っても React は同じ要素として使い回すので、並べ替えと絞り込みの選択が
+  // 次のシーズンへ持ち越される。key を季節に結んで、中身ごと作り直させる
+  return <SeasonListing key={toSeasonSlug(props.seasonYear, props.season)} {...props} />;
+}
+
+type SeasonPageProps = {
   anime: SeasonAnime[];
   seasonYear: number;
   season: AnimeSeason;
   older?: SeasonKey;
   newer?: SeasonKey;
-}) {
+};
+
+function SeasonListing({ anime, seasonYear, season, older, newer }: SeasonPageProps) {
   const t = useT();
   const locale = useLocale();
   const label = seasonLabel(seasonYear, season, locale);

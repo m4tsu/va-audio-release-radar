@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createTranslator } from "@/app/i18n";
-import { adjacentSeasons, parseSeasonSlug, seasonLabel, toSeasonSlug } from "@/app/lib/season";
+import { adjacentSeasons, parseSeasonSlug, seasonLabel } from "@/app/lib/season";
 import { AnimeSeasonPage } from "@/app/pages/anime-season";
 import { fetchAnimeSeasons, fetchSeasonAnime } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
@@ -54,10 +54,7 @@ function absoluteUrl(origin: string | undefined, path: string): string {
 function RouteComponent() {
   const { anime, seasonYear, season, older, newer } = Route.useLoaderData();
   return (
-    // シーズンを移ったら画面の状態 (並べ替え・絞り込み) を捨てる。
-    // key が無いと React が同じ要素として作り直さず、前のシーズンの選択が残る
     <AnimeSeasonPage
-      key={toSeasonSlug(seasonYear, season)}
       anime={anime}
       seasonYear={seasonYear}
       season={season}

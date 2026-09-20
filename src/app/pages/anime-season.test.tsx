@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
+import { LocaleContext } from "@/app/i18n";
 import { AnimeSeasonPage } from "@/app/pages/anime-season";
 import { useFollowStore } from "@/app/store/follow-store";
 import { seasonAnime } from "@/app/test/fixtures";
@@ -86,6 +87,28 @@ describe("AnimeSeasonPage の並べ替え", () => {
     );
     await user.click(screen.getByRole("option", { name: "人気順" }));
 
+    expect(links()[0]).toHaveTextContent("もう一つのアニメ");
+  });
+
+  /** 「一覧を開き直すと既定に戻る」は、前後のシーズンをたどった先でも成り立つ必要がある */
+  test("シーズンを移ると並べ替えが既定に戻る", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderWithLocale(
+      <AnimeSeasonPage anime={[OTHER, ANIME]} seasonYear={2026} season="FALL" />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "並び替え: 人気順" }));
+    await user.click(screen.getByRole("option", { name: "音声作品がある出演者の多い順" }));
+    expect(links()[0]).toHaveTextContent("架空のアニメ");
+
+    // renderWithLocale の Provider ごと差し替える (rerender は根の要素を置き換えるため)
+    rerender(
+      <LocaleContext value="ja">
+        <AnimeSeasonPage anime={[OTHER, ANIME]} seasonYear={2026} season="SUMMER" />
+      </LocaleContext>,
+    );
+
+    expect(screen.getByRole("combobox", { name: "並び替え: 人気順" })).toBeInTheDocument();
     expect(links()[0]).toHaveTextContent("もう一つのアニメ");
   });
 

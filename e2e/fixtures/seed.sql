@@ -112,7 +112,9 @@ VALUES
 -- アニメからの導線 (/anime → シーズンの一覧 → 作品ページ) の確認用。
 -- アルファの出演者はアルファ (音声作品あり) とガンマ (音声作品なし) の 2 人。
 -- 一覧にも作品ページにも出るのは音声作品がある人だけなので、ガンマは出ない。
--- ベータは人気度だけが違う 2 本目。一覧の既定の並び (人気順) を HTML で見るために要る
+-- ベータは一覧の既定の並び (人気順) を HTML で見るための 2 本目。
+-- 音声作品がある出演者はアルファもベータも 1 人ずつなので、人気度を見ずに人数で並べると
+-- slug 順 (アルファが先) になる。並び順のテストが人気度を見ていると言えるのはこのため
 INSERT OR REPLACE INTO anime_titles
   (id, slug, title_native, title_romaji, title_english, season_year, season, cover_image_url,
    popularity, created_at, updated_at)
