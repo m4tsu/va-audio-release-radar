@@ -166,6 +166,7 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 | ジャンル | ○ | `genres[].name` |
 | ストア区分 | ○ | `site_id` (`home` / `maniax`) → `StoreListing.storeSection` |
 | セール終了日時 | ○ | `campaign_end_date` (現在は取得していない) |
+| 販売中の印 | △ | `on_sale`。販売中の作品では 1 (2026-09-20、`crawler/fixtures/` の product.json で確認)。販売終了の作品でどの値になるかは未確認。現在は取得していない |
 | 役名 | × | 持っていない |
 | 別名義の根拠 | × | §6 |
 
