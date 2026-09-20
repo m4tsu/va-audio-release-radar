@@ -334,18 +334,18 @@ type FloorListing = {
    * 取得件数が足りなく見え、取りこぼしが無くても警告が立ち続けるため
    */
   complete?: boolean;
-  /** 実際に取った検索ページ数 (並び順違いを足したかどうか) */
+  /** このフロアで取れた検索ページ数 (並び順違いを足せたかどうか) */
   pages: number;
   invalidCount: number;
   warnings: string[];
 };
 
 /**
- * 検索ページ自体を取れなかったフロア。理由は警告に出す (全フロアが落ちたときだけ
- * `AdapterResult.reason` に入り、crawl_runs の error まで届く)。
- * `pages` は出した往復の数 (`Coverage.pages` の決まりどおり失敗した往復も数える)
+ * 検索ページ自体を取れなかったフロア。1 ページも取れていないので `Coverage.pages` には
+ * 何も足さない。理由は警告に出す (全フロアが落ちたときだけ `AdapterResult.reason` に入り、
+ * crawl_runs の error まで届く)
  */
-type FloorFailure = { failed: true; reason: string; pages: number };
+type FloorFailure = { failed: true; reason: string };
 
 /**
  * フロア 1 つを引く。新しい順の 1 ページ目を取り、総件数に届かないときだけ
@@ -363,7 +363,7 @@ async function fetchFloorListing(
     kind: "html",
     snapshot: options.snapshot,
   });
-  if (!newest.ok) return { failed: true, reason: newest.reason, pages: 1 };
+  if (!newest.ok) return { failed: true, reason: newest.reason };
 
   const parsed = parseSearchHtml(newest.body, fetchedAt, floor);
   const warnings = [...parsed.warnings];
@@ -382,8 +382,8 @@ async function fetchFloorListing(
       kind: "html",
       snapshot: options.snapshot,
     });
-    pages += 1;
     if (oldest.ok) {
+      pages += 1;
       const parsedOldest = parseSearchHtml(oldest.body, fetchedAt, floor);
       invalidCount += parsedOldest.invalidCount;
       warnings.push(...parsedOldest.warnings);
@@ -449,7 +449,6 @@ async function fetchByActor(
       // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く
       failures.push(`${floor}: ${listing.reason}`);
       warnings.push(`${floor} の検索ページを取れなかった (${listing.reason})`);
-      pages += listing.pages;
       totalCount = undefined;
       complete = false;
       continue;

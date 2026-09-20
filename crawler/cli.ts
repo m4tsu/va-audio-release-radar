@@ -151,7 +151,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   for (const result of results) {
-    // 網羅率。並び順違いの補完リクエストが出たかどうかも `pages` で分かる
+    // 網羅率。相手サイトから何ページ取れたかも `pages` で分かる
+    // (出したが取れなかったページは含まない。空振りは下の警告に出る)
     if (result.coverage !== undefined) {
       process.stderr.write(
         `[網羅] ${STORE_LABELS[result.storeSlug]}: ${formatCoverage(result.coverage)}\n`,

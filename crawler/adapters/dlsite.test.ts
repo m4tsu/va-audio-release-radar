@@ -482,8 +482,8 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
 
     expect(result.status).toBe("ok");
     expect(result.works).toHaveLength(1);
-    // 失敗した古い順への往復も数える (`Coverage.pages`)。home 2 + garumani 1
-    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 3 });
+    // 取れたページだけ数える。古い順は落ちたので home 1 + garumani 1
+    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 2 });
     expect(result.warnings).toContain(
       "home: 古い順での補完に失敗 (HTTP 503)。新しい順の結果だけで続行",
     );
@@ -514,8 +514,8 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     expect(result.works).toHaveLength(1);
     // 総件数は分からないが、取り切れていないことは確か。
     // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く。
-    // 落ちたフロアへの往復も pages に数える (相手サイトへの往復を隠さない)
-    expect(result.coverage).toEqual({ fetched: 1, complete: false, pages: 2 });
+    // 引けなかったフロアからは 1 ページも取れていないので pages は home の 1 だけ
+    expect(result.coverage).toEqual({ fetched: 1, complete: false, pages: 1 });
     expect(result.warnings).toContain("garumani の検索ページを取れなかった (timeout)");
   });
 
