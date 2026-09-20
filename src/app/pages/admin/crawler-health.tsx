@@ -122,8 +122,10 @@ function HealthRow({ entry }: { entry: CrawlerHealthEntry }) {
         )}
       </TableCell>
       <TableCell>{storeLabel(entry.storeSlug)}</TableCell>
+      {/* 出すのは取り込んだ時刻。表の並びもこれで決まる (started_at はクローラーが
+          取得を始めた時刻なので、走行に数時間かかると並びと食い違って見える) */}
       <TableCell className="text-muted-foreground">
-        {formatDateTime(entry.latest.startedAt, locale)}
+        {formatDateTime(entry.latest.finishedAt ?? entry.latest.startedAt, locale)}
       </TableCell>
       <TableCell className="text-right tabular-nums">{entry.latest.workCount}</TableCell>
       <CoverageCell latest={entry.latest} />

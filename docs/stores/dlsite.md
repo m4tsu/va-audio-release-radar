@@ -190,9 +190,9 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 | タイトル / 商品 URL | ○ | `dd.work_name a[href]` (`title` 属性が省略記号なしの完全なタイトル) |
 | サークル名 | ○ | `dd.maker_name > a` |
 | 声優名 | △ **代表 1 名のみ** | `dd.maker_name span.author a` |
-| 現在価格 | ○ | `dd.work_price_wrap > .work_price .work_price_base` |
-| 定価 | ○ | `dd.work_price_wrap > .strike .work_price_base` |
-| 割引率バッジ | ○ | `20%OFF` の表示 |
+| 現在価格 | ○ | `dd.work_price_wrap > .work_price .work_price_base`。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md)) |
+| 定価 | ○ | `dd.work_price_wrap > .strike .work_price_base`。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md)) |
+| 割引率バッジ | ○ | `20%OFF` の表示。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md)) |
 | 作品種別 | ○ | `div.work_category` の class `type_SOU` (SOU = ボイス・ASMR) |
 | 表紙 | ○ | `thumb-with-ng-filter-block` の `:thumb-candidates` 属性。`resize/images2` → `modpub/images2`、`_240x240.jpg` → `.jpg` で原寸 |
 | 総件数 | ○ | 埋め込み `<script>` の `"pager":{"count":N,"have_to_paginate":bool}` |
@@ -202,8 +202,9 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 ### `product.json`
 
 使うキー: `workno, work_name, maker_name, maker_id, regist_date, age_category,
-age_category_string, work_type, work_type_string, price, official_price,
+age_category_string, work_type, work_type_string,
 image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`。
+`price` と `official_price` は読まない。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md))
 
 | 項目 | 可否 | 備考 |
 |---|:--:|---|

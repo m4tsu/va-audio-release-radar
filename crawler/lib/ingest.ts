@@ -84,7 +84,7 @@ export class IngestProtocolMismatchError extends AdminApiError {}
  * 元の payload が大きすぎる / 形が不正なことこそが失敗の原因でありうるため
  */
 export function failureReport(
-  source: Pick<IngestPayload, "runId" | "storeSlug" | "voiceActorId">,
+  source: Pick<IngestPayload, "runId" | "storeSlug" | "voiceActorId" | "startedAt">,
   error: string,
 ): IngestPayload {
   return {
@@ -92,6 +92,8 @@ export function failureReport(
     runId: source.runId,
     storeSlug: source.storeSlug,
     voiceActorId: source.voiceActorId,
+    // 失敗した走行でも取得を始めた時刻は成功時と同じ意味にする
+    ...(source.startedAt === undefined ? {} : { startedAt: source.startedAt }),
     works: [],
     // 管理画面にそのまま出る 1 行なので、長い zod の issue 一覧は切り詰める
     error: error.slice(0, 500),

@@ -118,7 +118,7 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 | 商品 ID | ○ | `li.product_list_el` 内の `a[href*="product_id="]` |
 | タイトル | ○ | `p.product_title a` (`title` 属性が完全なタイトル) |
 | 商品カテゴリ | ○ | `span.product_catgory_el` |
-| 価格 (税込) | ○ | `span.normal_price` |
+| 価格 (税込) | ○ | `span.normal_price`。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md)) |
 | ストア区分 | ○ | `a.category_tab_el_link.active` の `data-store` |
 | 4 ストアの件数内訳 | ○ | `li.category_tab_el.category_tab_el-{men\|bl\|adt\|adt-bl}` 内の `(66件)` |
 | 総件数 | ○ | `8件中 1 - 8件目` の形 |
@@ -132,7 +132,7 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 |---|:--:|---|
 | **出演声優 (全員)** | ○ | `div.item_detail_extra` のうちヘッダ (`span.item_detail_extra_header`) が「出演声優」のものの `a[href*="tag_type=1"]`。href から声優の `tag_id` も取れる |
 | タイトル | ○ | `h1.item_detail_info_title` |
-| 価格 (税込) | ○ | `span.product_price`。**税抜は表示されない**。無料は 0 |
+| 価格 (税込) | ○ | `span.product_price`。**税抜は表示されない**。無料は 0。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md)) |
 | カバー画像 | ○ | `meta[property="og:image"]` |
 | 商品カテゴリ | ○ | `span.product_catgory_el` (先頭がカテゴリ判定に使う値) |
 | レーベル | ○ | `tag_type=3` へのリンク → `makerName` |

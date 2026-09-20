@@ -97,6 +97,38 @@ describe("ingestPayloadSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  test("声優を指定しないペイロード (ストアの新着一覧) を受け付ける", () => {
+    const result = ingestPayloadSchema.safeParse({
+      protocolVersion: INGEST_PROTOCOL_VERSION,
+      runId: "run_feed",
+      storeSlug: "dlsite",
+      works: [validRawWork()],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("startedAt は ISO 8601 (UTC) の、日時として読める値だけ受け付ける", () => {
+    const base = {
+      protocolVersion: INGEST_PROTOCOL_VERSION,
+      runId: "run_started",
+      storeSlug: "dlsite" as const,
+      voiceActorId: "va_ueda-reina",
+      works: [],
+    };
+    expect(
+      ingestPayloadSchema.safeParse({ ...base, startedAt: "2026-09-18T01:23:45.000Z" }).success,
+    ).toBe(true);
+    for (const startedAt of [
+      "2026-09-18 01:23:45",
+      "2026-09-18T01:23:45+09:00",
+      "2026-09-18",
+      // 形は合っているが日時として読めない
+      "2026-13-45T99:99:99Z",
+    ]) {
+      expect(ingestPayloadSchema.safeParse({ ...base, startedAt }).success).toBe(false);
+    }
+  });
+
   test("取得失敗時 (works が空、error あり) を受け付ける", () => {
     const result = ingestPayloadSchema.safeParse({
       protocolVersion: INGEST_PROTOCOL_VERSION,

@@ -331,6 +331,8 @@ describe("crawlerHealth", () => {
       status: "ok" | "error";
       /** null を渡すと声優に紐付かない走行 (新着一覧) になる */
       voiceActorId?: string | null;
+      /** 取り込んだ時刻。渡さなければ startedAt と同じ (取得に時間がかからなかった走行) */
+      finishedAt?: string;
       totalCount?: number;
       coverageComplete?: boolean;
     },
@@ -340,7 +342,7 @@ describe("crawlerHealth", () => {
       storeSlug: "dlsite",
       voiceActorId: run.voiceActorId === undefined ? UEDA.id : run.voiceActorId,
       startedAt: run.startedAt,
-      finishedAt: run.startedAt,
+      finishedAt: run.finishedAt ?? run.startedAt,
       workCount: run.workCount,
       newCount: 0,
       status: run.status,
@@ -362,6 +364,70 @@ describe("crawlerHealth", () => {
     expect(health.entries[0]?.latest.id).toBe("r2");
     expect(health.entries[0]?.previousOk?.id).toBe("r1");
     expect(health.entries[0]?.voiceActorName).toBe("上田麗奈");
+  });
+
+  it("取り込んだ時刻で並べる (取得を始めた時刻ではない)", async () => {
+    const db = await setupDb();
+    // 取得は先に始まったが取り込みは後。逆に取得は後だが取り込みは先、の 2 つを作る
+    await addRun(db, {
+      id: "slow",
+      startedAt: daysAgo(3),
+      finishedAt: daysAgo(1),
+      workCount: 10,
+      status: "ok",
+    });
+    await addRun(db, {
+      id: "quick",
+      startedAt: daysAgo(2),
+      finishedAt: daysAgo(2),
+      workCount: 10,
+      status: "ok",
+      voiceActorId: "va_other",
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries.map((entry) => entry.latest.id)).toEqual(["slow", "quick"]);
+  });
+
+  it("24 時間の集計は取り込んだ時刻で数える", async () => {
+    const db = await setupDb();
+    // 取得は 3 日前に始まったが、取り込まれたのは 1 時間前
+    const finishedAt = new Date(Date.parse(NOW) - 60 * 60 * 1000).toISOString();
+    await addRun(db, {
+      id: "slow",
+      startedAt: daysAgo(3),
+      finishedAt,
+      workCount: 10,
+      status: "ok",
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.last24h.ok).toBe(1);
+  });
+
+  it("声優に紐付かない走行は件数が半減しても警告しない", async () => {
+    const db = await setupDb();
+    await addRun(db, {
+      id: "f1",
+      startedAt: daysAgo(2),
+      workCount: 30,
+      status: "ok",
+      voiceActorId: null,
+    });
+    await addRun(db, {
+      id: "f2",
+      startedAt: daysAgo(1),
+      workCount: 2,
+      status: "ok",
+      voiceActorId: null,
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries[0]?.latest.id).toBe("f2");
+    expect(health.entries[0]?.warning).toBe(false);
   });
 
   it("声優に紐付かない走行はストアごとに 1 つの束になり、声優の名前を付けない", async () => {

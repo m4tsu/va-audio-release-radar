@@ -183,7 +183,8 @@ export type IngestPayload = {
   storeSlug: StoreSlug;
   /**
    * このクロールの対象声優。ストアの新着一覧を起点にした走行では特定の声優を対象にしないので
-   * 省く (`decisions/0007`)。省いたときは、出演者を解決できた作品だけが保存される
+   * 省く (`decisions/0007`)。走行の記録 (`crawl_runs`) の声優が空になるだけで、
+   * 作品の保存の仕方は変わらない
    */
   voiceActorId?: string;
   /**
@@ -354,7 +355,9 @@ const releaseDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD �
  */
 const isoDateTimeSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/, "ISO 8601 (UTC) で指定する");
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/, "ISO 8601 (UTC) で指定する")
+  // 形だけでは "2026-13-45T99:99:99Z" が通る。日時として読めない値は集計で NaN になる
+  .refine((value) => !Number.isNaN(Date.parse(value)), { message: "日時として読めない" });
 
 export const rawWorkSchema = z.object({
   storeSlug: z.enum(STORE_SLUGS),

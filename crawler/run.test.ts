@@ -356,6 +356,52 @@ describe("send (取り込み失敗の可視化)", () => {
     return JSON.parse(String(init.body)) as Record<string, unknown>;
   }
 
+  it("取得を始めた時刻を載せて送る", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ upserted: 1, new: 0, unmatched: 0, skippedByRating: 0 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const startedAt = "2026-09-18T01:23:45.000Z";
+
+    await send(
+      new AdminApiClient("http://x", "dev"),
+      UEDA,
+      "dlsite",
+      RESULT,
+      "2026-09-18",
+      startedAt,
+    );
+
+    expect(bodyOf(fetchMock.mock.calls[0]).startedAt).toBe(startedAt);
+  });
+
+  it("保存に失敗した走行でも、取得を始めた時刻を載せて送り直す", async () => {
+    // 400 はやり直さないので、本体 → 失敗の記録 の 2 回で終わる
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ error: "payload が不正" }, 400))
+      .mockResolvedValueOnce(
+        jsonResponse({ upserted: 0, new: 0, unmatched: 0, skippedByRating: 0 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const startedAt = "2026-09-18T01:23:45.000Z";
+
+    const outcome = await send(
+      new AdminApiClient("http://x", "dev"),
+      UEDA,
+      "dlsite",
+      RESULT,
+      "2026-09-18",
+      startedAt,
+    );
+
+    expect(outcome.save).toBe("failed");
+    const retry = bodyOf(fetchMock.mock.calls[1]);
+    expect(retry.startedAt).toBe(startedAt);
+    expect(retry.works).toEqual([]);
+  });
+
   it("今の protocolVersion を載せて送る", async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({ upserted: 3, new: 3, unmatched: 0, skippedByRating: 0 }),

@@ -594,7 +594,11 @@ export async function send(
 
     const reason = error instanceof AdminApiError ? error.message : String(error);
     process.stderr.write(`[エラー] ${actor.canonicalName} ${storeSlug}: ${reason}\n`);
-    const failureRecorded = await reportFailure(client, { runId, storeSlug, actor }, reason);
+    const failureRecorded = await reportFailure(
+      client,
+      { runId, storeSlug, actor, ...(startedAt === undefined ? {} : { startedAt }) },
+      reason,
+    );
     // status は adapter の取得結果のまま残す。取得できたのに保存できなかったのか、
     // そもそも取れなかったのかを後から見分けられるようにするため
     return { ...base, reason, save: "failed", failureRecorded };
@@ -613,13 +617,18 @@ export async function send(
  */
 async function reportFailure(
   client: AdminApiClient,
-  source: { runId: string; storeSlug: StoreSlug; actor: ActorSeed },
+  source: { runId: string; storeSlug: StoreSlug; actor: ActorSeed; startedAt?: string },
   reason: string,
 ): Promise<boolean> {
   try {
     await client.ingest(
       failureReport(
-        { runId: source.runId, storeSlug: source.storeSlug, voiceActorId: source.actor.id },
+        {
+          runId: source.runId,
+          storeSlug: source.storeSlug,
+          voiceActorId: source.actor.id,
+          ...(source.startedAt === undefined ? {} : { startedAt: source.startedAt }),
+        },
         reason,
       ),
     );
