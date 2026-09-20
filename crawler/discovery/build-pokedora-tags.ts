@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -59,30 +59,41 @@ export function toTagEntry(record: PokedoraTagRecord): PokedoraTagEntry | undefi
   return { tagId: record.tagId, name: record.name, counts };
 }
 
-/** tag_id の昇順に並べる (差分を人が読めるようにするため) */
+/**
+ * tag_id の昇順に並べる (差分を人が読めるようにするため)。
+ * 同じ tag_id が 2 度出てきたら先に見たほうを残す。辞書は tag_id で引くので、
+ * 重複が残ると同じ声優を 2 回引くことになる
+ */
 export function buildTagEntries(records: readonly PokedoraTagRecord[]): PokedoraTagEntry[] {
-  const entries: PokedoraTagEntry[] = [];
+  const byTagId = new Map<number, PokedoraTagEntry>();
   for (const record of records) {
     const entry = toTagEntry(record);
-    if (entry !== undefined) entries.push(entry);
+    if (entry !== undefined && !byTagId.has(entry.tagId)) byTagId.set(entry.tagId, entry);
   }
-  return entries.sort((a, b) => a.tagId - b.tagId);
+  return [...byTagId.values()].sort((a, b) => a.tagId - b.tagId);
 }
 
 /**
- * 今ある出力の件数。読めなければ 0。
+ * 今ある出力の件数。まだ無ければ 0、読めたが配列でなければ undefined。
  *
  * 生成元は `.cache` にあって追跡されないのに、出力は追跡される。
  * 途中まで取った `.cache` しか持たない場所で生成し直すと、辞書が黙って痩せた出力ができる。
- * 書き出す前に気づけるよう数える
+ * 書き出す前に気づけるよう数える。
+ * 配列でないものを 0 件として扱うと、出力が壊れているときに痩せた生成が素通りする
  */
-export async function existingEntryCount(outFile: string): Promise<number> {
+export async function existingEntryCount(outFile: string): Promise<number | undefined> {
+  let text: string;
   try {
-    const parsed: unknown = JSON.parse(await readFile(outFile, "utf8"));
-    return Array.isArray(parsed) ? parsed.length : 0;
+    text = await readFile(outFile, "utf8");
   } catch {
-    // まだ出力が無い / 読めない。比べる相手が無いので減りようもない
+    // まだ出力が無い。比べる相手が無いので減りようもない
     return 0;
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed.length : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -123,7 +134,15 @@ export async function main(argv: readonly string[]): Promise<number> {
   process.stdout.write(`  載せない: ${cache.records.length - entries.length} 件\n`);
 
   const previous = await existingEntryCount(outFile);
-  if (entries.length < previous && values["allow-shrink"] !== true) {
+  const allowShrink = values["allow-shrink"] === true;
+  if (previous === undefined && !allowShrink) {
+    process.stderr.write(
+      `\n[エラー] 今ある ${outFile} を配列として読めないので、件数を比べられない\n`,
+    );
+    process.stderr.write("  出力を git で戻すか、承知のうえなら --allow-shrink を付ける\n");
+    return 1;
+  }
+  if (previous !== undefined && entries.length < previous && !allowShrink) {
     process.stderr.write(
       `\n[エラー] 今ある ${outFile} の ${previous} 件が ${entries.length} 件に減るので書き出さない\n`,
     );
@@ -135,7 +154,10 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
-  await writeFile(outFile, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+  // 中断で壊れた出力を残さない。書き出しは同じディレクトリの一時ファイル経由にする
+  const temporary = `${outFile}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+  await rename(temporary, outFile);
   process.stdout.write(`\n書き出した: ${outFile}\n`);
   return 0;
 }

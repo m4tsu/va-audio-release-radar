@@ -66,6 +66,15 @@ describe("buildTagEntries", () => {
     ]);
     expect(entries.map((item) => item.tagId)).toEqual([65, 1920]);
   });
+
+  it("同じ tag_id が 2 度あれば先に見たほうだけを残す", () => {
+    const entries = buildTagEntries([
+      record(65, "山崎はるか", { men: 2, bl: 3 }),
+      record(65, "山崎はるか (重複)", { men: 9, bl: 9 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.name).toBe("山崎はるか");
+  });
 });
 
 describe("existingEntryCount", () => {
@@ -79,5 +88,16 @@ describe("existingEntryCount", () => {
   it("出力がまだ無ければ 0 (比べる相手が無いので減りようもない)", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "build-pokedora-tags-"));
     expect(await existingEntryCount(path.join(directory, "none.json"))).toBe(0);
+  });
+
+  it("出力があるのに配列として読めなければ undefined (0 件として素通りさせない)", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "build-pokedora-tags-"));
+    const broken = path.join(directory, "broken.json");
+    await writeFile(broken, "{}", "utf8");
+    expect(await existingEntryCount(broken)).toBeUndefined();
+
+    const invalid = path.join(directory, "invalid.json");
+    await writeFile(invalid, "[{", "utf8");
+    expect(await existingEntryCount(invalid)).toBeUndefined();
   });
 });
