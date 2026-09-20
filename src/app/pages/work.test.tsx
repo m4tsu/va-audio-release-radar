@@ -32,18 +32,13 @@ const DETAIL = workDetail({
 });
 
 describe("WorkPage の中身", () => {
-  test("作品名を h1 に、価格と再生時間を本文に出す", () => {
+  test("作品名を h1 に、再生時間を本文に出す。価格は出さない", () => {
     renderWithLocale(<WorkPage detail={DETAIL} />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("架空のASMR作品");
-    expect(screen.getByText("¥1,584")).toBeInTheDocument();
+    expect(screen.queryByText("¥1,584")).not.toBeInTheDocument();
+    expect(screen.queryByText("¥1,980")).not.toBeInTheDocument();
     expect(screen.getByText("1時間26分")).toBeInTheDocument();
-  });
-
-  test("セール中は定価も並べる", () => {
-    renderWithLocale(<WorkPage detail={DETAIL} />);
-
-    expect(screen.getByText("¥1,980")).toBeInTheDocument();
   });
 
   test("再生時間が無い作品は行ごと出さない", () => {
@@ -53,11 +48,10 @@ describe("WorkPage の中身", () => {
     expect(screen.queryByText("再生時間")).not.toBeInTheDocument();
   });
 
-  test("価格が無いストアは価格不明と出す", () => {
-    const detail = workDetail({ listings: [workListing({ price: undefined })] });
-    renderWithLocale(<WorkPage detail={detail} />);
+  test("ストアで確認する旨を添える", () => {
+    renderWithLocale(<WorkPage detail={DETAIL} />);
 
-    expect(screen.getByText("価格不明")).toBeInTheDocument();
+    expect(screen.getByText("価格と販売状況はストアでご確認ください。")).toBeInTheDocument();
   });
 });
 
@@ -110,11 +104,12 @@ describe("WorkPage のストアへの導線", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
-  test("販売されていない listing はその旨を添える", () => {
+  test("販売状況は出さない。買えるかどうかの推定を持たないため", () => {
     const detail = workDetail({ listings: [workListing({ available: false })] });
     renderWithLocale(<WorkPage detail={detail} />);
 
-    expect(screen.getByText("現在は販売されていない可能性があります。")).toBeInTheDocument();
+    expect(screen.queryByText(/販売されていない/)).not.toBeInTheDocument();
+    expect(screen.getByText("価格と販売状況はストアでご確認ください。")).toBeInTheDocument();
   });
 
   test("ストアごとに 1 枚ずつ並べる", () => {

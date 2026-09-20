@@ -1,23 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { StoreBadge, storeLabel } from "@/app/components/store-badge";
+import { StoreBadge } from "@/app/components/store-badge";
 import { Badge } from "@/app/components/ui/badge";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
-import {
-  categoryLabel,
-  formatDuration,
-  formatMonthDay,
-  formatPrice,
-  formatReleaseDate,
-} from "@/app/lib/format";
+import { categoryLabel, formatDuration, formatMonthDay, formatReleaseDate } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkWithListings } from "@/app/lib/view-types";
 
 /**
  * 新着一覧の 1 作品。ホーム画面に出す情報をこの 1 枚に収める。
  *
- * 評価もおすすめ度も出さない。出すのは「誰が出ている、どこで買える、いつ出た、いくら」だけ
+ * 評価もおすすめ度も出さない。出すのは「誰が出ている、どこで買える、いつ出た」だけ
  */
 export function WorkCard({
   item,
@@ -142,19 +136,6 @@ export function WorkCard({
             </div>
           ) : null}
         </dl>
-
-        <p className="flex flex-wrap items-baseline gap-x-3 text-sm">
-          {listings.map((listing) =>
-            listing.price === undefined ? null : (
-              <span key={listing.storeSlug} className="font-medium">
-                {formatPrice(listing.price, locale)}
-                <span className="ml-1 font-normal text-muted-foreground text-xs">
-                  {storeLabel(listing.storeSlug)}
-                </span>
-              </span>
-            ),
-          )}
-        </p>
       </div>
     </article>
   );

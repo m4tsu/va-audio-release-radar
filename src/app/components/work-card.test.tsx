@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { WorkCard } from "@/app/components/work-card";
-import { workWithListings } from "@/app/test/fixtures";
+import { workListing, workWithListings } from "@/app/test/fixtures";
 import { renderWithLocale } from "@/app/test/render";
 
 const item = workWithListings();
@@ -78,5 +78,16 @@ describe("WorkCard の出演声優", () => {
     );
 
     expect(actorLinks().map((link) => link.textContent)).toEqual(["Reina Ueda", "花澤香菜"]);
+  });
+});
+
+describe("WorkCard の価格", () => {
+  test("価格を持つ listing でも金額を出さない", () => {
+    const withPrice = workWithListings({
+      listings: [workListing({ price: 1584, listPrice: 1980 })],
+    });
+    const { container } = renderWithLocale(<WorkCard item={withPrice} />);
+
+    expect(container.textContent).not.toContain("¥");
   });
 });

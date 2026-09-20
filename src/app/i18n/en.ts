@@ -25,8 +25,7 @@ export const en: Translations = {
   footer: {
     unofficial:
       "This is an unofficial service with no affiliation to any store. Work information is based on each store's public pages.",
-    price:
-      "Prices are as of when they were last checked. Please see each store for the current price and availability.",
+    price: "This site does not list prices. Please see each store for the price and availability.",
     terms: "Terms of Service",
     privacy: "Privacy Policy",
   },
@@ -154,7 +153,7 @@ export const en: Translations = {
   work: {
     metaCast: "Featuring {{names}}. ",
     metaDescription:
-      "“{{title}}” is a {{category}} audio work. Price, release date and running time. Available on {{stores}}.",
+      "“{{title}}” is a {{category}} audio work. Release date, running time and cast. Available on {{stores}}.",
     makerName: "Circle / publisher",
     releaseDate: "Release date",
     duration: "Running time",
@@ -162,9 +161,7 @@ export const en: Translations = {
     castEmpty: "No cast information available.",
     castMore: "+{{count}} more",
     purchaseTitle: "Where to buy",
-    priceUnknown: "Price unknown",
-    unavailable: "This may no longer be on sale.",
-    priceSeenAt: "Price as of {{at}}",
+    checkAtStore: "Check the store for the price and availability.",
     badgeNew: "NEW",
     badgeUpcoming: "Releases {{date}}",
     unread: "Unread",

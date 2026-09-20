@@ -28,7 +28,7 @@ export const ja = {
   footer: {
     unofficial:
       "各ストアとは関係のない非公式サービスです。作品情報は各ストアの公開ページをもとにしています。",
-    price: "価格は取得時点のものです。最新の価格と販売状況は各ストアでご確認ください。",
+    price: "このサイトは価格を載せていません。価格と販売状況は各ストアでご確認ください。",
     terms: "利用規約",
     privacy: "プライバシーポリシー",
   },
@@ -175,7 +175,7 @@ export const ja = {
   work: {
     metaCast: "{{names}} 出演。",
     metaDescription:
-      "{{category}}の音声作品「{{title}}」の価格・発売日・再生時間。{{stores}} で配信中。",
+      "{{category}}の音声作品「{{title}}」の発売日・再生時間・出演者。{{stores}} で配信中。",
     makerName: "サークル / 出版社",
     releaseDate: "発売日",
     duration: "再生時間",
@@ -184,9 +184,7 @@ export const ja = {
     /** 新着のカードで、名前を出し切らなかったぶんの人数 */
     castMore: "他 {{count}} 名",
     purchaseTitle: "購入",
-    priceUnknown: "価格不明",
-    unavailable: "現在は販売されていない可能性があります。",
-    priceSeenAt: "{{at}} 時点の価格",
+    checkAtStore: "価格と販売状況はストアでご確認ください。",
     /** 新着の印。両言語とも短い方が並びが崩れないので英語のまま */
     badgeNew: "NEW",
     badgeUpcoming: "発売予定 {{date}}",

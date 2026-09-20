@@ -4,17 +4,9 @@ import {
   formatDateTime,
   formatDuration,
   formatMonthDay,
-  formatPrice,
   formatReleaseDate,
   isUnreadSince,
 } from "./format";
-
-describe("formatPrice", () => {
-  test("3 桁区切りで円記号を付ける", () => {
-    expect(formatPrice(1584)).toBe("¥1,584");
-    expect(formatPrice(0)).toBe("¥0");
-  });
-});
 
 describe("formatDuration", () => {
   test("時間と分に分ける", () => {
@@ -107,11 +99,7 @@ describe("英語表示", () => {
     expect(formatMonthDay("2026-01-01")).toBe("1月1日");
   });
 
-  test("価格は通貨を変えない (売っているのは日本のストア)", () => {
-    expect(formatPrice(1584, "en")).toBe("¥1,584");
-  });
-
-  /** 価格の取得時点は言語を問わず JST で読ませる */
+  /** 日時は言語を問わず JST で読ませる */
   test("日時は言語が変わっても JST のまま", () => {
     const iso = "2026-09-18T04:30:00.000Z";
     expect(formatDateTime(iso)).toContain("13:30");

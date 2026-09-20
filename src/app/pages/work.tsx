@@ -6,20 +6,14 @@ import { Separator } from "@/app/components/ui/separator";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
-import {
-  categoryLabel,
-  formatDateTime,
-  formatDuration,
-  formatPrice,
-  formatReleaseDate,
-} from "@/app/lib/format";
+import { categoryLabel, formatDuration, formatReleaseDate } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkCredit, WorkDetail, WorkListing } from "@/app/lib/view-types";
 
 /**
  * 作品ページ。
  *
- * 価格とストアへの導線が主役で、クレジットは「誰が出ているか」を確かめる材料。
+ * ストアへの導線が主役で、クレジットは「誰が出ているか」を確かめる材料。
  * 名寄せできたクレジットだけを声優ページへ結び、未解決の表記はストア上の書き方のまま出す
  */
 export function WorkPage({ detail }: { detail: WorkDetail }) {
@@ -129,37 +123,20 @@ function CreditName({ credit }: { credit: WorkCredit }) {
   return <span>{credit.creditedName}</span>;
 }
 
+/**
+ * ストア 1 つぶんの導線。価格と販売状況は出さない。
+ * このサイトは価格を持たず、正はストアの側にある (docs/decisions/0008-no-price-no-availability.md)
+ */
 function ListingCard({ listing }: { listing: WorkListing }) {
   const t = useT();
-  const locale = useLocale();
-  const onSale = listing.listPrice !== undefined && listing.listPrice !== listing.price;
 
   return (
     <div className="space-y-3 rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
       <p className="font-medium">{storeLabel(listing.storeSlug)}</p>
 
-      <p className="flex items-baseline gap-2">
-        <span className="font-semibold text-xl">
-          {listing.price === undefined
-            ? t("work.priceUnknown")
-            : formatPrice(listing.price, locale)}
-        </span>
-        {onSale && listing.listPrice !== undefined ? (
-          <span className="text-muted-foreground text-sm line-through">
-            {formatPrice(listing.listPrice, locale)}
-          </span>
-        ) : null}
-      </p>
-
-      {listing.available ? null : (
-        <p className="text-muted-foreground text-sm">{t("work.unavailable")}</p>
-      )}
-
       <StoreLink listing={listing} className="w-full" />
 
-      <p className="text-muted-foreground text-xs">
-        {t("work.priceSeenAt", { at: formatDateTime(listing.lastSeenAt, locale) })}
-      </p>
+      <p className="text-muted-foreground text-xs">{t("work.checkAtStore")}</p>
     </div>
   );
 }

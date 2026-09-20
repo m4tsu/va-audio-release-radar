@@ -13,19 +13,6 @@ import type { WorkCategory } from "@/domain/types";
 
 const INTL_LOCALES: Record<Locale, string> = { ja: "ja-JP", en: "en-US" };
 
-/**
- * 価格。"¥1,584" の形にする。
- *
- * Intl の currency 書式は環境の ICU によって全角の "￥" になることがあり、
- * 見た目が揺れるので記号は自前で付ける。売っているのは日本のストアなので通貨は
- * どちらの言語でも円のまま出す
- */
-export function formatPrice(value: number, locale: Locale = DEFAULT_LOCALE): string {
-  if (!Number.isFinite(value)) return "—";
-  const format = new Intl.NumberFormat(INTL_LOCALES[locale], { maximumFractionDigits: 0 });
-  return `¥${format.format(Math.round(value))}`;
-}
-
 /** 再生時間。"8時間12分" / "45分" / "8 hr 12 min" / "45 min" */
 export function formatDuration(seconds: number, locale: Locale = DEFAULT_LOCALE): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "—";
