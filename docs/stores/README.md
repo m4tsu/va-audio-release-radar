@@ -9,7 +9,7 @@ robots.txt の引用、レート間隔、使ってよい URL の形、取得で�
 
 | ストア | ファイル | 状態 |
 |---|---|---|
-| DLsite (全年齢サイト `/home/`) | [`dlsite.md`](./dlsite.md) | 実装済み |
+| DLsite | [`dlsite.md`](./dlsite.md) | 全年齢サイト `/home/` は実装済み。女性向け全年齢フロア `/garumani/` は調査済み / 取り込み未実装 |
 | Audible Japan | [`audible.md`](./audible.md) | 実装済み |
 | ポケットドラマ CD | [`pokedora.md`](./pokedora.md) | 実装済み |
 | AniList (ストアではなく声優の供給元) | [`anilist.md`](./anilist.md) | 実装済み |
