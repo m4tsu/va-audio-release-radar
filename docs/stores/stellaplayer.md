@@ -116,7 +116,8 @@ https://www.stellaplayer.jp/girls
 
 `__NEXT_DATA__` の `props.pageProps.dehydratedState.queries[0].state.data` に
 `newProducts` と `preorderProducts` が入る。**どちらもオブジェクトで、商品の配列は `.data` の下**
-(`newProducts.data` が 10 件)。商品ページの `product` は直下なので、一覧だけ 1 階層深い。
+(`newProducts.data` が 10 件)。**キーによって階層が違う。** 同じ位置にある `dailyRanks` /
+`weeklyRanks` は素の配列で `.data` を持たず、商品ページの `product` もオブジェクトそのものである。
 並びは `publish_starts_at` の降順。
 **3 つ合わせて 1 日 3 リクエストで全カテゴリの新着を見られる。**
 許可の根拠: robots.txt が無く、禁止パスの宣言が存在しない (§1)。
