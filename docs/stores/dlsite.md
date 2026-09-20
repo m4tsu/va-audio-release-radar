@@ -22,8 +22,9 @@ DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセ�
 | `/maniax/` | 「男性向け R18へ」 | R18 を含む | 取得しない |
 
 作品 ID はフロアをまたいで 1 つの体系で、同じ作品が複数のフロアに出ても ID は同じ。
-接頭辞が作品の出自を表す。`RJ` は同人 (`work_category: "doujin"`)、`BJ` は商業 (`"books"`)、
-`VJ` は美少女ゲーム。`/home/` の検索結果に `BJ` は出ない。
+接頭辞は `product.json` の `work_category` と対応し、`RJ` が `doujin`、`BJ` が `books` である。
+**`/home/` の声優検索で `BJ` が出た例はまだ無い** (2026-09-18 に保存した 245 件のスナップショットと
+2026-09-20 の測定の範囲。`docs/research/dlsite-female-floors-2026-09-20.md`)。
 
 ---
 
