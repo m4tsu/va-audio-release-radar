@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowFeed } from "@/app/components/follow-feed";
+import { FollowedAnime } from "@/app/components/followed-anime";
 import { PageHeader } from "@/app/components/page-header";
 import { Button } from "@/app/components/ui/button";
 import { useLocale, useT } from "@/app/i18n";
@@ -13,7 +14,8 @@ import { useFollowStore } from "@/app/store/follow-store";
  *
  * このページの主役は作品で、フォローしている声優の一覧はその材料。誰をフォローしているかと
  * 解除の導線を作品の上に置くのはそのため。フォローはブラウザ内 (IndexedDB) にしか無いので、
- * SSR では枠だけを返し、中身はマウント後に描く。読み込み前を「0 件」と見せないよう status で分ける
+ * SSR では枠だけを返し、中身はマウント後に描く。読み込み前を「0 件」と見せないよう status で分ける。
+ * 出演アニメを作品の後ろに置くのは、フォローした人を思い出す手がかりであって主役ではないため
  */
 export function FollowingPage() {
   const t = useT();
@@ -43,6 +45,7 @@ export function FollowingPage() {
         <div className="space-y-8">
           <FollowManager />
           <FollowFeed />
+          <FollowedAnime />
         </div>
       ) : null}
     </div>

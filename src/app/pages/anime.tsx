@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
@@ -13,7 +14,8 @@ import type { AnimeCastMember, AnimeDetail } from "@/app/lib/view-types";
  * アニメ 1 作品のページ。
  *
  * 出すのは「この作品の出演者で、音声作品を出している人」だけ。キャスト表ではないので
- * 全員は並べない。絞り込みは `getAnimeBySlug` 側でかけてあり、ここでは並べるだけ
+ * 全員は並べない。絞り込みは `getAnimeBySlug` 側でかけてあり、ここでは並べるだけ。
+ * 各行からフォローできるのは、アニメから入った人が声優ページを開かずに登録を終えられるようにするため
  */
 export function AnimePage({ anime }: { anime: AnimeDetail }) {
   const t = useT();
@@ -65,17 +67,20 @@ function AnimeSubtitle({ anime }: { anime: AnimeDetail }) {
   );
 }
 
+/**
+ * キャスト 1 行。
+ *
+ * 行全体をリンクにしない。フォローをこの行から行えるようにするためで、
+ * ボタンをリンクの中に入れると押したときに声優ページへ移ってしまう。
+ * 声優ページへは名前のリンクから行く
+ */
 function CastCard({ member }: { member: AnimeCastMember }) {
   const t = useT();
   const locale = useLocale();
   const characterImage = safeHttpsUrl(member.characterImageUrl);
 
   return (
-    <Link
-      to="/voice-actors/$slug"
-      params={{ slug: member.actor.slug }}
-      className="flex gap-3 rounded-xl border p-3 transition-colors hover:bg-accent"
-    >
+    <div className="flex gap-3 rounded-xl border p-3">
       {characterImage ? (
         <img
           src={characterImage}
@@ -84,14 +89,22 @@ function CastCard({ member }: { member: AnimeCastMember }) {
           loading="lazy"
         />
       ) : null}
-      <div className="min-w-0 space-y-1">
+      <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-baseline gap-2">
           <span className="font-medium">{characterDisplayName(member, locale)}</span>
           <span className="text-muted-foreground text-xs">
             {member.role === "main" ? t("anime.roleMain") : t("anime.roleSupporting")}
           </span>
         </div>
-        <p className="text-sm">{actorDisplayName(member.actor, locale)}</p>
+        <p className="text-sm">
+          <Link
+            to="/voice-actors/$slug"
+            params={{ slug: member.actor.slug }}
+            className="hover:underline"
+          >
+            {actorDisplayName(member.actor, locale)}
+          </Link>
+        </p>
         <p className="text-muted-foreground text-xs">
           {member.workCounts.length === 0
             ? t("anime.hasAudioWorks")
@@ -104,7 +117,15 @@ function CastCard({ member }: { member: AnimeCastMember }) {
                 )
                 .join(t("common.slashSeparator"))}
         </p>
+        <FollowButton
+          actor={{
+            voiceActorId: member.actor.id,
+            slug: member.actor.slug,
+            canonicalName: member.actor.canonicalName,
+            ...(member.actor.nameEn ? { nameEn: member.actor.nameEn } : {}),
+          }}
+        />
       </div>
-    </Link>
+    </div>
   );
 }

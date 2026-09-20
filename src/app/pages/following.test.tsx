@@ -3,13 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { FollowingPage } from "@/app/pages/following";
 import { useFollowStore } from "@/app/store/follow-store";
-import { feedItem, workSummary } from "@/app/test/fixtures";
+import { animeSummary, feedItem, workSummary } from "@/app/test/fixtures";
 import { readyFollowStore } from "@/app/test/follow";
 import { renderWithLocale } from "@/app/test/render";
 
 /** フィードの中身は follow-feed.test.tsx が見る。ここでは呼ばれても空を返させる */
 const fetchFeed = vi.fn<(input: unknown) => Promise<ReturnType<typeof feedItem>[]>>(async () => []);
 vi.mock("@/app/server-fns/works", () => ({ fetchFeed: (input: unknown) => fetchFeed(input) }));
+
+/** 出演アニメの中身は followed-anime.test.tsx が見る。ここでは区画が出ることだけ */
+const fetchAnimeForActors = vi.fn<(input: unknown) => Promise<ReturnType<typeof animeSummary>[]>>(
+  async () => [],
+);
+vi.mock("@/app/server-fns/anime", () => ({
+  fetchAnimeForActors: (input: unknown) => fetchAnimeForActors(input),
+}));
 
 const ALPHA = {
   voiceActorId: "va_alpha",
@@ -20,6 +28,8 @@ const ALPHA = {
 
 beforeEach(() => {
   fetchFeed.mockClear();
+  fetchAnimeForActors.mockClear();
+  fetchAnimeForActors.mockResolvedValue([]);
 });
 
 describe("FollowingPage の状態", () => {
@@ -124,6 +134,23 @@ describe("FollowingPage のフィード", () => {
     renderWithLocale(<FollowingPage />);
 
     expect(await screen.findByText("この期間の新着はありません")).toBeInTheDocument();
+  });
+
+  test("フォロー中の声優が出ているアニメを作品の後ろに並べる", async () => {
+    fetchAnimeForActors.mockResolvedValue([
+      animeSummary({ slug: "kakuu-no-anime", titleNative: "架空のアニメ" }),
+    ]);
+    await readyFollowStore();
+    await useFollowStore.getState().follow(ALPHA);
+    renderWithLocale(<FollowingPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "フォロー中の声優が出ているアニメ" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /架空のアニメ/ })).toHaveAttribute(
+      "href",
+      "/anime/kakuu-no-anime",
+    );
   });
 
   test("引けた作品はカードとして並ぶ", async () => {

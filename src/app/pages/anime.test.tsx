@@ -1,7 +1,10 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { AnimePage } from "@/app/pages/anime";
+import { useFollowStore } from "@/app/store/follow-store";
 import { animeCastMember, animeDetail } from "@/app/test/fixtures";
+import { readyFollowStore } from "@/app/test/follow";
 import { renderWithLocale } from "@/app/test/render";
 
 /**
@@ -42,21 +45,23 @@ describe("AnimePage の見出し", () => {
 });
 
 describe("AnimePage の出演者", () => {
-  test("役名・役種・声優名を出し、声優ページへ結ぶ", () => {
+  test("役名・役種を出し、声優名から声優ページへ結ぶ", () => {
     renderWithLocale(<AnimePage anime={ANIME} />);
 
-    const link = screen.getByRole("link", { name: /架空キャラ/ });
-    expect(link).toHaveAttribute("href", "/voice-actors/alpha");
-    expect(link).toHaveTextContent("主演");
-    expect(link).toHaveTextContent("架空アルファ");
+    expect(screen.getByText("架空キャラ")).toBeInTheDocument();
+    expect(screen.getByText("主演")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "架空アルファ" })).toHaveAttribute(
+      "href",
+      "/voice-actors/alpha",
+    );
   });
 
   /** 役の英語表記が無い出演は、英語表示でも日本語の役名のまま出る (名前が消えない) */
   test("英語表示では声優名がローマ字になり、英語表記の無い役名は日本語のまま残る", () => {
     renderWithLocale(<AnimePage anime={ANIME} />, "en");
 
-    const link = screen.getByRole("link", { name: /架空キャラ/ });
-    expect(link).toHaveTextContent("Kakuu Alpha");
+    expect(screen.getByText("架空キャラ")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Kakuu Alpha" })).toBeInTheDocument();
   });
 
   test("媒体別の作品数を出す", () => {
@@ -70,5 +75,38 @@ describe("AnimePage の出演者", () => {
     renderWithLocale(<AnimePage anime={anime} />);
 
     expect(screen.getByText("音声作品あり")).toBeInTheDocument();
+  });
+});
+
+/**
+ * アニメから入った人が声優ページへ移らずに登録を終えられること。
+ * 保存そのものは follow-button と follow-store のテストが見る
+ */
+describe("AnimePage のフォロー", () => {
+  test("キャストの行からフォローでき、同じ行から解除できる", async () => {
+    const user = userEvent.setup();
+    await readyFollowStore();
+    renderWithLocale(<AnimePage anime={ANIME} />);
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+
+    expect(screen.getByRole("button", { name: "フォロー中" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(useFollowStore.getState().isFollowing("va_alpha")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "フォロー中" }));
+
+    expect(useFollowStore.getState().isFollowing("va_alpha")).toBe(false);
+  });
+
+  /** ボタンがリンクの中にあると、押したときに声優ページへ移ってしまう */
+  test("フォローのボタンは声優ページへのリンクの中に無い", async () => {
+    await readyFollowStore();
+    renderWithLocale(<AnimePage anime={ANIME} />);
+
+    const button = screen.getByRole("button", { name: "フォロー" });
+    expect(button.closest("a")).toBeNull();
   });
 });

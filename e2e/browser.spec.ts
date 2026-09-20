@@ -59,3 +59,38 @@ test("トップの新着タブはハイドレーション後に切り替わる",
   await tabs.getByRole("tab", { name: "Audible" }).click();
   await expect(page.getByRole("link", { name: "テスト用朗読作品アルファ" })).toBeVisible();
 });
+
+/**
+ * アニメのページからその場でフォローする経路。押しても声優ページへ移らないことと、
+ * 読み込み直しても残ること (IndexedDB) を見る
+ */
+test("アニメのキャストからフォローしても移動せず、読み込み直しても残る", async ({ page }) => {
+  await page.goto("/anime/e2e-anime-alpha");
+  await page.getByRole("button", { name: "フォロー", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/anime\/e2e-anime-alpha$/);
+  await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+
+  await page.getByRole("button", { name: "フォロー中" }).click();
+  await expect(page.getByRole("button", { name: "フォロー", exact: true })).toBeVisible();
+});
+
+/** フォローに依存する表示は SSR の応答に無く、ブラウザの保存を読んでから現れる */
+test("シーズンの一覧の印と絞り込みはフォローしてから出る", async ({ page }) => {
+  await page.goto("/anime/season/2026-fall");
+  await waitForHydration(page);
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
+
+  await page.goto("/anime/e2e-anime-alpha");
+  await page.getByRole("button", { name: "フォロー", exact: true }).click();
+  await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+
+  await page.goto("/anime/season/2026-fall");
+  await expect(
+    page.getByRole("checkbox", { name: "フォロー中の声優が出ている作品だけ" }),
+  ).toBeVisible();
+  await expect(page.getByText("フォロー中の声優が出演")).toBeVisible();
+});
