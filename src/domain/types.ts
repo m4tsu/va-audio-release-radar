@@ -207,6 +207,17 @@ export const ANIME_SEASONS = [
 
 export const ANIME_ROLES = ["main", "supporting"] as const satisfies readonly AnimeRole[];
 
+/**
+ * シーズンの新旧を比べるための数値。大きいほど新しい。
+ *
+ * 年と季節の 2 列を SQL の CASE で並べると読めなくなるので、取り出してから JS で並べる。
+ * 画面 (前後のシーズンへの導線) とサーバー (一覧の並び) の両方が同じ順序を要るため、
+ * どちらからも import できるここに置く
+ */
+export function seasonOrder(item: { seasonYear: number; season: AnimeSeason }): number {
+  return item.seasonYear * 4 + ANIME_SEASONS.indexOf(item.season);
+}
+
 export const CREDIT_CONFIDENCES = [
   "verified",
   "probable",

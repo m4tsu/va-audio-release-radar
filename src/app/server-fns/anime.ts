@@ -45,10 +45,31 @@ export const fetchAnimeByActor = createServerFn({ method: "GET" })
     return animeByActor(getDb(), data.voiceActorId, data.limit);
   });
 
-export const fetchLatestAnimeSeason = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ getDb }, { latestSeasonWithAnime }] = await Promise.all([
+/** 出せる作品があるシーズン。`/anime` の索引と、シーズン一覧の前後の導線が使う */
+export const fetchAnimeSeasons = createServerFn({ method: "GET" }).handler(async () => {
+  const [{ getDb }, { listSeasonsWithAnime }] = await Promise.all([
     import("@/server/db/client"),
     import("@/server/queries/anime"),
   ]);
-  return (await latestSeasonWithAnime(getDb())) ?? null;
+  return listSeasonsWithAnime(getDb());
 });
+
+/**
+ * フォロー中の声優が出ているアニメ。フォロー ID をブラウザから送る。
+ *
+ * GET にしないのは、フォロー中の声優の一覧が URL に載ると履歴とログに残るため (フィードと同じ)
+ */
+export const fetchAnimeForActors = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      voiceActorIds: z.array(z.string().min(1)).max(1000),
+      limit: z.number().int().min(1).max(60),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const [{ getDb }, { animeForActors }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/anime"),
+    ]);
+    return animeForActors(getDb(), data.voiceActorIds, data.limit);
+  });

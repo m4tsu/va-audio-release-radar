@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   type AnimeSeed,
   animeByActor,
+  animeForActors,
   animeSitemapEntries,
   getAnimeBySlug,
   hasSeasonAnime,
   listSeasonAnime,
+  listSeasonsWithAnime,
   upsertAnime,
 } from "./anime";
 import { ingest } from "./ingest";
@@ -253,6 +255,40 @@ describe("listSeasonAnime", () => {
     expect(list[0]?.actorCount).toBe(1);
   });
 
+  /** 画面が「フォロー中の声優が出ているか」を自分で判定するための材料 */
+  it("音声作品を持つ出演者の ID を添える", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await upsertAnime(
+      db,
+      [
+        anime({
+          appearances: [
+            {
+              voiceActorId: UEDA.id,
+              characterId: "anilist:1",
+              characterNameNative: "猫猫",
+              role: "main",
+            },
+            {
+              voiceActorId: HANAZAWA.id,
+              characterId: "anilist:2",
+              characterNameNative: "別のキャラ",
+              role: "supporting",
+            },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    const [item] = await listSeasonAnime(db, 2026, "FALL");
+
+    // 音声作品を持たない花澤は数にも ID にも入らない
+    expect(item?.actorIds).toEqual([UEDA.id]);
+    expect(item?.actorCount).toBe(1);
+  });
+
   it("別シーズンの作品は返さない", async () => {
     const db = await setupDb();
     await upsertAnime(db, [anime()], NOW);
@@ -261,6 +297,138 @@ describe("listSeasonAnime", () => {
     expect(await listSeasonAnime(db, 2026, "SUMMER")).toEqual([]);
     expect(await hasSeasonAnime(db, 2026, "FALL")).toBe(true);
     expect(await hasSeasonAnime(db, 2026, "SUMMER")).toBe(false);
+  });
+});
+
+describe("listSeasonsWithAnime", () => {
+  it("出せる作品があるシーズンを新しい順に、作品数つきで返す", async () => {
+    const db = await setupDb();
+    await upsertAnime(
+      db,
+      [
+        anime(),
+        anime({
+          id: "anilist:2",
+          slug: "old-show",
+          titleRomaji: "Old Show",
+          seasonYear: 2024,
+          season: "WINTER",
+        }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect(await listSeasonsWithAnime(db)).toEqual([
+      { seasonYear: 2026, season: "FALL", animeCount: 1 },
+      { seasonYear: 2024, season: "WINTER", animeCount: 1 },
+    ]);
+  });
+
+  it("出せる作品が無いシーズンは返さない", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime()], NOW);
+
+    // 出演者が音声作品を持たないので、シーズンごと出ない
+    expect(await listSeasonsWithAnime(db)).toEqual([]);
+  });
+});
+
+describe("animeForActors", () => {
+  it("渡した声優が出ている作品を新しいシーズンから返す", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await upsertAnime(
+      db,
+      [
+        anime(),
+        anime({
+          id: "anilist:2",
+          slug: "old-show",
+          titleRomaji: "Old Show",
+          seasonYear: 2024,
+          season: "WINTER",
+        }),
+        anime({
+          id: "anilist:3",
+          slug: "other-cast-show",
+          titleRomaji: "Other Cast Show",
+          appearances: [
+            {
+              voiceActorId: HANAZAWA.id,
+              characterId: "anilist:9",
+              characterNameNative: "キャラ",
+              role: "main",
+            },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+    await giveWork(db, HANAZAWA.id, HANAZAWA.canonicalName, "RJ2");
+
+    const list = await animeForActors(db, [UEDA.id]);
+
+    expect(list.map((item) => item.slug)).toEqual([anime().slug, "old-show"]);
+  });
+
+  it("フォローが 0 件なら引かない", async () => {
+    const db = await setupDb();
+
+    expect(await animeForActors(db, [])).toEqual([]);
+  });
+
+  it("人数は音声作品を持つ出演者で数える (フォロー中の人数ではない)", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await upsertAnime(
+      db,
+      [
+        anime({
+          appearances: [
+            {
+              voiceActorId: UEDA.id,
+              characterId: "anilist:1",
+              characterNameNative: "猫猫",
+              role: "main",
+            },
+            {
+              voiceActorId: HANAZAWA.id,
+              characterId: "anilist:2",
+              characterNameNative: "別のキャラ",
+              role: "main",
+            },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+    await giveWork(db, HANAZAWA.id, HANAZAWA.canonicalName, "RJ2");
+
+    const [item] = await animeForActors(db, [UEDA.id]);
+
+    expect(item?.actorCount).toBe(2);
+  });
+
+  it("limit で切る", async () => {
+    const db = await setupDb();
+    await upsertAnime(
+      db,
+      [
+        anime(),
+        anime({
+          id: "anilist:2",
+          slug: "old-show",
+          titleRomaji: "Old Show",
+          seasonYear: 2024,
+          season: "WINTER",
+        }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect(await animeForActors(db, [UEDA.id], 1)).toHaveLength(1);
   });
 });
 

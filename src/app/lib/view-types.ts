@@ -1,6 +1,12 @@
 import type { fetchActorBySlug, fetchAllActors } from "@/app/server-fns/actors";
 import type { fetchCrawlerHealth, fetchUnmatchedCredits } from "@/app/server-fns/admin";
-import type { fetchAnimeByActor, fetchAnimeBySlug, fetchSeasonAnime } from "@/app/server-fns/anime";
+import type {
+  fetchAnimeByActor,
+  fetchAnimeBySlug,
+  fetchAnimeForActors,
+  fetchAnimeSeasons,
+  fetchSeasonAnime,
+} from "@/app/server-fns/anime";
 import type {
   fetchFeed,
   fetchLatestWorks,
@@ -33,7 +39,10 @@ export type UnmatchedCreditGroup = Awaited<ReturnType<typeof fetchUnmatchedCredi
 export type CrawlerHealth = Awaited<ReturnType<typeof fetchCrawlerHealth>>;
 export type CrawlerHealthEntry = CrawlerHealth["entries"][number];
 
-export type AnimeSummary = Awaited<ReturnType<typeof fetchSeasonAnime>>[number];
+export type AnimeSummary = Awaited<ReturnType<typeof fetchAnimeForActors>>[number];
+/** シーズン一覧の 1 件。フォローの印を画面が付けられるよう、出演者 ID を持つ */
+export type SeasonAnime = Awaited<ReturnType<typeof fetchSeasonAnime>>[number];
+export type AnimeSeasonEntry = Awaited<ReturnType<typeof fetchAnimeSeasons>>[number];
 export type AnimeDetail = NonNullable<Awaited<ReturnType<typeof fetchAnimeBySlug>>>;
 export type AnimeCastMember = AnimeDetail["cast"][number];
 export type ActorAnimeAppearance = Awaited<ReturnType<typeof fetchAnimeByActor>>[number];

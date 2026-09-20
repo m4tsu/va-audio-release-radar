@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE, type Locale, translate } from "@/app/i18n";
 import type { AnimeSeason } from "@/domain/types";
-import { ANIME_SEASONS } from "@/domain/types";
+import { ANIME_SEASONS, seasonOrder } from "@/domain/types";
 
 /**
  * シーズンの表示と URL の相互変換。
@@ -46,4 +46,28 @@ export function parseSeasonSlug(
   if (season === undefined) return undefined;
 
   return { seasonYear: year, season };
+}
+
+/** 年とシーズンだけを持つもの。前後を決めるのに要るのはこの 2 つだけ */
+export type SeasonKey = { seasonYear: number; season: AnimeSeason };
+
+/**
+ * `seasons` の中で `current` の 1 つ前 (古い) と 1 つ後 (新しい) にあたるもの。
+ *
+ * 隣を「年とシーズンを 1 つずらした値」で作らない。作品の無いシーズンが間に挟まると
+ * 空の一覧へ送ってしまうため、実際に作品があるシーズンの並びから隣を取る。
+ * いちばん古い / 新しいシーズンでは、その向きが undefined になる
+ */
+export function adjacentSeasons(
+  seasons: readonly SeasonKey[],
+  current: SeasonKey,
+): { older?: SeasonKey; newer?: SeasonKey } {
+  // 引数の並び順に頼らない。呼び出し側が並べ替えを変えても結果が変わらないようにする
+  const sorted = [...seasons].sort((a, b) => seasonOrder(a) - seasonOrder(b));
+  const index = sorted.findIndex((item) => seasonOrder(item) === seasonOrder(current));
+  if (index < 0) return {};
+
+  const older = sorted[index - 1];
+  const newer = sorted[index + 1];
+  return { ...(older ? { older } : {}), ...(newer ? { newer } : {}) };
 }

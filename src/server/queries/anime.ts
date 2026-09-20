@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AnimeRole, AnimeSeason, WorkCategory } from "@/domain/types";
-import { ANIME_ROLES, ANIME_SEASONS } from "@/domain/types";
+import { ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { animeAppearances, animeTitles, audioCredits, audioWorks, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -177,6 +177,23 @@ export type AnimeCastMember = {
 
 export type AnimeDetail = AnimeSummary & { cast: AnimeCastMember[] };
 
+/**
+ * シーズン一覧の 1 件。`actorCount` に数えた出演者の ID を添える。
+ *
+ * フォローはブラウザの IndexedDB にしか無く、サーバーは誰をフォローしているかを知らない。
+ * ID を一緒に返せば「フォロー中の声優が出ている作品」の判定を画面が自分で行えるので、
+ * SSR の応答はフォローの有無で変わらないまま、印と絞り込みを出せる
+ */
+export type SeasonAnime = AnimeSummary & { actorIds: string[] };
+
+/** 出せる作品があるシーズン 1 つ。`/anime` の索引と sitemap が並べる */
+export type AnimeSeasonEntry = {
+  seasonYear: number;
+  season: AnimeSeason;
+  /** そのシーズンで出せる作品数 */
+  animeCount: number;
+};
+
 /** 声優ページに出す「出演アニメ」の 1 件 */
 export type ActorAnimeAppearance = {
   slug: string;
@@ -215,7 +232,7 @@ export async function listSeasonAnime(
   db: AppDb,
   seasonYear: number,
   season: AnimeSeason,
-): Promise<AnimeSummary[]> {
+): Promise<SeasonAnime[]> {
   const rows = await db
     .select({
       slug: animeTitles.slug,
@@ -225,7 +242,7 @@ export async function listSeasonAnime(
       seasonYear: animeTitles.seasonYear,
       season: animeTitles.season,
       coverImageUrl: animeTitles.coverImageUrl,
-      actorCount: sql<number>`count(distinct ${animeAppearances.voiceActorId})`,
+      actorIds: sql<string>`group_concat(distinct ${animeAppearances.voiceActorId})`,
     })
     .from(animeTitles)
     .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
@@ -241,27 +258,39 @@ export async function listSeasonAnime(
 
   // 出演者の多い順。同数なら slug 順で安定させる (実行のたびに並びが変わらないように)
   return rows
-    .map(toAnimeSummary)
+    .map((row) => {
+      const actorIds = splitIds(row.actorIds);
+      return { ...toAnimeSummary({ ...row, actorCount: actorIds.length }), actorIds };
+    })
     .sort((a, b) => b.actorCount - a.actorCount || a.slug.localeCompare(b.slug));
 }
 
 /**
- * 出せる作品があるシーズンのうち、いちばん新しいもの。トップの導線の行き先に使う。
+ * 出せる作品があるシーズン。新しい順。
  *
  * 「今期」を日付から決めない。クロールが追いつく前や季節の境目で、中身の無いシーズンへ
- * 誘導してしまうため。実際にデータがあるシーズンだけを候補にする
+ * 誘導してしまうため。実際に作品があるシーズンだけを並べる
  */
-export async function latestSeasonWithAnime(
-  db: AppDb,
-): Promise<{ seasonYear: number; season: AnimeSeason } | undefined> {
+export async function listSeasonsWithAnime(db: AppDb): Promise<AnimeSeasonEntry[]> {
   const rows = await db
-    .selectDistinct({ seasonYear: animeTitles.seasonYear, season: animeTitles.season })
+    .select({
+      seasonYear: animeTitles.seasonYear,
+      season: animeTitles.season,
+      animeCount: sql<number>`count(distinct ${animeTitles.id})`,
+    })
     .from(animeTitles)
     .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
-    .where(appearanceActorHasAudioWork);
+    .where(appearanceActorHasAudioWork)
+    .groupBy(animeTitles.seasonYear, animeTitles.season);
 
   // シーズン数はたかだか数十行なので、SQL で CASE を書くより JS 側で並べたほうが読める
-  return rows.sort((a, b) => seasonOrder(b) - seasonOrder(a))[0];
+  return rows
+    .map((row) => ({
+      seasonYear: row.seasonYear,
+      season: row.season,
+      animeCount: Number(row.animeCount ?? 0),
+    }))
+    .sort((a, b) => seasonOrder(b) - seasonOrder(a));
 }
 
 /** そのシーズンに出せる作品が 1 件でもあるか。トップの導線を出すかどうかの判定に使う */
@@ -389,6 +418,56 @@ export async function animeByActor(
     .slice(0, limit);
 }
 
+/**
+ * フォロー中の声優が出ているアニメ。新しいシーズンから並べる。
+ *
+ * 誰をフォローしているかはブラウザにしか無いので、ID を受け取って引き直す (フィードと同じ形)。
+ * 出演者の人数は「音声作品を持つ出演者」で数える。フォロー中の人数ではないのは、
+ * 並ぶカードがシーズン一覧と同じ意味を持つようにするため
+ */
+export async function animeForActors(
+  db: AppDb,
+  voiceActorIds: string[],
+  limit = 24,
+): Promise<AnimeSummary[]> {
+  if (voiceActorIds.length === 0) return [];
+
+  const titleIds = new Set<string>();
+  for (const ids of chunked(voiceActorIds)) {
+    const rows = await db
+      .selectDistinct({ animeTitleId: animeAppearances.animeTitleId })
+      .from(animeAppearances)
+      .where(inArray(animeAppearances.voiceActorId, ids));
+    for (const row of rows) titleIds.add(row.animeTitleId);
+  }
+  if (titleIds.size === 0) return [];
+
+  const found: AnimeSummary[] = [];
+  for (const ids of chunked([...titleIds])) {
+    const rows = await db
+      .select({
+        slug: animeTitles.slug,
+        titleNative: animeTitles.titleNative,
+        titleRomaji: animeTitles.titleRomaji,
+        titleEnglish: animeTitles.titleEnglish,
+        seasonYear: animeTitles.seasonYear,
+        season: animeTitles.season,
+        coverImageUrl: animeTitles.coverImageUrl,
+        actorCount: sql<number>`count(distinct ${animeAppearances.voiceActorId})`,
+      })
+      .from(animeTitles)
+      .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
+      .where(and(inArray(animeTitles.id, ids), appearanceActorHasAudioWork))
+      .groupBy(animeTitles.id);
+
+    found.push(...rows.map(toAnimeSummary));
+  }
+
+  return found
+    .sort((a, b) => seasonOrder(b) - seasonOrder(a) || a.slug.localeCompare(b.slug))
+    .slice(0, limit);
+}
+
 /** sitemap.xml に並べるアニメページ。声優ページと同じく、中身が出ないものは載せない */
 export async function animeSitemapEntries(
   db: AppDb,
@@ -445,8 +524,13 @@ function byRoleThenName(a: AnimeCastMember, b: AnimeCastMember): number {
   return a.actor.canonicalName.localeCompare(b.actor.canonicalName, "ja");
 }
 
-function seasonOrder(item: { seasonYear: number; season: AnimeSeason }): number {
-  return item.seasonYear * 4 + ANIME_SEASONS.indexOf(item.season);
+/**
+ * `group_concat` が返すカンマ区切りを配列に戻す。
+ * 声優 ID ("va_ueda-reina") にカンマは入らないので、区切りの取り違えは起きない
+ */
+function splitIds(value: string | null): string[] {
+  if (!value) return [];
+  return value.split(",").filter((id) => id.length > 0);
 }
 
 type AnimeSummaryRow = {

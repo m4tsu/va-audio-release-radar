@@ -4,11 +4,13 @@ import type {
   ActorSummary,
   AnimeCastMember,
   AnimeDetail,
+  AnimeSeasonEntry,
   AnimeSummary,
   CrawlerHealth,
   CrawlerHealthEntry,
   FeedItem,
   LatestWork,
+  SeasonAnime,
   UnmatchedCreditGroup,
   WorkCredit,
   WorkDetail,
@@ -118,6 +120,15 @@ export function animeSummary(over: Partial<AnimeSummary> = {}): AnimeSummary {
     actorCount: 2,
     ...over,
   };
+}
+
+/** シーズン一覧の 1 件。出演者 ID は「フォロー中の声優が出ているか」の判定に使う */
+export function seasonAnime(over: Partial<SeasonAnime> = {}): SeasonAnime {
+  return { ...animeSummary(), actorIds: ["va_alpha", "va_beta"], ...over };
+}
+
+export function animeSeasonEntry(over: Partial<AnimeSeasonEntry> = {}): AnimeSeasonEntry {
+  return { seasonYear: 2026, season: "FALL", animeCount: 3, ...over };
 }
 
 export function animeCastMember(over: Partial<AnimeCastMember> = {}): AnimeCastMember {
