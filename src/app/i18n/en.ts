@@ -229,8 +229,7 @@ export const en: Translations = {
     indexTitle: "Browse by anime",
     searchLabel: "Search by anime title",
     searchNoResults: "No anime matched “{{query}}”.",
-    indexDescription:
-      "The season on air comes first. You can also search by title or pick another season.",
+    indexDescription: "You can also search by title or pick another season.",
     seeWholeSeason: "See every title in this season",
     indexMetaTitle: "Browse voice actors' audio works by anime | {{app}}",
     indexMetaDescription:

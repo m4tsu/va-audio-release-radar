@@ -116,7 +116,9 @@ test("/anime は転送せず、先頭のシーズンのアニメを JS を動か
   const html = await res.text();
   expect(html).toMatch(/<h1[^>]*>アニメから探す<\/h1>/);
 
-  // 固定データのアニメは 2026 年秋の 2 本だけなので、今日の日付に関わらずこのシーズンが先頭に出る
+  // 固定データが持つシーズンは 2026 年秋の 1 つだけ (e2e/fixtures/seed.sql)。
+  // 先頭に出るのは放送中のシーズンか、そこに作品が無ければいちばん近いシーズンなので、
+  // どちらに転んでもこの 1 つに落ちる。テストが特定の日付でしか通らなくならない
   expect(html).toContain("2026 年秋アニメ");
   expect(html).toMatch(/<a[^>]*href="\/anime\/e2e-anime-beta"/);
   expect(html).toContain("テストアニメベータ");
