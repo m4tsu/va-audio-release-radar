@@ -17,7 +17,7 @@ import type {
  * ポケットドラマ CD (pokedora.com) のアダプタ。手順:
  *
  * 1. 声優タグのページを引く (`/tags/?tag_type=1&tag_id={id}&disp_number=100&store={men|bl}`)。
- *    tag_id は事前に作った辞書 (`crawler/.cache/discovery/pokedora-tags.json`) から
+ *    tag_id は事前に作った辞書 (`crawler/pokedora-tags.generated.json`) から
  *    `crawler/run.ts` が渡す。辞書に無い声優はこのストアを引かない
  * 2. 一覧から作品 ID・タイトル・商品カテゴリを取る
  * 3. 作品ごとに詳細ページを引き、出演声優の全員とレーベルを補う

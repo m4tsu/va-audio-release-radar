@@ -2,53 +2,64 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { normalizeName } from "../../src/domain/normalize.ts";
 import type { ObservedActorRef, StoreActorRef } from "../adapters/types.ts";
-import { CACHE_DIR } from "../lib/paths.ts";
-import type { PokedoraTagRecord, PokedoraTagsCache } from "./pokedora-tags.ts";
+import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
 
 /**
- * ポケドラの声優タグ辞書 (段階 1 の成果) を、クロール時に引ける形に直す。
+ * ポケドラの声優タグ辞書を、クロール時に引ける形に直す。
  *
  * ポケドラは名前で検索しない。声優は `tag_id` というタグで、一覧の URL にその ID が要る。
- * 辞書は 3,161 件の一度きりのバッチで作ってあるので (`pokedora-tags.ts`)、
- * ここではそれを読んで「正規化した名前 → tag_id」の対応にするだけ。ネットワークには出ない。
+ * 辞書は `crawler/pokedora-tags.generated.json` (git 管理) にあるので、ここではそれを読んで
+ * 「正規化した名前 → tag_id」の対応にするだけ。ネットワークには出ない。
+ * 生成は `build-pokedora-tags.ts`。
  *
  * **辞書に無い声優はポケドラを引かない**。名前から tag_id を引く API が無く
  * (`/sapi/json.php` は 404)、総当たりで探す手段が無いため。
- * 一般 + BL が 0 件と分かっている声優も引かない。段階 3 の所要が 3.3 時間から
- * 1.6 時間に縮む (ポケドラ交差調査 §7-1)
  */
 
 const DISCOVERY_DIR = path.join(CACHE_DIR, "discovery");
-export const TAGS_JSON = path.join(DISCOVERY_DIR, "pokedora-tags.json");
+/** 声優タグ辞書 (生成物)。`actors.generated.json` と同じく git に入れて配る */
+export const TAGS_GENERATED_JSON = path.join(CRAWLER_DIR, "pokedora-tags.generated.json");
 /** クロール中に見えた (tag_id, 表記) の蓄積先 */
 export const ACTOR_REFS_JSON = path.join(DISCOVERY_DIR, "pokedora-actor-refs.json");
 
-/** 取得対象のストア区分。オトナ向け 2 つは引かない */
-const TARGET_SECTIONS = ["men", "bl"] as const;
+/** 取得対象のストア区分。オトナ向け 2 つは引かない ([`docs/stores/pokedora.md`](../../docs/stores/pokedora.md)) */
+export const TARGET_SECTIONS = ["men", "bl"] as const;
+export type TargetCounts = Record<(typeof TARGET_SECTIONS)[number], number>;
+
+/** 辞書 1 件。クロールに要るのは tag_id と名前と取得対象区分の件数だけ */
+export type PokedoraTagEntry = {
+  tagId: number;
+  name: string;
+  counts: TargetCounts;
+};
+
+/**
+ * 引く価値がある声優か。取得対象の区分が全部 0 件なら引いても必ず 0 件で、
+ * 区分ごとの 1 往復ぶんの待ち時間が無駄になる
+ */
+export function hasTargetWorks(counts: TargetCounts): boolean {
+  return TARGET_SECTIONS.some((section) => counts[section] > 0);
+}
 
 /** 正規化した名前 → その名前に付いている tag_id (件数つき) */
 export type PokedoraDirectory = ReadonlyMap<string, StoreActorRef[]>;
 
 /**
- * 辞書の記録から対応表を作る。
+ * 辞書の項目から対応表を作る。
  *
- * 一般 + BL が 0 件の tag_id は落とす。引いても必ず 0 件で、5 秒の往復が無駄になるため。
- * 同じ名前に複数の tag_id が付いている組が 7 つあり (ポケドラ交差調査 §8)、
+ * 同じ名前に複数の tag_id が付いている組があり
+ * ([`docs/stores/pokedora.md`](../../docs/stores/pokedora.md) の「既知の落とし穴」)、
  * どちらが目当ての人かは辞書だけでは決められないので、件数のあるものを全部返して
  * adapter に和集合を取らせる
  */
-export function buildDirectory(records: readonly PokedoraTagRecord[]): PokedoraDirectory {
+export function buildDirectory(entries: readonly PokedoraTagEntry[]): PokedoraDirectory {
   const directory = new Map<string, StoreActorRef[]>();
 
-  for (const record of records) {
-    if (record.status !== "ok" || record.name === undefined || record.counts === undefined) {
-      continue;
-    }
-    const counts = { men: record.counts.men, bl: record.counts.bl };
-    if (TARGET_SECTIONS.every((section) => counts[section] === 0)) continue;
+  for (const entry of entries) {
+    if (!hasTargetWorks(entry.counts)) continue;
 
-    const key = normalizeName(record.name);
-    const ref: StoreActorRef = { externalId: String(record.tagId), counts };
+    const key = normalizeName(entry.name);
+    const ref: StoreActorRef = { externalId: String(entry.tagId), counts: { ...entry.counts } };
     const bucket = directory.get(key);
     if (bucket === undefined) directory.set(key, [ref]);
     else bucket.push(ref);
@@ -57,21 +68,36 @@ export function buildDirectory(records: readonly PokedoraTagRecord[]): PokedoraD
 }
 
 /**
+ * 辞書 1 件として読める形か。読めない項目を落として残りで進むのは、
+ * 1 件の欠けでポケドラ全体を諦めないため (辞書が無いときだけ全員分を飛ばす)
+ */
+function isTagEntry(value: unknown): value is PokedoraTagEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const entry = value as Partial<PokedoraTagEntry>;
+  if (!Number.isInteger(entry.tagId) || typeof entry.name !== "string" || entry.name === "") {
+    return false;
+  }
+  const counts: Partial<TargetCounts> | undefined = entry.counts;
+  if (typeof counts !== "object" || counts === null) return false;
+  return TARGET_SECTIONS.every((section) => Number.isInteger(counts[section]));
+}
+
+/**
  * 辞書ファイルを読む。無ければ undefined を返し、呼び出し側に
- * 「ポケドラは引けない」と判断させる。例外にしないのは、辞書を作っていない環境でも
+ * 「ポケドラは引けない」と判断させる。例外にしないのは、辞書を持たない環境でも
  * DLsite と Audible のクロールは走らせたいため
  */
 export async function loadPokedoraDirectory(
-  file: string = TAGS_JSON,
+  file: string = TAGS_GENERATED_JSON,
 ): Promise<PokedoraDirectory | undefined> {
-  let cache: PokedoraTagsCache;
+  let parsed: unknown;
   try {
-    cache = JSON.parse(await readFile(file, "utf8")) as PokedoraTagsCache;
+    parsed = JSON.parse(await readFile(file, "utf8"));
   } catch {
     return undefined;
   }
-  if (!Array.isArray(cache.records)) return undefined;
-  return buildDirectory(cache.records);
+  if (!Array.isArray(parsed)) return undefined;
+  return buildDirectory(parsed.filter(isTagEntry));
 }
 
 /** 声優 1 人ぶんの tag_id を引く。見つからなければ undefined (= ポケドラを引かない) */

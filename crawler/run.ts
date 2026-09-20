@@ -404,8 +404,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   if (stores.includes("pokedora")) {
     if (pokedoraDirectory === undefined) {
       process.stderr.write(
-        "[警告] ポケドラの声優タグ辞書を読めなかった。" +
-          "`node crawler/discovery/pokedora-tags.ts --resume` で作る。ポケドラは全員分を飛ばす\n",
+        "[警告] ポケドラの声優タグ辞書 (crawler/pokedora-tags.generated.json) を読めなかった。" +
+          "`node crawler/discovery/build-pokedora-tags.ts` で作る。ポケドラは全員分を飛ばす\n",
       );
     } else {
       process.stdout.write(
