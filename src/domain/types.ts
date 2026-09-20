@@ -28,6 +28,12 @@ export type AnimeSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
 /** アニメでの役の種別。AniList の `MAIN` / `SUPPORTING` を小文字に直したもの */
 export type AnimeRole = "main" | "supporting";
 
+/**
+ * アニメの形式。AniList の `MediaFormat` のうち `type: ANIME` で返りうる値をそのまま使う。
+ * 一覧で TV と劇場版・OVA を見分けるために持つ
+ */
+export type AnimeFormat = "TV" | "TV_SHORT" | "MOVIE" | "SPECIAL" | "OVA" | "ONA" | "MUSIC";
+
 export type VoiceActor = {
   id: string; // 例 "va_ueda-reina" (slug 由来。シードで固定)
   slug: string; // URL 用。ローマ字小文字ハイフン ("ueda-reina")
@@ -102,6 +108,20 @@ export type AnimeTitle = {
   seasonYear: number;
   season: AnimeSeason;
   coverImageUrl?: string;
+  /** 表紙から AniList が拾った代表色 ("#e4a128") */
+  coverImageColor?: string;
+  format?: AnimeFormat;
+  /** AniList の人気度。一覧の既定の並びに使う */
+  popularity?: number;
+  /**
+   * 放送開始日 / 終了日 ("2026-10-02")。年月日が揃っているときだけ持つ。
+   * AniList の日付は欠けることがあり (放送前の作品の終了日など)、
+   * 欠けた値を入れると日付として比べられなくなる
+   */
+  startDate?: string;
+  endDate?: string;
+  /** AniList が持つ別名タイトル ("ロシデレ")。略称や別表記で探すために持つ */
+  synonyms?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -207,6 +227,16 @@ export const ANIME_SEASONS = [
 
 export const ANIME_ROLES = ["main", "supporting"] as const satisfies readonly AnimeRole[];
 
+export const ANIME_FORMATS = [
+  "TV",
+  "TV_SHORT",
+  "MOVIE",
+  "SPECIAL",
+  "OVA",
+  "ONA",
+  "MUSIC",
+] as const satisfies readonly AnimeFormat[];
+
 /**
  * シーズンの新旧を比べるための数値。大きいほど新しい。
  *
@@ -253,6 +283,10 @@ const _animeSeasonsCoverAllTypes: AssertSameLiteralSet<
 > = true;
 const _animeRolesCoverAllTypes: AssertSameLiteralSet<AnimeRole, (typeof ANIME_ROLES)[number]> =
   true;
+const _animeFormatsCoverAllTypes: AssertSameLiteralSet<
+  AnimeFormat,
+  (typeof ANIME_FORMATS)[number]
+> = true;
 void [
   _storeSlugsCoverAllTypes,
   _workCategoriesCoverAllTypes,
@@ -260,6 +294,7 @@ void [
   _ageRatingsCoverAllTypes,
   _animeSeasonsCoverAllTypes,
   _animeRolesCoverAllTypes,
+  _animeFormatsCoverAllTypes,
 ];
 
 // --- 年齢区分の方針 --------------------------------------------------------

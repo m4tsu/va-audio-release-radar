@@ -1,6 +1,7 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import {
   AGE_RATINGS,
+  ANIME_FORMATS,
   ANIME_ROLES,
   ANIME_SEASONS,
   CREDIT_CONFIDENCES,
@@ -178,6 +179,18 @@ export const animeTitles = sqliteTable(
     season: text("season", { enum: ANIME_SEASONS }).notNull(),
     // AniList の CDN URL をそのまま参照する。画像を自前で再配信しない (同 §2)
     coverImageUrl: text("cover_image_url"),
+    /** 表紙の代表色。AniList が表紙から拾った値をそのまま持つ */
+    coverImageColor: text("cover_image_color"),
+    format: text("format", { enum: ANIME_FORMATS }),
+    /** AniList の人気度。返らないことがあるので NULL 可。一覧の既定の並びに使う */
+    popularity: integer("popularity"),
+    /**
+     * 放送開始日 / 終了日 ("2026-10-02")。年月日が揃っているときだけ入れる。
+     * AniList の日付は欠けることがあり、欠けた値を入れると日付として比べられなくなる。
+     * 終了日は放送前・放送中の作品では入らない
+     */
+    startDate: text("start_date"),
+    endDate: text("end_date"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -185,6 +198,28 @@ export const animeTitles = sqliteTable(
     uniqueIndex("anime_titles_slug_unique").on(t.slug),
     // /anime/season/{year}-{season} がこの索引だけで引ける
     index("anime_titles_season_idx").on(t.seasonYear, t.season),
+  ],
+);
+
+/**
+ * AniList が持つ別名タイトル ("ロシデレ" / "Roshidere")。1 作品に 0 件から十数件ある。
+ *
+ * タイトル 1 行に畳まず別表で持つのは、アニメ名の検索が「いずれかの別名に一致」で引くため。
+ * 日本語の略称だけでなくタイ語・ロシア語なども入るが、AniList が返すものを解釈せずに保存する
+ * (ストアの区分を解釈しないのと同じ)
+ */
+export const animeTitleSynonyms = sqliteTable(
+  "anime_title_synonyms",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    animeTitleId: text("anime_title_id")
+      .notNull()
+      .references(() => animeTitles.id),
+    name: text("name").notNull(),
+  },
+  (t) => [
+    uniqueIndex("anime_title_synonyms_title_name_unique").on(t.animeTitleId, t.name),
+    index("anime_title_synonyms_anime_title_id_idx").on(t.animeTitleId),
   ],
 );
 

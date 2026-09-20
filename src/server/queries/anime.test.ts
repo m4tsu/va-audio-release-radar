@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { animeTitleSynonyms, animeTitles } from "../db/schema";
 import {
   type AnimeSeed,
   animeByActor,
@@ -63,8 +65,8 @@ describe("upsertAnime", () => {
     const first = await upsertAnime(db, [anime()], NOW);
     const second = await upsertAnime(db, [anime()], NOW);
 
-    expect(first).toEqual({ titles: 1, appearances: 1, skippedAppearances: 0 });
-    expect(second).toEqual({ titles: 1, appearances: 1, skippedAppearances: 0 });
+    expect(first).toEqual({ titles: 1, appearances: 1, skippedAppearances: 0, synonyms: 0 });
+    expect(second).toEqual({ titles: 1, appearances: 1, skippedAppearances: 0, synonyms: 0 });
 
     await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
     const detail = await getAnimeBySlug(db, anime().slug);
@@ -92,7 +94,7 @@ describe("upsertAnime", () => {
       NOW,
     );
 
-    expect(result).toEqual({ titles: 1, appearances: 1, skippedAppearances: 1 });
+    expect(result).toEqual({ titles: 1, appearances: 1, skippedAppearances: 1, synonyms: 0 });
   });
 
   it("英語タイトルとカバー画像が無くても入る", async () => {
@@ -103,6 +105,57 @@ describe("upsertAnime", () => {
     const detail = await getAnimeBySlug(db, anime().slug);
     expect(detail?.titleEnglish).toBeUndefined();
     expect(detail?.coverImageUrl).toBeUndefined();
+  });
+
+  it("人気度・形式・放送日・代表色を入れ、取り込み直すと新しい値になる", async () => {
+    const db = await setupDb();
+
+    await upsertAnime(
+      db,
+      [
+        anime({
+          popularity: 70218,
+          format: "TV",
+          startDate: "2026-10-02",
+          endDate: "2026-12-25",
+          coverImageColor: "#e4a128",
+        }),
+      ],
+      NOW,
+    );
+    await upsertAnime(db, [anime({ popularity: 80000, format: "ONA" })], NOW);
+
+    const [row] = await db.select().from(animeTitles).where(eq(animeTitles.id, anime().id));
+    expect(row?.popularity).toBe(80000);
+    expect(row?.format).toBe("ONA");
+    // 2 回目に無かった項目は空になる。AniList が返さなくなった値を残さない
+    expect(row?.startDate).toBeNull();
+    expect(row?.endDate).toBeNull();
+    expect(row?.coverImageColor).toBeNull();
+  });
+
+  it("別名タイトルを入れ替え、消えた名前は残らない", async () => {
+    const db = await setupDb();
+
+    const first = await upsertAnime(db, [anime({ synonyms: ["ロシデレ", "Roshidere"] })], NOW);
+    expect(first.synonyms).toBe(2);
+
+    const second = await upsertAnime(db, [anime({ synonyms: ["ロシデレ"] })], NOW);
+    expect(second.synonyms).toBe(1);
+
+    const rows = await db
+      .select({ name: animeTitleSynonyms.name })
+      .from(animeTitleSynonyms)
+      .where(eq(animeTitleSynonyms.animeTitleId, anime().id));
+    expect(rows.map((row) => row.name)).toEqual(["ロシデレ"]);
+  });
+
+  it("同じ別名が 2 度入っていても落ちない", async () => {
+    const db = await setupDb();
+
+    const result = await upsertAnime(db, [anime({ synonyms: ["ロシデレ", "ロシデレ"] })], NOW);
+
+    expect(result.synonyms).toBe(1);
   });
 });
 

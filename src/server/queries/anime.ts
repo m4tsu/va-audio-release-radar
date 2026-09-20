@@ -1,9 +1,16 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AnimeRole, AnimeSeason, WorkCategory } from "@/domain/types";
-import { ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
+import { ANIME_FORMATS, ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
 import { chunked } from "../db/chunked";
-import { animeAppearances, animeTitles, audioCredits, audioWorks, voiceActors } from "../db/schema";
+import {
+  animeAppearances,
+  animeTitleSynonyms,
+  animeTitles,
+  audioCredits,
+  audioWorks,
+  voiceActors,
+} from "../db/schema";
 import type { AppDb } from "../db/types";
 import { notAdultRated } from "./works";
 
@@ -17,6 +24,9 @@ import { notAdultRated } from "./works";
 
 // --- 取り込み --------------------------------------------------------------
 
+/** 放送日。発売日 (`releaseDateSchema`) と同じ形で受け取る */
+const animeDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 形式で指定する");
+
 /** `POST /api/admin/anime` が受け取る 1 作品。`crawler/anime.generated.json` の 1 要素と同じ形 */
 export const animeSeedSchema = z.object({
   id: z.string().min(1),
@@ -27,6 +37,13 @@ export const animeSeedSchema = z.object({
   seasonYear: z.number().int(),
   season: z.enum(ANIME_SEASONS),
   coverImageUrl: z.string().optional(),
+  coverImageColor: z.string().optional(),
+  format: z.enum(ANIME_FORMATS).optional(),
+  popularity: z.number().int().optional(),
+  // 年月日が揃った日付だけを受け取る。部分的な日付 (年だけ) は生成側で落としてある
+  startDate: animeDateSchema.optional(),
+  endDate: animeDateSchema.optional(),
+  synonyms: z.array(z.string().min(1)).optional(),
   appearances: z
     .array(
       z.object({
@@ -48,6 +65,8 @@ export type AnimeIngestResult = {
   appearances: number;
   /** DB に居ない声優を指していて捨てた出演の数 */
   skippedAppearances: number;
+  /** 保存した別名タイトルの数 */
+  synonyms: number;
 };
 
 /**
@@ -66,6 +85,7 @@ export async function upsertAnime(
 
   let appearanceCount = 0;
   let skippedAppearances = 0;
+  let synonymCount = 0;
 
   for (const title of anime) {
     const values = {
@@ -76,6 +96,11 @@ export async function upsertAnime(
       seasonYear: title.seasonYear,
       season: title.season,
       coverImageUrl: title.coverImageUrl ?? null,
+      coverImageColor: title.coverImageColor ?? null,
+      format: title.format ?? null,
+      popularity: title.popularity ?? null,
+      startDate: title.startDate ?? null,
+      endDate: title.endDate ?? null,
     };
 
     await db
@@ -85,6 +110,8 @@ export async function upsertAnime(
         target: animeTitles.id,
         set: { ...values, updatedAt: now },
       });
+
+    synonymCount += await replaceSynonyms(db, title.id, title.synonyms ?? []);
 
     for (const appearance of title.appearances) {
       // 声優のシード投入より先にアニメを流すと外部キー違反で全体が落ちる。
@@ -122,7 +149,37 @@ export async function upsertAnime(
     }
   }
 
-  return { titles: anime.length, appearances: appearanceCount, skippedAppearances };
+  return {
+    titles: anime.length,
+    appearances: appearanceCount,
+    skippedAppearances,
+    synonyms: synonymCount,
+  };
+}
+
+/**
+ * 1 作品の別名タイトルを入れ替える。入れた件数を返す。
+ *
+ * 差分を取らずに消してから入れ直すのは、AniList 側で別名が消えたときに古い行が残ると、
+ * もう存在しない名前で検索に当たってしまうため。出演 (`anime_appearances`) を消さない方針とは
+ * 逆だが、別名はタイトルに完全に従属していて「こちらの取得範囲が変わっただけ」という
+ * 取り違えが起きない
+ */
+async function replaceSynonyms(db: AppDb, animeTitleId: string, names: string[]): Promise<number> {
+  await db.delete(animeTitleSynonyms).where(eq(animeTitleSynonyms.animeTitleId, animeTitleId));
+
+  // 同じ名前が 2 度入っている応答があっても落とさない
+  const unique = [...new Set(names)];
+  if (unique.length === 0) return 0;
+
+  // 1 行あたり 2 つの bind を使うので、IN 句の既定 (90) では D1 の上限 100 を超える
+  for (const chunk of chunked(unique, 45)) {
+    await db
+      .insert(animeTitleSynonyms)
+      .values(chunk.map((name) => ({ animeTitleId, name })))
+      .onConflictDoNothing();
+  }
+  return unique.length;
 }
 
 /** 投入対象が指している声優のうち、実際に DB に居る id。D1 の bound parameter 上限で分割する */
