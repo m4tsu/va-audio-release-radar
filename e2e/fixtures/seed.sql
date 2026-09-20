@@ -44,27 +44,27 @@ VALUES
 -- 1 件目だけアフィリエイト URL を持たせる (StoreLink がそちらを優先することの確認用)
 INSERT OR REPLACE INTO store_listings
   (id, audio_work_id, store_slug, store_product_id, product_url, affiliate_url, title_raw,
-   price, list_price, available, first_seen_at, last_seen_at, last_checked_at)
+   first_seen_at, last_seen_at, last_checked_at)
 VALUES
   (9000001, 'dlsite:RJ90000001', 'dlsite', 'RJ90000001',
    'https://www.dlsite.com/home/work/=/product_id/RJ90000001.html',
    'https://www.dlsite.com/home/dlaf/=/link/work/aid/e2etest/id/RJ90000001.html',
-   'テスト用ASMR作品アルファ', 1584, 1980, 1,
+   'テスト用ASMR作品アルファ',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-2 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   (9000002, 'audible:B0E2E00002', 'audible', 'B0E2E00002',
    'https://www.audible.co.jp/pd/B0E2E00002', NULL,
-   'テスト用朗読作品アルファ', 2690, NULL, 1,
+   'テスト用朗読作品アルファ',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-5 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   (9000003, 'dlsite:RJ90000003', 'dlsite', 'RJ90000003',
    'https://www.dlsite.com/home/work/=/product_id/RJ90000003.html', NULL,
-   'テスト用ボイスドラマ作品ベータ', 1100, NULL, 1,
+   'テスト用ボイスドラマ作品ベータ',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-10 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   (9000004, 'dlsite:RJ90000004', 'dlsite', 'RJ90000004',
    'https://www.dlsite.com/home/work/=/product_id/RJ90000004.html', NULL,
-   'テスト用発売予定作品アルファ', 1320, NULL, 1,
+   'テスト用発売予定作品アルファ',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 

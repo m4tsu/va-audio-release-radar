@@ -210,11 +210,7 @@ function listingUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
       storeProductId: work.storeProductId,
       productUrl: work.productUrl,
       titleRaw: work.titleRaw,
-      price: work.price ?? null,
-      listPrice: work.listPrice ?? null,
       storeSection: work.storeSection ?? null,
-      // 一覧に出てきた = 買える、と見なす。RawWork に在庫の情報は無い
-      available: true,
       firstSeenAt: now,
       lastSeenAt: now,
       lastCheckedAt: now,
@@ -227,12 +223,12 @@ function listingUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
         // 古い値のままリンク切れを晒さないようにするため
         productUrl: work.productUrl,
         titleRaw: work.titleRaw,
-        price: work.price ?? null,
-        listPrice: work.listPrice ?? null,
         // 区分は詳細を取れたときだけ埋まる (DLsite は product.json 由来)。既知の作品では
         // 詳細取得を飛ばすので、値が無いときは null で潰さず既存の値を残す
         storeSection: work.storeSection ?? keep(storeListings.storeSection),
-        available: true,
+        // 販売終了の日時はここでは触らない。一覧に出たことは「売っている」の根拠にならず、
+        // 入れるのはストアが販売終了を明示したときだけ (decisions/0008)
+        delistedAt: keep(storeListings.delistedAt),
         lastSeenAt: now,
         lastCheckedAt: now,
       },
@@ -310,8 +306,10 @@ async function recordRun(
 ): Promise<void> {
   const values = {
     storeSlug: payload.storeSlug,
-    voiceActorId: payload.voiceActorId,
-    startedAt: now,
+    // 新着一覧を起点にした走行は特定の声優を対象にしない (decisions/0007)
+    voiceActorId: payload.voiceActorId ?? null,
+    // 取得を始めた時刻はクローラーしか知らない。送られてこなければ受け取った時刻で埋める
+    startedAt: payload.startedAt ?? now,
     finishedAt: now,
     workCount: result.upserted,
     newCount: result.new,

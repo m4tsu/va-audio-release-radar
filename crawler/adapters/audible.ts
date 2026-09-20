@@ -194,7 +194,6 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       coverImageUrl: item.find("img.bc-image-inset-border").first().attr("src")?.trim(),
       releaseDate: toIsoDate(item.find("li.releaseDateLabel").first().text()),
       durationSeconds: parseRuntimeSeconds(item.find("li.runtimeLabel").first().text()),
-      price: parsePrice(item.find(".buybox-regular-price").first().text()),
       makerName: publisher !== "" ? publisher : (authors[0] ?? undefined),
       // ナレーター名は「上田 麗奈」のように空白入りのまま入れる。表記の寄せは名寄せ側の責務
       creditedNames: narrators,
@@ -246,14 +245,6 @@ export function parseRuntimeSeconds(text: string): number | undefined {
   const total = hours * 3600 + minutes * 60;
   // 「再生時間」欄そのものが無い場合は 0 になるので、値なしとして返す
   return total > 0 ? total : undefined;
-}
-
-/** 「￥2,690 で購入、または…」→ 2690。聴き放題のみの作品は価格表示が無く undefined */
-export function parsePrice(text: string): number | undefined {
-  const matched = /[￥¥]\s*([\d,]+)/.exec(text);
-  if (matched?.[1] === undefined) return undefined;
-  const value = Number(matched[1].replace(/,/g, ""));
-  return Number.isFinite(value) ? value : undefined;
 }
 
 // --- 取得 ------------------------------------------------------------------

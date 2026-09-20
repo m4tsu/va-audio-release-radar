@@ -13,8 +13,6 @@ const DETAIL = workDetail({
   }),
   listings: [
     workListing({
-      price: 1584,
-      listPrice: 1980,
       affiliateUrl: "https://www.dlsite.com/home/dlaf/=/link/work/aid/example/id/RJ1.html",
     }),
   ],
@@ -32,12 +30,10 @@ const DETAIL = workDetail({
 });
 
 describe("WorkPage の中身", () => {
-  test("作品名を h1 に、再生時間を本文に出す。価格は出さない", () => {
+  test("作品名を h1 に、再生時間を本文に出す", () => {
     renderWithLocale(<WorkPage detail={DETAIL} />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("架空のASMR作品");
-    expect(screen.queryByText("¥1,584")).not.toBeInTheDocument();
-    expect(screen.queryByText("¥1,980")).not.toBeInTheDocument();
     expect(screen.getByText("1時間26分")).toBeInTheDocument();
   });
 
@@ -114,14 +110,6 @@ describe("WorkPage のストアへの導線", () => {
     expect(link).toHaveAttribute("rel", expect.stringContaining("nofollow"));
     expect(link).toHaveAttribute("rel", expect.stringContaining("sponsored"));
     expect(link).toHaveAttribute("target", "_blank");
-  });
-
-  test("販売状況は出さない。買えるかどうかの推定を持たないため", () => {
-    const detail = workDetail({ listings: [workListing({ available: false })] });
-    renderWithLocale(<WorkPage detail={detail} />);
-
-    expect(screen.queryByText(/販売されていない/)).not.toBeInTheDocument();
-    expect(screen.getByText("価格と販売状況はストアでご確認ください。")).toBeInTheDocument();
   });
 
   test("ストアごとに 1 枚ずつ並べる", () => {

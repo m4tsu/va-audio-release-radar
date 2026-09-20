@@ -440,6 +440,8 @@ export async function main(argv: readonly string[]): Promise<number> {
     const skipped = stores.filter((storeSlug) => !actorStores.includes(storeSlug));
     try {
       for (const storeSlug of actorStores) {
+        // 取得を始めた時刻。ストアの間隔を守るので 1 声優でも分単位かかる
+        const startedAt = new Date().toISOString();
         const result = await ADAPTERS[storeSlug].fetchByActor(query, {
           skipKnownIds: knownIds.get(storeSlug),
           snapshot,
@@ -456,7 +458,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         // かなりが重複になる。credit は作品に紐づいて既に保存されているので、
         // 2 人目以降で詳細を飛ばしても出演者は落ちない (upsert は credit を消さない)
         markFetched(knownIds, storeSlug, result.works);
-        forActor.push(await send(client, actor, storeSlug, result, runDate));
+        forActor.push(await send(client, actor, storeSlug, result, runDate, startedAt));
       }
     } catch (error) {
       // 版ずれ。残り全員も確実に同じ結果になるので、ここで打ち切る
@@ -538,6 +540,8 @@ export async function send(
   storeSlug: StoreSlug,
   result: AdapterResult,
   runDate: string,
+  /** このストアの取得を始めた時刻。渡さなければサーバーが取り込みを受けた時刻で埋める */
+  startedAt?: string,
 ): Promise<RunOutcome> {
   const base = {
     actor,
@@ -563,6 +567,8 @@ export async function send(
     runId,
     storeSlug,
     voiceActorId: actor.id,
+    // 取得を始めた時刻。1 回の走行は数時間に及ぶので、取り込みを受けた時刻とは別に送る
+    ...(startedAt === undefined ? {} : { startedAt }),
     works: result.works,
     ...(result.status === "error" && result.reason !== undefined ? { error: result.reason } : {}),
     // 網羅率。総件数を読めなかったストア / 声優では両方とも送らず、

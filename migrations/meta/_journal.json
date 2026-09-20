@@ -36,6 +36,20 @@
       "when": 1789884308692,
       "tag": "0004_good_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789915869521,
+      "tag": "0005_closed_bloodstorm",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789915874899,
+      "tag": "0006_flawless_lester",
+      "breakpoints": true
     }
   ]
 }

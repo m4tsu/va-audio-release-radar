@@ -71,8 +71,6 @@ export type StoreListing = {
   productUrl: string; // 正規 URL。アフィリエイト URL は別項目
   affiliateUrl?: string;
   titleRaw: string;
-  price?: number; // JPY
-  listPrice?: number; // 定価 (セール時に price と異なる)
   /**
    * ストアが自分で名乗っている区分をそのまま持つ。DLsite の `home` / `maniax`、
    * ポケドラの `men` / `bl` / `adt` / `adt-bl` など。解釈せずに保存するのは、
@@ -80,7 +78,8 @@ export type StoreListing = {
    * 切り口で後から絞れるようにするため
    */
   storeSection?: string;
-  available: boolean;
+  /** ストアが販売終了を明示した日時。出ていない間は undefined (`decisions/0008`) */
+  delistedAt?: string;
   firstSeenAt: string;
   lastSeenAt: string;
 };
@@ -151,8 +150,6 @@ export type RawWork = {
   coverImageUrl?: string;
   releaseDate?: string; // "YYYY-MM-DD"
   durationSeconds?: number;
-  price?: number;
-  listPrice?: number;
   makerName?: string;
   creditedNames: string[]; // 声優 / ナレーターとして表記されている名前 (全員)
   storeCategory?: string; // "SOU" / "audiobook" などストア固有の分類
@@ -173,7 +170,7 @@ export type RawWork = {
  * 版が合わなければサーバーは 409 を返し、クローラーは残りを回さず即座に止まる。
  * 「静かに捨てる」より「うるさく止まる」方が被害が小さいという判断
  */
-export const INGEST_PROTOCOL_VERSION = 1;
+export const INGEST_PROTOCOL_VERSION = 2;
 
 /** ingest エンドポイントの入力 */
 export type IngestPayload = {
@@ -184,7 +181,16 @@ export type IngestPayload = {
   protocolVersion: number;
   runId: string;
   storeSlug: StoreSlug;
-  voiceActorId: string; // このクロールの対象声優
+  /**
+   * このクロールの対象声優。ストアの新着一覧を起点にした走行では特定の声優を対象にしないので
+   * 省く (`decisions/0007`)。省いたときは、出演者を解決できた作品だけが保存される
+   */
+  voiceActorId?: string;
+  /**
+   * クローラーが取得を始めた時刻。省くと取り込みを受けた時刻になる。
+   * 1 回の走行は数時間に及ぶので、取得と取り込みの時刻は別の事実として扱う
+   */
+  startedAt?: string;
   works: RawWork[];
   error?: string; // 取得失敗時 (works は空)
   /**
@@ -350,8 +356,6 @@ export const rawWorkSchema = z.object({
   coverImageUrl: httpsUrlSchema.optional(),
   releaseDate: releaseDateSchema.optional(),
   durationSeconds: z.number().optional(),
-  price: z.number().optional(),
-  listPrice: z.number().optional(),
   makerName: z.string().optional(),
   creditedNames: z.array(z.string()),
   storeCategory: z.string().optional(),
@@ -365,7 +369,8 @@ export const ingestPayloadSchema = z.object({
   protocolVersion: z.number().int(),
   runId: z.string(),
   storeSlug: z.enum(STORE_SLUGS),
-  voiceActorId: z.string(),
+  voiceActorId: z.string().optional(),
+  startedAt: z.string().optional(),
   works: z.array(rawWorkSchema),
   error: z.string().optional(),
   totalCount: z.number().int().nonnegative().optional(),

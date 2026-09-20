@@ -472,7 +472,7 @@ describe("getWorkById", () => {
     await ingest(
       db,
       payload({
-        works: [rawWork({ price: 1584, creditedNames: ["上田麗奈", "知らない人"] })],
+        works: [rawWork({ creditedNames: ["上田麗奈", "知らない人"] })],
       }),
       NOW,
     );
@@ -480,7 +480,7 @@ describe("getWorkById", () => {
     const detail = await getWorkById(db, "dlsite:RJ01698658");
 
     expect(detail?.work.title).toBe("テスト作品");
-    expect(detail?.listings[0]?.price).toBe(1584);
+    expect(detail?.listings[0]?.storeProductId).toBe("RJ01698658");
     expect(detail?.credits).toHaveLength(2);
     const resolved = detail?.credits.find((credit) => credit.creditedName === "上田麗奈");
     expect(resolved?.voiceActorSlug).toBe(UEDA.slug);

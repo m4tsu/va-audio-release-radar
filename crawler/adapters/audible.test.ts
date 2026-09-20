@@ -9,7 +9,6 @@ import {
   buildProductUrl,
   buildSearchUrl,
   isNoSearchResultsLocation,
-  parsePrice,
   parseRuntimeSeconds,
   parseSearchHtml,
   parseTotalCount,
@@ -121,7 +120,6 @@ describe("parseSearchHtml", () => {
       coverImageUrl: "https://m.media-amazon.com/images/I/51K67T2guZL._SL500_.jpg",
       releaseDate: "2024-06-28",
       durationSeconds: 9 * 3600 + 6 * 60,
-      price: 2690,
       makerName: "小学館",
       creditedNames: [
         "馬場 惇平",
@@ -272,13 +270,6 @@ describe("parseRuntimeSeconds", () => {
     expect(parseRuntimeSeconds("再生時間： 45 分")).toBe(2700);
     expect(parseRuntimeSeconds("再生時間： 2 時間")).toBe(7200);
     expect(parseRuntimeSeconds("再生時間：")).toBeUndefined();
-  });
-});
-
-describe("parsePrice", () => {
-  it("全角円記号付きの価格を数値にする", () => {
-    expect(parsePrice("￥2,690 で購入、またはプレミアムプラン30日間無料体験で試す")).toBe(2690);
-    expect(parsePrice("プレミアムプラン聴き放題対象")).toBeUndefined();
   });
 });
 

@@ -92,12 +92,15 @@ export const storeListings = sqliteTable(
     productUrl: text("product_url").notNull(),
     affiliateUrl: text("affiliate_url"),
     titleRaw: text("title_raw").notNull(),
-    price: integer("price"),
-    listPrice: integer("list_price"),
     // ストアが名乗っている区分をそのまま持つ (DLsite の home / maniax など)。
     // 年齢区分と違って解釈しないので、ストアが区分を増やしても移行が要らない
     storeSection: text("store_section"),
-    available: integer("available", { mode: "boolean" }).notNull().default(true),
+    /**
+     * ストアが販売終了を明示した日時。出ていない間は NULL。
+     * 価格と「買えるかどうかの推定」は持たない (decisions/0008)。一覧に出ないことを理由に
+     * 入れず、ストアがそう示したときだけ入れる。行は消さないので、入った後も履歴は残る
+     */
+    delistedAt: text("delisted_at"),
     firstSeenAt: text("first_seen_at").notNull(),
     lastSeenAt: text("last_seen_at").notNull(),
     // 取得はしたが一覧に出なかった場合も更新する。lastSeenAt との差でクロール漏れを見分ける
@@ -141,7 +144,12 @@ export const crawlRuns = sqliteTable(
     // クローラーが払い出す runId をそのまま主キーにする
     id: text("id").primaryKey(),
     storeSlug: text("store_slug", { enum: STORE_SLUGS }).notNull(),
-    voiceActorId: text("voice_actor_id").notNull(),
+    /**
+     * この走行が対象にした声優。ストアの新着一覧を起点にした走行 (decisions/0007) は
+     * 特定の声優を対象にしないので NULL になる
+     */
+    voiceActorId: text("voice_actor_id"),
+    /** クローラーが取得を始めた時刻。送られてこなければ取り込みを受けた時刻 */
     startedAt: text("started_at").notNull(),
     finishedAt: text("finished_at"),
     workCount: integer("work_count").notNull().default(0),

@@ -141,22 +141,17 @@ describe("ingest", () => {
     expect(listing?.titleRaw).toBe("千歳くんはラムネ瓶のなか　４（ガガガ文庫）");
   });
 
-  it("価格とタイトルは毎回更新される", async () => {
+  it("タイトルは毎回更新される", async () => {
     const db = await setupDb();
 
-    await ingest(db, payload({ works: [rawWork({ price: 1584, listPrice: 1980 })] }), daysAgo(3));
+    await ingest(db, payload({ works: [rawWork()] }), daysAgo(3));
     await ingest(
       db,
-      payload({
-        runId: "run-2",
-        works: [rawWork({ price: 990, listPrice: 1980, titleRaw: "テスト作品 (改訂)" })],
-      }),
+      payload({ runId: "run-2", works: [rawWork({ titleRaw: "テスト作品 (改訂)" })] }),
       NOW,
     );
 
     const [listing] = await db.select().from(storeListings);
-    expect(listing?.price).toBe(990);
-    expect(listing?.listPrice).toBe(1980);
     expect(listing?.titleRaw).toBe("テスト作品 (改訂)");
   });
 
@@ -307,6 +302,51 @@ describe("ingest", () => {
     expect(run?.workCount).toBe(1);
     expect(run?.newCount).toBe(1);
     expect(run?.voiceActorId).toBe(UEDA.id);
+  });
+
+  it("声優に紐付かない走行 (新着一覧) も crawl_runs に残る", async () => {
+    const db = await setupDb();
+
+    const { voiceActorId: _omitted, ...feed } = payload();
+    await ingest(db, feed, NOW);
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.id).toBe("run-1");
+    expect(run?.status).toBe("ok");
+    expect(run?.voiceActorId).toBeNull();
+    // 作品そのものは声優起点と同じように保存される
+    expect(await db.select().from(storeListings)).toHaveLength(1);
+  });
+
+  it("取得を始めた時刻を受け取れば started_at に入れ、取り込んだ時刻は finished_at に残す", async () => {
+    const db = await setupDb();
+    const fetchStartedAt = daysAgo(1);
+
+    await ingest(db, payload({ startedAt: fetchStartedAt }), NOW);
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.startedAt).toBe(fetchStartedAt);
+    expect(run?.finishedAt).toBe(NOW);
+  });
+
+  it("取得を始めた時刻が無ければ取り込んだ時刻で埋める", async () => {
+    const db = await setupDb();
+
+    await ingest(db, payload(), NOW);
+
+    const [run] = await db.select().from(crawlRuns);
+    expect(run?.startedAt).toBe(NOW);
+  });
+
+  it("販売終了の日時は取り込みで消えない", async () => {
+    const db = await setupDb();
+    await ingest(db, payload(), daysAgo(3));
+    await db.update(storeListings).set({ delistedAt: daysAgo(2) });
+
+    await ingest(db, payload({ runId: "run-2" }), NOW);
+
+    const [listing] = await db.select().from(storeListings);
+    expect(listing?.delistedAt).toBe(daysAgo(2));
   });
 
   it("網羅率を受け取れば crawl_runs に残す", async () => {

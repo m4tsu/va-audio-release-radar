@@ -50,7 +50,8 @@ export type CrawlRunSummary = {
 
 export type CrawlerHealthEntry = {
   storeSlug: StoreSlug;
-  voiceActorId: string;
+  /** 声優に紐付かない走行 (新着一覧) では入らない */
+  voiceActorId?: string;
   voiceActorName?: string;
   voiceActorSlug?: string;
   latest: CrawlRunSummary;
@@ -248,15 +249,19 @@ export async function crawlerHealth(
     .orderBy(desc(crawlRuns.startedAt))
     .limit(HEALTH_RUN_SCAN_LIMIT);
 
+  // 束ねる単位は ストア × 対象。声優に紐付かない走行 (新着一覧) はストアごとに 1 つの束になる
   const byTarget = new Map<string, Array<(typeof runs)[number]>>();
   for (const run of runs) {
-    const key = groupKey(run.storeSlug, run.voiceActorId);
+    const key = groupKey(run.storeSlug, run.voiceActorId ?? "");
     const list = byTarget.get(key);
     if (list) list.push(run);
     else byTarget.set(key, [run]);
   }
 
-  const actorNames = await loadActorNames(db, [...new Set(runs.map((run) => run.voiceActorId))]);
+  const actorIds = runs
+    .map((run) => run.voiceActorId)
+    .filter((id): id is string => id !== null && id !== "");
+  const actorNames = await loadActorNames(db, [...new Set(actorIds)]);
 
   const entries: CrawlerHealthEntry[] = [];
   for (const list of byTarget.values()) {
@@ -264,12 +269,12 @@ export async function crawlerHealth(
     if (!latest) continue;
 
     const previousOk = rest.find((run) => run.status === "ok");
-    const actor = actorNames.get(latest.voiceActorId);
+    const actor = latest.voiceActorId === null ? undefined : actorNames.get(latest.voiceActorId);
     const { warning, reason } = judgeWarning(latest, previousOk);
 
     entries.push({
       storeSlug: latest.storeSlug,
-      voiceActorId: latest.voiceActorId,
+      ...(latest.voiceActorId === null ? {} : { voiceActorId: latest.voiceActorId }),
       ...(actor ? { voiceActorName: actor.canonicalName, voiceActorSlug: actor.slug } : {}),
       latest: toRunSummary(latest),
       ...(previousOk ? { previousOk: toRunSummary(previousOk) } : {}),

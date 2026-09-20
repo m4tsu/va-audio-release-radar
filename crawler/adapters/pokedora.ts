@@ -142,7 +142,6 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       titleRaw,
       productUrl: buildProductUrl(productId),
       coverImageUrl: buildCoverImageUrl(productId),
-      price: parsePrice(item.find("span.normal_price").first().text()),
       // 一覧には出演声優が出ない。詳細で埋める (applyProductDetail)
       creditedNames: [],
       ...(categories[0] === undefined ? {} : { storeCategory: categories[0] }),
@@ -166,14 +165,6 @@ function extractProductId(href: string | undefined): string | undefined {
   return matched?.[1];
 }
 
-/** `¥2,970` / `1,980` を数値にする。無料の作品は 0 で来るので「数字が無い」と区別する */
-function parsePrice(text: string): number | undefined {
-  const digits = text.replace(/\D/g, "");
-  if (digits === "") return undefined;
-  const value = Number(digits);
-  return Number.isFinite(value) ? value : undefined;
-}
-
 /**
  * 半角の空白・改行の連続を 1 つに畳んで前後を落とす。
  * 全角空白 (U+3000) は畳まない。日本語のタイトルでは字面の一部なので、
@@ -190,7 +181,6 @@ export type PokedoraCredit = { name: string; tagId: number };
 
 export type PokedoraProductDetail = {
   title?: string;
-  price?: number;
   /** レーベル (tag_type=3)。サークル / 出版社に相当する */
   makerName?: string;
   credits: PokedoraCredit[];
@@ -231,7 +221,6 @@ export function parseProductDetail(html: string): PokedoraProductDetail {
   const makerName = extraTagLinks($, "レーベル", LABEL_TAG_TYPE)[0]?.name;
   const coverImageUrl = $('meta[property="og:image"]').attr("content");
   const section = parseDetailSection($);
-  const price = parsePrice($("span.product_price").first().text());
 
   return {
     credits,
@@ -241,7 +230,6 @@ export function parseProductDetail(html: string): PokedoraProductDetail {
     ...(categories[0] === undefined ? {} : { storeCategory: categories[0] }),
     ...(coverImageUrl === undefined ? {} : { coverImageUrl }),
     ...(section === undefined ? {} : { section }),
-    ...(price === undefined ? {} : { price }),
   };
 }
 
@@ -335,7 +323,6 @@ export function applyProductDetail(work: RawWork, detail: PokedoraProductDetail)
       detail.credits.length > 0 ? detail.credits.map((credit) => credit.name) : work.creditedNames,
     titleRaw: detail.title ?? work.titleRaw,
     makerName: detail.makerName ?? work.makerName,
-    price: detail.price ?? work.price,
     storeCategory: detail.storeCategory ?? work.storeCategory,
     genres: detail.genres.length > 0 ? detail.genres : work.genres,
     coverImageUrl: detail.coverImageUrl ?? work.coverImageUrl,

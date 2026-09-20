@@ -1,0 +1,1 @@
+ALTER TABLE `store_listings` ADD `delisted_at` text;

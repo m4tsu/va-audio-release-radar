@@ -113,13 +113,6 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       titleRaw,
       productUrl: httpsUrlOrFallback(titleAnchor.attr("href"), buildProductUrl(workno)),
       coverImageUrl: extractCoverImageUrl(item.html() ?? ""),
-      // .strike (定価) は .work_price の兄弟要素なので、配下を辿れば現在価格だけが取れる
-      price: parseJapaneseNumber(
-        item.find("dd.work_price_wrap > .work_price .work_price_base").first().text(),
-      ),
-      listPrice: parseJapaneseNumber(
-        item.find("dd.work_price_wrap > .strike .work_price_base").first().text(),
-      ),
       makerName: makerName === "" ? undefined : makerName,
       creditedNames,
       storeCategory: extractWorkType(item.find("div.work_category").attr("class")),
@@ -149,14 +142,6 @@ function httpsUrlOrFallback(href: string | undefined, fallback: string): string 
   } catch {
     return fallback;
   }
-}
-
-/** `1,584` のような表記を数値にする。空文字や数字を含まない文字列は undefined */
-function parseJapaneseNumber(text: string): number | undefined {
-  const digits = text.replace(/\D/g, "");
-  if (digits === "") return undefined;
-  const value = Number(digits);
-  return Number.isFinite(value) ? value : undefined;
 }
 
 /** `work_category` の class に入っている `type_SOU` から作品種別を取る */
@@ -193,8 +178,6 @@ export type DlsiteProductDetail = {
   /** "home" (全年齢) / "maniax" (R18)。ストア固有の区分としてそのまま保存する */
   siteId?: string;
   workType?: string;
-  price?: number;
-  officialPrice?: number;
   voiceNames: string[];
   genres: string[];
 };
@@ -228,8 +211,6 @@ export function parseProductJson(text: string): DlsiteProductDetail | undefined 
     ageCategory: asNumber(record.age_category),
     siteId: asString(record.site_id),
     workType: asString(record.work_type),
-    price: asNumber(record.price),
-    officialPrice: asNumber(record.official_price),
   };
 }
 
@@ -272,8 +253,6 @@ export function applyProductDetail(work: RawWork, detail: DlsiteProductDetail): 
     releaseDate: detail.releaseDate ?? work.releaseDate,
     makerName: detail.makerName ?? work.makerName,
     storeCategory: detail.workType ?? work.storeCategory,
-    price: detail.price ?? work.price,
-    listPrice: detail.officialPrice ?? work.listPrice,
     genres: detail.genres.length > 0 ? detail.genres : work.genres,
     // age_category が読めなければ一覧由来の値 (全年齢) を残す。詳細が取れなかったことを
     // 理由に unknown へ落とすと、一覧の事実まで捨ててしまう

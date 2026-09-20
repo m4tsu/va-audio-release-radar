@@ -111,8 +111,6 @@ describe("parseSearchHtml", () => {
       productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ01698658.html",
       coverImageUrl:
         "https://img.dlsite.jp/modpub/images2/work/doujin/RJ01699000/RJ01698658_img_main.jpg",
-      price: 1584,
-      listPrice: 1980,
       makerName: "Bit grooove lab.",
       creditedNames: ["上田麗奈"],
       storeCategory: "SOU",
@@ -123,12 +121,6 @@ describe("parseSearchHtml", () => {
       // 一覧に発売日は無い。product.json で補う
       releaseDate: undefined,
     });
-  });
-
-  it("セールでない作品は定価を持たない", () => {
-    const withoutSale = parsed.works.find((work) => work.storeProductId === "RJ01690162");
-    expect(withoutSale?.price).toBe(1980);
-    expect(withoutSale?.listPrice).toBeUndefined();
   });
 
   it("すべての作品が ID・タイトル・商品 URL を持つ", () => {
@@ -153,8 +145,6 @@ describe("parseProductJson", () => {
       ageCategory: 1,
       siteId: "home",
       workType: "SOU",
-      price: 1584,
-      officialPrice: 1980,
       voiceNames: ["上田麗奈"],
       genres: [
         "ASMR",

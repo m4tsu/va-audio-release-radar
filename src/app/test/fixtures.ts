@@ -69,7 +69,6 @@ export function workListing(over: Partial<WorkListing> = {}): WorkListing {
     storeProductId: "RJ1",
     productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ1.html",
     titleRaw: "架空のASMR作品",
-    available: true,
     firstSeenAt: NOW,
     lastSeenAt: NOW,
     ...over,

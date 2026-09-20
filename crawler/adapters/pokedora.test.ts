@@ -109,7 +109,6 @@ describe("parseSearchHtml (タグページ)", () => {
         "《1トラック無料》23時のママたち～山小屋の管理人 紬季の場合～【出演声優：小林千晃】",
       productUrl: "https://pokedora.com/products/detail.php?product_id=139137",
       coverImageUrl: "https://pokedora.com/get_image.php?product_id=139137&thumb=large",
-      price: 2970,
       storeCategory: "シチュエーションCD",
       storeSection: "men",
       ageRating: "general",
@@ -139,7 +138,6 @@ describe("parseProductDetail", () => {
   it("詳細ページの項目をひととおり取る", () => {
     expect(parseProductDetail(detail126232)).toEqual({
       title: "ボイスドラマ「おかえり、初恋。」通常版【出演声優：小林千晃 上田麗奈】",
-      price: 1980,
       makerName: "シルフ",
       section: "men",
       storeCategory: "一般ドラマCD",
@@ -197,10 +195,6 @@ describe("parseProductDetail", () => {
     expect(parseProductDetail(detail139137).section).toBe("men");
   });
 
-  it("無料の作品は価格 0 として取る (価格が読めなかったのと区別する)", () => {
-    expect(parseProductDetail(detail101656).price).toBe(0);
-  });
-
   it("商品カテゴリが複数ある作品は先頭を storeCategory にし、全部を genres に入れる", () => {
     const detail = parseProductDetail(detail103703);
     expect(detail.storeCategory).toBe("BLCD");
@@ -238,7 +232,6 @@ describe("applyProductDetail", () => {
   it("詳細が空でも一覧の値を消さない", () => {
     const merged = applyProductDetail(listWork(), { credits: [], genres: [] });
     expect(merged.titleRaw).toBe(listWork().titleRaw);
-    expect(merged.price).toBe(listWork().price);
     expect(merged.storeSection).toBe("men");
   });
 });

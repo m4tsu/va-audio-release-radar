@@ -329,7 +329,8 @@ describe("crawlerHealth", () => {
       startedAt: string;
       workCount: number;
       status: "ok" | "error";
-      voiceActorId?: string;
+      /** null を渡すと声優に紐付かない走行 (新着一覧) になる */
+      voiceActorId?: string | null;
       totalCount?: number;
       coverageComplete?: boolean;
     },
@@ -337,7 +338,7 @@ describe("crawlerHealth", () => {
     await db.insert(crawlRuns).values({
       id: run.id,
       storeSlug: "dlsite",
-      voiceActorId: run.voiceActorId ?? UEDA.id,
+      voiceActorId: run.voiceActorId === undefined ? UEDA.id : run.voiceActorId,
       startedAt: run.startedAt,
       finishedAt: run.startedAt,
       workCount: run.workCount,
@@ -361,6 +362,34 @@ describe("crawlerHealth", () => {
     expect(health.entries[0]?.latest.id).toBe("r2");
     expect(health.entries[0]?.previousOk?.id).toBe("r1");
     expect(health.entries[0]?.voiceActorName).toBe("上田麗奈");
+  });
+
+  it("声優に紐付かない走行はストアごとに 1 つの束になり、声優の名前を付けない", async () => {
+    const db = await setupDb();
+    await addRun(db, {
+      id: "f1",
+      startedAt: daysAgo(2),
+      workCount: 8,
+      status: "ok",
+      voiceActorId: null,
+    });
+    await addRun(db, {
+      id: "f2",
+      startedAt: daysAgo(1),
+      workCount: 6,
+      status: "ok",
+      voiceActorId: null,
+    });
+    await addRun(db, { id: "a1", startedAt: daysAgo(1), workCount: 30, status: "ok" });
+
+    const health = await crawlerHealth(db, NOW);
+
+    const feed = health.entries.find((entry) => entry.voiceActorId === undefined);
+    expect(feed?.latest.id).toBe("f2");
+    expect(feed?.previousOk?.id).toBe("f1");
+    expect(feed?.voiceActorName).toBeUndefined();
+    // 声優起点の束と混ざらない
+    expect(health.entries).toHaveLength(2);
   });
 
   it("件数が保たれていれば警告しない", async () => {

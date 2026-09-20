@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
@@ -45,9 +45,6 @@ export type WorkListing = {
   productUrl: string;
   affiliateUrl?: string;
   titleRaw: string;
-  price?: number;
-  listPrice?: number;
-  available: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
 };
@@ -373,29 +370,39 @@ function baselineKey(voiceActorId: string, storeSlug: StoreSlug): string {
 }
 
 /**
- * 声優 × ストアごとの「初回成功クロールの開始時刻」。
+ * 声優 × ストアごとの「初回成功クロールを取り込んだ時刻」。
  *
  * 発売日が無い作品を新着扱いしてよいのは、この時刻より後に見つかった分だけ。初回クロールは
  * 既存の全作品を一度に見つけるので、そこを起点にしないと声優を追加するたびに全作品が新着になる。
- * ingest は `crawl_runs.started_at` と `store_listings.first_seen_at` に同じ時刻を書くため、
- * 初回クロールで見つかった作品は「等しい」= 新着ではない、と判定できる。
+ * 見るのが `finished_at` なのは、ingest がそこと `store_listings.first_seen_at` に同じ時刻を書くため。
+ * 初回クロールで見つかった作品は「等しい」= 新着ではない、と判定できる
+ * (`started_at` はクローラーが取得を始めた時刻で、取り込みより前になる)。
  *
- * 行数は 声優数 × ストア数 (MVP では 35 × 2) なので、まとめて 1 回で読む
+ * 声優に紐付かない走行 (新着一覧) は基準にならないので外す。
+ * 行数は 声優数 × ストア数 なので、まとめて 1 回で読む
  */
 async function loadCrawlBaselines(db: AppDb): Promise<CrawlBaselines> {
   const rows = await db
     .select({
       voiceActorId: crawlRuns.voiceActorId,
       storeSlug: crawlRuns.storeSlug,
-      startedAt: sql<string>`min(${crawlRuns.startedAt})`,
+      finishedAt: sql<string>`min(${crawlRuns.finishedAt})`,
     })
     .from(crawlRuns)
-    .where(eq(crawlRuns.status, "ok"))
+    .where(
+      and(
+        eq(crawlRuns.status, "ok"),
+        isNotNull(crawlRuns.voiceActorId),
+        isNotNull(crawlRuns.finishedAt),
+      ),
+    )
     .groupBy(crawlRuns.voiceActorId, crawlRuns.storeSlug);
 
   const baselines: CrawlBaselines = new Map();
-  for (const row of rows)
-    baselines.set(baselineKey(row.voiceActorId, row.storeSlug), row.startedAt);
+  for (const row of rows) {
+    if (row.voiceActorId === null) continue;
+    baselines.set(baselineKey(row.voiceActorId, row.storeSlug), row.finishedAt);
+  }
   return baselines;
 }
 
@@ -563,9 +570,6 @@ async function loadListings(db: AppDb, workIds: string[]): Promise<Map<string, W
         productUrl: row.productUrl,
         ...(row.affiliateUrl ? { affiliateUrl: row.affiliateUrl } : {}),
         titleRaw: row.titleRaw,
-        ...(row.price !== null ? { price: row.price } : {}),
-        ...(row.listPrice !== null ? { listPrice: row.listPrice } : {}),
-        available: row.available,
         firstSeenAt: row.firstSeenAt,
         lastSeenAt: row.lastSeenAt,
       };

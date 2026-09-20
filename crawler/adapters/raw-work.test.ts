@@ -22,11 +22,11 @@ describe("validateRawWorks", () => {
 
   it("壊れた作品は捨て、件数と理由を残す", () => {
     // 1 作品の崩れで 30 件まるごと失わないよう、例外にせず除外する
-    const result = validateRawWorks([VALID, { ...VALID, price: "1584" }, null]);
+    const result = validateRawWorks([VALID, { ...VALID, productUrl: "http://x.test" }, null]);
     expect(result.works).toEqual([VALID]);
     expect(result.invalidCount).toBe(2);
     expect(result.warnings).toHaveLength(2);
     expect(result.warnings[0]).toContain("RJ01698658");
-    expect(result.warnings[0]).toContain("price");
+    expect(result.warnings[0]).toContain("productUrl");
   });
 });
