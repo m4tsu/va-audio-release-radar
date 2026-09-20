@@ -7,7 +7,6 @@ import {
   articleUrl,
   kanaFromArticle,
   parseArticle,
-  toStoredKana,
   type WikipediaArticle,
 } from "./wikipedia-article.ts";
 
@@ -64,34 +63,6 @@ describe("parseArticle", () => {
   it("Template:声優 以外のテンプレートの ふりがな も取れる", () => {
     const article = parseArticle(fixture("mitsushima-hikari"));
     expect(article.furigana).toBe("みつしま ひかり");
-  });
-});
-
-describe("toStoredKana", () => {
-  it("姓名の間の空白を落とす", () => {
-    expect(toStoredKana("うえだ れいな")).toBe("うえだれいな");
-  });
-
-  it("カタカナはひらがなに寄せる (ひらがなで引いた検索に当てるため)", () => {
-    expect(toStoredKana("みどう ダリア")).toBe("みどうだりあ");
-    expect(toStoredKana("ソンド")).toBe("そんど");
-  });
-
-  it("長音符は残す", () => {
-    expect(toStoredKana("ひろせ ゆうすけー")).toBe("ひろせゆうすけー");
-  });
-
-  it("内部リンクと脚注は落とす", () => {
-    expect(toStoredKana("[[のがみ ゆかな|ゆかな]]")).toBe("ゆかな");
-    expect(
-      toStoredKana('あまの さとみ<ref name="x">{{Cite web|url=http://example.com}}</ref>'),
-    ).toBe("あまのさとみ");
-  });
-
-  it("かな以外が残る値は読みとして扱わない", () => {
-    expect(toStoredKana("上田 麗奈")).toBeUndefined();
-    expect(toStoredKana("KENN")).toBeUndefined();
-    expect(toStoredKana("")).toBeUndefined();
   });
 });
 

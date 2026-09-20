@@ -1,9 +1,16 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { type FetchFailure, fetchText } from "../lib/fetch.ts";
-import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
+import { writeJsonAtomic } from "../lib/json-file.ts";
+import { CRAWLER_DIR } from "../lib/paths.ts";
+import {
+  type ActorKanaCache,
+  type ActorKanaRecord,
+  KANA_JSON,
+  readKanaCache,
+} from "./actor-kana.ts";
 import {
   articleTitles,
   articleUrl,
@@ -29,8 +36,6 @@ import {
  */
 
 const STORE = "wikimedia";
-const DISCOVERY_DIR = path.join(CACHE_DIR, "discovery");
-export const KANA_JSON = path.join(DISCOVERY_DIR, "wikipedia-kana.json");
 const DEFAULT_ACTORS_JSON = path.join(CRAWLER_DIR, "actors.generated.json");
 
 /** 何人ごとに進捗を出すか */
@@ -45,48 +50,7 @@ const ESTIMATED_MS_PER_ACTOR = 5_000;
 
 // --- 結果 ------------------------------------------------------------------
 
-/**
- * 1 人ぶんの結果。取れなかった人も理由付きで残す。
- * 「引いたが取れなかった」と「まだ引いていない」を区別できないと、再開のたびに引き直してしまう
- */
-export type WikipediaKanaRecord = {
-  canonicalName: string;
-  /** ok=かなが取れた / rejected=記事はあるが条件を満たさない / not-found=記事が無い / failed=取得に失敗 */
-  status: "ok" | "rejected" | "not-found" | "failed";
-  /** 保存する形のかな (空白なしのひらがな) */
-  kana?: string;
-  /** 記事に書かれていたままの値。取り違えを後から追えるようにする */
-  rawKana?: string;
-  source?: "furigana" | "kana-name";
-  /** かなを取った、または最後に引いた記事名 */
-  title?: string;
-  /** 着地した記事名。転送されたかどうかが後から分かる */
-  pageName?: string;
-  reason?: string;
-  /** HTTP ステータス。ネットワークエラーでは undefined */
-  httpStatus?: number;
-  fetchedAt: string;
-};
-
-export type WikipediaKanaCache = {
-  startedAt: string;
-  updatedAt: string;
-  records: WikipediaKanaRecord[];
-};
-
-/** 取得済みのかな (canonicalName → かな)。`build-actors.ts` が対象声優リストに入れる */
-export function kanaByCanonicalName(
-  records: readonly WikipediaKanaRecord[],
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const record of records) {
-    if (record.status === "ok" && record.kana !== undefined)
-      map[record.canonicalName] = record.kana;
-  }
-  return map;
-}
-
-export function summarizeRecords(records: readonly WikipediaKanaRecord[]): {
+export function summarizeRecords(records: readonly ActorKanaRecord[]): {
   total: number;
   ok: number;
   rejected: number;
@@ -119,28 +83,6 @@ export function summarizeRecords(records: readonly WikipediaKanaRecord[]): {
 
 // --- 入出力 ----------------------------------------------------------------
 
-/**
- * 一時ファイルに書いてから rename する。数時間のバッチの途中で中断されても
- * JSON が壊れていないことを保証するため (壊れると再開できず全部やり直しになる)
- */
-async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  const temporary = `${filePath}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  await rename(temporary, filePath);
-}
-
-/** 取得結果が無くても生成は動く (かな無しになるだけ) ので、無ければ空として扱う */
-export async function readKanaCache(
-  filePath: string = KANA_JSON,
-): Promise<WikipediaKanaCache | undefined> {
-  try {
-    return JSON.parse(await readFile(filePath, "utf8")) as WikipediaKanaCache;
-  } catch {
-    return undefined;
-  }
-}
-
 /** 対象声優リストから、引く相手の名前だけ取る */
 export async function loadCanonicalNames(filePath: string): Promise<string[]> {
   const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
@@ -166,7 +108,7 @@ export type StopReason = {
 export async function fetchActorKana(
   canonicalName: string,
   options: { snapshot?: boolean },
-): Promise<WikipediaKanaRecord> {
+): Promise<ActorKanaRecord> {
   let lastFailure: FetchFailure | undefined;
   let lastRejection: { title: string; pageName?: string; reason: KanaRejection } | undefined;
 
@@ -234,7 +176,7 @@ function failureRecord(
   title: string,
   result: FetchFailure,
   fetchedAt: string,
-): WikipediaKanaRecord {
+): ActorKanaRecord {
   return {
     canonicalName,
     status: "failed",
@@ -247,7 +189,7 @@ function failureRecord(
 
 export async function crawlActorKana(options: {
   canonicalNames: readonly string[];
-  cache: WikipediaKanaCache;
+  cache: ActorKanaCache;
   outFile: string;
   snapshot?: boolean;
   onProgress?: (done: number, totalToFetch: number) => void;
@@ -348,7 +290,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   process.stdout.write(`対象声優: ${canonicalNames.length} 人 (${actorsFile})\n`);
 
   const existing = values.restart === true ? undefined : await readKanaCache(outFile);
-  const cache: WikipediaKanaCache = existing ?? {
+  const cache: ActorKanaCache = existing ?? {
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     records: [],

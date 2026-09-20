@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { toStoredKana } from "./actor-kana.ts";
 
 /**
  * 日本語版 Wikipedia の記事 HTML から、声優のかなに要る事実だけを取り出す純粋関数。
@@ -149,42 +150,6 @@ export function parseArticle(html: string): WikipediaArticle {
 }
 
 // --- かなの取り出し --------------------------------------------------------
-
-/** カタカナの範囲 (ァ〜ヶ)。ひらがなとは 0x60 ずれている */
-const KATAKANA_START = 0x30a1;
-const KATAKANA_END = 0x30f6;
-const KANA_OFFSET = 0x60;
-/** 保存してよい形。ひらがなと長音符だけ */
-const HIRAGANA_ONLY = /^[ぁ-ゖー]+$/u;
-
-/**
- * 記事の値を保存する形に直す。空白を落とし、カタカナをひらがなに寄せる。
- *
- * Wikipedia は姓と名の間に空白を入れ、名前がラテン文字の声優にはカタカナの読みを載せる。
- * `src/domain/normalize.ts` の `normalizeName` は空白を落とすがかなとカナは畳まないので、
- * カタカナのまま入れるとひらがなで引いた検索に当たらない。
- * ひらがなと長音符以外が残る値は、読みとして取り出せていないので捨てる
- */
-export function toStoredKana(raw: string): string | undefined {
-  const plain = raw
-    // 脚注より後ろは読みではない
-    .replace(/<ref[\s\S]*$/i, "")
-    .replace(/\{\{[\s\S]*?\}\}/g, "")
-    // 内部リンクは表示側だけ残す ([[のがみ ゆかな|ゆかな]] → ゆかな)
-    .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, "$1")
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/gu, "");
-
-  let hiragana = "";
-  for (const character of plain) {
-    const code = character.codePointAt(0) ?? 0;
-    hiragana +=
-      code >= KATAKANA_START && code <= KATAKANA_END
-        ? String.fromCodePoint(code - KANA_OFFSET)
-        : character;
-  }
-  return HIRAGANA_ONLY.test(hiragana) ? hiragana : undefined;
-}
 
 function hasCategoryContaining(article: WikipediaArticle, word: string): boolean {
   return article.categories.some((category) => category.includes(word));

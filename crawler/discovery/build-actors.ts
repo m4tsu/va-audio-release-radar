@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
 import {
+  type ActorEntity,
   type ActorOverrides,
   buildActorEntities,
   describeExclusionReason,
@@ -12,7 +13,7 @@ import {
   type StaffInput,
   toActorNameEn,
 } from "./actor-entity.ts";
-import { KANA_JSON, kanaByCanonicalName, readKanaCache } from "./wikipedia-kana.ts";
+import { KANA_JSON, kanaByCanonicalName, readKanaCache } from "./actor-kana.ts";
 
 /**
  * 対象声優リストの生成。
@@ -43,6 +44,7 @@ const USAGE = `使い方:
   --kana <path>           取得したかな (既定 crawler/.cache/discovery/wikipedia-kana.json)
   --out <path>            出力先 (既定 crawler/actors.generated.json)
   --min-role-count <N>    roleCount がこの値未満の声優を落とす (既定 0 = 全員)
+  --allow-kana-loss       今ある出力にあるかなが消えても書き出す
 `;
 
 const OPTION_SPEC = {
@@ -51,6 +53,7 @@ const OPTION_SPEC = {
   kana: { type: "string" },
   out: { type: "string" },
   "min-role-count": { type: "string" },
+  "allow-kana-loss": { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -87,10 +90,35 @@ export async function loadOverrides(file: string): Promise<ActorOverrides> {
 export async function loadFetchedKana(file: string): Promise<FetchedKana> {
   const cache = await readKanaCache(file);
   if (cache === undefined) {
-    process.stdout.write(`取得したかなが無いので手書きのかなだけで生成する: ${file}\n`);
+    process.stderr.write(`[警告] 取得したかなが無いので手書きのかなだけで生成する: ${file}\n`);
     return {};
   }
   return kanaByCanonicalName(cache.records);
+}
+
+/**
+ * 今ある出力にあって、今回の生成に無いかなを持つ声優。
+ *
+ * 取得結果は `crawler/.cache/` にあって追跡されないのに、出力は追跡される。
+ * 取得結果を持たない場所で生成し直すと、取得済みのかなが黙って全員分落ちた出力ができる。
+ * 書き出す前に気づけるよう、消える人を数える
+ */
+export async function kanaLosses(
+  outFile: string,
+  actors: readonly ActorEntity[],
+): Promise<string[]> {
+  let previous: unknown;
+  try {
+    previous = JSON.parse(await readFile(outFile, "utf8"));
+  } catch {
+    // まだ出力が無い / 読めない。比べる相手が無いので失うものも無い
+    return [];
+  }
+  if (!Array.isArray(previous)) return [];
+  const next = new Map(actors.map((actor) => [actor.canonicalName, actor.nameKana]));
+  return (previous as ActorEntity[])
+    .filter((actor) => actor.nameKana !== undefined && next.get(actor.canonicalName) === undefined)
+    .map((actor) => actor.canonicalName);
 }
 
 // --- 本体 ------------------------------------------------------------------
@@ -199,6 +227,19 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stderr.write(
       "自動で連番は振らない (同名別人を取り違えるため)。" +
         `${overridesFile} にどちらか一方の slug を書いて解決する\n`,
+    );
+    return 1;
+  }
+
+  const lostKana = await kanaLosses(outFile, result.actors);
+  if (lostKana.length > 0 && values["allow-kana-loss"] !== true) {
+    process.stderr.write(
+      `\n[エラー] 今ある ${outFile} のかなが ${lostKana.length} 人ぶん消えるので書き出さない\n`,
+    );
+    process.stderr.write(`  例: ${lostKana.slice(0, 5).join("、")}\n`);
+    process.stderr.write(
+      `  ${kanaFile} を用意してから生成する (取得は crawler/discovery/wikipedia-kana.ts)。\n` +
+        "  消すつもりなら --allow-kana-loss を付ける\n",
     );
     return 1;
   }

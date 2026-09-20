@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  kanaByCanonicalName,
-  summarizeRecords,
-  type WikipediaKanaRecord,
-} from "./wikipedia-kana.ts";
+import type { ActorKanaRecord } from "./actor-kana.ts";
+import { summarizeRecords } from "./wikipedia-kana.ts";
 
-function record(overrides: Partial<WikipediaKanaRecord> = {}): WikipediaKanaRecord {
+function record(overrides: Partial<ActorKanaRecord> = {}): ActorKanaRecord {
   return {
     canonicalName: "上田麗奈",
     status: "ok",
@@ -15,24 +12,6 @@ function record(overrides: Partial<WikipediaKanaRecord> = {}): WikipediaKanaReco
     ...overrides,
   };
 }
-
-describe("kanaByCanonicalName", () => {
-  it("かなが取れた人だけを返す", () => {
-    expect(
-      kanaByCanonicalName([
-        record(),
-        record({ canonicalName: "ゆかな", kana: "ゆかな", source: "kana-name" }),
-        record({ canonicalName: "満島ひかり", status: "rejected", kana: undefined }),
-        record({ canonicalName: "居ない人", status: "not-found", kana: undefined }),
-        record({ canonicalName: "失敗した人", status: "failed", kana: undefined }),
-      ]),
-    ).toEqual({ 上田麗奈: "うえだれいな", ゆかな: "ゆかな" });
-  });
-
-  it("status が ok でもかなが無ければ入れない", () => {
-    expect(kanaByCanonicalName([record({ kana: undefined })])).toEqual({});
-  });
-});
 
 describe("summarizeRecords", () => {
   it("状態ごとの人数と、取得元・理由の内訳を数える", () => {
