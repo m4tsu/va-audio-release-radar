@@ -32,7 +32,12 @@ export function FollowedAnime() {
     .join(",");
 
   useEffect(() => {
-    if (followKey.length === 0) return;
+    // フォローが 0 件なら引くものが無い。読み込み中のまま置くと、この部品だけを
+    // 描いたときに「読み込み中…」が消えなくなる
+    if (followKey.length === 0) {
+      setState({ phase: "ready", items: [] });
+      return;
+    }
     let current = true;
     setState({ phase: "loading" });
 

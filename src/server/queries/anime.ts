@@ -225,7 +225,7 @@ const appearanceActorHasAudioWork = sql`exists (
 /**
  * そのシーズンのアニメ一覧。
  *
- * 音声作品を持つ出演者が 0 人の作品は返さない (設計 §5 の歯止め 2)。
+ * 音声作品を持つ出演者が 0 人の作品は返さない。
  * 出演者が全員「音声作品なし」の作品を並べても、行った先のページが空になる
  */
 export async function listSeasonAnime(

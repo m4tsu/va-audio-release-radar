@@ -31,11 +31,12 @@ describe("FollowedAnime", () => {
     );
   });
 
-  test("フォローが 0 件なら引かない", async () => {
+  test("フォローが 0 件なら引かず、読み込み中も残さない", async () => {
     await readyFollowStore();
-    renderWithLocale(<FollowedAnime />);
+    const { container } = renderWithLocale(<FollowedAnime />);
 
     expect(fetchAnimeForActors).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   test("引けたアニメを並べ、アニメのページへ結ぶ", async () => {

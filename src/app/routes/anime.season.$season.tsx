@@ -11,6 +11,9 @@ export const Route = createFileRoute("/anime/season/$season")({
     const parsed = parseSeasonSlug(params.season);
     if (!parsed) throw notFound();
 
+    // 前後の 2 件のためにシーズン一覧を丸ごと引く。隣だけを引くクエリを別に持つより、
+    // 索引と同じ 1 本を使い回すほうが「実際に作品があるシーズンの並び」の定義が 1 つで済む。
+    // 返るのはシーズンの数 (たかだか数十行) で、作品の行は含まない
     const [anime, seasons, origin] = await Promise.all([
       fetchSeasonAnime({ data: parsed }),
       fetchAnimeSeasons(),
