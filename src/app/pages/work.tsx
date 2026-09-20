@@ -97,6 +97,8 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
             <ListingCard key={listing.storeSlug} listing={listing} />
           ))}
         </div>
+        {/* ストアの枚数だけ繰り返さないよう、区画に 1 度だけ添える */}
+        <p className="text-muted-foreground text-xs">{t("work.checkAtStore")}</p>
       </section>
     </article>
   );
@@ -128,15 +130,11 @@ function CreditName({ credit }: { credit: WorkCredit }) {
  * このサイトは価格を持たず、正はストアの側にある (docs/decisions/0008-no-price-no-availability.md)
  */
 function ListingCard({ listing }: { listing: WorkListing }) {
-  const t = useT();
-
   return (
     <div className="space-y-3 rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
       <p className="font-medium">{storeLabel(listing.storeSlug)}</p>
 
       <StoreLink listing={listing} className="w-full" />
-
-      <p className="text-muted-foreground text-xs">{t("work.checkAtStore")}</p>
     </div>
   );
 }

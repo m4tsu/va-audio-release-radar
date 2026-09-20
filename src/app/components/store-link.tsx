@@ -25,7 +25,7 @@ export function StoreLink({ listing, className }: { listing: WorkListing; classN
   const t = useT();
   const href = safeHttpsUrl(listing.affiliateUrl) ?? safeHttpsUrl(listing.productUrl);
   if (!href) {
-    // リンク先が無いので押せるものは出さない。価格などの情報は呼び出し側が既に出している
+    // リンク先が無いので押せるものは出さない。ストア名は呼び出し側が既に出している
     return <p className="text-muted-foreground text-sm">{t("storeLink.missing")}</p>;
   }
 

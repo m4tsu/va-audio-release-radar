@@ -48,12 +48,12 @@ export const terms: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: "本サービスに掲載する作品名、出演者、発売日、価格、再生時間などの情報は、各販売サイトが公開しているページをもとに機械的に取得したものです。運営者はその正確性、完全性、最新性を保証しません。",
+            text: "本サービスに掲載する作品名、出演者、発売日、再生時間などの情報は、各販売サイトが公開しているページをもとに機械的に取得したものです。運営者はその正確性、完全性、最新性を保証しません。",
           },
           {
             type: "list",
             items: [
-              "価格や販売状況は取得した時点のものであり、販売サイト上の現在の表示と異なることがあります。",
+              "本サービスは価格と販売状況を掲載していません。各販売サイトで確認してください。",
               "出演者の表記は販売サイト上の表記をもとに声優に対応付けています。表記の揺れや同名の別人により、対応付けが誤っている場合があります。",
               "購入や視聴の前に、必ず各販売サイトで最新の情報を確認してください。",
             ],
@@ -227,12 +227,12 @@ export const terms: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: "Titles, cast, release dates, prices, durations and other information shown on the Service are collected automatically from pages that each store makes public. The Operator does not guarantee that this information is accurate, complete or up to date.",
+            text: "Titles, cast, release dates, durations and other information shown on the Service are collected automatically from pages that each store makes public. The Operator does not guarantee that this information is accurate, complete or up to date.",
           },
           {
             type: "list",
             items: [
-              "Prices and availability are as of the time they were collected and may differ from what the store currently shows.",
+              "The Service does not list prices or availability. Please check them on each store.",
               "Cast credits are matched to voice actors based on how names appear on the store. Variations in spelling or people sharing a name can lead to incorrect matches.",
               "Always check the latest information on the store before purchasing or listening.",
             ],

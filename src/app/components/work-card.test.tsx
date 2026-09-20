@@ -86,8 +86,10 @@ describe("WorkCard の価格", () => {
     const withPrice = workWithListings({
       listings: [workListing({ price: 1584, listPrice: 1980 })],
     });
-    const { container } = renderWithLocale(<WorkCard item={withPrice} />);
+    renderWithLocale(<WorkCard item={withPrice} />);
 
-    expect(container.textContent).not.toContain("¥");
+    // 書式が変わっても拾えるよう、記号ではなく金額の数字で探す
+    expect(screen.queryByText(/1[,.]?584/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/1[,.]?980/)).not.toBeInTheDocument();
   });
 });

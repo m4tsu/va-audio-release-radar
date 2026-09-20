@@ -48,10 +48,22 @@ describe("WorkPage の中身", () => {
     expect(screen.queryByText("再生時間")).not.toBeInTheDocument();
   });
 
-  test("ストアで確認する旨を添える", () => {
-    renderWithLocale(<WorkPage detail={DETAIL} />);
+  test("ストアで確認する旨を、ストアの枚数によらず 1 度だけ添える", () => {
+    const detail = workDetail({
+      listings: [
+        workListing({ storeSlug: "dlsite" }),
+        workListing({ storeSlug: "audible", storeProductId: "B1" }),
+      ],
+    });
+    renderWithLocale(<WorkPage detail={detail} />);
 
-    expect(screen.getByText("価格と販売状況はストアでご確認ください。")).toBeInTheDocument();
+    expect(screen.getAllByText("価格と販売状況はストアでご確認ください。")).toHaveLength(1);
+  });
+
+  test("英語表示でもストアで確認する旨を出す", () => {
+    renderWithLocale(<WorkPage detail={DETAIL} />, "en");
+
+    expect(screen.getByText("Check the store for the price and availability.")).toBeInTheDocument();
   });
 });
 

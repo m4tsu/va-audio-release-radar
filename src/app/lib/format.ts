@@ -59,7 +59,7 @@ export function formatReleaseDate(date: string, locale: Locale = DEFAULT_LOCALE)
 export function formatDateTime(iso: string, locale: Locale = DEFAULT_LOCALE): string {
   const parsed = Date.parse(iso);
   if (Number.isNaN(parsed)) return iso;
-  // 扱う作品も価格も日本のストアのものなので、言語を問わず JST で読ませる
+  // 扱う作品は日本のストアのものなので、言語を問わず JST で読ませる
   return new Intl.DateTimeFormat(INTL_LOCALES[locale], {
     dateStyle: "medium",
     timeStyle: "short",

@@ -25,7 +25,8 @@ export const en: Translations = {
   footer: {
     unofficial:
       "This is an unofficial service with no affiliation to any store. Work information is based on each store's public pages.",
-    price: "This site does not list prices. Please see each store for the price and availability.",
+    noPrice:
+      "This site does not list prices. Please see each store for the price and availability.",
     terms: "Terms of Service",
     privacy: "Privacy Policy",
   },
