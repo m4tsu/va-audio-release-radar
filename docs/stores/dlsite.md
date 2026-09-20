@@ -104,7 +104,7 @@ DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセ�
 | パス | サイト側の文言 | 年齢 | 本プロジェクトの扱い |
 |---|---|---|---|
 | `/home/` | 全年齢 | 全年齢のみ | **取得している** |
-| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | 取得していない。取るかどうかは未決 (調査は `docs/research/dlsite-female-floors-2026-09-20.md`) |
+| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | 取得していない。取るかどうかは未決 (調査は [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md)) |
 | `/girls/` | 「女性向け TL/BLへ」「女性向け（R18）乙女向け/TL作品を検索する」 | R18 を含む | 取得しない |
 | `/bl/` | 「女性向け（R18）BL作品を検索する」 | R18 を含む | 取得しない |
 | `/maniax/` | 「男性向け R18へ」 | R18 を含む | 取得しない |
@@ -212,9 +212,9 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 | 年齢区分 | ○ | `age_category`。**1 だけが全年齢**。2 (R15) も 3 (R18) も `r18` に寄せる |
 | ジャンル | ○ | `genres[].name` |
 | ストア区分 | ○ | `site_id` → `StoreListing.storeSection`。**リクエストしたフロアではなく作品の所属**を返す。`/home/` の検索結果にも `girls` や `bl` の作品が混ざる |
-| 作品の出自 | ○ | `work_category` (`doujin` / `books`)。ID の接頭辞 `RJ` / `BJ` と対応する |
-| 男性向け / 女性向け | ○ | `sex_category`。女性向けが 2 (2026-09-20 実測。他の値は未確認) |
-| 予約作品か | ○ | `is_reserve_work`。true なら `regist_date` が未来になりうる |
+| 作品の出自 | ○ | `work_category` (`doujin` / `books`)。ID の接頭辞 `RJ` / `BJ` と対応する (現在は取得していない) |
+| 男性向け / 女性向け | ○ | `sex_category`。女性向けが 2 (2026-09-20 実測)。現在は取得していない |
+| 予約作品か | ○ | `is_reserve_work`。true なら `regist_date` が未来になりうる (現在は取得していない) |
 | セール終了日時 | ○ | `campaign_end_date` (現在は取得していない) |
 | 販売中の印 | △ | `on_sale`。販売中の作品では 1 (2026-09-20、`crawler/fixtures/` の product.json で確認)。販売終了の作品でどの値になるかは未確認。現在は取得していない |
 | 役名 | × | 持っていない |
@@ -255,7 +255,8 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   男性声優ではここが大きく効き、斉藤壮馬は `/home/` 1 件 (2026-09-18 実測) に対し
   `/garumani/` 52 件 (2026-09-20 実測) だった
   (`docs/research/dlsite-female-floors-2026-09-20.md`)
-- **`/garumani/` の新着一覧には発売日が未来の予約作品が出る。** `/home/` とはここが違う。
+- **`/garumani/` の新着一覧には発売日が未来の予約作品が出た** (2026-09-20 実測)。
+  `/home/` では 2026-09-19 の 1 回の観測で見えていない (「未確認の項目」)。
   一覧 HTML に「予約」の文字は出ないので、見分けるには `product.json` の `is_reserve_work` が要る
 - 音声カテゴリの総数は home 8,970 / maniax 76,962 (2026-09-18 実測)。
   全年齢音声カテゴリ全体は 8,981 件・300 ページ (2026-09-19 実測)
@@ -283,7 +284,8 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   確かめたのは作品 1 件と声優 5 名の件数だけ
 - `/garumani/` が返す `site_id` の種類。実測で出たのは `bldrama` と `girlsdrama` の 2 つだが、
   `Sitemap:` 行に `girlspro` と `blpro` もある
-- `sex_category` の 2 以外の値
+- `sex_category` の値の意味。女性向けの作品が 2 であることは実測した。
+  1 が入る作品は `crawler/fixtures/dlsite-product-RJ01698658.json` にあるが、1 が何を指すかは未確認
 - `BJ` の商業音声で、女性向けでないもの (`/books/` など他のフロア) を `/home/` が拾えているか
 
 ---
