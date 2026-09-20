@@ -4,7 +4,8 @@
 更新: 取得方式を変えたら superseded にして新しい決定を書く
 削除: superseded になっても消さない
 
-状態: accepted (2026-09-18)
+状態: superseded (2026-09-20)。[`0007`](./0007-daily-crawl-from-store-feeds.md) が置き換える。
+全件取得をしない判断はそのまま引き継ぐ
 
 ## 状況
 
