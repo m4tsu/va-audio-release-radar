@@ -362,6 +362,25 @@ describe("listSeasonAnime", () => {
     expect(list.map((item) => item.slug)).toEqual(["top", "middle", "unknown"]);
   });
 
+  /** `/anime` が出す抜粋。人気順に並べた先頭から切る */
+  it("件数を指定すると人気の高い順の先頭だけを返す", async () => {
+    const db = await setupDb();
+    await upsertAnime(
+      db,
+      [
+        anime({ id: "anilist:1", slug: "middle", titleRomaji: "Middle", popularity: 100 }),
+        anime({ id: "anilist:2", slug: "bottom", titleRomaji: "Bottom", popularity: 10 }),
+        anime({ id: "anilist:3", slug: "top", titleRomaji: "Top", popularity: 500 }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    const list = await listSeasonAnime(db, 2026, "FALL", 2);
+
+    expect(list.map((item) => item.slug)).toEqual(["top", "middle"]);
+  });
+
   it("別シーズンの作品は返さない", async () => {
     const db = await setupDb();
     await upsertAnime(db, [anime()], NOW);

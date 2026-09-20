@@ -13,6 +13,8 @@ import { ANIME_SEASONS } from "@/domain/types";
 const seasonInput = z.object({
   seasonYear: z.number().int(),
   season: z.enum(ANIME_SEASONS),
+  /** 抜粋だけが要るとき (`/anime` の先頭) に渡す。省くとその期の全件 */
+  limit: z.number().int().min(1).max(60).optional(),
 });
 
 export const fetchSeasonAnime = createServerFn({ method: "GET" })
@@ -22,7 +24,7 @@ export const fetchSeasonAnime = createServerFn({ method: "GET" })
       import("@/server/db/client"),
       import("@/server/queries/anime"),
     ]);
-    return listSeasonAnime(getDb(), data.seasonYear, data.season);
+    return listSeasonAnime(getDb(), data.seasonYear, data.season, data.limit);
   });
 
 export const fetchAnimeBySlug = createServerFn({ method: "GET" })

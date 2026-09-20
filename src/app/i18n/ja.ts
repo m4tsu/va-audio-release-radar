@@ -257,7 +257,10 @@ export const ja = {
     indexTitle: "アニメから探す",
     searchLabel: "アニメ名で検索",
     searchNoResults: "「{{query}}」に一致するアニメは見つかりませんでした。",
-    indexDescription: "アニメ名で探すか、シーズンを選ぶと、その期のアニメが並びます。",
+    indexDescription:
+      "放送中のアニメが先頭に並びます。アニメ名で探すことも、ほかのシーズンを選ぶこともできます。",
+    /** 先頭に出している期の残りを見る導線。行き先はその期の一覧 */
+    seeWholeSeason: "このシーズンをすべて見る",
     indexMetaTitle: "アニメから声優の音声作品を探す | {{app}}",
     indexMetaDescription:
       "シーズンごとのアニメから、出演声優の ASMR・朗読・ボイスドラマをたどれます。",

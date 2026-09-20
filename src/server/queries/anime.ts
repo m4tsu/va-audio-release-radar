@@ -294,6 +294,8 @@ export async function listSeasonAnime(
   db: AppDb,
   seasonYear: number,
   season: AnimeSeason,
+  /** 先頭から何件までか。`/anime` が抜粋を出すのに使う。省くと全件 */
+  limit?: number,
 ): Promise<SeasonAnime[]> {
   const rows = await db
     .select({
@@ -320,9 +322,11 @@ export async function listSeasonAnime(
     .orderBy(asc(animeTitles.slug));
 
   // 人気の高い順。人気度を持たない作品は末尾へ送り、同じ値なら slug 順で安定させる
-  // (実行のたびに並びが変わらないように)。人気度そのものは画面に出さないので返さない
+  // (実行のたびに並びが変わらないように)。人気度そのものは画面に出さないので返さない。
+  // 件数を切るのは並べ替えた後。SQL の LIMIT で切ると slug 順の先頭が残ってしまう
   return rows
     .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug))
+    .slice(0, limit ?? rows.length)
     .map((row) => {
       const actorIds = splitIds(row.actorIds);
       return { ...toAnimeSummary({ ...row, actorCount: actorIds.length }), actorIds };
