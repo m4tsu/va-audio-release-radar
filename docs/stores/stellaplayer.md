@@ -95,10 +95,10 @@ robots.txt が無く `Crawl-delay` の指定が無いので、何秒が妥当か
 
 **UA は `userAgentFor()` の既定 (ブラウザ相当) のまま。** このホストが UA に何を求めるかは
 公開されたものが見つかっていない (§7)。**既定のまま送った取得が、存在しないファイルの 404 以外
-すべて HTTP 200 で返った**実績が 2 回の調査にある、というだけの根拠である。件数は
-[`stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) と
+すべて HTTP 200 で返った**、というだけの根拠である。ステータスまで記録しているのは
+[`stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) の「調査方法とリクエスト実績」。
 [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
-リクエスト実績にある。
+同じ節は件数だけを記録している。
 
 ---
 
