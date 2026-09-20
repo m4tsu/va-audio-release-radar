@@ -104,7 +104,6 @@ robots.txt が無く `Crawl-delay` の指定が無いので、何秒が妥当か
 
 **引いた範囲でサーバーが描いていたのは次の 4 経路。** 他のページは静的に書き出されていて、
 HTML に中身が入らない (`__NEXT_DATA__` の `pageProps` が空)。判別は `__NEXT_DATA__` の `gssp` で付く。
-`/maker/[maker]` と `/ranking` はまだ引いていない (§7)。
 
 ### 新着一覧 (カテゴリトップ)
 
@@ -147,6 +146,8 @@ https://www.stellaplayer.jp/product/{id}
 | `api.stellaplayer.jp` の GraphQL | 禁止ではなく**未調査**。`/archive` の裏でブラウザが叩いている別ホストで、規約上の扱いも枠も確認していない。使う前に §1 と同じ手順でこのホストを調べ直す |
 | `/archive` (`keyword` / `top_category` / `page` を付けた形) | 禁止ではなく**中身が入らない**。静的書き出しで `pageProps` が空。結果はクライアント側の取得で差し込まれる |
 | `/` (トップ) | 同上。`pageProps` が空で、新着も載っていない |
+| `/maker/[maker]` | 同上。`brand` の `id` を入れると HTTP 200 で `page` も `/maker/[maker]` に解決するが、静的書き出しで `pageProps` が空。**レーベルごとに商品を並べる安い 1 巡の経路にはならない** |
+| `/ranking` | 同上。静的書き出しで `pageProps` が空。カテゴリトップに載る `dailyRanks` / `weeklyRanks` 以上のものは取れない |
 | `/cart`、`/mypage/*` | 購入とアカウントの経路。取得する理由が無い |
 | `/product/{id}` の HTTP ステータスで存在を判定する形 | **動くが誤る**。存在しない ID でも HTTP 200 が返る (§6) |
 
@@ -209,14 +210,29 @@ https://www.stellaplayer.jp/product/{id}
 
 - **存在しない ID でも HTTP 200 が返る。** `product` が `null` になるだけで、
   ステータスコードもエラーページの語句も出ない。**`product === null` で判定する**
+- **`is_adult` は性的な内容を区別しない。** 題名に性行為を書いた商品も `is_adult: false` で返る。
+  **このフラグだけでは R18 を除けない** ([`decisions/0003`](../decisions/0003-no-r18-keep-bl.md) が求める除外に足りない)。
+  観測した商品と題名は
+  [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
+  「成人向け商品の見え方」
+- **`__NEXT_DATA__` の script タグの属性がページによって違う。** 静的に書き出されたページ
+  (`/maker/[maker]`、`/ranking`) には `crossorigin=""` が付き、サーバーで描くページには付かない。
+  属性を決め打ちした正規表現で取り出すと、静的ページだけ「タグが無い」と誤る
 - **新着一覧に出演者が無い。** 一覧で対象声優を判定できないので、
   新着の商品ページを 1 件ずつ引いてからでないと「対象声優が 1 人も出ていない作品は保存しない」
   ([`docs/product.md`](../product.md) の「対象作品」) を判定できない
 - **対象声優に当たるかどうかが `category` で分かれる。** 「ドラマ」の商品では出演者の大半が対象声優に
   当たり、出演者がほぼ 1 名の「シチュエーション」の商品では 1 人も当たらなかった。
-  ID を等間隔に引いた標本ではシチュエーションが多数を占めたが、カタログ全体の割合は測っていない。
-  測定は [`docs/research/stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) の
-  「対象声優との重なり」
+  カタログの大半は後者である。測定は
+  [`docs/research/stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) の
+  「対象声優との重なり」と
+  [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
+  「対象声優を含む商品の割合」
+- **対象声優を含む商品は、ほとんどが既にポケットドラマ CD にある。** 取り込んでも新しく増える作品は
+  ごくわずかで、[`docs/product.md`](../product.md) の「対象作品」が
+  ストア横断のマージをしない以上、同じ作品が 2 件に見える。測定は
+  [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
+  「既存カタログとの重複」
 - **`creators` には人名でない値が混じる。** `creator_group_id` が `"2"` の側に `ほか` が入っていた。
   出演者として使う `"1"` に混入するかは未確認 (§7)
 - **`/archive` は HTTP 取得だけでは読めない。** 2026-09-18 の調査時点と 2026-09-20 で変わっていない。
@@ -234,26 +250,24 @@ https://www.stellaplayer.jp/product/{id}
 
 ## 7. 未確認の項目
 
-- **商品の総数の確定値。** ID を等間隔に引いた標本からの推定しか無い。確定値は `/archive` の裏の
-  別ホストにしか無く、そのホストは未調査 (§4)
-- **新着一覧を 10 件より多く取れるか。** サーバー側の問い合わせは引数が固定で、
-  ページ送りの手段が HTML からは見えない
-- **`/maker/[maker]` と `/ranking` がサーバーで描かれるか。**
-  [`store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md) が `_buildManifest.js` から
-  挙げているルートのうち、この 2 つは引いていない。**`/maker/[maker]` がサーバーで描かれ、
-  レーベルごとに商品を並べるなら、ID を 1 から舐めるより安い 1 巡の経路になりうる。**
-  全件走査をするなら、その前に確かめる
-- **成人向け商品が HTTP 取得だけで見えるか。** `is_adult` というキーはあるが、
-  取得した範囲では `true` の商品が 1 件も無かった。年齢確認の導線の有無も未確認。
-  R18 を載せない ([`decisions/0003`](../decisions/0003-no-r18-keep-bl.md)) ので、
-  取り込む前にこのフラグで確実に除けるかを確かめる
-- **`sale_status` の全語彙。** 販売終了を表す値があるか。
+実装を始めるときに分かれば足りるもの。**採否の判断に要る量は測ってある**
+([`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md))。
+
+- **`sale_status` の全語彙。** 販売終了を表す値があるか。観測は `ON_SALE` と `PREORDER` の 2 つだけ
   ([`decisions/0008`](../decisions/0008-no-price-no-availability.md) の取り下げ判定に要る)
 - **`creator_group_id` の全語彙**と、`"1"` に人名でない値が入りうるか
 - **`product` が `null` になる理由。** 欠番・非公開・削除を区別する材料が無い
 - **`editionGroup.activeEditions[]` の `name` の語彙。** 版違い (`通常` / `ステラワース限定` /
   `特典…付`) と巻 (`第1巻：…`) の両方が入ることは観測したが、区別できる規則があるかは分かっていない
-- **他ストアとの作品の重複。** DLsite やポケットドラマ CD と照合していない
+- **新着一覧を 10 件より多く取れるか。** サーバー側の問い合わせは引数が固定で、
+  ページ送りの手段が HTML からは見えない
+
+取得を始める前に確かめるもの。
+
+- **`is_adult: true` の商品がこのホストにあるか。** 引いた 103 件はすべて `false` で、
+  そのフラグが性的な内容を区別していないことは §6 に書いた。年齢確認の導線も見つかっていない。
+  R18 を載せない ([`decisions/0003`](../decisions/0003-no-r18-keep-bl.md)) ので、
+  **`is_adult` 以外で R18 を除ける根拠が要る**
 - **UA の要求。** このホストが何を求めるかを書いたものは見つかっていない。既定のブラウザ相当で
   通った実績があるだけである (§2)
 - **アフィリエイトプログラム。** このホストの取得物には見当たらなかった。
@@ -267,5 +281,8 @@ https://www.stellaplayer.jp/product/{id}
 
 - [`docs/research/stellaplayer-2026-09-20.md`](../research/stellaplayer-2026-09-20.md) —
   新着一覧の幅と 1 日あたりの件数、ID の範囲と総数の推定、1 巡のコスト、対象声優との重なり
+- [`docs/research/stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) —
+  商品の総数、対象声優を含む商品の割合と件数、既存カタログとの重複と純増、
+  `is_adult` の見え方、`/maker/[maker]` と `/ranking` の描き方
 - [`docs/research/store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md) —
   ルートの一覧 (`_buildManifest.js` から)、声優のページが無いこと、商品ページの構造の初回確認
