@@ -1,19 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ActorSearch } from "@/app/components/actor-search";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
+import { SortSelect } from "@/app/components/sort-select";
 import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { Button } from "@/app/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
 import { type TKey, useLocale, useT } from "@/app/i18n";
 import {
   ACTOR_SORTS,
@@ -65,7 +58,13 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SortSelect value={sort} onChange={setSort} />
+        <SortSelect
+          value={sort}
+          options={ACTOR_SORTS}
+          labelKeys={SORT_LABEL_KEYS}
+          isOption={isActorSort}
+          onChange={setSort}
+        />
         <StoreFilter value={store} onChange={setStore} />
         {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる */}
         <p aria-live="polite" className="ms-auto text-muted-foreground text-sm">
@@ -80,43 +79,6 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
         <ActorList actors={shown} />
       )}
     </section>
-  );
-}
-
-/** 並べ替え。画面には選ばれている方しか出ないので、読み上げ名に役割と今の値の両方を畳み込む */
-function SortSelect({
-  value,
-  onChange,
-}: {
-  value: ActorSort;
-  onChange: (next: ActorSort) => void;
-}) {
-  const t = useT();
-
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => {
-        if (isActorSort(next)) onChange(next);
-      }}
-    >
-      <SelectTrigger
-        size="sm"
-        aria-label={t("voiceActors.sortLabel", { name: t(SORT_LABEL_KEYS[value]) })}
-      >
-        <ArrowUpDown aria-hidden="true" />
-        {/* Radix は選ばれた項目の文言を SelectItem から流し込む。開くまで項目が描かれず
-            SSR では空のまま返るので、文言をここで直接渡す */}
-        <SelectValue>{t(SORT_LABEL_KEYS[value])}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {ACTOR_SORTS.map((option) => (
-          <SelectItem key={option} value={option}>
-            {t(SORT_LABEL_KEYS[option])}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 

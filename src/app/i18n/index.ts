@@ -68,6 +68,9 @@ type TranslateArgs<K extends TKey> = [VarsOf<K>] extends [never]
 
 export type TranslateFn = <K extends TKey>(key: K, ...args: TranslateArgs<K>) => string;
 
+/** 埋め込みの無いキーだけ。引数なしで引ける文言を props で受け取る部品が使う */
+export type PlainTKey = { [K in TKey]: [VarsOf<K>] extends [never] ? K : never }[TKey];
+
 const DICTIONARIES: Record<Locale, Translations> = { ja, en };
 
 function isPluralForms(value: unknown): value is PluralForms {

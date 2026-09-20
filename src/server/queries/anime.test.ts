@@ -357,10 +357,8 @@ describe("listSeasonAnime", () => {
 
     const list = await listSeasonAnime(db, 2026, "FALL");
 
+    // 人気度を持たない作品 (取り込み前からある行) は末尾
     expect(list.map((item) => item.slug)).toEqual(["top", "middle", "unknown"]);
-    expect(list[0]?.popularity).toBe(500);
-    // 取り込み前からある作品は人気度を持たない
-    expect(list[2]?.popularity).toBeUndefined();
   });
 
   it("別シーズンの作品は返さない", async () => {

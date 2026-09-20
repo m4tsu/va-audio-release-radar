@@ -38,8 +38,12 @@ describe("sortSeasonAnime", () => {
 });
 
 describe("isAnimeSort", () => {
-  it("知らない値を弾く", () => {
+  it("選択肢を受け入れる", () => {
     expect(isAnimeSort("popularity")).toBe(true);
+    expect(isAnimeSort("actorCount")).toBe(true);
+  });
+
+  it("知らない値を弾く", () => {
     expect(isAnimeSort("release")).toBe(false);
   });
 });

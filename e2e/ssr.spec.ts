@@ -128,6 +128,22 @@ test("シーズンの一覧は SSR で作品まで返す", async ({ request }) =
   expect(html).not.toContain("フォロー中の声優が出ている作品だけ");
 });
 
+/**
+ * 既定の並びはサーバーが返した HTML の時点で付いている。
+ * クライアントが動き出してから並び替わると、最初に目に入る順が別物になる
+ */
+test("シーズンの一覧はサーバーが返す HTML の時点で人気順", async ({ request }) => {
+  const html = await (await request.get("/anime/season/2026-fall")).text();
+  const position = (slug: string) => html.indexOf(`href="/anime/${slug}"`);
+
+  // ベータの方が人気度が高い (e2e/fixtures/seed.sql)
+  expect(position("e2e-anime-beta")).toBeGreaterThan(-1);
+  expect(position("e2e-anime-beta")).toBeLessThan(position("e2e-anime-alpha"));
+
+  // 並び替えの操作も、人気順を選んだ状態で返っている
+  expect(html).toContain('aria-label="並び替え: 人気順"');
+});
+
 test("sitemap にアニメの索引とシーズンの一覧が並ぶ", async ({ request }) => {
   const xml = await (await request.get("/sitemap.xml")).text();
 

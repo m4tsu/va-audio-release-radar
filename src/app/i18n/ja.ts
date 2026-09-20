@@ -48,6 +48,8 @@ export const ja = {
 
   common: {
     loading: "読み込み中…",
+    /** 並べ替えの読み上げ名。今の値を畳み込む (`components/sort-select.tsx`) */
+    sortLabel: "並び替え: {{name}}",
     unknown: "不明",
     /** 「A・B」のような並びの区切り。英語では読点にする */
     listSeparator: "・",
@@ -151,7 +153,6 @@ export const ja = {
       "ASMR・朗読・ボイスドラマなどの音声作品が見つかっている声優の一覧です。名前を選ぶとその人の作品が見られます。",
     title: "声優から探す",
     emptyTitle: "声優が見つかりません",
-    sortLabel: "並び替え: {{name}}",
     sortName: "名前順",
     sortWorkCount: "作品数の多い順",
     /** ストアの絞り込み。選択肢のうちストア名 (`STORE_LABELS`) は辞書に持たない */
@@ -248,9 +249,8 @@ export const ja = {
     seasonMetaDescription:
       "{{season}}のアニメに出演している声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある人をまとめています。",
     seasonTitle: "{{season}}アニメ",
-    sortLabel: "並び替え: {{name}}",
     sortPopularity: "人気順",
-    sortActorCount: "出演者の多い順",
+    sortActorCount: "音声作品がある出演者の多い順",
     seasonEmptyTitle: "{{season}}のアニメはありません",
     /** /anime はシーズンの索引。並べるシーズンが 1 つも無いときだけこれが出る */
     indexEmptyTitle: "アニメがありません",

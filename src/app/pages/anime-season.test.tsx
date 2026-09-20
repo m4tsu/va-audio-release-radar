@@ -70,7 +70,7 @@ describe("AnimeSeasonPage の並べ替え", () => {
     renderWithLocale(<AnimeSeasonPage anime={[OTHER, ANIME]} seasonYear={2026} season="FALL" />);
 
     await user.click(screen.getByRole("combobox", { name: "並び替え: 人気順" }));
-    await user.click(screen.getByRole("option", { name: "出演者の多い順" }));
+    await user.click(screen.getByRole("option", { name: "音声作品がある出演者の多い順" }));
 
     expect(links()[0]).toHaveTextContent("架空のアニメ");
   });
@@ -80,8 +80,10 @@ describe("AnimeSeasonPage の並べ替え", () => {
     renderWithLocale(<AnimeSeasonPage anime={[OTHER, ANIME]} seasonYear={2026} season="FALL" />);
 
     await user.click(screen.getByRole("combobox", { name: "並び替え: 人気順" }));
-    await user.click(screen.getByRole("option", { name: "出演者の多い順" }));
-    await user.click(screen.getByRole("combobox", { name: "並び替え: 出演者の多い順" }));
+    await user.click(screen.getByRole("option", { name: "音声作品がある出演者の多い順" }));
+    await user.click(
+      screen.getByRole("combobox", { name: "並び替え: 音声作品がある出演者の多い順" }),
+    );
     await user.click(screen.getByRole("option", { name: "人気順" }));
 
     expect(links()[0]).toHaveTextContent("もう一つのアニメ");

@@ -45,6 +45,8 @@ export const en: Translations = {
 
   common: {
     loading: "Loading…",
+    /** 並べ替えの読み上げ名。今の値を畳み込む (`components/sort-select.tsx`) */
+    sortLabel: "Sort by: {{name}}",
     unknown: "Unknown",
     listSeparator: ", ",
     slashSeparator: " / ",
@@ -131,7 +133,6 @@ export const en: Translations = {
       "Every voice actor with ASMR, audiobooks or audio dramas we have found. Pick a name to see their works.",
     title: "Voice actors",
     emptyTitle: "No voice actors found",
-    sortLabel: "Sort by: {{name}}",
     sortName: "Name",
     sortWorkCount: "Most works",
     storeFilterLabel: "Filter by store",
@@ -221,9 +222,8 @@ export const en: Translations = {
     seasonMetaDescription:
       "Voice actors in {{season}} anime who have ASMR, audiobooks or audio dramas, all in one place.",
     seasonTitle: "{{season}} anime",
-    sortLabel: "Sort by: {{name}}",
     sortPopularity: "Most popular",
-    sortActorCount: "Most cast members",
+    sortActorCount: "Most cast with audio works",
     seasonEmptyTitle: "No {{season}} anime",
     indexEmptyTitle: "No anime found",
     indexTitle: "Browse by anime",

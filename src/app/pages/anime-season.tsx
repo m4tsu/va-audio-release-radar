@@ -1,16 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpDown } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { AnimeCard } from "@/app/components/anime-card";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
+import { SortSelect } from "@/app/components/sort-select";
 import { type TKey, useLocale, useT } from "@/app/i18n";
 import {
   ANIME_SORTS,
@@ -34,7 +27,6 @@ import type { AnimeSeason } from "@/domain/types";
  * ブラウザ内のフォローを突き合わせて出す。サーバーはフォローを知らないので、
  * SSR の応答はフォローの有無で変わらず、印はハイドレーション後に現れる
  */
-
 export function AnimeSeasonPage({
   anime,
   seasonYear,
@@ -71,7 +63,13 @@ export function AnimeSeasonPage({
 
       {anime.length > 0 ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <SortSelect value={sort} onChange={setSort} />
+          <SortSelect
+            value={sort}
+            options={ANIME_SORTS}
+            labelKeys={SORT_LABEL_KEYS}
+            isOption={isAnimeSort}
+            onChange={setSort}
+          />
           {hasFollow ? (
             <div className="flex items-center gap-2">
               <input
@@ -109,43 +107,6 @@ const SORT_LABEL_KEYS = {
   popularity: "anime.sortPopularity",
   actorCount: "anime.sortActorCount",
 } as const satisfies Record<AnimeSort, TKey>;
-
-/** 並べ替え。画面には選ばれている方しか出ないので、読み上げ名に役割と今の値の両方を畳み込む */
-function SortSelect({
-  value,
-  onChange,
-}: {
-  value: AnimeSort;
-  onChange: (next: AnimeSort) => void;
-}) {
-  const t = useT();
-
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => {
-        if (isAnimeSort(next)) onChange(next);
-      }}
-    >
-      <SelectTrigger
-        size="sm"
-        aria-label={t("anime.sortLabel", { name: t(SORT_LABEL_KEYS[value]) })}
-      >
-        <ArrowUpDown aria-hidden="true" />
-        {/* Radix は選ばれた項目の文言を SelectItem から流し込む。開くまで項目が描かれず
-            SSR では空のまま返るので、文言をここで直接渡す */}
-        <SelectValue>{t(SORT_LABEL_KEYS[value])}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {ANIME_SORTS.map((option) => (
-          <SelectItem key={option} value={option}>
-            {t(SORT_LABEL_KEYS[option])}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 /**
  * 前後のシーズンへの導線。行き先は「実際に作品があるシーズン」なので、

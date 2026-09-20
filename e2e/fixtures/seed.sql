@@ -108,15 +108,20 @@ VALUES
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'),
    0, 0, 'error', 'E2E 用の失敗記録', NULL, NULL);
 
--- アニメ 1 本 --------------------------------------------------------------
--- アニメからの導線 (/anime → 最新シーズン → 作品ページ) の確認用。
--- 出演者はアルファ (音声作品あり) とガンマ (音声作品なし) の 2 人。
--- 一覧にも作品ページにも出るのは音声作品がある人だけなので、ガンマは出ない
+-- アニメ 2 本 --------------------------------------------------------------
+-- アニメからの導線 (/anime → シーズンの一覧 → 作品ページ) の確認用。
+-- アルファの出演者はアルファ (音声作品あり) とガンマ (音声作品なし) の 2 人。
+-- 一覧にも作品ページにも出るのは音声作品がある人だけなので、ガンマは出ない。
+-- ベータは人気度だけが違う 2 本目。一覧の既定の並び (人気順) を HTML で見るために要る
 INSERT OR REPLACE INTO anime_titles
-  (id, slug, title_native, title_romaji, title_english, season_year, season, cover_image_url, created_at, updated_at)
+  (id, slug, title_native, title_romaji, title_english, season_year, season, cover_image_url,
+   popularity, created_at, updated_at)
 VALUES
   ('anilist:9000001', 'e2e-anime-alpha', 'テストアニメアルファ', 'Test Anime Alpha', 'Test Anime Alpha',
-   2026, 'FALL', NULL,
+   2026, 'FALL', NULL, 100,
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('anilist:9000002', 'e2e-anime-beta', 'テストアニメベータ', 'Test Anime Beta', 'Test Anime Beta',
+   2026, 'FALL', NULL, 900,
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO anime_appearances
@@ -124,4 +129,5 @@ INSERT OR REPLACE INTO anime_appearances
    character_image_url, role)
 VALUES
   (9000001, 'anilist:9000001', 'va_e2e-alpha', 'anilist:9100001', 'テストキャラアルファ', NULL, NULL, 'main'),
-  (9000002, 'anilist:9000001', 'va_e2e-gamma', 'anilist:9100002', 'テストキャラガンマ', NULL, NULL, 'supporting');
+  (9000002, 'anilist:9000001', 'va_e2e-gamma', 'anilist:9100002', 'テストキャラガンマ', NULL, NULL, 'supporting'),
+  (9000003, 'anilist:9000002', 'va_e2e-delta', 'anilist:9100003', 'テストキャラデルタ', NULL, NULL, 'main');

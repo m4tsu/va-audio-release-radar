@@ -242,11 +242,7 @@ export type AnimeDetail = AnimeSummary & { cast: AnimeCastMember[] };
  * ID を一緒に返せば「フォロー中の声優が出ている作品」の判定を画面が自分で行えるので、
  * SSR の応答はフォローの有無で変わらないまま、印と絞り込みを出せる
  */
-export type SeasonAnime = AnimeSummary & {
-  actorIds: string[];
-  /** 取り込み前からある作品には入っていない (`upsertAnime`) */
-  popularity?: number;
-};
+export type SeasonAnime = AnimeSummary & { actorIds: string[] };
 
 /** 出せる作品があるシーズン 1 つ。`/anime` の索引と sitemap が並べる */
 export type AnimeSeasonEntry = {
@@ -323,17 +319,13 @@ export async function listSeasonAnime(
     .orderBy(asc(animeTitles.slug));
 
   // 人気の高い順。人気度を持たない作品は末尾へ送り、同じ値なら slug 順で安定させる
-  // (実行のたびに並びが変わらないように)
+  // (実行のたびに並びが変わらないように)。人気度そのものは画面に出さないので返さない
   return rows
+    .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug))
     .map((row) => {
       const actorIds = splitIds(row.actorIds);
-      return {
-        ...toAnimeSummary({ ...row, actorCount: actorIds.length }),
-        actorIds,
-        ...(row.popularity === null ? {} : { popularity: row.popularity }),
-      };
-    })
-    .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug));
+      return { ...toAnimeSummary({ ...row, actorCount: actorIds.length }), actorIds };
+    });
 }
 
 /**
