@@ -22,7 +22,7 @@ import { loadActorIndex } from "./actors";
 const BATCH_SIZE = 50;
 
 export type IngestResult = {
-  /** 保存した作品数 (許可していない年齢区分を除く) */
+  /** 保存した作品数。下の 2 つの理由で捨てたぶんを除いた数 */
   upserted: number;
   /** 今回はじめて見た listing の数 */
   new: number;

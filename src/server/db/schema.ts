@@ -206,7 +206,7 @@ export const crawlRuns = sqliteTable(
     /**
      * 対象声優が 1 人も出ていないとして捨てた作品数。
      * 声優に紐付かない走行 (ストアの新着一覧) でだけ増える。取れた件数と保存した件数の差が
-     * ここに出るので、照合そのものが壊れたときに気づける
+     * ここに出るので、照合そのものが壊れた走行を後から見分けられる (管理画面にはまだ出ない)
      */
     skippedNoTargetActorCount: integer("skipped_no_target_actor_count").notNull().default(0),
     status: text("status", { enum: CRAWL_RUN_STATUSES }).notNull(),

@@ -365,6 +365,24 @@ describe("ingest", () => {
     expect(credits.map((credit) => credit.creditedName).sort()).toEqual(["上田麗奈", "知らない人"]);
   });
 
+  /** 捨てるのは「保存しない」であって「消す」ではない。削除の経路は持たない */
+  it("捨てた作品が既に DB にあっても消さない", async () => {
+    const db = await setupDb();
+    const work = rawWork({ storeProductId: "KNOWN", creditedNames: ["知らない人"] });
+    // 声優起点の走行で一度保存されている
+    await ingest(db, payload({ works: [work] }), daysAgo(1));
+
+    const { voiceActorId: _omitted, ...base } = payload();
+    const result = await ingest(db, { ...base, runId: "run-feed", works: [work] }, NOW);
+
+    expect(result.skippedByNoTargetActor).toBe(1);
+    expect(await db.select().from(audioWorks)).toHaveLength(1);
+    expect(await db.select().from(audioCredits)).toHaveLength(1);
+    // 触らないので、最後に見た日時は声優起点の走行のときのまま
+    const [listing] = await db.select().from(storeListings);
+    expect(listing?.lastSeenAt).toBe(daysAgo(1));
+  });
+
   it("捨てた件数は crawl_runs にも残る", async () => {
     const db = await setupDb();
     const { voiceActorId: _omitted, ...base } = payload();

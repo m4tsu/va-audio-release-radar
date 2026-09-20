@@ -37,7 +37,11 @@ export type AssignCreditInput = {
   creditedName: string;
   sourceStoreSlug: StoreSlug;
   voiceActorId: string;
-  /** 以後の ingest で自動一致させるため `voice_actor_aliases` にも登録する */
+  /**
+   * 以後の ingest で自動一致させるため `voice_actor_aliases` にも登録する。
+   * 足さないと、新着一覧の走行ではその表記しか持たない作品が毎回捨てられる
+   * (照合は名前で行うので、手で割り当てた行があっても次の走行では当たらない)
+   */
   addAlias: boolean;
 };
 
