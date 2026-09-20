@@ -7,25 +7,6 @@
 実装: `crawler/adapters/dlsite.ts` / `crawler/discovery/dlsite-sitemap.ts`
 共通の原則は [`README.md`](./README.md)。
 
-## 0. フロア
-
-DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセレクタもフロア間で同じで、
-違うのは年齢の指定だけ。フロアの名前と対象は、検索結果 HTML のフロア切り替えリンクと
-「他のフロアで検索する」リンクの文言から取った。
-
-| パス | サイト側の文言 | 年齢 | 本プロジェクトの扱い |
-|---|---|---|---|
-| `/home/` | 全年齢 | 全年齢のみ | **取得している** |
-| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | 取得していない (調査済み。下記) |
-| `/girls/` | 「女性向け TL/BLへ」「女性向け（R18）乙女向け/TL作品を検索する」 | R18 を含む | 取得しない |
-| `/bl/` | 「女性向け（R18）BL作品を検索する」 | R18 を含む | 取得しない |
-| `/maniax/` | 「男性向け R18へ」 | R18 を含む | 取得しない |
-
-作品 ID はフロアをまたいで 1 つの体系で、同じ作品が複数のフロアに出ても ID は同じ。
-接頭辞は `product.json` の `work_category` と対応し、`RJ` が `doujin`、`BJ` が `books` である。
-**`/home/` の声優検索で `BJ` が出た例はまだ無い** (2026-09-18 に保存した 245 件のスナップショットと
-2026-09-20 の測定の範囲。`docs/research/dlsite-female-floors-2026-09-20.md`)。
-
 ---
 
 ## 1. robots.txt
@@ -54,7 +35,7 @@ Allow: /*/fsr/=/*/per_page/*/page/1/
 Crawl-delay: 10
 ```
 
-(全文ではない。16 本の `Sitemap:` 行と、上のどれにも当たらない行は省いた。
+(全文ではない。16 本の `Sitemap:` 行と、本プロジェクトが触らないパスの行は省いた。
 `/*/fsr/` と `per_page` に関する行は上記の 2 行がすべて)
 
 **フロアを名指しで禁じている行は `/hana/` `/booksl/` `/pro2/` の 3 行だけ。**
@@ -110,6 +91,25 @@ Crawl-delay: 10
 ---
 
 ## 3. 使う URL
+
+### フロア
+
+DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセレクタもフロア間で同じで、
+違うのは年齢の指定だけ。フロアの名前と対象は、検索結果 HTML のフロア切り替えリンクと
+「他のフロアで検索する」リンクの文言から取った。
+
+| パス | サイト側の文言 | 年齢 | 本プロジェクトの扱い |
+|---|---|---|---|
+| `/home/` | 全年齢 | 全年齢のみ | **取得している** |
+| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | **取ると決めた ([`0011`](../decisions/0011-dlsite-garumani-floor.md))。実装はまだ無い** |
+| `/girls/` | 「女性向け TL/BLへ」「女性向け（R18）乙女向け/TL作品を検索する」 | R18 を含む | 取得しない |
+| `/bl/` | 「女性向け（R18）BL作品を検索する」 | R18 を含む | 取得しない |
+| `/maniax/` | 「男性向け R18へ」 | R18 を含む | 取得しない |
+
+作品 ID はフロアをまたいで 1 つの体系で、同じ作品が複数のフロアに出ても ID は同じ。
+接頭辞は `product.json` の `work_category` と対応し、`RJ` が `doujin`、`BJ` が `books` である。
+**`/home/` の声優検索で `BJ` が出た例はまだ無い** (2026-09-18 に保存したスナップショットの
+異なり 200 件と、2026-09-20 の測定の範囲。`docs/research/dlsite-female-floors-2026-09-20.md`)。
 
 ### 声優名の検索 (1 ページ目のみ)
 
@@ -172,7 +172,7 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 | `product.json?workno=RJ1,RJ2,…` | robots ではなく仕様の問題。複数渡すと空配列が返る |
 | `/hana/`、`/booksl/`、`/pro2/` 配下 | robots が名指しで禁じている |
 | `/maniax/` の検索 | robots は禁じていない (`/maniax/` を名指しした行は無く、Cookie も年齢確認も不要で 200 が返る)。**禁止ではなく方針として使わない**。R18 は載せない (`docs/decisions/0003-no-r18-keep-bl.md`) |
-| `/girls/`、`/bl/` の検索 | 同上。R18 を含むフロアなので方針として使わない。`age_category[0]/general` を足せば全年齢だけになるが、その結果は `/home/` と重なり新しい作品が出ない (`docs/research/dlsite-female-floors-2026-09-20.md`) |
+| `/girls/`、`/bl/` の検索 | 同上。R18 を含むフロアなので方針として使わない。`age_category[0]/general` を足せば全年齢だけになるが、測定した範囲では結果が `/home/` と重なり新しい作品が出なかった (`docs/research/dlsite-female-floors-2026-09-20.md`) |
 
 
 ---
@@ -268,9 +268,10 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 
 ## 7. 未確認の項目
 
-- **予約作品 (発売日が未来) が `order/release_d` の一覧に出るかどうか。**
+- **`/home/` で予約作品 (発売日が未来) が `order/release_d` の一覧に出るかどうか。**
   2026-09-19 の 1 回の観測では 1 ページ目に「予約」の文字が 0 回で、先頭作品の `regist_date` も
-  過去だった。ただし 1 回の観測なので「たまたま無かった」可能性を排除できていない
+  過去だった。ただし 1 回の観測なので「たまたま無かった」可能性を排除できていない。
+  `/garumani/` では出ることが 2026-09-20 に分かっている (「既知の落とし穴」)
 - 全年齢音声カテゴリの日次新作数 6.4 件/日 の安定性 (1 日ぶんの観測しかない)
 - `campaign_end_date` の形式と精度 (セール検出を始める場合に要確認)
 - 検索結果に出ない作品があるか (`pager.count` と実取得件数が一致しないケースの内訳)
@@ -295,3 +296,4 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   女性向け 3 フロアの切り分け、声優 10 名の件数差、フロアをまたぐ作品 ID、予約作品
 - [`docs/decisions/0002-actor-first-crawling.md`](../decisions/0002-actor-first-crawling.md) — 声優起点
 - [`docs/decisions/0003-no-r18-keep-bl.md`](../decisions/0003-no-r18-keep-bl.md) — R18 を載せない
+- [`docs/decisions/0011-dlsite-garumani-floor.md`](../decisions/0011-dlsite-garumani-floor.md) — 取るフロア
