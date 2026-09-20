@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMigratedTestDb } from "../db/test-db";
-import { acquireLease, extendLease, leaseExpiry, listLeases, releaseLease } from "./leases";
+import { acquireLease, extendLease, listLeases, releaseLease } from "./leases";
 
 /** 基準時刻。期限の前後をこの時点から組み立てて結果を固定する */
 const NOW = "2026-09-18T00:00:00.000Z";
@@ -92,6 +92,55 @@ describe("acquireLease", () => {
     expect(leases[0]?.holder).toBe(results[0] ? "A" : "B");
   });
 
+  /**
+   * 本番で実際に競合するのはこちら。札はふつう残っていて、期限が切れた瞬間に
+   * 2 つの走行が取りに来る。空の表への INSERT と違って主キーの衝突では守られないので、
+   * 判定が WHERE に乗っていることがそのまま効く
+   */
+  it("期限切れの札を同時に取りに来ても片方だけが取れる", async () => {
+    const db = await createMigratedTestDb();
+    await acquireLease(db, { key: "dlsite", holder: "A", expiresAt: at(MINUTE_MS) }, NOW);
+
+    const later = at(2 * MINUTE_MS);
+    const results = await Promise.all([
+      acquireLease(db, { key: "dlsite", holder: "B", expiresAt: at(10 * MINUTE_MS) }, later),
+      acquireLease(db, { key: "dlsite", holder: "C", expiresAt: at(10 * MINUTE_MS) }, later),
+    ]);
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const leases = await listLeases(db);
+    expect(leases).toHaveLength(1);
+    expect(leases[0]?.holder).toBe(results[0] ? "B" : "C");
+  });
+
+  /** 期限ちょうどは空きとして扱う。`extendLease` はちょうどを切れた側に入れるので窓ができない */
+  it("期限ちょうどの札は取れる", async () => {
+    const db = await createMigratedTestDb();
+    await acquireLease(db, { key: "dlsite", holder: "A", expiresAt: at(MINUTE_MS) }, NOW);
+
+    const got = await acquireLease(
+      db,
+      { key: "dlsite", holder: "B", expiresAt: at(5 * MINUTE_MS) },
+      at(MINUTE_MS),
+    );
+
+    expect(got).toBe(true);
+    expect((await listLeases(db))[0]?.holder).toBe("B");
+  });
+
+  it("期限の 1 ミリ秒前はまだ取れない", async () => {
+    const db = await createMigratedTestDb();
+    await acquireLease(db, { key: "dlsite", holder: "A", expiresAt: at(MINUTE_MS) }, NOW);
+
+    const got = await acquireLease(
+      db,
+      { key: "dlsite", holder: "B", expiresAt: at(5 * MINUTE_MS) },
+      at(MINUTE_MS - 1),
+    );
+
+    expect(got).toBe(false);
+  });
+
   it("鍵が違えば互いに邪魔しない", async () => {
     const db = await createMigratedTestDb();
 
@@ -148,6 +197,33 @@ describe("extendLease", () => {
     expect(extended).toBe(false);
   });
 
+  /** ちょうどは切れた側。取れる側と延ばせる側が同時に成り立つ瞬間を作らない */
+  it("期限ちょうどでは延ばせない", async () => {
+    const db = await createMigratedTestDb();
+    await acquireLease(db, { key: "dlsite", holder: "A", expiresAt: at(MINUTE_MS) }, NOW);
+
+    const extended = await extendLease(
+      db,
+      { key: "dlsite", holder: "A", expiresAt: at(10 * MINUTE_MS) },
+      at(MINUTE_MS),
+    );
+
+    expect(extended).toBe(false);
+  });
+
+  it("期限の 1 ミリ秒前なら延ばせる", async () => {
+    const db = await createMigratedTestDb();
+    await acquireLease(db, { key: "dlsite", holder: "A", expiresAt: at(MINUTE_MS) }, NOW);
+
+    const extended = await extendLease(
+      db,
+      { key: "dlsite", holder: "A", expiresAt: at(10 * MINUTE_MS) },
+      at(MINUTE_MS - 1),
+    );
+
+    expect(extended).toBe(true);
+  });
+
   it("札が無ければ延ばせない", async () => {
     const db = await createMigratedTestDb();
 
@@ -175,11 +251,5 @@ describe("releaseLease", () => {
 
     expect(await releaseLease(db, { key: "dlsite", holder: "B" })).toBe(false);
     expect(await listLeases(db)).toHaveLength(1);
-  });
-});
-
-describe("leaseExpiry", () => {
-  it("今から指定したぶん後の時刻を返す", () => {
-    expect(leaseExpiry(5 * MINUTE_MS, NOW)).toBe(at(5 * MINUTE_MS));
   });
 });

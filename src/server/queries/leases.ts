@@ -13,19 +13,19 @@ import type { AppDb } from "../db/types";
  * 長い走行は期限が切れる前に延ばす (`extendLease`)
  */
 
-/** 札 1 枚 */
-export type CrawlLease = {
-  key: string;
-  holder: string;
-  acquiredAt: string;
-  expiresAt: string;
-};
+/** 札 1 枚。列を足したときに書き写しがずれないよう、表の形から取る */
+export type CrawlLease = typeof crawlLeases.$inferSelect;
 
 /**
  * 札を取る。取れたら true。
  *
  * 取れるのは「まだ誰も持っていない」「期限が切れている」「自分が持っている」のどれか。
- * 自分が持っているときに取れるのは、同じ走行が取り直しても失敗しないようにするため (冪等)
+ * 自分が持っているときに取れるのは、同じ走行が取り直しても失敗しないようにするため (冪等)。
+ *
+ * **`holder` は走行ごとに一意な値を渡す。** 同じ文字列を 2 つの走行が使うと、互いを
+ * 「自分の札」とみなして両方が取れてしまう。ジョブ名のような使い回される値をそのまま渡さない。
+ * **`expiresAt` と `now` は `toISOString()` の形で渡す。** 期限の比較は文字列の大小で行うので、
+ * 形が揃っていないと順序が壊れる
  */
 export async function acquireLease(
   db: AppDb,
@@ -55,7 +55,9 @@ export async function acquireLease(
  * 札の期限を延ばす。延ばせたら true。
  *
  * 持ち主が違う、または既に期限が切れている札は延ばせない。
- * 切れた札を延ばせてしまうと、その間に他の走行が取った札を奪うことになる
+ * 切れた札を延ばせてしまうと、その間に他の走行が取った札を奪うことになる。
+ * `acquireLease` が「期限ちょうど」を空きとみなすので、こちらは期限ちょうどを切れた側に入れる
+ * (両方が取れる瞬間を作らないため)
  */
 export async function extendLease(
   db: AppDb,
@@ -90,12 +92,7 @@ export async function releaseLease(
   return rows.length > 0;
 }
 
-/** 今ある札の一覧。管理画面と、走行が詰まったときの調査に使う */
+/** 今ある札の一覧。誰が何を持っているかを読む唯一の経路 */
 export async function listLeases(db: AppDb): Promise<CrawlLease[]> {
   return db.select().from(crawlLeases).orderBy(crawlLeases.key);
-}
-
-/** 今から `ttlMs` 後の時刻。呼び出し側が時刻の組み立てを重ねて書かずに済むようにする */
-export function leaseExpiry(ttlMs: number, now: string = new Date().toISOString()): string {
-  return new Date(Date.parse(now) + ttlMs).toISOString();
 }
