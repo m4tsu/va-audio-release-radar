@@ -166,7 +166,7 @@ https://www.stellaplayer.jp/product/{id}
 | 発売日 | ○ | `release_schedule` |
 | 掲載開始日時 | ○ | `publish_starts_at` (並び順の基準) |
 | 販売状態 | ○ | `sale_status` |
-| 成人向けフラグ | ○ | `is_adult`。**内容を区別しない** (§6) |
+| 成人向けフラグ | ○ | `is_adult`。**`true` を 1 件も観測していない** (§6) |
 | 価格 | ○ | `current_price` |
 | レーベル | ○ | `brand` |
 | カバー画像 | ○ | `converted_featured_images` |
@@ -188,7 +188,7 @@ https://www.stellaplayer.jp/product/{id}
 | 掲載開始日時 | ○ | `publish_starts_at` |
 | カテゴリ区分 | ○ | `top_category` (`GENERAL` / `BL` / `GIRLS`) |
 | 商品カテゴリ | ○ | `category` (ドラマ / シチュエーション / 歌・サントラ) |
-| 成人向けフラグ | ○ | `is_adult`。**内容を区別しない** (§6) |
+| 成人向けフラグ | ○ | `is_adult`。**`true` を 1 件も観測していない** (§6) |
 | レーベル | ○ | `brand` |
 | シリーズ | ○ | `series[]` |
 | ジャンル | ○ | `genres[]` |
@@ -210,9 +210,12 @@ https://www.stellaplayer.jp/product/{id}
 
 - **存在しない ID でも HTTP 200 が返る。** `product` が `null` になるだけで、
   ステータスコードもエラーページの語句も出ない。**`product === null` で判定する**
-- **`is_adult` は性的な内容を区別しない。** 題名に性行為を書いた商品も `is_adult: false` で返る。
-  **このフラグだけでは R18 を除けない** ([`decisions/0003`](../decisions/0003-no-r18-keep-bl.md) が求める除外に足りない)。
-  観測した商品と題名は
+- **`is_adult: true` の商品を 1 件も観測していない。** 引いた 103 件はすべて `false` で、
+  その中には題名に性行為を書いた商品も、`調教` `寝取られ` のジャンルが付いた商品も含まれる。
+  **`is_adult: false` を「全年齢」と読み替える根拠はこの観測から得られていない。**
+  [`docs/product.md`](../product.md) の「対象作品」は区分を公開していないストアの作品を
+  全年齢と言い切らないことを求めているので、**このストアの作品は年齢区分 `unknown` で入る**
+  ことになる。観測した商品と題名は
   [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
   「成人向け商品の見え方」
 - **`__NEXT_DATA__` の script タグの属性がページによって違う。** 静的に書き出されたページ
@@ -228,9 +231,9 @@ https://www.stellaplayer.jp/product/{id}
   「対象声優との重なり」と
   [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
   「対象声優を含む商品の割合」
-- **対象声優を含む商品は、ほとんどが既にポケットドラマ CD にある。** 取り込んでも新しく増える作品は
-  ごくわずかで、[`docs/product.md`](../product.md) の「対象作品」が
-  ストア横断のマージをしない以上、同じ作品が 2 件に見える。測定は
+- **対象声優を含む商品は、ほとんどが既にポケットドラマ CD にもある。**
+  [`docs/product.md`](../product.md) の「対象作品」はストア横断のマージをしないので、
+  取り込むと同じ作品が別の行として並ぶ。件数は
   [`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
   「既存カタログとの重複」
 - **`creators` には人名でない値が混じる。** `creator_group_id` が `"2"` の側に `ほか` が入っていた。
@@ -261,13 +264,17 @@ https://www.stellaplayer.jp/product/{id}
   `特典…付`) と巻 (`第1巻：…`) の両方が入ることは観測したが、区別できる規則があるかは分かっていない
 - **新着一覧を 10 件より多く取れるか。** サーバー側の問い合わせは引数が固定で、
   ページ送りの手段が HTML からは見えない
+- **商品の総数の確定値。** 標本からの推定しか無い
+  ([`stellaplayer-coverage-2026-09-20.md`](../research/stellaplayer-coverage-2026-09-20.md) の
+  「商品の総数」)。§3 の「ID を 1 から順に引く」全件 1 巡の規模がこの値で決まる。
+  総数を返す経路は `/archive` の裏の別ホストにしか無く、そのホストは未調査 (§4)
 
 取得を始める前に確かめるもの。
 
 - **`is_adult: true` の商品がこのホストにあるか。** 引いた 103 件はすべて `false` で、
-  そのフラグが性的な内容を区別していないことは §6 に書いた。年齢確認の導線も見つかっていない。
+  フラグが何を表しているのかを確かめる材料が無い (§6)。年齢確認の導線も見つかっていない。
   R18 を載せない ([`decisions/0003`](../decisions/0003-no-r18-keep-bl.md)) ので、
-  **`is_adult` 以外で R18 を除ける根拠が要る**
+  **`is_adult: false` を全年齢として扱うなら、その読み方が正しいことを先に確かめる**
 - **UA の要求。** このホストが何を求めるかを書いたものは見つかっていない。既定のブラウザ相当で
   通った実績があるだけである (§2)
 - **アフィリエイトプログラム。** このホストの取得物には見当たらなかった。
