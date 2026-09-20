@@ -115,7 +115,9 @@ https://www.stellaplayer.jp/girls
 ```
 
 `__NEXT_DATA__` の `props.pageProps.dehydratedState.queries[0].state.data` に
-`newProducts` (10 件) と `preorderProducts` が入る。並びは `publish_starts_at` の降順。
+`newProducts` と `preorderProducts` が入る。**どちらもオブジェクトで、商品の配列は `.data` の下**
+(`newProducts.data` が 10 件)。商品ページの `product` は直下なので、一覧だけ 1 階層深い。
+並びは `publish_starts_at` の降順。
 **3 つ合わせて 1 日 3 リクエストで全カテゴリの新着を見られる。**
 許可の根拠: robots.txt が無く、禁止パスの宣言が存在しない (§1)。
 
@@ -128,6 +130,8 @@ https://www.stellaplayer.jp/product/{id}
 `__NEXT_DATA__` の同じ位置に `product` が入る。**出演者を知るにはここを引くしかない** (§5)。
 `{id}` は 1 から始まる整数。sitemap も一覧 API も使えないので、
 **全件を舐めるときは ID を 1 から順に引く**ことになる。
+ただし [`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md) は「初期構築」の項で
+**全件取得はしない**と書いている。このストアで全件走査をするなら、その決定を置き換える決定が先に要る。
 
 ### 正規の商品 URL (保存する `productUrl`)
 
@@ -237,7 +241,7 @@ https://www.stellaplayer.jp/product/{id}
   [`store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md) が `_buildManifest.js` から
   挙げているルートのうち、この 2 つは引いていない。**`/maker/[maker]` がサーバーで描かれ、
   レーベルごとに商品を並べるなら、ID を 1 から舐めるより安い 1 巡の経路になりうる。**
-  全件取得を実装する前に確かめる
+  全件走査をするなら、その前に確かめる
 - **成人向け商品が HTTP 取得だけで見えるか。** `is_adult` というキーはあるが、
   取得した範囲では `true` の商品が 1 件も無かった。年齢確認の導線の有無も未確認。
   R18 を載せない ([`decisions/0003`](../decisions/0003-no-r18-keep-bl.md)) ので、
