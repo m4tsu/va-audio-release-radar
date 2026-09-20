@@ -255,6 +255,8 @@ export const ja = {
     /** /anime はシーズンの索引。並べるシーズンが 1 つも無いときだけこれが出る */
     indexEmptyTitle: "アニメがありません",
     indexTitle: "アニメから探す",
+    searchLabel: "アニメ名で検索",
+    searchNoResults: "「{{query}}」に一致するアニメは見つかりませんでした。",
     indexDescription: "シーズンを選ぶと、その期のアニメが並びます。",
     indexMetaTitle: "アニメから声優の音声作品を探す | {{app}}",
     indexMetaDescription:

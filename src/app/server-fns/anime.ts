@@ -73,3 +73,18 @@ export const fetchAnimeForActors = createServerFn({ method: "POST" })
     ]);
     return animeForActors(getDb(), data.voiceActorIds, data.limit);
   });
+
+export const searchAnimeFn = createServerFn({ method: "GET" })
+  .validator(
+    z.object({
+      q: z.string(),
+      limit: z.number().int().min(1).max(100).default(20),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const [{ getDb }, { searchAnime }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/anime"),
+    ]);
+    return searchAnime(getDb(), data.q, data.limit);
+  });

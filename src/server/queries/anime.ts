@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AnimeRole, AnimeSeason, WorkCategory } from "@/domain/types";
 import { ANIME_FORMATS, ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
@@ -12,6 +12,7 @@ import {
   voiceActors,
 } from "../db/schema";
 import type { AppDb } from "../db/types";
+import { stripLikeWildcards } from "./actors";
 import { notAdultRated } from "./works";
 
 /**
@@ -529,6 +530,55 @@ export async function animeForActors(
   return found
     .sort((a, b) => seasonOrder(b) - seasonOrder(a) || a.slug.localeCompare(b.slug))
     .slice(0, limit);
+}
+
+/**
+ * アニメ名の検索。日本語名・ローマ字名・英語名・別名タイトルの部分一致 (SQL の LIKE)。
+ *
+ * 別名を持つのは `anime_title_synonyms` で、AniList が返す略称や他言語の表記が入っている
+ * (「ロシデレ」)。読み (かな) は AniList が返さないので当たらない。
+ * 声優検索 (`searchActors`) と違って表記揺れの正規化はしていない。アニメ名は記号や空白の
+ * 入り方が作品ごとに違い、落とすと別の作品に当たるため
+ */
+export async function searchAnime(db: AppDb, q: string, limit = 20): Promise<AnimeSummary[]> {
+  // ワイルドカードを落とした結果が空なら引かない ("%" だけの検索語が全件一致になるため)
+  const literal = stripLikeWildcards(q.trim());
+  if (literal.length === 0) return [];
+  const pattern = `%${literal}%`;
+
+  const rows = await db
+    .select({
+      slug: animeTitles.slug,
+      titleNative: animeTitles.titleNative,
+      titleRomaji: animeTitles.titleRomaji,
+      titleEnglish: animeTitles.titleEnglish,
+      seasonYear: animeTitles.seasonYear,
+      season: animeTitles.season,
+      coverImageUrl: animeTitles.coverImageUrl,
+      popularity: animeTitles.popularity,
+      actorCount: sql<number>`count(distinct ${animeAppearances.voiceActorId})`,
+    })
+    .from(animeTitles)
+    .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
+    .leftJoin(animeTitleSynonyms, eq(animeTitleSynonyms.animeTitleId, animeTitles.id))
+    .where(
+      and(
+        or(
+          like(animeTitles.titleNative, pattern),
+          like(animeTitles.titleRomaji, pattern),
+          like(animeTitles.titleEnglish, pattern),
+          like(animeTitleSynonyms.name, pattern),
+        ),
+        appearanceActorHasAudioWork,
+      ),
+    )
+    .groupBy(animeTitles.id);
+
+  // 一覧と同じ並び (人気の高い順)。同じ語で 2 回引いたときに順が入れ替わらないよう slug で安定させる
+  return rows
+    .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug))
+    .slice(0, limit)
+    .map(toAnimeSummary);
 }
 
 /** sitemap.xml に並べるアニメページ。声優ページと同じく、中身が出ないものは載せない */

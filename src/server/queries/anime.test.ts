@@ -10,6 +10,7 @@ import {
   hasSeasonAnime,
   listSeasonAnime,
   listSeasonsWithAnime,
+  searchAnime,
   upsertAnime,
 } from "./anime";
 import { ingest } from "./ingest";
@@ -369,6 +370,85 @@ describe("listSeasonAnime", () => {
     expect(await listSeasonAnime(db, 2026, "SUMMER")).toEqual([]);
     expect(await hasSeasonAnime(db, 2026, "FALL")).toBe(true);
     expect(await hasSeasonAnime(db, 2026, "SUMMER")).toBe(false);
+  });
+});
+
+describe("searchAnime", () => {
+  /** 日本語名・ローマ字名・英語名・別名のどれでも当たる */
+  it("タイトルと別名の部分一致で引ける", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime({ synonyms: ["ロシデレ"] })], NOW);
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    for (const query of ["ひとりごと", "Kusuriya", "Apothecary", "ロシデレ"]) {
+      const found = await searchAnime(db, query);
+      expect(found.map((item) => item.slug)).toEqual([anime().slug]);
+    }
+  });
+
+  it("一致しない語では何も返さない", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime()], NOW);
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect(await searchAnime(db, "存在しない作品")).toEqual([]);
+  });
+
+  it("空の検索語とワイルドカードだけの検索語では全件を返さない", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime()], NOW);
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect(await searchAnime(db, "   ")).toEqual([]);
+    expect(await searchAnime(db, "%")).toEqual([]);
+  });
+
+  it("音声作品を持つ出演者が 0 人の作品は返さない", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await upsertAnime(
+      db,
+      [
+        anime({
+          appearances: [
+            {
+              voiceActorId: HANAZAWA.id,
+              characterId: "anilist:9",
+              characterNameNative: "キャラ",
+              role: "main",
+            },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect(await searchAnime(db, "ひとりごと")).toEqual([]);
+  });
+
+  it("人気の高い順に返し、件数を絞れる", async () => {
+    const db = await setupDb();
+    await upsertAnime(
+      db,
+      [
+        anime({ id: "anilist:1", slug: "show-a", titleRomaji: "Show A", popularity: 100 }),
+        anime({ id: "anilist:2", slug: "show-b", titleRomaji: "Show B", popularity: 500 }),
+      ],
+      NOW,
+    );
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect((await searchAnime(db, "Show")).map((item) => item.slug)).toEqual(["show-b", "show-a"]);
+    expect((await searchAnime(db, "Show", 1)).map((item) => item.slug)).toEqual(["show-b"]);
+  });
+
+  /** 同じ語が複数の別名に当たっても、作品は 1 度だけ出す */
+  it("別名が複数当たっても作品は重複しない", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime({ synonyms: ["ロシデレ 1", "ロシデレ 2"] })], NOW);
+    await giveWork(db, UEDA.id, UEDA.canonicalName, "RJ1");
+
+    expect(await searchAnime(db, "ロシデレ")).toHaveLength(1);
   });
 });
 

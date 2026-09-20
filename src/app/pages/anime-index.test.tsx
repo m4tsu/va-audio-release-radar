@@ -1,8 +1,11 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { AnimeIndexPage } from "@/app/pages/anime-index";
 import { animeSeasonEntry } from "@/app/test/fixtures";
 import { renderWithLocale } from "@/app/test/render";
+
+/** 検索の部品がサーバーを呼ぶ。この画面のテストでは入力欄が出ることだけを見る */
+vi.mock("@/app/server-fns/anime", () => ({ searchAnimeFn: vi.fn(async () => []) }));
 
 const SEASONS = [
   animeSeasonEntry({ seasonYear: 2026, season: "FALL", animeCount: 12 }),
@@ -11,6 +14,18 @@ const SEASONS = [
 ];
 
 describe("AnimeIndexPage", () => {
+  test("アニメ名の検索を置く", () => {
+    renderWithLocale(<AnimeIndexPage seasons={SEASONS} />);
+
+    expect(screen.getByLabelText("アニメ名で検索")).toBeInTheDocument();
+  });
+
+  test("シーズンが 1 つも無ければ検索も出さない", () => {
+    renderWithLocale(<AnimeIndexPage seasons={[]} />);
+
+    expect(screen.queryByLabelText("アニメ名で検索")).not.toBeInTheDocument();
+  });
+
   test("シーズンを並べ、それぞれのシーズン一覧へ結ぶ", () => {
     renderWithLocale(<AnimeIndexPage seasons={SEASONS} />);
 

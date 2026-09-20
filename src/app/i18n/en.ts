@@ -227,6 +227,8 @@ export const en: Translations = {
     seasonEmptyTitle: "No {{season}} anime",
     indexEmptyTitle: "No anime found",
     indexTitle: "Browse by anime",
+    searchLabel: "Search by anime title",
+    searchNoResults: "No anime matched “{{query}}”.",
     indexDescription: "Pick a season to see the anime that aired in it.",
     indexMetaTitle: "Browse voice actors' audio works by anime | {{app}}",
     indexMetaDescription:

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { AnimeSearch } from "@/app/components/anime-search";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
 import { useLocale, useT } from "@/app/i18n";
@@ -6,10 +7,11 @@ import { seasonLabel, toSeasonSlug } from "@/app/lib/season";
 import type { AnimeSeasonEntry } from "@/app/lib/view-types";
 
 /**
- * アニメ導線の入口。出せる作品があるシーズンを新しい順に並べる。
+ * アニメ導線の入口。アニメ名の検索と、出せる作品があるシーズンの索引。
  *
  * 最新シーズンへ送らないのは、持っているシーズンのうち 1 つにしか画面から届かなくなるため。
- * 「今期」を日付から決めないのも同じで、並ぶのは実際に作品があるシーズンだけ (queries/anime.ts)
+ * 「今期」を日付から決めないのも同じで、並ぶのは実際に作品があるシーズンだけ (queries/anime.ts)。
+ * 検索を先に置くのは、放送時期を覚えていない人がシーズンを選べないため
  */
 export function AnimeIndexPage({ seasons }: { seasons: AnimeSeasonEntry[] }) {
   const t = useT();
@@ -27,6 +29,8 @@ export function AnimeIndexPage({ seasons }: { seasons: AnimeSeasonEntry[] }) {
   return (
     <div className="space-y-6">
       <PageHeader title={t("anime.indexTitle")} description={t("anime.indexDescription")} />
+
+      <AnimeSearch />
 
       <ul
         aria-label={t("anime.seasonListLabel")}
