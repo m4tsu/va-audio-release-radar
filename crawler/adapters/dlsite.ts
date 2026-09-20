@@ -6,20 +6,23 @@ import { validateRawWorks } from "./raw-work.ts";
 import type {
   ActorQuery,
   AdapterResult,
+  Coverage,
   FetchByActorOptions,
   ParsedWorks,
   SourceAdapter,
 } from "./types.ts";
 
 /**
- * DLsite (全年齢サイト = /home/) のアダプタ。手順:
+ * DLsite のアダプタ。引くのは全年齢のフロア (`DLSITE_FLOORS`) だけ。手順:
  *
- * 1. 声優名をダブルクォートで囲んだ完全一致検索の 1 ページ目 (既定 30 件) を取る
+ * 1. フロアごとに、声優名をダブルクォートで囲んだ完全一致検索の 1 ページ目 (既定 30 件) を取る
  * 2. 埋め込み JSON の `pager.count` で総件数を読み、取りこぼしがあるときだけ
- *    古い順の 1 ページ目を足して和集合を取る (最大 60 件)
- * 3. 一覧から ID・タイトル・サークル・サムネイル・種別を取る (一覧に発売日は無い)
- * 4. ID ごとに product.json を 1 件ずつ取り、発売日・声優全員・年齢区分・ジャンルを補う
- * 5. 許可していない年齢区分 (現状は R18) の作品を捨てる
+ *    古い順の 1 ページ目を足して和集合を取る (1 フロアあたり最大 2 ページ・60 件)
+ * 3. フロアをまたいで作品 ID で束ねる。同じ作品が両方に出ても 1 件になる
+ * 4. 一覧から ID・タイトル・サークル・サムネイル・種別を取る (一覧に発売日は無い)
+ * 5. ID ごとに product.json を 1 件ずつ取り、発売日・声優全員・年齢区分・ジャンル・
+ *    ストア区分を補う
+ * 6. 許可していない年齢区分 (現状は R18) の作品を捨てる
  */
 
 const STORE_SLUG = "dlsite" as const;
@@ -106,9 +109,8 @@ export function parsePagerCount(html: string): number | undefined {
 }
 
 /**
- * 検索結果 1 ページを解析する。`floor` は引いたフロアで、一覧の href が取れなかったときの
- * 商品 URL と、詳細を取れなかったときのストア区分に使う。どちらも product.json を取れれば
- * そちらの値で上書きされる (`applyProductDetail`)
+ * 検索結果 1 ページを解析する。`floor` は引いたフロアで、一覧の href が取れなかったときに
+ * 商品 URL を組み立てるためだけに使う
  */
 export function parseSearchHtml(
   html: string,
@@ -144,11 +146,11 @@ export function parseSearchHtml(
       creditedNames,
       storeCategory: extractWorkType(item.find("div.work_category").attr("class")),
       // 引くフロアはどちらも全年齢なので一覧に R18 は出ない。product.json を取れたら
-      // そちらの age_category / site_id で上書きする (applyProductDetail)
+      // そちらの age_category で上書きする (applyProductDetail)
       ageRating: "general",
-      // 作品が属するフロアとは限らない (site_id は product.json が持つ) が、
-      // 詳細を取れなかった作品でも「どのフロアで見つけたか」は残る
-      storeSection: floor,
+      // ストア区分は入れない。一覧が分かるのは「どのフロアで見つけたか」であって
+      // 作品の所属ではなく、ストアはフロア名を site_id として返さない。
+      // 埋まるのは product.json を取れたときだけ (ingest 側もそれを前提に既存値を残す)
       fetchedAt,
     };
     candidates.push(candidate);
@@ -320,16 +322,25 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 // --- 取得 ------------------------------------------------------------------
 
-/** フロア 1 つぶんの一覧の取得結果。検索ページ自体を取れなかったときは undefined */
+/** フロア 1 つぶんの一覧の取得結果 */
 type FloorListing = {
   works: RawWork[];
   /** ストアが出している総件数。読めなければ undefined */
   totalCount?: number;
+  /**
+   * このフロアを総件数ぶん取り切れたか。総件数を読めなければ undefined。
+   * 判定をフロアごとに持つのは、和で見ると両方のフロアに出る作品のぶんだけ
+   * 取得件数が足りなく見え、取りこぼしが無くても警告が立ち続けるため
+   */
+  complete?: boolean;
   /** 実際に取った検索ページ数 (並び順違いを足したかどうか) */
   pages: number;
   invalidCount: number;
   warnings: string[];
 };
+
+/** 検索ページ自体を取れなかったフロア。理由は crawl_runs から追える唯一の手がかりなので残す */
+type FloorFailure = { failed: true; reason: string };
 
 /**
  * フロア 1 つを引く。新しい順の 1 ページ目を取り、総件数に届かないときだけ
@@ -340,14 +351,14 @@ async function fetchFloorListing(
   floor: DlsiteFloor,
   fetchedAt: string,
   options: FetchByActorOptions,
-): Promise<FloorListing | undefined> {
+): Promise<FloorListing | FloorFailure> {
   const newest = await fetchText(buildSearchUrl(actorName, "release_d", floor), {
     store: STORE_SLUG,
     requestKey: `search-${floor}-${actorName}`,
     kind: "html",
     snapshot: options.snapshot,
   });
-  if (!newest.ok) return undefined;
+  if (!newest.ok) return { failed: true, reason: newest.reason };
 
   const parsed = parseSearchHtml(newest.body, fetchedAt, floor);
   const warnings = [...parsed.warnings];
@@ -381,7 +392,9 @@ async function fetchFloorListing(
 
   return {
     works: [...works.values()],
-    ...(parsed.totalCount === undefined ? {} : { totalCount: parsed.totalCount }),
+    ...(parsed.totalCount === undefined
+      ? {}
+      : { totalCount: parsed.totalCount, complete: works.size >= parsed.totalCount }),
     pages,
     invalidCount,
     warnings,
@@ -407,11 +420,17 @@ async function fetchByActor(
   } satisfies AdapterResult;
 
   const warnings: string[] = [];
+  const failures: string[] = [];
   let invalidCount = 0;
   let pages = 0;
   let fetchedFloors = 0;
   /** 全フロアの総件数の和。1 つでも読めなければ undefined (分からないを合計に混ぜない) */
   let totalCount: number | undefined = 0;
+  /**
+   * 全フロアを取り切れたか。1 つでも取り切れていなければ false、
+   * 取りこぼしは無いが総件数を読めないフロアがあれば undefined
+   */
+  let complete: boolean | undefined = true;
 
   // フロアをまたいで ID で畳む。作品 ID は DLsite 全体で 1 つの体系なので、
   // 同じ作品が 2 つのフロアに出ても 1 件になる (docs/stores/dlsite.md の「フロア」)
@@ -419,10 +438,14 @@ async function fetchByActor(
 
   for (const floor of DLSITE_FLOORS) {
     const listing = await fetchFloorListing(actorName, floor, fetchedAt, options);
-    if (listing === undefined) {
-      // このフロアだけ引けなかった。取れた側は使うので走行は続ける
-      warnings.push(`${floor} の検索ページを取れなかった`);
+    if ("failed" in listing) {
+      // このフロアだけ引けなかった。取れた側は使うので走行は続ける。
+      // 総件数は分からなくなるが、取り切れていないことは確かなので complete は false にする。
+      // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く
+      failures.push(`${floor}: ${listing.reason}`);
+      warnings.push(`${floor} の検索ページを取れなかった (${listing.reason})`);
       totalCount = undefined;
+      complete = false;
       continue;
     }
 
@@ -432,6 +455,8 @@ async function fetchByActor(
     pages += listing.pages;
     if (listing.totalCount === undefined) totalCount = undefined;
     else if (totalCount !== undefined) totalCount += listing.totalCount;
+    if (listing.complete === false) complete = false;
+    else if (listing.complete === undefined && complete !== false) complete = undefined;
 
     for (const work of listing.works) {
       if (!listWorks.has(work.storeProductId)) listWorks.set(work.storeProductId, work);
@@ -439,13 +464,19 @@ async function fetchByActor(
   }
 
   if (fetchedFloors === 0) {
-    return { ...base, status: "error", reason: "検索ページの取得に失敗 (全フロア)" };
+    return { ...base, status: "error", reason: `検索ページの取得に失敗 (${failures.join(" / ")})` };
   }
 
-  const coverage = buildCoverage(listWorks.size, totalCount, pages);
-  // 並び順 2 通りでも総件数に届かない声優。1 ページ 30 件の上限を超えている合図
-  if (coverage.complete === false) {
-    warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);
+  // buildCoverage は fetched と total だけで complete を決めるが、DLsite はフロアごとに
+  // 総件数が返り、両方のフロアに出る作品があると和が取得件数を上回る。
+  // 取り切れたかどうかはフロアごとの判定を畳んだ `complete` が正しい
+  const coverage: Coverage = {
+    ...buildCoverage(listWorks.size, totalCount, pages),
+    ...(complete === undefined ? {} : { complete }),
+  };
+  // 並び順 2 通りでも総件数に届かないフロアがある声優。1 ページ 30 件の上限を超えている合図
+  if (complete === false && totalCount !== undefined) {
+    warnings.push(`網羅率 ${coverage.fetched}/${totalCount}`);
   }
 
   const works: RawWork[] = [];

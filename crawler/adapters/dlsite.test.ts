@@ -143,7 +143,8 @@ describe("parseSearchHtml", () => {
       storeCategory: "SOU",
       // /home/ の一覧なので全年齢。区分は product.json で上書きされる
       ageRating: "general",
-      storeSection: "home",
+      // ストア区分は一覧からは決まらない。product.json の site_id でだけ埋まる
+      storeSection: undefined,
       fetchedAt: FETCHED_AT,
       // 一覧に発売日は無い。product.json で補う
       releaseDate: undefined,
@@ -185,8 +186,8 @@ describe("parseSearchHtml (/garumani/ の一覧)", () => {
       storeCategory: "SOU",
       // フロア全体が全年齢。区分は product.json の age_category で上書きされる
       ageRating: "general",
-      // 引いたフロアを入れる。作品の所属は product.json の site_id で上書きされる
-      storeSection: "garumani",
+      // 引いたフロアは作品の所属ではないので入れない
+      storeSection: undefined,
       fetchedAt: FETCHED_AT,
       releaseDate: undefined,
     });
@@ -304,11 +305,11 @@ describe("applyProductDetail", () => {
     expect(merged.storeSection).toBe("maniax");
   });
 
-  // site_id は作品の所属を返す。引いたフロア (garumani) では上書きされて消える
-  it("引いたフロアではなく site_id の値がストア区分になる", () => {
+  // ストア区分を決めるのは site_id だけ。引いたフロア (garumani) は入らない
+  it("ストア区分は site_id からだけ入る", () => {
     const listWork = parseSearchHtml(garumaniSearchHtml, FETCHED_AT, "garumani").works[0];
     if (listWork === undefined) throw new Error("fixture が空");
-    expect(listWork.storeSection).toBe("garumani");
+    expect(listWork.storeSection).toBeUndefined();
 
     const merged = applyProductDetail(listWork, {
       workno: listWork.storeProductId,
@@ -320,7 +321,7 @@ describe("applyProductDetail", () => {
   });
 
   // 詳細が取れなかったことを理由に、一覧から分かっている事実まで捨てない
-  it("age_category が無ければ一覧由来の区分を残す", () => {
+  it("age_category が無ければ一覧由来の年齢区分を残す", () => {
     const listWork = parseSearchHtml(searchHtml, FETCHED_AT).works[0];
     if (listWork === undefined) throw new Error("fixture が空");
 
@@ -330,7 +331,8 @@ describe("applyProductDetail", () => {
       genres: [],
     });
     expect(merged.ageRating).toBe("general");
-    expect(merged.storeSection).toBe("home");
+    // site_id が無ければストア区分は空のまま。ingest 側で既存の値が残る
+    expect(merged.storeSection).toBeUndefined();
   });
 });
 
@@ -420,8 +422,10 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
 
     expect(result.works.map((work) => work.storeProductId)).toEqual(["RJ1"]);
-    // 総件数はストアが各フロアで出した値の和なので、取得件数と一致しないことがある
-    expect(result.coverage).toEqual({ fetched: 1, total: 2, complete: false, pages: 2 });
+    // 総件数はストアが各フロアで出した値の和なので、束ねた取得件数と一致しない。
+    // それでもフロアはどちらも取り切れているので complete は立つ
+    expect(result.coverage).toEqual({ fetched: 1, total: 2, complete: true, pages: 2 });
+    expect(result.warnings).toEqual([]);
   });
 
   it("総件数ぶん取れていれば古い順の追加リクエストを出さない", async () => {
@@ -507,8 +511,10 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
 
     expect(result.status).toBe("ok");
     expect(result.works).toHaveLength(1);
-    expect(result.coverage).toEqual({ fetched: 1, pages: 1 });
-    expect(result.warnings).toContain("garumani の検索ページを取れなかった");
+    // 総件数は分からないが、取り切れていないことは確か。
+    // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く
+    expect(result.coverage).toEqual({ fetched: 1, complete: false, pages: 1 });
+    expect(result.warnings).toContain("garumani の検索ページを取れなかった (timeout)");
   });
 
   it("どのフロアも引けなければ error で coverage は残さない", async () => {
@@ -522,5 +528,7 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
 
     expect(result.status).toBe("error");
     expect(result.coverage).toBeUndefined();
+    // 失敗の理由は crawl_runs の error に残る唯一の手がかりなので、フロアごとに残す
+    expect(result.reason).toBe("検索ページの取得に失敗 (home: timeout / garumani: timeout)");
   });
 });

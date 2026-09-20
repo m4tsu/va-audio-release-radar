@@ -212,7 +212,7 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 | 声優全員 | ○ | `creaters.voice_by[].name`。**一覧の `span.author` は代表 1 名なので必ずこちらを使う** |
 | 年齢区分 | ○ | `age_category`。**1 だけが全年齢**。2 (R15) も 3 (R18) も `r18` に寄せる |
 | ジャンル | ○ | `genres[].name` |
-| ストア区分 | ○ | `site_id` → `StoreListing.storeSection`。**リクエストしたフロアではなく作品の所属**を返す。`/home/` の検索結果にも `girls` や `bl` の作品が混ざる |
+| ストア区分 | ○ | `site_id` → `StoreListing.storeSection`。**リクエストしたフロアではなく作品の所属**を返す。`/home/` の検索結果にも `girls` や `bl` の作品が混ざる。一覧からは決まらないので、詳細を取れたときだけ埋まる |
 | 作品の出自 | ○ | `work_category` (`doujin` / `books`)。ID の接頭辞 `RJ` / `BJ` と対応する (現在は取得していない) |
 | 男性向け / 女性向け | ○ | `sex_category`。女性向けが 2 (2026-09-20 実測)。現在は取得していない |
 | 予約作品か | ○ | `is_reserve_work`。true なら `regist_date` が未来になりうる (現在は取得していない) |
