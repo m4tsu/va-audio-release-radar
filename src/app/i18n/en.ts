@@ -221,6 +221,9 @@ export const en: Translations = {
     seasonMetaDescription:
       "Voice actors in {{season}} anime who have ASMR, audiobooks or audio dramas, all in one place.",
     seasonTitle: "{{season}} anime",
+    sortLabel: "Sort by: {{name}}",
+    sortPopularity: "Most popular",
+    sortActorCount: "Most cast members",
     seasonEmptyTitle: "No {{season}} anime",
     indexEmptyTitle: "No anime found",
     indexTitle: "Browse by anime",

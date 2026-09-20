@@ -248,6 +248,9 @@ export const ja = {
     seasonMetaDescription:
       "{{season}}のアニメに出演している声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある人をまとめています。",
     seasonTitle: "{{season}}アニメ",
+    sortLabel: "並び替え: {{name}}",
+    sortPopularity: "人気順",
+    sortActorCount: "出演者の多い順",
     seasonEmptyTitle: "{{season}}のアニメはありません",
     /** /anime はシーズンの索引。並べるシーズンが 1 つも無いときだけこれが出る */
     indexEmptyTitle: "アニメがありません",

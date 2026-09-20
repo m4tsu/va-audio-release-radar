@@ -242,7 +242,11 @@ export type AnimeDetail = AnimeSummary & { cast: AnimeCastMember[] };
  * ID を一緒に返せば「フォロー中の声優が出ている作品」の判定を画面が自分で行えるので、
  * SSR の応答はフォローの有無で変わらないまま、印と絞り込みを出せる
  */
-export type SeasonAnime = AnimeSummary & { actorIds: string[] };
+export type SeasonAnime = AnimeSummary & {
+  actorIds: string[];
+  /** 取り込み前からある作品には入っていない (`upsertAnime`) */
+  popularity?: number;
+};
 
 /** 出せる作品があるシーズン 1 つ。`/anime` の索引と sitemap が並べる */
 export type AnimeSeasonEntry = {
@@ -281,10 +285,13 @@ const appearanceActorHasAudioWork = sql`exists (
 )`;
 
 /**
- * そのシーズンのアニメ一覧。
+ * そのシーズンのアニメ一覧。人気の高い順。
  *
  * 音声作品を持つ出演者が 0 人の作品は返さない。
- * 出演者が全員「音声作品なし」の作品を並べても、行った先のページが空になる
+ * 出演者が全員「音声作品なし」の作品を並べても、行った先のページが空になる。
+ *
+ * 並べ替えの選択肢は画面側にあるが、既定の並びはここで作る。SSR が返す HTML が
+ * 既定の並びになっていないと、ハイドレーションで順序が入れ替わって見えるため
  */
 export async function listSeasonAnime(
   db: AppDb,
@@ -300,6 +307,7 @@ export async function listSeasonAnime(
       seasonYear: animeTitles.seasonYear,
       season: animeTitles.season,
       coverImageUrl: animeTitles.coverImageUrl,
+      popularity: animeTitles.popularity,
       actorIds: sql<string>`group_concat(distinct ${animeAppearances.voiceActorId})`,
     })
     .from(animeTitles)
@@ -314,13 +322,18 @@ export async function listSeasonAnime(
     .groupBy(animeTitles.id)
     .orderBy(asc(animeTitles.slug));
 
-  // 出演者の多い順。同数なら slug 順で安定させる (実行のたびに並びが変わらないように)
+  // 人気の高い順。人気度を持たない作品は末尾へ送り、同じ値なら slug 順で安定させる
+  // (実行のたびに並びが変わらないように)
   return rows
     .map((row) => {
       const actorIds = splitIds(row.actorIds);
-      return { ...toAnimeSummary({ ...row, actorCount: actorIds.length }), actorIds };
+      return {
+        ...toAnimeSummary({ ...row, actorCount: actorIds.length }),
+        actorIds,
+        ...(row.popularity === null ? {} : { popularity: row.popularity }),
+      };
     })
-    .sort((a, b) => b.actorCount - a.actorCount || a.slug.localeCompare(b.slug));
+    .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug));
 }
 
 /**

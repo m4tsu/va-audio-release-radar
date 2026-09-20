@@ -50,6 +50,50 @@ describe("AnimeSeasonPage の一覧", () => {
   });
 });
 
+describe("AnimeSeasonPage の並べ替え", () => {
+  /** サーバーは人気の高い順で渡す。並べ替えていない画面はその順のまま出す */
+  const BY_POPULARITY = [ANIME, OTHER];
+  const links = () => screen.getAllByRole("link", { name: /アニメ/ });
+
+  test("何も操作していない状態はサーバーが渡した順 (人気順)", () => {
+    renderWithLocale(<AnimeSeasonPage anime={BY_POPULARITY} seasonYear={2026} season="FALL" />);
+
+    expect(links().map((link) => link.textContent)).toEqual([
+      expect.stringContaining("架空のアニメ"),
+      expect.stringContaining("もう一つのアニメ"),
+    ]);
+  });
+
+  test("出演者の多い順に変えると並びが変わる", async () => {
+    const user = userEvent.setup();
+    // 人気順では出演者 1 人の作品が先に来る並びを渡し、切り替えで入れ替わることを見る
+    renderWithLocale(<AnimeSeasonPage anime={[OTHER, ANIME]} seasonYear={2026} season="FALL" />);
+
+    await user.click(screen.getByRole("combobox", { name: "並び替え: 人気順" }));
+    await user.click(screen.getByRole("option", { name: "出演者の多い順" }));
+
+    expect(links()[0]).toHaveTextContent("架空のアニメ");
+  });
+
+  test("人気順へ戻せる", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<AnimeSeasonPage anime={[OTHER, ANIME]} seasonYear={2026} season="FALL" />);
+
+    await user.click(screen.getByRole("combobox", { name: "並び替え: 人気順" }));
+    await user.click(screen.getByRole("option", { name: "出演者の多い順" }));
+    await user.click(screen.getByRole("combobox", { name: "並び替え: 出演者の多い順" }));
+    await user.click(screen.getByRole("option", { name: "人気順" }));
+
+    expect(links()[0]).toHaveTextContent("もう一つのアニメ");
+  });
+
+  test("作品が 1 件も無ければ並べ替えを出さない", () => {
+    renderWithLocale(<AnimeSeasonPage anime={[]} seasonYear={2026} season="FALL" />);
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+});
+
 describe("AnimeSeasonPage の前後のシーズン", () => {
   test("隣のシーズンがあれば、その一覧へ結ぶ", () => {
     renderWithLocale(
