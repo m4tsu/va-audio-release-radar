@@ -166,7 +166,7 @@ https://www.stellaplayer.jp/product/{id}
 | 発売日 | ○ | `release_schedule` |
 | 掲載開始日時 | ○ | `publish_starts_at` (並び順の基準) |
 | 販売状態 | ○ | `sale_status` |
-| 成人向けフラグ | ○ | `is_adult` |
+| 成人向けフラグ | ○ | `is_adult`。**内容を区別しない** (§6) |
 | 価格 | ○ | `current_price` |
 | レーベル | ○ | `brand` |
 | カバー画像 | ○ | `converted_featured_images` |
@@ -188,7 +188,7 @@ https://www.stellaplayer.jp/product/{id}
 | 掲載開始日時 | ○ | `publish_starts_at` |
 | カテゴリ区分 | ○ | `top_category` (`GENERAL` / `BL` / `GIRLS`) |
 | 商品カテゴリ | ○ | `category` (ドラマ / シチュエーション / 歌・サントラ) |
-| 成人向けフラグ | ○ | `is_adult` |
+| 成人向けフラグ | ○ | `is_adult`。**内容を区別しない** (§6) |
 | レーベル | ○ | `brand` |
 | シリーズ | ○ | `series[]` |
 | ジャンル | ○ | `genres[]` |
