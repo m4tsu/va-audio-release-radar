@@ -1,11 +1,15 @@
 name: 定期クロール
 
-# 声優ごとに DLsite / Audible を巡回し、本番の POST /api/admin/ingest に投げる。
+# 声優ごとに DLsite / Audible / ポケットドラマ CD を巡回し、本番の POST /api/admin/ingest に投げる。
 # クローラーを Worker 内で動かさないのは Cloudflare からの egress とサブリクエスト上限を避けるため
 # (docs/architecture.md)。必要な Secrets は INGEST_URL と INGEST_TOKEN。
+#
+# **定期実行は止めてある。手動実行だけができる。** 声優起点で対象声優の全員を回すと
+# ジョブ時間の上限を超え、その間ずっと相手サイトを叩き続けるため。日次はストアの新着一覧に
+# 切り替えると決まっている (docs/decisions/0007-daily-crawl-from-store-feeds.md)。
+# 定期実行を戻すのは、この走行が「月次の補完巡回」か「シーズンごとの新規声優」に
+# 絞られ、対象の人数がジョブ時間に収まると分かったとき
 on:
-  schedule:
-    - cron: "0 20 * * *" # 毎日 05:00 JST
   workflow_dispatch:
     inputs:
       only:
@@ -13,15 +17,16 @@ on:
         required: false
         type: string
       store:
-        description: "対象ストア (空なら両方)"
+        description: "対象ストア (空なら 3 ストアすべて)"
         required: false
         type: choice
         options:
           - ""
           - dlsite
           - audible
+          - pokedora
 
-# 前回の実行が終わる前に次の cron が来ても重ねない。
+# 前回の実行が終わる前に次を始めない。
 # 同じストアへ二重にアクセスすると、プロセスをまたぐレート制限が効かないため
 concurrency:
   group: crawl
@@ -29,9 +34,10 @@ concurrency:
 
 jobs:
   crawl:
-    name: DLsite / Audible を巡回して取り込む
+    name: ストアを巡回して取り込む
     runs-on: ubuntu-latest
-    # 声優 35 人 × DLsite の Crawl-delay 10 秒で 1 時間近くかかる。余裕を見て 120 分
+    # 所要は 声優の人数 × ストア数 × ホストごとの間隔 で決まる (crawler/lib/fetch.ts)。
+    # --only か --limit で対象を絞って使う前提の値
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5

@@ -29,7 +29,7 @@ import {
 import { CRAWLER_DIR } from "./lib/paths.ts";
 
 /**
- * 定期実行の本体。GitHub Actions の cron からも手元からも同じものを動かす。
+ * 声優起点の走行の本体。GitHub Actions からも手元からも同じものを動かす。
  *
  *   INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199
  *
@@ -348,7 +348,9 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   const storeOption = asString(values.store);
   if (storeOption !== undefined && !isStoreSlug(storeOption)) {
-    process.stderr.write(`--store は dlsite か audible を指定する: ${storeOption}\n`);
+    process.stderr.write(
+      `--store は ${STORE_SLUGS.join(" / ")} のどれかを指定する: ${storeOption}\n`,
+    );
     return 1;
   }
   const stores = storeOption === undefined ? ALL_STORES : [storeOption];

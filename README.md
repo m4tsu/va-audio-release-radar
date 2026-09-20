@@ -122,7 +122,8 @@ Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid 
 手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
 かなは日本語版 Wikipedia からも取る (`crawler/discovery/wikipedia-kana.ts`)。
 
-定期実行は `.github/workflows/crawl.yml`。
+GitHub Actions からは `.github/workflows/crawl.yml` を手動で実行する。定期実行は止めてある
+(理由と戻す条件はワークフロー先頭のコメント)。
 
 ```bash
 # 取り込みまで通す (dev サーバーを起動しておく)
