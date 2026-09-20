@@ -11,8 +11,8 @@
 運営は株式会社ステラワース。女性向けを中心にした音声作品の直販。
 サイトは Next.js の pages router で、サーバーで描くページは `__NEXT_DATA__` に構造化された JSON を持つ。
 
-追加するかどうかの結論と手順は
-[`docs/decisions/0011-add-stellaplayer.md`](../decisions/0011-add-stellaplayer.md)。
+**追加するかどうかはまだ決まっていない。** このファイルはアクセスする前に読む制約を集めたもので、
+採否の決定記録は無い。決まったら `docs/decisions/` に 1 ファイル増える。
 
 ---
 
@@ -264,4 +264,3 @@ https://www.stellaplayer.jp/product/{id}
   新着一覧の幅と 1 日あたりの件数、ID の範囲と総数の推定、1 巡のコスト、対象声優との重なり
 - [`docs/research/store-survey-2026-09-18.md`](../research/store-survey-2026-09-18.md) —
   ルートの一覧 (`_buildManifest.js` から)、声優のページが無いこと、商品ページの構造の初回確認
-- [`docs/decisions/0011-add-stellaplayer.md`](../decisions/0011-add-stellaplayer.md) — 追加の判断と、採らなかった案
