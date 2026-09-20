@@ -122,6 +122,22 @@ Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid 
 手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
 かなは日本語版 Wikipedia からも取る (`crawler/discovery/wikipedia-kana.ts`)。
 
+ポケドラは名前で検索できない (声優はタグで、一覧の URL に `tag_id` が要る) ので、声優タグ辞書
+`crawler/pokedora-tags.generated.json` を経由して引く。辞書に無い声優はポケドラを引かない。
+載っているのは一般 + BL に作品がある声優だけで、人数はこのファイルの要素数が正。
+
+辞書は `crawler/discovery/pokedora-tags.ts` が全タグページを引いて `crawler/.cache/discovery/pokedora-tags.json`
+に残した記録を切り詰めた生成物。切り詰めはネットワークに出ない。
+
+```bash
+# .cache の記録から辞書を作り直す
+node crawler/discovery/build-pokedora-tags.ts
+```
+
+`.cache` の記録が無い環境では作り直せない。記録から取り直すところまで戻すなら
+`node crawler/discovery/pokedora-tags.ts --resume` で、所要は
+[`docs/stores/pokedora.md`](./docs/stores/pokedora.md) の「全件クロールのコスト」。
+
 GitHub Actions からは `.github/workflows/crawl.yml` を手動で実行する。定期実行は止めてある
 (理由と戻す条件はワークフロー先頭のコメント)。
 

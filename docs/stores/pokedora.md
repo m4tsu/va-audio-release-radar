@@ -5,7 +5,7 @@
 削除: ポケットドラマ CD を対応ストアから外したら
 
 実装: `crawler/adapters/pokedora.ts` / `crawler/discovery/pokedora-tags.ts` /
-`pokedora-intersect.ts` / `pokedora-directory.ts`
+`pokedora-intersect.ts` / `build-pokedora-tags.ts` / `pokedora-directory.ts`
 共通の原則は [`README.md`](./README.md)。
 
 運営は株式会社アニメイト (作品ページの `<meta name="author">` に記載)。
