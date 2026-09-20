@@ -200,8 +200,9 @@ export type IngestPayload = {
    */
   totalCount?: number;
   /**
-   * 総件数ぶんを取り切れたか。`totalCount` が取れなかったときは undefined のままにする。
-   * 総件数を知らないまま「全部取れた」と記録すると、取りこぼしを見逃す方向に嘘をつくため
+   * 総件数ぶんを取り切れたか。総件数を知らないまま true にはしない。
+   * 取りこぼしを見逃す方向に嘘をつくため。
+   * false は `totalCount` が無くても入りうる (取り切れていないことだけが分かる走行)
    */
   coverageComplete?: boolean;
 };

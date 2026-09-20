@@ -190,11 +190,16 @@ export async function main(argv: readonly string[]): Promise<number> {
 
 /**
  * 網羅率の 1 行。総件数が取れなければ「総件数不明」とだけ書く。
- * 取れないことと取りこぼしが無いことを言葉の上でも混ぜないため
+ * 取れないことと取りこぼしが無いことを言葉の上でも混ぜないため。
+ * 総件数が無くても取りこぼしが確かな走行 (検索先の一部を引けなかった) は別の文言にする
  */
-function formatCoverage(coverage: Coverage): string {
+export function formatCoverage(coverage: Coverage): string {
   const pages = `検索 ${coverage.pages} ページ`;
-  if (coverage.total === undefined) return `取得 ${coverage.fetched} 件 / 総件数不明 (${pages})`;
+  if (coverage.total === undefined) {
+    return coverage.complete === false
+      ? `取得 ${coverage.fetched} 件 / 総件数不明・取りこぼしあり (${pages})`
+      : `取得 ${coverage.fetched} 件 / 総件数不明 (${pages})`;
+  }
   const verdict = coverage.complete === true ? "完全" : "取りこぼしあり";
   return `取得 ${coverage.fetched} 件 / 総件数 ${coverage.total} (${verdict}、${pages})`;
 }

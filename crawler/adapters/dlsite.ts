@@ -339,8 +339,13 @@ type FloorListing = {
   warnings: string[];
 };
 
-/** 検索ページ自体を取れなかったフロア。理由は crawl_runs から追える唯一の手がかりなので残す */
-type FloorFailure = { failed: true; reason: string };
+/**
+ * 検索ページ自体を取れなかったフロア。理由は警告に出す (全フロアが落ちたときだけ
+ * `AdapterResult.reason` に入り、crawl_runs の error まで届く)。
+ * `pages` は出した往復の数で、失敗した往復も数える。`Coverage.pages` は相手サイトへの
+ * 往復が増えていないことを確かめるためのものなので、落ちた往復を隠さない
+ */
+type FloorFailure = { failed: true; reason: string; pages: number };
 
 /**
  * フロア 1 つを引く。新しい順の 1 ページ目を取り、総件数に届かないときだけ
@@ -358,7 +363,7 @@ async function fetchFloorListing(
     kind: "html",
     snapshot: options.snapshot,
   });
-  if (!newest.ok) return { failed: true, reason: newest.reason };
+  if (!newest.ok) return { failed: true, reason: newest.reason, pages: 1 };
 
   const parsed = parseSearchHtml(newest.body, fetchedAt, floor);
   const warnings = [...parsed.warnings];
@@ -444,6 +449,7 @@ async function fetchByActor(
       // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く
       failures.push(`${floor}: ${listing.reason}`);
       warnings.push(`${floor} の検索ページを取れなかった (${listing.reason})`);
+      pages += listing.pages;
       totalCount = undefined;
       complete = false;
       continue;
@@ -474,9 +480,11 @@ async function fetchByActor(
     ...buildCoverage(listWorks.size, totalCount, pages),
     ...(complete === undefined ? {} : { complete }),
   };
-  // 並び順 2 通りでも総件数に届かないフロアがある声優。1 ページ 30 件の上限を超えている合図
+  // 並び順 2 通りでも総件数に届かないフロアがある声優。1 ページ 30 件の上限を超えている合図。
+  // 分母はフロアごとの総件数の和で、分子はフロアをまたいで束ねた件数なので、
+  // どちらか一方のフロアの表示とは一致しない
   if (complete === false && totalCount !== undefined) {
-    warnings.push(`網羅率 ${coverage.fetched}/${totalCount}`);
+    warnings.push(`網羅率 ${coverage.fetched}/${totalCount} (全フロアの合計)`);
   }
 
   const works: RawWork[] = [];

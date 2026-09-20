@@ -97,7 +97,13 @@ export type Coverage = {
   fetched: number;
   /** ストアが表示する総件数。取れなければ undefined */
   total?: number;
-  /** `total` を取れたときだけ true / false。取れなければ undefined */
+  /**
+   * 総件数ぶんを取り切れたか。ふつうは `total` を取れたときだけ true / false になる。
+   * 例外は「取り切れていないことが総件数抜きで分かる」場合で、DLsite がフロアを 1 つ
+   * 取りこぼしたときは `total` を落としたまま false を入れる (`adapters/dlsite.ts`)。
+   * false で総件数が無い記録は「見に行けなかった範囲がある」を意味する。
+   * 逆に true は総件数と突き合わせたときにしか入らない
+   */
   complete?: boolean;
   /**
    * `fetched` のうち、検索した声優本人がクレジットされていた件数。

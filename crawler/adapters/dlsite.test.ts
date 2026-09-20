@@ -467,7 +467,7 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2"]));
 
     expect(result.coverage).toEqual({ fetched: 2, total: 40, complete: false, pages: 3 });
-    expect(result.warnings).toContain("網羅率 2/40");
+    expect(result.warnings).toContain("網羅率 2/40 (全フロアの合計)");
   });
 
   it("古い順の取得に失敗しても新しい順の結果で続行する", async () => {
@@ -486,7 +486,7 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     expect(result.warnings).toContain(
       "home: 古い順での補完に失敗 (HTTP 503)。新しい順の結果だけで続行",
     );
-    expect(result.warnings).toContain("網羅率 1/40");
+    expect(result.warnings).toContain("網羅率 1/40 (全フロアの合計)");
   });
 
   it("総件数を読めなければ complete を立てず、追加リクエストも出さない", async () => {
@@ -512,8 +512,9 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     expect(result.status).toBe("ok");
     expect(result.works).toHaveLength(1);
     // 総件数は分からないが、取り切れていないことは確か。
-    // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く
-    expect(result.coverage).toEqual({ fetched: 1, complete: false, pages: 1 });
+    // これで crawl_runs 上「総件数が読めなかった走行」と区別が付く。
+    // 落ちたフロアへの往復も pages に数える (相手サイトへの往復を隠さない)
+    expect(result.coverage).toEqual({ fetched: 1, complete: false, pages: 2 });
     expect(result.warnings).toContain("garumani の検索ページを取れなかった (timeout)");
   });
 

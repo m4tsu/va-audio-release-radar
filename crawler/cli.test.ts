@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RawWork } from "../src/domain/index.ts";
 import type { AdapterResult } from "./adapters/types.ts";
-import { formatActorOutput } from "./cli.ts";
+import { formatActorOutput, formatCoverage } from "./cli.ts";
 
 function work(storeProductId: string, titleRaw: string, releaseDate?: string): RawWork {
   return {
@@ -68,5 +68,28 @@ describe("formatActorOutput", () => {
 
   it("0 件のストアはその旨を出す", () => {
     expect(formatActorOutput([result({ storeSlug: "dlsite" })])).toBe("DLsite\n(該当作品なし)\n");
+  });
+});
+
+describe("formatCoverage", () => {
+  it("総件数が取れていれば取りこぼしの有無を書く", () => {
+    expect(formatCoverage({ fetched: 27, total: 27, complete: true, pages: 1 })).toBe(
+      "取得 27 件 / 総件数 27 (完全、検索 1 ページ)",
+    );
+    expect(formatCoverage({ fetched: 30, total: 52, complete: false, pages: 2 })).toBe(
+      "取得 30 件 / 総件数 52 (取りこぼしあり、検索 2 ページ)",
+    );
+  });
+
+  it("総件数が取れなければ取りこぼしの有無を言わない", () => {
+    expect(formatCoverage({ fetched: 3, pages: 1 })).toBe("取得 3 件 / 総件数不明 (検索 1 ページ)");
+  });
+
+  // 検索先の一部を引けなかった走行。総件数は分からないが取りこぼしは確かなので、
+  // 「総件数が読めなかっただけの走行」と同じ文言にしない
+  it("総件数が取れなくても取りこぼしが確かなら、そう書く", () => {
+    expect(formatCoverage({ fetched: 3, complete: false, pages: 2 })).toBe(
+      "取得 3 件 / 総件数不明・取りこぼしあり (検索 2 ページ)",
+    );
   });
 });

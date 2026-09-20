@@ -217,7 +217,11 @@ export const crawlRuns = sqliteTable(
      * 網羅できたかどうかの判定には下の `coverage_complete` を使う
      */
     totalCount: integer("total_count"),
-    /** 総件数ぶんを取り切れたか。総件数が読めなければ NULL (真偽を決められない) */
+    /**
+     * 総件数ぶんを取り切れたか。NULL は「真偽を決められない」。
+     * `total_count` が NULL でも 0 (取り切れていない) は入りうる。
+     * 検索先の一部を見に行けなかった走行がこの形になる
+     */
     coverageComplete: integer("coverage_complete", { mode: "boolean" }),
   },
   // 「同じストア × 同じ声優の前回の結果」を引いて件数の急減を検知する
