@@ -114,7 +114,12 @@ query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
           sort: POPULARITY_DESC, isAdult: false) {
       id
       title { native romaji english }
-      coverImage { large }
+      synonyms
+      format
+      popularity
+      startDate { year month day }
+      endDate { year month day }
+      coverImage { large color }
       characters(perPage: 25, sort: ROLE) {
         edges {
           role
@@ -160,6 +165,11 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 | ローマ字表記 | ○ | `name.full` ("Reina Ueda") → `slug` の元、英語表示に出す名前 |
 | 声優の画像 | ○ | `image.medium` |
 | 作品 (アニメ) | ○ | `media.id` / `title.{native,romaji,english}` / `coverImage.large` |
+| 表紙の代表色 | ○ | `coverImage.color` ("#e4a128") |
+| 別名タイトル | ○ | `synonyms`。**空配列のことがある** (2026-09-20 の実応答で、上位 3 件中 1 件) |
+| 形式 | ○ | `format` (`TV` / `MOVIE` / `OVA` / `ONA` など) |
+| 人気度 | ○ | `popularity` (整数)。一覧の既定の並びに使う |
+| 放送開始日 / 終了日 | ○ | `startDate` / `endDate`。**`FuzzyDate` なので year / month / day が個別に null になりうる**。放送前の作品の終了日は 3 つとも null (2026-09-20 の実応答で確認) |
 | キャラクターと役 | ○ | `characters.edges[].node` / `.role` |
 | **かな表記** | **×** | 手で `crawler/actors-overrides.json` に持つ |
 | **別名義** | **×** | 同上。検証済みのものだけを手で持つ |
@@ -221,8 +231,10 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   恒久的に保存**し、公開する Web サービスで使う予定。事実として言えることと、
   判断が要ることを分けて書く。
 
-  - **事実**: 保存しているのは声優の id・名前・画像 URL だけで、AniList のメディア
-    データ (作品・エピソード等) やユーザーデータそのものの複製ではない
+  - **事実**: 保存しているのは声優 (id・名前・画像 URL)、対象声優が出ている作品
+    (id・タイトル・シーズン・形式・人気度・放送日・別名・表紙の URL と代表色)、
+    その声優が演じたキャラクター (id・名前・画像 URL) で、あらすじ・話数・ジャンル・
+    タグ・スタッフ・評価は取っていない。ユーザーデータは一切取っていない
   - **事実**: それでも対象声優の全員分を通しで取得し DB に持ち続ける挙動は、
     「backup or data storage service として使うのは禁止」「hoarding or mass collection は禁止」
     という文言に触れる余地がある。**該当するかどうかは、原文を読んだだけでは判定できない

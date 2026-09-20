@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
 import {
   type AnimeCreditInput,
+  type AnimeEntity,
   type AnimeExclusionReason,
   type AnimeMediaInput,
   buildAnimeEntities,
@@ -68,6 +69,14 @@ export async function loadMedia(file: string): Promise<AnimeMediaInput[]> {
     throw new Error(
       `${file} の media に titleRomaji が 1 件も無い。取得項目を増やす前の応答なので、` +
         "node crawler/discovery/run.ts --anilist-only で取り直す",
+    );
+  }
+  // 人気度も後から足した項目。phase の中間結果 (anilist-staff.json) はクエリの指紋を見ずに
+  // 再利用されるので、--refresh を付け忘れると古い応答のまま全作品が人気度なしで通る
+  if (items.length > 0 && items.every((item) => item.popularity === undefined)) {
+    throw new Error(
+      `${file} の media に popularity が 1 件も無い。取得項目を増やす前の応答なので、` +
+        "node crawler/discovery/run.ts --anilist-only --refresh で取り直す",
     );
   }
   return items;
@@ -150,6 +159,9 @@ export async function main(argv: readonly string[]): Promise<number> {
   process.stdout.write(
     `  英語タイトルあり: ${result.anime.filter((item) => item.titleEnglish !== undefined).length} 件\n`,
   );
+  for (const [label, count] of countByField(result.anime)) {
+    process.stdout.write(`  ${label}: ${count} 件 (未取得 ${result.anime.length - count} 件)\n`);
+  }
 
   if (result.collisions.length > 0) {
     process.stderr.write(`\n[エラー] slug が ${result.collisions.length} 件衝突した\n`);
@@ -169,6 +181,23 @@ export async function main(argv: readonly string[]): Promise<number> {
   await writeFile(outFile, `${JSON.stringify(result.anime, null, 2)}\n`, "utf8");
   process.stdout.write(`\n書き出した: ${outFile}\n`);
   return 0;
+}
+
+/**
+ * 項目ごとに値が入った作品数。
+ *
+ * AniList が返さないことがある項目 (放送終了日、別名タイトル、代表色) を後から足したとき、
+ * 取り直しを忘れて全件空のまま取り込んでいないかを、この数で見分ける
+ */
+function countByField(anime: readonly AnimeEntity[]): Array<[string, number]> {
+  return [
+    ["人気度あり", anime.filter((item) => item.popularity !== undefined).length],
+    ["形式あり", anime.filter((item) => item.format !== undefined).length],
+    ["放送開始日あり", anime.filter((item) => item.startDate !== undefined).length],
+    ["放送終了日あり", anime.filter((item) => item.endDate !== undefined).length],
+    ["別名タイトルあり", anime.filter((item) => item.synonyms !== undefined).length],
+    ["表紙の代表色あり", anime.filter((item) => item.coverImageColor !== undefined).length],
+  ];
 }
 
 /** 除外理由ごとの件数。多い順に並べる */

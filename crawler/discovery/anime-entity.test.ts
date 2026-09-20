@@ -87,6 +87,38 @@ describe("buildAnimeEntities", () => {
     ]);
   });
 
+  it("人気度・形式・放送日・別名・代表色をそのまま渡す", () => {
+    const result = buildAnimeEntities(
+      [
+        media({
+          popularity: 70218,
+          format: "TV",
+          startDate: "2026-10-02",
+          endDate: "2026-12-25",
+          synonyms: ["ロシデレ"],
+          coverImageColor: "#e4a128",
+        }),
+      ],
+      [credit()],
+      TARGET,
+    );
+
+    expect(result.anime[0]).toMatchObject({
+      popularity: 70218,
+      format: "TV",
+      startDate: "2026-10-02",
+      endDate: "2026-12-25",
+      synonyms: ["ロシデレ"],
+      coverImageColor: "#e4a128",
+    });
+  });
+
+  it("別名が 0 件なら項目自体を出さない", () => {
+    const result = buildAnimeEntities([media({ synonyms: [] })], [credit()], TARGET);
+
+    expect(result.anime[0]).not.toHaveProperty("synonyms");
+  });
+
   it("対象外の声優は入れない (全キャストを保存しない)", () => {
     const result = buildAnimeEntities([media()], [credit({ staffId: 99999 })], TARGET);
 

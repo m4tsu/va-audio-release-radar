@@ -52,24 +52,63 @@ describe("parseSeasonPage", () => {
     readFileSync(path.join(FIXTURES_DIR, "anilist-season-page.json"), "utf8"),
   );
 
-  it("作品の id と題とカバー画像を取る", () => {
+  it("作品の id と題とカバー画像、人気度・形式・放送日を取る", () => {
     expect(parseSeasonPage(json).media).toEqual([
       {
         id: 195516,
         titleNative: "薬屋のひとりごと 第3期",
         titleRomaji: "Kusuriya no Hitorigoto 3rd Season",
         titleEnglish: "The Apothecary Diaries Season 3",
+        format: "TV",
+        popularity: 70218,
+        // 放送前なので終了日は年月日とも null。日付として比べられないので値にしない
+        startDate: "2026-10-02",
         coverImageUrl:
           "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195516-hSRLGkNlPNJI.jpg",
+        coverImageColor: "#e4a128",
       },
       {
         id: 160275,
         titleNative: "メイドインアビス 目覚める神秘",
         titleRomaji: "Made in Abyss: Mezameru Shinpi",
+        synonyms: ["Made In Abyss 3", "Made in Abyss: Awakening Mystery"],
+        format: "MOVIE",
+        popularity: 38738,
+        startDate: "2026-10-23",
         coverImageUrl:
           "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx160275-Qk1cZ6hFJmSE.jpg",
+        coverImageColor: "#e4d643",
       },
       { id: 196187 },
+    ]);
+  });
+
+  it("部分的な日付と知らない形式は捨てる", () => {
+    const partial = {
+      data: {
+        Page: {
+          media: [
+            {
+              id: 1,
+              title: { romaji: "Partial Date" },
+              // AniList は年だけ・月までの日付を返すことがある
+              startDate: { year: 2026, month: null, day: null },
+              endDate: { year: 2026, month: 3, day: 31 },
+              format: "MANGA",
+              synonyms: ["", "  略称  "],
+            },
+          ],
+        },
+      },
+    };
+
+    expect(parseSeasonPage(partial).media).toEqual([
+      {
+        id: 1,
+        titleRomaji: "Partial Date",
+        endDate: "2026-03-31",
+        synonyms: ["略称"],
+      },
     ]);
   });
 

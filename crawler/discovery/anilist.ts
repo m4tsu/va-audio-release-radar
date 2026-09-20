@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { ANIME_FORMATS, type AnimeFormat } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { SNAPSHOT_DIR, safeFileName } from "../lib/paths.ts";
 
@@ -58,7 +59,12 @@ export const SEASON_PAGE_QUERY = `query ($season: MediaSeason, $seasonYear: Int,
     media(type: ANIME, season: $season, seasonYear: $seasonYear, sort: POPULARITY_DESC, isAdult: false) {
       id
       title { native romaji english }
-      coverImage { large }
+      synonyms
+      format
+      popularity
+      startDate { year month day }
+      endDate { year month day }
+      coverImage { large color }
       characters(perPage: 25, sort: ROLE) {
         edges {
           role
@@ -79,7 +85,18 @@ export type SeasonMediaRef = {
   titleRomaji?: string;
   /** null のことが実際にある (2026-09-18 の実応答で確認) */
   titleEnglish?: string;
+  /** 別名タイトル。空配列のことも多い (2026-09-20 の実応答で確認) */
+  synonyms?: string[];
+  /** TV / MOVIE / OVA など。AniList が知らない値を返したら落とす */
+  format?: AnimeFormat;
+  popularity?: number;
+  /** "2026-10-02"。年月日が揃っているときだけ入る */
+  startDate?: string;
+  /** 放送中・未放送の作品では入らない */
+  endDate?: string;
   coverImageUrl?: string;
+  /** 表紙の代表色 ("#e4a128") */
+  coverImageColor?: string;
 };
 
 /** 1 作品 × 1 キャラクター × 1 声優の出演 */
@@ -117,13 +134,26 @@ export function parseSeasonPage(json: unknown): {
     const titleNative = asString(title?.native);
     const titleRomaji = asString(title?.romaji);
     const titleEnglish = asString(title?.english);
-    const coverImageUrl = asString(asRecord(record?.coverImage)?.large);
+    const cover = asRecord(record?.coverImage);
+    const coverImageUrl = asString(cover?.large);
+    const coverImageColor = asString(cover?.color);
+    const synonyms = asStringArray(record?.synonyms);
+    const format = asAnimeFormat(record?.format);
+    const popularity = asNumber(record?.popularity);
+    const startDate = asFuzzyDate(record?.startDate);
+    const endDate = asFuzzyDate(record?.endDate);
     media.push({
       id: mediaId,
       ...(titleNative === undefined ? {} : { titleNative }),
       ...(titleRomaji === undefined ? {} : { titleRomaji }),
       ...(titleEnglish === undefined ? {} : { titleEnglish }),
+      ...(synonyms.length === 0 ? {} : { synonyms }),
+      ...(format === undefined ? {} : { format }),
+      ...(popularity === undefined ? {} : { popularity }),
+      ...(startDate === undefined ? {} : { startDate }),
+      ...(endDate === undefined ? {} : { endDate }),
       ...(coverImageUrl === undefined ? {} : { coverImageUrl }),
+      ...(coverImageColor === undefined ? {} : { coverImageColor }),
     });
     credits.push(...parseCharacterEdges(record?.characters, mediaId));
   }
@@ -446,6 +476,39 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
+/** 文字列だけを残した配列。要素に空文字や他の型が混じっていても落とさない */
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const names: string[] = [];
+  for (const item of value) {
+    const name = asString(item);
+    if (name !== undefined) names.push(name.trim());
+  }
+  return names;
+}
+
+/** AniList が知っている形式だけを残す。増えた値を勝手に別の形式に丸めない */
+function asAnimeFormat(value: unknown): AnimeFormat | undefined {
+  const format = asString(value);
+  return ANIME_FORMATS.find((candidate) => candidate === format);
+}
+
+/**
+ * AniList の `FuzzyDate` を "2026-10-02" にする。
+ *
+ * year / month / day はそれぞれ null になりうる (放送前の作品の終了日は 3 つとも null。
+ * 2026-09-20 の実応答で確認)。欠けたまま保存すると日付として比べられないので、
+ * 揃っているときだけ値にする
+ */
+function asFuzzyDate(value: unknown): string | undefined {
+  const date = asRecord(value);
+  const year = asNumber(date?.year);
+  const month = asNumber(date?.month);
+  const day = asNumber(date?.day);
+  if (year === undefined || month === undefined || day === undefined) return undefined;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function asNumber(value: unknown): number | undefined {

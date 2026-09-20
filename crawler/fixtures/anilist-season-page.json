@@ -1,7 +1,12 @@
 {
   "data": {
     "Page": {
-      "pageInfo": { "currentPage": 1, "lastPage": 100, "hasNextPage": true, "total": 5000 },
+      "pageInfo": {
+        "currentPage": 1,
+        "lastPage": 100,
+        "hasNextPage": true,
+        "total": 5000
+      },
       "media": [
         {
           "id": 195516,
@@ -10,8 +15,22 @@
             "romaji": "Kusuriya no Hitorigoto 3rd Season",
             "english": "The Apothecary Diaries Season 3"
           },
+          "synonyms": [],
+          "format": "TV",
+          "popularity": 70218,
+          "startDate": {
+            "year": 2026,
+            "month": 10,
+            "day": 2
+          },
+          "endDate": {
+            "year": null,
+            "month": null,
+            "day": null
+          },
           "coverImage": {
-            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195516-hSRLGkNlPNJI.jpg"
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx195516-hSRLGkNlPNJI.jpg",
+            "color": "#e4a128"
           },
           "characters": {
             "edges": [
@@ -19,7 +38,10 @@
                 "role": "MAIN",
                 "node": {
                   "id": 127278,
-                  "name": { "native": "壬氏", "full": "Jinshi" },
+                  "name": {
+                    "native": "壬氏",
+                    "full": "Jinshi"
+                  },
                   "image": {
                     "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b127278-2Yp2Zv1qXk0n.png"
                   }
@@ -27,7 +49,10 @@
                 "voiceActors": [
                   {
                     "id": 128426,
-                    "name": { "native": "大塚剛央", "full": "Takeo Ootsuka" },
+                    "name": {
+                      "native": "大塚剛央",
+                      "full": "Takeo Ootsuka"
+                    },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n128426-3yOZ6Mkt0YQe.png"
                     }
@@ -38,7 +63,10 @@
                 "role": "MAIN",
                 "node": {
                   "id": 126824,
-                  "name": { "native": "猫猫", "full": "Maomao" },
+                  "name": {
+                    "native": "猫猫",
+                    "full": "Maomao"
+                  },
                   "image": {
                     "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b126824-Fp0fLcEzQZbC.png"
                   }
@@ -46,7 +74,10 @@
                 "voiceActors": [
                   {
                     "id": 101686,
-                    "name": { "native": "悠木碧", "full": "Aoi Yuuki" },
+                    "name": {
+                      "native": "悠木碧",
+                      "full": "Aoi Yuuki"
+                    },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n101686-VLnYKZQ2GcS3.png"
                     }
@@ -57,14 +88,24 @@
                 "role": "SUPPORTING",
                 "node": {
                   "id": 406588,
-                  "name": { "native": null, "full": null },
-                  "image": { "medium": null }
+                  "name": {
+                    "native": null,
+                    "full": null
+                  },
+                  "image": {
+                    "medium": null
+                  }
                 },
                 "voiceActors": [
                   {
                     "id": 118602,
-                    "name": { "native": "上田麗奈", "full": "Reina Ueda" },
-                    "image": { "medium": null }
+                    "name": {
+                      "native": "上田麗奈",
+                      "full": "Reina Ueda"
+                    },
+                    "image": {
+                      "medium": null
+                    }
                   }
                 ]
               },
@@ -72,7 +113,10 @@
                 "role": "BACKGROUND",
                 "node": {
                   "id": 232926,
-                  "name": { "native": "羅門", "full": "Luomen" },
+                  "name": {
+                    "native": "羅門",
+                    "full": "Luomen"
+                  },
                   "image": {
                     "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b232926-9xQ0bWkpJZ5m.png"
                   }
@@ -80,7 +124,10 @@
                 "voiceActors": [
                   {
                     "id": 95296,
-                    "name": { "native": "桐本拓哉", "full": "Takuya Kirimoto" },
+                    "name": {
+                      "native": "桐本拓哉",
+                      "full": "Takuya Kirimoto"
+                    },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n95296-lM6uJcZ1p2xU.png"
                     }
@@ -91,8 +138,13 @@
                 "role": "SUPPORTING",
                 "node": {
                   "id": 364109,
-                  "name": { "native": "馬閃", "full": "Basen" },
-                  "image": { "medium": null }
+                  "name": {
+                    "native": "馬閃",
+                    "full": "Basen"
+                  },
+                  "image": {
+                    "medium": null
+                  }
                 },
                 "voiceActors": []
               },
@@ -100,8 +152,13 @@
                 "role": "SUPPORTING",
                 "node": {
                   "id": 327822,
-                  "name": { "native": "水蓮", "full": "Suiren" },
-                  "image": { "medium": null }
+                  "name": {
+                    "native": "水蓮",
+                    "full": "Suiren"
+                  },
+                  "image": {
+                    "medium": null
+                  }
                 },
                 "voiceActors": null
               },
@@ -109,7 +166,14 @@
                 "role": "SUPPORTING",
                 "node": null,
                 "voiceActors": [
-                  { "id": 999999, "name": { "native": "node が無い", "full": null }, "image": null }
+                  {
+                    "id": 999999,
+                    "name": {
+                      "native": "node が無い",
+                      "full": null
+                    },
+                    "image": null
+                  }
                 ]
               }
             ]
@@ -122,8 +186,25 @@
             "romaji": "Made in Abyss: Mezameru Shinpi",
             "english": null
           },
+          "synonyms": [
+            "Made In Abyss 3",
+            "Made in Abyss: Awakening Mystery"
+          ],
+          "format": "MOVIE",
+          "popularity": 38738,
+          "startDate": {
+            "year": 2026,
+            "month": 10,
+            "day": 23
+          },
+          "endDate": {
+            "year": null,
+            "month": null,
+            "day": null
+          },
           "coverImage": {
-            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx160275-Qk1cZ6hFJmSE.jpg"
+            "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx160275-Qk1cZ6hFJmSE.jpg",
+            "color": "#e4d643"
           },
           "characters": {
             "edges": [
@@ -131,7 +212,10 @@
                 "role": "MAIN",
                 "node": {
                   "id": 122444,
-                  "name": { "native": "レグ", "full": "Reg" },
+                  "name": {
+                    "native": "レグ",
+                    "full": "Reg"
+                  },
                   "image": {
                     "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b122444-KXZ8vQ0nLpbT.png"
                   }
@@ -139,14 +223,20 @@
                 "voiceActors": [
                   {
                     "id": 95655,
-                    "name": { "native": "伊瀬茉莉也", "full": "Mariya Ise" },
+                    "name": {
+                      "native": "伊瀬茉莉也",
+                      "full": "Mariya Ise"
+                    },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n95655-8YQ9dJ2fXcZ1.png"
                     }
                   },
                   {
                     "id": 119518,
-                    "name": { "native": "富田美憂", "full": "Miyu Tomita" },
+                    "name": {
+                      "native": "富田美憂",
+                      "full": "Miyu Tomita"
+                    },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n119518-0fZ2QpLm7Rkd.png"
                     }
@@ -156,8 +246,20 @@
             ]
           }
         },
-        { "id": 196187, "title": { "native": null }, "characters": { "edges": [] } },
-        { "title": { "native": "id が無いので捨てる" } }
+        {
+          "id": 196187,
+          "title": {
+            "native": null
+          },
+          "characters": {
+            "edges": []
+          }
+        },
+        {
+          "title": {
+            "native": "id が無いので捨てる"
+          }
+        }
       ]
     }
   }

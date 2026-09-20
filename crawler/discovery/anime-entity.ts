@@ -1,3 +1,4 @@
+import type { AnimeFormat } from "../../src/domain/index.ts";
 import type { AniListSeason } from "./anilist.ts";
 
 /**
@@ -15,7 +16,13 @@ export type AnimeMediaInput = {
   titleNative?: string;
   titleRomaji?: string;
   titleEnglish?: string;
+  synonyms?: string[];
+  format?: AnimeFormat;
+  popularity?: number;
+  startDate?: string;
+  endDate?: string;
   coverImageUrl?: string;
+  coverImageColor?: string;
 };
 
 /** `anilist-credits.json` の 1 件のうち、エンティティ生成に要る項目だけ */
@@ -50,9 +57,15 @@ export type AnimeEntity = {
   titleNative?: string;
   titleRomaji: string;
   titleEnglish?: string;
+  synonyms?: string[];
+  format?: AnimeFormat;
+  popularity?: number;
+  startDate?: string;
+  endDate?: string;
   seasonYear: number;
   season: AniListSeason;
   coverImageUrl?: string;
+  coverImageColor?: string;
   appearances: AnimeAppearance[];
 };
 
@@ -200,9 +213,17 @@ export function buildAnimeEntities(
       ...(item.titleNative === undefined ? {} : { titleNative: item.titleNative }),
       titleRomaji,
       ...(item.titleEnglish === undefined ? {} : { titleEnglish: item.titleEnglish }),
+      ...(item.synonyms === undefined || item.synonyms.length === 0
+        ? {}
+        : { synonyms: item.synonyms }),
+      ...(item.format === undefined ? {} : { format: item.format }),
+      ...(item.popularity === undefined ? {} : { popularity: item.popularity }),
+      ...(item.startDate === undefined ? {} : { startDate: item.startDate }),
+      ...(item.endDate === undefined ? {} : { endDate: item.endDate }),
       seasonYear: item.season.year,
       season: item.season.season,
       ...(item.coverImageUrl === undefined ? {} : { coverImageUrl: item.coverImageUrl }),
+      ...(item.coverImageColor === undefined ? {} : { coverImageColor: item.coverImageColor }),
       appearances,
     });
   }
