@@ -184,7 +184,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(await runDiff(actorName, results));
   }
 
-  // 全ストアが失敗したときだけ異常終了にする。片方だけなら結果は使えるため
+  // 全ストアが失敗したときだけ異常終了にする。一部だけなら結果は使えるため
   return results.every((result) => result.status === "error") ? 1 : 0;
 }
 

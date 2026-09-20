@@ -129,7 +129,7 @@ GitHub Actions からは `.github/workflows/crawl.yml` を手動で実行する�
 # 取り込みまで通す (dev サーバーを起動しておく)
 INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199
 
-# 一部の声優・片方のストアだけ
+# 一部の声優・1 つのストアだけ
 INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199 --only 上田麗奈,鬼頭明里 --store dlsite
 
 # 取得だけ試す (DB へ送らない)

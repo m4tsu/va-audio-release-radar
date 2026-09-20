@@ -1,4 +1,4 @@
-name: 定期クロール
+name: 声優起点のクロール (手動実行)
 
 # 声優ごとに DLsite / Audible / ポケットドラマ CD を巡回し、本番の POST /api/admin/ingest に投げる。
 # クローラーを Worker 内で動かさないのは Cloudflare からの egress とサブリクエスト上限を避けるため
@@ -17,6 +17,8 @@ on:
         required: false
         type: string
       store:
+        # ポケドラは声優タグ辞書が要る。辞書は crawler/.cache/ にあって CI には無いので、
+        # ここで選んでも 0 件で終わる (辞書を CI に置く話は別の作業)
         description: "対象ストア (空なら 3 ストアすべて)"
         required: false
         type: choice
@@ -37,7 +39,7 @@ jobs:
     name: ストアを巡回して取り込む
     runs-on: ubuntu-latest
     # 所要は 声優の人数 × ストア数 × ホストごとの間隔 で決まる (crawler/lib/fetch.ts)。
-    # --only か --limit で対象を絞って使う前提の値
+    # 上の only で対象を絞って使う前提の値
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
