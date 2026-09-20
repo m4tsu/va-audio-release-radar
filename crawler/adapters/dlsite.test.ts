@@ -6,7 +6,10 @@ import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
   applyProductDetail,
   buildProductJsonUrl,
+  buildProductUrl,
   buildSearchUrl,
+  DLSITE_FLOORS,
+  type DlsiteFloor,
   dlsiteAdapter,
   parsePagerCount,
   parseProductJson,
@@ -27,6 +30,11 @@ const fetchTextMock = vi.mocked(fetchText);
 
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
 const searchHtml = readFileSync(path.join(FIXTURES_DIR, "dlsite-search-ueda-reina.html"), "utf8");
+/** `/garumani/` の一覧。`/home/` と同じセレクタで読めることを確かめるためのもの */
+const garumaniSearchHtml = readFileSync(
+  path.join(FIXTURES_DIR, "dlsite-search-garumani-saito-souma.html"),
+  "utf8",
+);
 const productJson = readFileSync(path.join(FIXTURES_DIR, "dlsite-product-RJ01698658.json"), "utf8");
 /** `creaters.voice_by[].name` に複数人が縦棒で詰まっている形の product.json */
 const multiVoiceProductJson = readFileSync(
@@ -49,6 +57,25 @@ describe("buildSearchUrl", () => {
       "https://www.dlsite.com/home/fsr/=/language/jp/keyword_creater/" +
         "%22%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88%22" +
         "/work_type_category[0]/audio/order/release/page/1",
+    );
+  });
+
+  it("フロアはパスの先頭だけが変わる", () => {
+    expect(buildSearchUrl("上田麗奈", "release_d", "garumani")).toBe(
+      "https://www.dlsite.com/garumani/fsr/=/language/jp/keyword_creater/" +
+        "%22%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88%22" +
+        "/work_type_category[0]/audio/order/release_d/page/1",
+    );
+  });
+});
+
+describe("buildProductUrl", () => {
+  it("引いたフロアの商品 URL を組み立てる", () => {
+    expect(buildProductUrl("RJ01698658")).toBe(
+      "https://www.dlsite.com/home/work/=/product_id/RJ01698658.html",
+    );
+    expect(buildProductUrl("BJ01234567", "garumani")).toBe(
+      "https://www.dlsite.com/garumani/work/=/product_id/BJ01234567.html",
     );
   });
 });
@@ -132,6 +159,48 @@ describe("parseSearchHtml", () => {
   });
 });
 
+describe("parseSearchHtml (/garumani/ の一覧)", () => {
+  const parsed = parseSearchHtml(garumaniSearchHtml, FETCHED_AT, "garumani");
+
+  it("`/home/` と同じセレクタで読め、検証落ちが無い", () => {
+    // フィクスチャは 1 ページ目 30 件のうち先頭 5 件を残したもの
+    expect(parsed.works).toHaveLength(5);
+    expect(parsed.invalidCount).toBe(0);
+    expect(parsed.warnings).toEqual([]);
+    // 総件数は切り詰める前の 1 ページ目の埋め込み JSON がそのまま入っている
+    expect(parsed.totalCount).toBe(52);
+  });
+
+  it("先頭の作品から一覧に載っている項目を取る", () => {
+    expect(parsed.works[0]).toEqual({
+      storeSlug: "dlsite",
+      storeProductId: "BJ02860641",
+      titleRaw: "恋地獄で待つ（出演：斉藤壮馬、大塚剛央）※特典トラック付き",
+      productUrl: "https://www.dlsite.com/garumani/work/=/product_id/BJ02860641.html",
+      coverImageUrl:
+        "https://img.dlsite.jp/modpub/images2/work/books/BJ02861000/BJ02860641_img_main.jpg",
+      makerName: "フィフスアベニュー",
+      // 一覧の span.author は代表 1 名。出演者全員は product.json で補う
+      creditedNames: ["斉藤壮馬"],
+      storeCategory: "SOU",
+      // フロア全体が全年齢。区分は product.json の age_category で上書きされる
+      ageRating: "general",
+      // 引いたフロアを入れる。作品の所属は product.json の site_id で上書きされる
+      storeSection: "garumani",
+      fetchedAt: FETCHED_AT,
+      releaseDate: undefined,
+    });
+  });
+
+  it("商業 (BJ) の作品が並ぶ", () => {
+    // `/home/` にはこの形の ID が出ない (docs/decisions/0011-dlsite-garumani-floor.md)
+    for (const work of parsed.works) {
+      expect(work.storeProductId).toMatch(/^BJ\d+$/);
+      expect(work.productUrl).toContain(work.storeProductId);
+    }
+  });
+});
+
 describe("parseProductJson", () => {
   const detail = parseProductJson(productJson);
 
@@ -205,6 +274,21 @@ describe("applyProductDetail", () => {
     expect(merged.releaseDate).toBe("2020-01-01");
   });
 
+  // `/garumani/` の一覧には発売日が未来の予約作品が出る (docs/stores/dlsite.md の「既知の落とし穴」)。
+  // 上限を置かずそのまま通す
+  it("発売日が未来でもそのまま入れる", () => {
+    const listWork = parseSearchHtml(garumaniSearchHtml, FETCHED_AT, "garumani").works[0];
+    if (listWork === undefined) throw new Error("fixture が空");
+
+    const merged = applyProductDetail(listWork, {
+      workno: listWork.storeProductId,
+      voiceNames: [],
+      genres: [],
+      releaseDate: "2099-12-31",
+    });
+    expect(merged.releaseDate).toBe("2099-12-31");
+  });
+
   it("age_category と site_id から年齢区分とストア区分を入れる", () => {
     const listWork = parseSearchHtml(searchHtml, FETCHED_AT).works[0];
     if (listWork === undefined) throw new Error("fixture が空");
@@ -218,6 +302,21 @@ describe("applyProductDetail", () => {
     });
     expect(merged.ageRating).toBe("r18");
     expect(merged.storeSection).toBe("maniax");
+  });
+
+  // site_id は作品の所属を返す。引いたフロア (garumani) では上書きされて消える
+  it("引いたフロアではなく site_id の値がストア区分になる", () => {
+    const listWork = parseSearchHtml(garumaniSearchHtml, FETCHED_AT, "garumani").works[0];
+    if (listWork === undefined) throw new Error("fixture が空");
+    expect(listWork.storeSection).toBe("garumani");
+
+    const merged = applyProductDetail(listWork, {
+      workno: listWork.storeProductId,
+      voiceNames: [],
+      genres: [],
+      siteId: "bldrama",
+    });
+    expect(merged.storeSection).toBe("bldrama");
   });
 
   // 詳細が取れなかったことを理由に、一覧から分かっている事実まで捨てない
@@ -280,70 +379,140 @@ describe("dlsiteAdapter.fetchByActor の網羅率", () => {
     fetchTextMock.mockReset();
   });
 
+  /**
+   * フロアごとに返すものを決める。引く順は `DLSITE_FLOORS` だが、テストは URL で見分けるので
+   * 並びが変わっても壊れない。渡さなかったフロアは「0 件・総件数 0」を返す
+   */
+  function respondByFloor(
+    pages: Partial<Record<DlsiteFloor, { newest: FetchResult; oldest?: FetchResult }>>,
+  ) {
+    fetchTextMock.mockImplementation(async (url: string) => {
+      const floor = DLSITE_FLOORS.find((name) => url.includes(`/${name}/fsr/`));
+      const page = floor === undefined ? undefined : pages[floor];
+      if (page === undefined) return ok(searchPage([], 0));
+      return url.includes("/order/release/") ? (page.oldest ?? ok(searchPage([], 0))) : page.newest;
+    });
+  }
+
+  it("両方のフロアを引き、作品を 1 つにまとめる", async () => {
+    respondByFloor({
+      home: { newest: ok(searchPage(["RJ1"], 1)) },
+      garumani: { newest: ok(searchPage(["BJ1", "BJ2"], 2)) },
+    });
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "BJ1", "BJ2"]));
+
+    expect(result.works.map((work) => work.storeProductId)).toEqual(["RJ1", "BJ1", "BJ2"]);
+    // 総件数はフロアの和
+    expect(result.coverage).toEqual({ fetched: 3, total: 3, complete: true, pages: 2 });
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual([
+      buildSearchUrl("上田麗奈", "release_d", "home"),
+      buildSearchUrl("上田麗奈", "release_d", "garumani"),
+    ]);
+  });
+
+  it("同じ作品 ID が両方のフロアに出ても 1 件になる", async () => {
+    respondByFloor({
+      home: { newest: ok(searchPage(["RJ1"], 1)) },
+      garumani: { newest: ok(searchPage(["RJ1"], 1)) },
+    });
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
+
+    expect(result.works.map((work) => work.storeProductId)).toEqual(["RJ1"]);
+    // 総件数はストアが各フロアで出した値の和なので、取得件数と一致しないことがある
+    expect(result.coverage).toEqual({ fetched: 1, total: 2, complete: false, pages: 2 });
+  });
+
   it("総件数ぶん取れていれば古い順の追加リクエストを出さない", async () => {
-    fetchTextMock.mockResolvedValueOnce(ok(searchPage(["RJ1", "RJ2"], 2)));
+    respondByFloor({ home: { newest: ok(searchPage(["RJ1", "RJ2"], 2)) } });
 
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2"]));
 
-    expect(fetchTextMock).toHaveBeenCalledTimes(1);
-    expect(result.coverage).toEqual({ fetched: 2, total: 2, complete: true, pages: 1 });
+    // フロアごとに 1 回ずつ。どちらも総件数に届いているので古い順は出ない
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.coverage).toEqual({ fetched: 2, total: 2, complete: true, pages: 2 });
     expect(result.totalCount).toBe(2);
     expect(result.warnings).toEqual([]);
   });
 
   it("総件数に届かなければ古い順の 1 ページ目を足して和集合を取る", async () => {
-    fetchTextMock
-      .mockResolvedValueOnce(ok(searchPage(["RJ1", "RJ2"], 3)))
-      // 古い順は重複 (RJ2) を含む。ID で束ねるので 3 件になる
-      .mockResolvedValueOnce(ok(searchPage(["RJ3", "RJ2"], 3)));
+    respondByFloor({
+      home: {
+        newest: ok(searchPage(["RJ1", "RJ2"], 3)),
+        // 古い順は重複 (RJ2) を含む。ID で束ねるので 3 件になる
+        oldest: ok(searchPage(["RJ3", "RJ2"], 3)),
+      },
+    });
 
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2", "RJ3"]));
 
-    expect(fetchTextMock).toHaveBeenCalledTimes(2);
-    expect(fetchTextMock.mock.calls[1]?.[0]).toBe(buildSearchUrl("上田麗奈", "release"));
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toContain(
+      buildSearchUrl("上田麗奈", "release", "home"),
+    );
     expect(result.works.map((work) => work.storeProductId)).toEqual(["RJ1", "RJ2", "RJ3"]);
-    expect(result.coverage).toEqual({ fetched: 3, total: 3, complete: true, pages: 2 });
+    expect(result.coverage).toEqual({ fetched: 3, total: 3, complete: true, pages: 3 });
     expect(result.warnings).toEqual([]);
   });
 
   it("2 通りの並び順でも足りなければ網羅率を警告に積む", async () => {
-    fetchTextMock
-      .mockResolvedValueOnce(ok(searchPage(["RJ1"], 40)))
-      .mockResolvedValueOnce(ok(searchPage(["RJ2"], 40)));
+    respondByFloor({
+      home: { newest: ok(searchPage(["RJ1"], 40)), oldest: ok(searchPage(["RJ2"], 40)) },
+    });
 
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1", "RJ2"]));
 
-    expect(result.coverage).toEqual({ fetched: 2, total: 40, complete: false, pages: 2 });
+    expect(result.coverage).toEqual({ fetched: 2, total: 40, complete: false, pages: 3 });
     expect(result.warnings).toContain("網羅率 2/40");
   });
 
   it("古い順の取得に失敗しても新しい順の結果で続行する", async () => {
-    fetchTextMock
-      .mockResolvedValueOnce(ok(searchPage(["RJ1"], 40)))
-      .mockResolvedValueOnce({ ok: false, url: "https://www.dlsite.com/", reason: "HTTP 503" });
+    respondByFloor({
+      home: {
+        newest: ok(searchPage(["RJ1"], 40)),
+        oldest: { ok: false, url: "https://www.dlsite.com/", reason: "HTTP 503" },
+      },
+    });
 
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
 
     expect(result.status).toBe("ok");
     expect(result.works).toHaveLength(1);
-    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 1 });
-    expect(result.warnings).toContain("古い順での補完に失敗 (HTTP 503)。新しい順の結果だけで続行");
+    expect(result.coverage).toEqual({ fetched: 1, total: 40, complete: false, pages: 2 });
+    expect(result.warnings).toContain(
+      "home: 古い順での補完に失敗 (HTTP 503)。新しい順の結果だけで続行",
+    );
     expect(result.warnings).toContain("網羅率 1/40");
   });
 
   it("総件数を読めなければ complete を立てず、追加リクエストも出さない", async () => {
-    fetchTextMock.mockResolvedValueOnce(ok(searchPage(["RJ1"])));
+    respondByFloor({ home: { newest: ok(searchPage(["RJ1"])) } });
 
     const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
 
-    expect(fetchTextMock).toHaveBeenCalledTimes(1);
-    expect(result.coverage).toEqual({ fetched: 1, pages: 1 });
+    expect(fetchTextMock).toHaveBeenCalledTimes(2);
+    expect(result.coverage).toEqual({ fetched: 1, pages: 2 });
     expect(result.totalCount).toBeUndefined();
     expect(result.warnings).toEqual([]);
   });
 
-  it("検索そのものに失敗したら error で coverage は残さない", async () => {
-    fetchTextMock.mockResolvedValueOnce({
+  /** 片方のフロアが落ちても、取れた側は使う。総件数は分からなくなる */
+  it("片方のフロアだけ引けなければ、取れた側で続行して警告に残す", async () => {
+    respondByFloor({
+      home: { newest: ok(searchPage(["RJ1"], 1)) },
+      garumani: { newest: { ok: false, url: "https://www.dlsite.com/", reason: "timeout" } },
+    });
+
+    const result = await dlsiteAdapter.fetchByActor(ACTOR, skipAll(["RJ1"]));
+
+    expect(result.status).toBe("ok");
+    expect(result.works).toHaveLength(1);
+    expect(result.coverage).toEqual({ fetched: 1, pages: 1 });
+    expect(result.warnings).toContain("garumani の検索ページを取れなかった");
+  });
+
+  it("どのフロアも引けなければ error で coverage は残さない", async () => {
+    fetchTextMock.mockResolvedValue({
       ok: false,
       url: "https://www.dlsite.com/",
       reason: "timeout",

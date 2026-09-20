@@ -25,8 +25,6 @@ import type {
 const STORE_SLUG = "dlsite" as const;
 /** product.json の `age_category`。1 が全年齢 (`age_category_string: "general"`) */
 export const DLSITE_GENERAL_AGE_CATEGORY = 1;
-/** 全年齢サイトの `site_id`。R18 サイトは "maniax" になる */
-export const DLSITE_HOME_SITE_ID = "home";
 
 /**
  * `age_category` を年齢区分にする。1 だけが全年齢で、2 (R15) も 3 (R18) も
@@ -47,25 +45,45 @@ export function toAgeRating(ageCategory: number | undefined): AgeRating {
 export type DlsiteSearchOrder = "release_d" | "release";
 
 /**
+ * 引くフロア。どちらもフロア全体が全年齢で、検索 URL の形もセレクタも同じ
+ * (`docs/stores/dlsite.md` の「フロア」)。
+ *
+ * `/garumani/` を足したのは、商業 (`BJ`) の女性向け全年齢音声が `/home/` に出ないため
+ * (`docs/decisions/0011-dlsite-garumani-floor.md`)。R18 を含むフロアは引かない
+ */
+export const DLSITE_FLOORS = ["home", "garumani"] as const;
+export type DlsiteFloor = (typeof DLSITE_FLOORS)[number];
+
+/**
  * 検索 URL。robots.txt が 2 ページ目以降を禁じているので 1 ページ目に固定する。
  * `work_type_category[0]/audio` で音声作品に絞る。
- * 名前をダブルクォートで囲むと完全一致になり、部分一致の別人を拾わない
+ * 名前をダブルクォートで囲むと完全一致になり、部分一致の別人を拾わない。
+ * フロアはパスの先頭だけが違う。どちらのフロアも全体が全年齢なので `age_category` は付けない
  */
-export function buildSearchUrl(actorName: string, order: DlsiteSearchOrder = "release_d"): string {
+export function buildSearchUrl(
+  actorName: string,
+  order: DlsiteSearchOrder = "release_d",
+  floor: DlsiteFloor = "home",
+): string {
   const keyword = encodeURIComponent(`"${actorName}"`);
   return (
-    "https://www.dlsite.com/home/fsr/=/language/jp/keyword_creater/" +
+    `https://www.dlsite.com/${floor}/fsr/=/language/jp/keyword_creater/` +
     `${keyword}/work_type_category[0]/audio/order/${order}/page/1`
   );
 }
 
+/** パスの `/home/` はフロアと関係ない。他フロアの作品もここから引ける (2026-09-20 実測) */
 export function buildProductJsonUrl(workno: string): string {
   // 複数 workno をカンマ区切りで渡すと空配列が返るため、必ず 1 件ずつ取る
   return `https://www.dlsite.com/home/api/=/product.json?workno=${encodeURIComponent(workno)}`;
 }
 
-export function buildProductUrl(workno: string): string {
-  return `https://www.dlsite.com/home/work/=/product_id/${workno}.html`;
+/**
+ * 商品 URL。一覧の href が取れなかったときの組み立て先で、引いたフロアを使う。
+ * 作品が属するフロアとは限らないが、一覧に出た以上そのフロアの URL では開ける
+ */
+export function buildProductUrl(workno: string, floor: DlsiteFloor = "home"): string {
+  return `https://www.dlsite.com/${floor}/work/=/product_id/${workno}.html`;
 }
 
 // --- 一覧 HTML の解析 ------------------------------------------------------
@@ -87,7 +105,16 @@ export function parsePagerCount(html: string): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
-export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
+/**
+ * 検索結果 1 ページを解析する。`floor` は引いたフロアで、一覧の href が取れなかったときの
+ * 商品 URL と、詳細を取れなかったときのストア区分に使う。どちらも product.json を取れれば
+ * そちらの値で上書きされる (`applyProductDetail`)
+ */
+export function parseSearchHtml(
+  html: string,
+  fetchedAt: string,
+  floor: DlsiteFloor = "home",
+): ParsedWorks {
   const $ = cheerio.load(html);
   const candidates: unknown[] = [];
 
@@ -111,15 +138,17 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
       storeSlug: STORE_SLUG,
       storeProductId: workno,
       titleRaw,
-      productUrl: httpsUrlOrFallback(titleAnchor.attr("href"), buildProductUrl(workno)),
+      productUrl: httpsUrlOrFallback(titleAnchor.attr("href"), buildProductUrl(workno, floor)),
       coverImageUrl: extractCoverImageUrl(item.html() ?? ""),
       makerName: makerName === "" ? undefined : makerName,
       creditedNames,
       storeCategory: extractWorkType(item.find("div.work_category").attr("class")),
-      // /home/ は全年齢サイトなので一覧に R18 は出ない。product.json を取れたら
+      // 引くフロアはどちらも全年齢なので一覧に R18 は出ない。product.json を取れたら
       // そちらの age_category / site_id で上書きする (applyProductDetail)
       ageRating: "general",
-      storeSection: DLSITE_HOME_SITE_ID,
+      // 作品が属するフロアとは限らない (site_id は product.json が持つ) が、
+      // 詳細を取れなかった作品でも「どのフロアで見つけたか」は残る
+      storeSection: floor,
       fetchedAt,
     };
     candidates.push(candidate);
@@ -175,7 +204,11 @@ export type DlsiteProductDetail = {
   /** `regist_date` ("2026-08-22 00:00:00") の日付部分 */
   releaseDate?: string;
   ageCategory?: number;
-  /** "home" (全年齢) / "maniax" (R18)。ストア固有の区分としてそのまま保存する */
+  /**
+   * 作品が属するフロア ("home" / "girls" / "maniax" など)。
+   * **引いたフロアではない。** `/home/` の検索で出た作品が `girls` を返すことがある
+   * (2026-09-20 実測)。ストア固有の区分として解釈せずそのまま保存する
+   */
   siteId?: string;
   workType?: string;
   voiceNames: string[];
@@ -287,6 +320,74 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 // --- 取得 ------------------------------------------------------------------
 
+/** フロア 1 つぶんの一覧の取得結果。検索ページ自体を取れなかったときは undefined */
+type FloorListing = {
+  works: RawWork[];
+  /** ストアが出している総件数。読めなければ undefined */
+  totalCount?: number;
+  /** 実際に取った検索ページ数 (並び順違いを足したかどうか) */
+  pages: number;
+  invalidCount: number;
+  warnings: string[];
+};
+
+/**
+ * フロア 1 つを引く。新しい順の 1 ページ目を取り、総件数に届かないときだけ
+ * 古い順の 1 ページ目を足して和集合を取る。これで 1 フロアあたり最大 60 件まで覆える
+ */
+async function fetchFloorListing(
+  actorName: string,
+  floor: DlsiteFloor,
+  fetchedAt: string,
+  options: FetchByActorOptions,
+): Promise<FloorListing | undefined> {
+  const newest = await fetchText(buildSearchUrl(actorName, "release_d", floor), {
+    store: STORE_SLUG,
+    requestKey: `search-${floor}-${actorName}`,
+    kind: "html",
+    snapshot: options.snapshot,
+  });
+  if (!newest.ok) return undefined;
+
+  const parsed = parseSearchHtml(newest.body, fetchedAt, floor);
+  const warnings = [...parsed.warnings];
+  let invalidCount = parsed.invalidCount;
+  let pages = 1;
+
+  // 新しい順を先に入れてあるので、古い順で重複したものは捨てる
+  const works = new Map<string, RawWork>();
+  for (const work of parsed.works) works.set(work.storeProductId, work);
+
+  // 総件数に届いているなら追加のリクエストは無駄打ちなので出さない (Crawl-delay 10 秒が効く)
+  if (parsed.totalCount !== undefined && works.size < parsed.totalCount) {
+    const oldest = await fetchText(buildSearchUrl(actorName, "release", floor), {
+      store: STORE_SLUG,
+      requestKey: `search-${floor}-${actorName}-release-asc`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+    if (oldest.ok) {
+      pages += 1;
+      const parsedOldest = parseSearchHtml(oldest.body, fetchedAt, floor);
+      invalidCount += parsedOldest.invalidCount;
+      warnings.push(...parsedOldest.warnings);
+      for (const work of parsedOldest.works) {
+        if (!works.has(work.storeProductId)) works.set(work.storeProductId, work);
+      }
+    } else {
+      warnings.push(`${floor}: 古い順での補完に失敗 (${oldest.reason})。新しい順の結果だけで続行`);
+    }
+  }
+
+  return {
+    works: [...works.values()],
+    ...(parsed.totalCount === undefined ? {} : { totalCount: parsed.totalCount }),
+    pages,
+    invalidCount,
+    warnings,
+  };
+}
+
 async function fetchByActor(
   actor: ActorQuery,
   options: FetchByActorOptions = {},
@@ -305,48 +406,43 @@ async function fetchByActor(
     queryUsed: actorName,
   } satisfies AdapterResult;
 
-  const searchResult = await fetchText(buildSearchUrl(actorName, "release_d"), {
-    store: STORE_SLUG,
-    requestKey: `search-${actorName}`,
-    kind: "html",
-    snapshot: options.snapshot,
-  });
-  if (!searchResult.ok) {
-    return { ...base, status: "error", reason: `検索ページの取得に失敗: ${searchResult.reason}` };
-  }
+  const warnings: string[] = [];
+  let invalidCount = 0;
+  let pages = 0;
+  let fetchedFloors = 0;
+  /** 全フロアの総件数の和。1 つでも読めなければ undefined (分からないを合計に混ぜない) */
+  let totalCount: number | undefined = 0;
 
-  const parsed = parseSearchHtml(searchResult.body, fetchedAt);
-  const warnings = [...parsed.warnings];
-  let invalidCount = parsed.invalidCount;
-  let pages = 1;
-
-  // 並び順違いの和集合を ID で取る。新しい順を先に入れてあるので、古い順で重複したものは捨てる
+  // フロアをまたいで ID で畳む。作品 ID は DLsite 全体で 1 つの体系なので、
+  // 同じ作品が 2 つのフロアに出ても 1 件になる (docs/stores/dlsite.md の「フロア」)
   const listWorks = new Map<string, RawWork>();
-  for (const work of parsed.works) listWorks.set(work.storeProductId, work);
 
-  // 取りこぼしているときだけ古い順の 1 ページ目を足す。これで最大 60 件まで覆える。
-  // 総件数に届いているなら追加のリクエストは無駄打ちなので出さない (Crawl-delay 10 秒が効く)
-  if (parsed.totalCount !== undefined && listWorks.size < parsed.totalCount) {
-    const oldest = await fetchText(buildSearchUrl(actorName, "release"), {
-      store: STORE_SLUG,
-      requestKey: `search-${actorName}-release-asc`,
-      kind: "html",
-      snapshot: options.snapshot,
-    });
-    if (oldest.ok) {
-      pages += 1;
-      const parsedOldest = parseSearchHtml(oldest.body, fetchedAt);
-      invalidCount += parsedOldest.invalidCount;
-      warnings.push(...parsedOldest.warnings);
-      for (const work of parsedOldest.works) {
-        if (!listWorks.has(work.storeProductId)) listWorks.set(work.storeProductId, work);
-      }
-    } else {
-      warnings.push(`古い順での補完に失敗 (${oldest.reason})。新しい順の結果だけで続行`);
+  for (const floor of DLSITE_FLOORS) {
+    const listing = await fetchFloorListing(actorName, floor, fetchedAt, options);
+    if (listing === undefined) {
+      // このフロアだけ引けなかった。取れた側は使うので走行は続ける
+      warnings.push(`${floor} の検索ページを取れなかった`);
+      totalCount = undefined;
+      continue;
+    }
+
+    fetchedFloors += 1;
+    invalidCount += listing.invalidCount;
+    warnings.push(...listing.warnings);
+    pages += listing.pages;
+    if (listing.totalCount === undefined) totalCount = undefined;
+    else if (totalCount !== undefined) totalCount += listing.totalCount;
+
+    for (const work of listing.works) {
+      if (!listWorks.has(work.storeProductId)) listWorks.set(work.storeProductId, work);
     }
   }
 
-  const coverage = buildCoverage(listWorks.size, parsed.totalCount, pages);
+  if (fetchedFloors === 0) {
+    return { ...base, status: "error", reason: "検索ページの取得に失敗 (全フロア)" };
+  }
+
+  const coverage = buildCoverage(listWorks.size, totalCount, pages);
   // 並び順 2 通りでも総件数に届かない声優。1 ページ 30 件の上限を超えている合図
   if (coverage.complete === false) {
     warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);

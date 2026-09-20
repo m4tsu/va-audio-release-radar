@@ -11,7 +11,7 @@
 
 ## 1. robots.txt
 
-**最終確認日: 2026-09-20** (`https://www.dlsite.com/robots.txt`。下記の引用行は 2026-09-19 の記述から変化なし)
+**最終確認日: 2026-09-21** (`https://www.dlsite.com/robots.txt`。下記の引用行は 2026-09-19 の記述から変化なし)
 
 グループは `User-agent: dotbot` / `User-agent: Eyeotabot` (どちらも `Disallow: /`) と
 `User-agent: *` の 3 つ。**こちらに適用されるのは `User-agent: *`** で、そこに 30 行ほどの
@@ -82,12 +82,13 @@ Crawl-delay: 10
 
 | 取り方 | 規模 | 所要時間 |
 |---|---:|---:|
-| 声優起点 (採用) | 対象声優ぶんの検索 | 約 7.1 時間 |
+| 声優起点 (採用) | 対象声優ぶんの検索 × 2 フロア | 約 14.2 時間 |
 | sitemap 全件 | 68,321 作品 | 約 190 時間 |
 
-**27 倍の差**がある。sitemap 全件は「AniList に居ない声優の発見」にしか要らず、それは対象外。
+**13 倍の差**がある。sitemap 全件は「AniList に居ない声優の発見」にしか要らず、それは対象外。
 間隔を変えたらこの表も計算し直すこと。**取るフロアを増やしたときも同じ。**
-この表は `/home/` 1 フロアぶんで、声優起点の往復はフロアの数に比例する。
+声優起点の往復はフロアの数に比例する (`/home/` 1 フロアだけなら約 7.1 時間)。
+いずれも検索一覧ぶんで、新規作品の `product.json` は別に要る。
 
 ---
 
@@ -96,7 +97,7 @@ Crawl-delay: 10
 ### フロア
 
 DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセレクタもフロア間で同じで、
-違うのは年齢の指定だけ。**最終確認日: 2026-09-20。**
+違うのは年齢の指定だけ。**最終確認日: 2026-09-21。**
 フロアの名前と対象は、`/home/` の検索結果 HTML
 (`crawler/.cache/snapshots/dlsite/search-*.html`) に埋まっているフロア切り替えリンクと
 「他のフロアで検索する」リンクの文言から取った。
@@ -104,7 +105,7 @@ DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセ�
 | パス | サイト側の文言 | 年齢 | 本プロジェクトの扱い |
 |---|---|---|---|
 | `/home/` | 全年齢 | 全年齢のみ | **取得している** |
-| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | 取得していない。取るかどうかは未決 (調査は [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md)) |
+| `/garumani/` | 「女性向け 全年齢へ」「女性向け（全年齢）作品を検索する」 | 全年齢のみ | **取得している** ([`decisions/0011`](../decisions/0011-dlsite-garumani-floor.md)) |
 | `/girls/` | 「女性向け TL/BLへ」「女性向け（R18）乙女向け/TL作品を検索する」 | R18 を含む | 取得しない |
 | `/bl/` | 「女性向け（R18）BL作品を検索する」 | R18 を含む | 取得しない |
 | `/maniax/` | 「男性向け R18へ」 | R18 を含む | 取得しない |
@@ -113,28 +114,24 @@ DLsite はパスの先頭でフロアが分かれる。検索 URL の形もセ�
 接頭辞は `product.json` の `work_category` と対応し、`RJ` が `doujin`、`BJ` が `books` である。
 **`/home/` の声優検索で `BJ` が出た例はまだ無い** (2026-09-18 に保存したスナップショットの
 異なり 200 件と、2026-09-20 の測定の範囲。`docs/research/dlsite-female-floors-2026-09-20.md`)。
+`/garumani/` はその逆で、固定データに残した 1 ページ目 5 件はすべて `BJ` である
+(`crawler/fixtures/dlsite-search-garumani-saito-souma.html`、2026-09-21 取得)。
 
 ### 声優名の検索 (1 ページ目のみ)
 
 ```
-https://www.dlsite.com/home/fsr/=/language/jp/keyword_creater/"{名前}"/work_type_category[0]/audio/order/{order}/page/1
+https://www.dlsite.com/{floor}/fsr/=/language/jp/keyword_creater/"{名前}"/work_type_category[0]/audio/order/{order}/page/1
 ```
 
+- `{floor}` は `home` か `garumani`。**両方を引く** ([`decisions/0011`](../decisions/0011-dlsite-garumani-floor.md))。
+  フロアで違うのはパスの先頭だけで、`pager.count` も一覧のセレクタも同じ位置にある (2026-09-21 実測)。
+  **どちらもフロア全体が全年齢なので `age_category` は付けない**
 - 名前はダブルクォートで囲んで URL エンコードする (`%22`)。完全一致になり部分一致の別人を拾わない
 - `{order}` は `release_d` (新しい順・既定) か `release` (古い順)
 - 許可の根拠: `per_page` を含まないので `Disallow: /*/fsr/=/*/per_page/*/page/` に一致しない。
-  また `page/1` は `Allow: /*/fsr/=/*/per_page/*/page/1/` の意図とも矛盾しない
-
-### 女性向け全年齢の検索 (調査済み。実装はまだ無い)
-
-```
-https://www.dlsite.com/garumani/fsr/=/language/jp/keyword_creater/"{名前}"/work_type_category[0]/audio/order/{order}/page/1
-```
-
-`/home/` 用の形からパスの先頭を差し替えただけ。HTTP 200 が返り、`pager.count` も
-一覧のセレクタも `/home/` と同じ位置にある (2026-09-20 実測)。
-**フロア全体が全年齢なので `age_category` は付けない。**
-キーワードを外せば新着一覧になるのも `/home/` と同じ。
+  また `page/1` は `Allow: /*/fsr/=/*/per_page/*/page/1/` の意図とも矛盾しない。
+  フロアを名指しで禁じている行に `/home/` も `/garumani/` も無い (§1)
+- キーワードを外せば新着一覧になるのはどちらのフロアも同じ
 
 ### 作品詳細 API
 
@@ -149,8 +146,11 @@ https://www.dlsite.com/home/api/=/product.json?workno=RJ01698658
 ### 正規の商品 URL (保存する `productUrl`)
 
 ```
-https://www.dlsite.com/home/work/=/product_id/{workno}.html
+https://www.dlsite.com/{floor}/work/=/product_id/{workno}.html
 ```
+
+一覧の `href` をそのまま使う。取れなかったときだけ**引いたフロア**で組み立てる。
+作品が属するフロアとは限らないが、その一覧に出た以上そのフロアの URL では開ける。
 
 ### sitemap (現在は使っていない)
 
@@ -186,7 +186,7 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 
 | 項目 | 可否 | セレクタ |
 |---|:--:|---|
-| 作品 ID (workno) | ○ | `li[data-list_item_product_id="RJ…"]` (`ul#search_result_img_box` の子) |
+| 作品 ID (workno) | ○ | `li[data-list_item_product_id]` (`ul#search_result_img_box` の子)。`/garumani/` では `BJ…` になる |
 | タイトル / 商品 URL | ○ | `dd.work_name a[href]` (`title` 属性が省略記号なしの完全なタイトル) |
 | サークル名 | ○ | `dd.maker_name > a` |
 | 声優名 | △ **代表 1 名のみ** | `dd.maker_name span.author a` |
@@ -255,7 +255,10 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   商業 (`BJ`) の女性向け全年齢音声は `/home/` の検索結果に出ない。
   男性声優ではここが大きく効き、斉藤壮馬は `/home/` 1 件 (2026-09-18 実測) に対し
   `/garumani/` 52 件 (2026-09-20 実測) だった
-  (`docs/research/dlsite-female-floors-2026-09-20.md`)
+  (`docs/research/dlsite-female-floors-2026-09-20.md`)。
+  **これが 2 フロアを引く理由である** ([`decisions/0011`](../decisions/0011-dlsite-garumani-floor.md))
+- **総件数はフロアごとに返る。** 網羅率はフロアの和で見ているので、同じ作品が両方のフロアに
+  出ると取得件数と和が一致しない。網羅率が 100% に届かないことは取りこぼしの証明ではない
 - **`/garumani/` の新着一覧には発売日が未来の予約作品が出た** (2026-09-20 実測)。
   `/home/` では 2026-09-19 の 1 回の観測で見えていない (「未確認の項目」)。
   一覧 HTML に「予約」の文字は出ないので、見分けるには `product.json` の `is_reserve_work` が要る
@@ -303,3 +306,4 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   女性向け 3 フロアの切り分け、声優 10 名の件数差、フロアをまたぐ作品 ID、予約作品
 - [`docs/decisions/0002-actor-first-crawling.md`](../decisions/0002-actor-first-crawling.md) — 声優起点
 - [`docs/decisions/0003-no-r18-keep-bl.md`](../decisions/0003-no-r18-keep-bl.md) — R18 を載せない
+- [`docs/decisions/0011-dlsite-garumani-floor.md`](../decisions/0011-dlsite-garumani-floor.md) — 引くフロア
