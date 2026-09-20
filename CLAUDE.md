@@ -17,9 +17,9 @@
 
 複数のセッションが同じリポジトリで並行して作業している。次はセッション間で共有される。
 
-- **`.wrangler/state` のローカル D1 は全セッション共有**。正のデータは本番 D1 で、ローカルはその複製。
-  壊したら `npm run db:restore:local` で本番の書き出しから作り直す (`README.md` の「本番 D1」)。
-  作り直すと他のセッションの見ているデータも入れ替わるので、クロール中や作業中のセッションが無いことを確かめてから行う
+- **`.wrangler/state` のローカル D1 は全セッション共有** (位置づけは [`docs/architecture.md`](docs/architecture.md) の「ローカル環境」)。
+  作り直すと他のセッションが見ているデータも入れ替わるので、`npm run db:restore:local` はクロール中や
+  作業中のセッションが無いことを確かめてから行う
 - **長時間のクローラーが動いていることがある**。`crawl_runs` は取り込みが終わった時点で 1 行書かれるので
   実行中の行は無い。直近の `started_at` が数分以内なら別プロセスが動いている可能性が高い:
   `npx wrangler d1 execute DB --local --command "select started_at, store_slug from crawl_runs order by started_at desc limit 3"`

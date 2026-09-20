@@ -57,7 +57,7 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 
 ## 本番 D1
 
-正のデータは本番 D1。手元の D1 はその複製で、壊れても本番から作り直せる。
+正のデータと手元の D1 の位置づけは [`docs/architecture.md`](./docs/architecture.md) の「ローカル環境」。
 Cloudflare の D1 は Workers Free プランでは Time Travel で 7 日しか遡れない (Paid は 30 日) ので、
 `.github/workflows/d1-backup.yml` が週に 1 回スキーマ抜きで書き出して artifact に 90 日残す。
 必要な GitHub Secrets は `CLOUDFLARE_API_TOKEN` (権限は Account の D1 の Edit だけ) と `CLOUDFLARE_ACCOUNT_ID`。
@@ -67,30 +67,46 @@ Cloudflare の D1 は Workers Free プランでは Time Travel で 7 日しか�
 ### 手元のデータを本番へ移す (初回だけ)
 
 本番 D1 への書き込みは人が実行する。スキーマはマイグレーションで当て、データは書き出したものを流す。
-書き出しにスキーマと `d1_migrations` の行は含めず、表は外部キーの親から順に並ぶ
-(`scripts/d1-data.mjs`)。
+書き出しにスキーマと `d1_migrations` の行は含めず、表は外部キーの親から順に並ぶ (`scripts/d1-data.mjs`)。
+
+**2 日に分けて流す。** Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数えるので、
+手元の全件は 1 日に収まらない (2026-09-20 の見積もりは
+[`docs/research/d1-migration-write-rows-2026-09-20.md`](./docs/research/d1-migration-write-rows-2026-09-20.md))。
+`npm run db:export:local` が書き出しのたびに見積もりを出すので、その「合計」が
+Cloudflare の料金ページの D1 の欄の上限に収まることを確かめてから流す。
+
+1 日目 (声優と作品)
 
 ```bash
-npx wrangler whoami                                   # ログイン済みか。無ければ npx wrangler login
-npm run db:counts -- --remote                         # 本番が空であることを見る
-npm run db:migrate:remote                             # 1. スキーマ
-npm run db:export:local -- --output work/d1-export/initial.sql
-npm run db:import:remote -- work/d1-export/initial.sql   # 2. データ (数分かかる)
-npm run db:counts -- --remote                         # 3. 書き出し時に出た件数と一致することを見る
+npx wrangler whoami                      # ログイン済みか。無ければ npx wrangler login
+npm run db:counts -- --remote            # 本番が空であることを見る
+npm run db:migrate:remote                # スキーマ
+npm run db:export:local -- --output work/d1-export/day1.sql \
+  --table voice_actors --table voice_actor_aliases --table audio_works \
+  --table store_listings --table audio_credits --table crawl_runs
+npm run db:import:remote -- work/d1-export/day1.sql
+npm run db:counts -- --remote            # 書き出し時に出た件数と一致することを見る
+```
+
+2 日目 (アニメ)
+
+```bash
+npm run db:export:local -- --output work/d1-export/day2.sql \
+  --table anime_titles --table anime_title_synonyms --table anime_appearances
+npm run db:import:remote -- work/d1-export/day2.sql
+npm run db:counts -- --remote
 ```
 
 - 書き出しは既定で Audible の行を除く。listing と credit と取り込みの記録に加え、作品も除く
   (作品 ID がストアを含むため。判定は `scripts/d1-data.mjs` の `isExcludedRow`)。手元の Audible のデータには、
   2026-09-19 より前に robots.txt が禁じる並び順付き URL で取った分が混じっているため
-  (`docs/stores/audible.md` の robots.txt の節)。本番の Audible は、月次の補完巡回が許可された URL から取り直す
-  (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。手元との件数の差はこの除外ぶん
+  (`docs/stores/audible.md` の robots.txt の節)。手元との件数の差はこの除外ぶん
+- 本番の Audible は初期構築 (対象声優の全員を声優起点で 1 回引く) で入れ直す
+  ([`docs/decisions/0007-daily-crawl-from-store-feeds.md`](./docs/decisions/0007-daily-crawl-from-store-feeds.md))。
+  それまでは Audible にしか作品が無い声優のページが出ない。月次の補完巡回は作品を持つ声優だけが対象なので、
+  この層は月次では戻らない
 - 流し込みは wrangler が 1 つの取り込みとして行い、途中で失敗すれば元の状態に戻る (wrangler がその旨を表示する)。
   失敗したら原因を直して同じファイルを流し直す
-- Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数える。表ごとに
-  「書き出し時に出た件数 × (1 + その表の索引の本数)」を足した合計が、Cloudflare の料金ページの D1 の欄の
-  上限に収まることを確かめてから流す。索引の本数は `migrations/` の `CREATE INDEX` と `CREATE UNIQUE INDEX` を
-  両方数える。収まらなければ `npm run db:export:local -- --table <表>` で表ごとに書き出し、
-  親の表 (声優、作品、アニメ) から順に日を分けて流す
 
 ### プランの確認
 

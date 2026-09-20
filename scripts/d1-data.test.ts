@@ -241,6 +241,19 @@ describe("prepareImportSql", () => {
     expect(() => prepareImportSql(dump, tables)).toThrow("old_works");
   });
 
+  it("INSERT OR REPLACE と REPLACE INTO も行を入れる文として扱う", () => {
+    expect(insertTarget(`INSERT OR REPLACE INTO "voice_actors" ("id") VALUES('a')`)).toBe(
+      "voice_actors",
+    );
+    expect(insertTarget(`REPLACE INTO audio_works (id) VALUES('a')`)).toBe("audio_works");
+  });
+
+  it("行を入れる文なのに表名を読めなければ投げる", () => {
+    const db = openDb();
+    const tables = listDataTables(db);
+    expect(() => prepareImportSql("INSERT VALUES('x');", tables)).toThrow("表名を読み取れない");
+  });
+
   it("表を絞った書き出しは親の順序を保つ", () => {
     const db = openDb();
     seed(db);

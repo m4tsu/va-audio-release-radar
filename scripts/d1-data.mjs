@@ -148,6 +148,44 @@ export function parseCounts(row) {
   return Object.fromEntries(Object.entries(row).map(([table, count]) => [table, Number(count)]));
 }
 
+/**
+ * 表ごとの索引の本数を `migrations/*.sql` から数える。一意索引も含める。
+ * D1 の 1 日の書き込み行数は索引への書き込みも数えるため (README の「本番 D1」)
+ */
+export function countIndexesByTable(migrationSql) {
+  const byTable = {};
+  for (const [, table] of migrationSql.matchAll(
+    /CREATE\s+(?:UNIQUE\s+)?INDEX\s+`?"?[^`"\s]+`?"?\s+ON\s+`?"?([^`"\s(]+)/gi,
+  )) {
+    byTable[table] = (byTable[table] ?? 0) + 1;
+  }
+  return byTable;
+}
+
+/**
+ * 流し込みで書かれる行数の見積もり。本体行に索引への書き込みを足す。
+ * 合計が Free プランの 1 日の上限を超えるなら、表を分けて日をまたぐ判断に使う
+ */
+export function estimateWriteRows(counts, indexesByTable) {
+  const rows = Object.entries(counts).map(([table, count]) => {
+    const indexes = indexesByTable[table] ?? 0;
+    return { table, count, indexes, writes: count * (1 + indexes) };
+  });
+  rows.sort((a, b) => b.writes - a.writes);
+  return { rows, total: rows.reduce((sum, row) => sum + row.writes, 0) };
+}
+
+/** 見積もりを人が読める表にする */
+export function formatWriteRows({ rows, total }) {
+  const width = Math.max(...rows.map((row) => row.table.length), "合計".length);
+  const lines = rows.map(
+    (row) =>
+      `${row.table.padEnd(width)}  ${String(row.count).padStart(7)} 行 × (1 + 索引 ${row.indexes}) = ${String(row.writes).padStart(7)}`,
+  );
+  lines.push(`${"合計".padEnd(width)}  ${String(total).padStart(7)}`);
+  return lines.join("\n");
+}
+
 /** 件数を表にして人が読める形にする */
 export function formatCounts(counts) {
   const width = Math.max(...Object.keys(counts).map((name) => name.length));
@@ -230,9 +268,14 @@ export function splitStatements(sql) {
   return statements;
 }
 
-/** INSERT 文の対象の表名。INSERT 以外は undefined */
+/** 行を入れる文か。`INSERT OR REPLACE` や `REPLACE INTO` も含める */
+const INSERT_START = /^(?:INSERT|REPLACE)\b/i;
+
+/** 行を入れる文の対象の表名。そうでない文は undefined */
 export function insertTarget(statement) {
-  const matched = /^INSERT\s+INTO\s+(?:"([^"]+)"|([^\s(]+))/i.exec(statement);
+  const matched = /^(?:INSERT(?:\s+OR\s+\w+)?|REPLACE)\s+INTO\s+(?:"([^"]+)"|([^\s(]+))/i.exec(
+    statement,
+  );
   return matched ? (matched[1] ?? matched[2]) : undefined;
 }
 
@@ -252,7 +295,11 @@ export function prepareImportSql(sql, tables) {
   for (const statement of splitStatements(sql)) {
     const target = insertTarget(statement);
     if (target === undefined) {
-      // INSERT でない文 (PRAGMA / CREATE など) は捨てる
+      // 行を入れる文のはずなのに表名を読めないなら、黙って捨てずに気づけるようにする
+      if (INSERT_START.test(statement)) {
+        throw new Error(`表名を読み取れない文がある: ${statement.slice(0, 80)}`);
+      }
+      // PRAGMA / CREATE など、行を入れない文は捨てる
       dropped += 1;
       continue;
     }

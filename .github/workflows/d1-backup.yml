@@ -4,7 +4,7 @@ name: 本番 D1 のバックアップ
 # スキーマは書き出さない (復元先にはマイグレーションで当てる)
 on:
   schedule:
-    - cron: "0 19 * * 0" # 毎週日曜 04:00 JST
+    - cron: "0 19 * * 6" # 毎週日曜 04:00 JST (cron は UTC なので土曜 19:00)
   workflow_dispatch:
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
         with:
           name: d1-backup-${{ github.run_id }}
           path: d1-backup.sql
-          # private リポジトリの artifact 容量の無料枠 (500 MB) に、90 日ぶんが収まる大きさであることを
-          # 実行ログのファイルサイズで確かめる。超えるなら日数を縮める
+          # 90 日ぶんが private リポジトリの artifact 容量に収まることを、実行ログのファイルサイズで
+          # 確かめる。超えるなら日数を縮める
           retention-days: 90
           if-no-files-found: error

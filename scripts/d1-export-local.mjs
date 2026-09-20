@@ -13,13 +13,28 @@
 // sqlite は読み取り専用で開き、全表を 1 つの読み取りトランザクションで読む。クロールが
 // 書き込み中でも、表の間で断面がずれて外部キー違反の SQL になることを避けるため
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { findD1SqliteFile } from "./check-migrations.mjs";
-import { exportSql, formatCounts } from "./d1-data.mjs";
+import {
+  countIndexesByTable,
+  estimateWriteRows,
+  exportSql,
+  formatCounts,
+  formatWriteRows,
+} from "./d1-data.mjs";
+
+/** マイグレーションの SQL を 1 つにつなぐ。索引の本数を数えるため */
+function readMigrationSql(dir) {
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => readFileSync(path.join(dir, name), "utf8"))
+    .join("\n");
+}
 
 const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
 const DEFAULT_EXCLUDED_STORES = ["audible"];
@@ -28,6 +43,7 @@ const DEFAULT_EXCLUDED_STORES = ["audible"];
 export function main(argv, deps = {}) {
   const {
     d1StateDir = path.join(process.cwd(), D1_STATE_DIR),
+    migrationsDir = path.join(process.cwd(), "migrations"),
     log = console.log,
     error = console.error,
   } = deps;
@@ -62,6 +78,12 @@ export function main(argv, deps = {}) {
     log(`書き出した: ${output}`);
     if (excludeStores.length > 0) log(`除いたストア: ${excludeStores.join(", ")}`);
     log(formatCounts(counts));
+
+    // 流し込みで書かれる行数。Free プランの 1 日の上限に収まるかをここで判断する
+    // (README の「本番 D1」)。索引への書き込みも数えるので、件数そのものとは違う
+    const estimate = estimateWriteRows(counts, countIndexesByTable(readMigrationSql(migrationsDir)));
+    log("\n流し込みで書かれる行数の見積もり (索引への書き込みを含む)");
+    log(formatWriteRows(estimate));
   } finally {
     db.close();
   }
