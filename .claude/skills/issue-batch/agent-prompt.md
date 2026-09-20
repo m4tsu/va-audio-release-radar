@@ -7,7 +7,7 @@ main の作業ツリーは {{MAIN}}。手順は `.claude/skills/issue-task/SKILL
 - ユーザーに質問しない (AskUserQuestion を使わない)。要件で判断が要る点が出たら、質問を書いて状態 NEEDS_INPUT で終える。答えは追加の指示で届く
 - 検査とレビューまで終えたら merge.sh を実行せず、状態 MERGE_READY で終える。マージは追加の指示で頼む
 - 最後のコミットの本文に `Closes #{{N}}` を入れる
-- レビュー 3 回で通らない、check が通らない、判断できない、のときは状態 FAILED で終える。worktree は消さない
+- レビューの指摘を直しきれない、check が通らない、判断できない、のときは状態 FAILED で終える。worktree は消さない
 
 報告は必ず次の形で始める。
 

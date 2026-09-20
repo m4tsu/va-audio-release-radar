@@ -1,6 +1,6 @@
 ---
 name: issue-task
-description: issue から worktree を切り、要件確認・実装・別エージェントによるレビュー・main への fast-forward マージまでを一続きで行う
+description: issue から worktree を切り、要件確認・実装・レビュー・main への fast-forward マージまでを一続きで行う
 argument-hint: "<issue 番号 | 要件の文章>"
 disable-model-invocation: true
 ---
@@ -65,14 +65,30 @@ npm run check
 
 E2E はここでは実行しない。7 の `merge.sh` が差分を見て必要なときだけ走らせる。
 
-## 6. レビュー (会話文脈を持たない別エージェント)
+## 6. レビュー
 
-`.claude/skills/issue-task/review-prompt.md` の `{{BRANCH}}` と `{{ROOT}}` を埋め、
-`Agent` (subagent_type: `general-purpose`。`fork` は会話文脈を引き継ぐので使わない) に渡す。
-報告をそのまま `work/review-<n>.md` に保存する。
+```
+/code-review medium
+```
 
-- `FIX_REQUIRED` なら must を直し、5 から繰り返す。3 回で `MERGE_OK` にならなければ止めて、残った指摘を報告する
-- should は直すか、直さない理由を `work/task.md` に書く
+何を見るか、重複をどう落とすか、何件まで挙げるか、CLAUDE.md 違反をどう挙げるかは
+このコマンドが持っている。差分が広い issue、外部アクセスかスキーマに触れた issue は `high`。
+
+コマンドが見ないものが 1 つある。**要件**。`/code-review` は差分とリポジトリだけを読み、
+`work/task.md` を読まない。要件を満たしているか、要件に無い変更が入っていないかは自分で確かめる。
+
+次のどれかが残っていればマージしない。報告は構造化された一覧のときと文章のときがあるので、
+分類の名前ではなく中身で判断する。
+
+- 要件を満たしていない
+- 誤動作する
+- CLAUDE.md の規則に反する
+- 変更を守るテストが無い
+
+残り (重複、簡単にできる、無駄がある、直し方が浅い) は直すか、直さない理由を 8 で報告する。
+
+直したら 5 の `npm run check` を通す。**同じ差分に `/code-review` を 2 回流さない**。
+1 回目に落とした指摘が、別の言い方で戻ってくる。
 
 ## 7. マージ
 
@@ -91,7 +107,7 @@ bash .claude/skills/issue-task/scripts/merge.sh
 
 ## 8. 報告
 
-- マージしたコミット、変えた範囲、レビューで直した点、直さなかった should とその理由
+- マージしたコミット、変えた範囲、レビューで直した指摘と、直さなかった指摘とその理由
 - 残った依頼 (main 側の未コミット変更、`npm run db:migrate:remote` など)
 
 ## 一括実行のとき (issue-batch から起動された場合)
@@ -102,7 +118,7 @@ bash .claude/skills/issue-task/scripts/merge.sh
 - 1 と 2 の `preflight.sh` と `EnterWorktree` は飛ばす。worktree は既にある。`setup.sh` から始める
 - issue の本文とコメントを `gh issue view <N> --comments` で読んで `work/task.md` に保存する
 - 3 で `AskUserQuestion` を使わない。質問を書いて状態 `NEEDS_INPUT` で終える。答えは追加の指示で届く
-- 6 が通ったら `merge.sh` を実行せず、状態 `MERGE_READY` で終える。マージは追加の指示で頼まれてから実行し、
-  結果を状態 `MERGED` で報告する
+- 6 でマージ可能と判断したら `merge.sh` を実行せず、状態 `MERGE_READY` で終える。マージは追加の指示で
+  頼まれてから実行し、結果を状態 `MERGED` で報告する
 - `ExitWorktree` を呼ばない。後始末は司令塔が行う
-- レビュー 3 回で通らない、コンフリクトを解消できない、のときは状態 `FAILED` で終える
+- 6 の指摘を直しきれない、コンフリクトを解消できない、のときは状態 `FAILED` で終える
