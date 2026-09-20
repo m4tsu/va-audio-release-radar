@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AnimeRole, AnimeSeason, WorkCategory } from "@/domain/types";
 import { ANIME_FORMATS, ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
 import { chunked, SQL_IN_CHUNK_SIZE } from "../db/chunked";
+import { stripLikeWildcards } from "../db/like";
 import {
   animeAppearances,
   animeTitleSynonyms,
@@ -12,7 +13,6 @@ import {
   voiceActors,
 } from "../db/schema";
 import type { AppDb } from "../db/types";
-import { stripLikeWildcards } from "./actors";
 import { notAdultRated } from "./works";
 
 /**
@@ -535,10 +535,9 @@ export async function animeForActors(
 /**
  * アニメ名の検索。日本語名・ローマ字名・英語名・別名タイトルの部分一致 (SQL の LIKE)。
  *
- * 別名を持つのは `anime_title_synonyms` で、AniList が返す略称や他言語の表記が入っている
- * (「ロシデレ」)。読み (かな) は AniList が返さないので当たらない。
- * 声優検索 (`searchActors`) と違って表記揺れの正規化はしていない。アニメ名は記号や空白の
- * 入り方が作品ごとに違い、落とすと別の作品に当たるため
+ * 別名は `anime_title_synonyms` (AniList が返す `synonyms`。取れる項目は `docs/stores/anilist.md`)。
+ * 声優検索 (`searchActors`) が併用している `matchByNormalizedName` は正規化したうえでの
+ * 完全一致なので、題の一部を打って探すこの検索には使えない
  */
 export async function searchAnime(db: AppDb, q: string, limit = 20): Promise<AnimeSummary[]> {
   // ワイルドカードを落とした結果が空なら引かない ("%" だけの検索語が全件一致になるため)
@@ -572,13 +571,14 @@ export async function searchAnime(db: AppDb, q: string, limit = 20): Promise<Ani
         appearanceActorHasAudioWork,
       ),
     )
-    .groupBy(animeTitles.id);
+    .groupBy(animeTitles.id)
+    // 一覧と同じ並び (人気の高い順)。SQLite は NULL を最小として扱うので、
+    // 人気度を持たない作品は降順の末尾に来る。同じ値は slug 順で安定させる
+    .orderBy(desc(animeTitles.popularity), asc(animeTitles.slug))
+    // 打鍵が止まるたびに走るので、一致した全件を読まずに DB 側で切る
+    .limit(limit);
 
-  // 一覧と同じ並び (人気の高い順)。同じ語で 2 回引いたときに順が入れ替わらないよう slug で安定させる
-  return rows
-    .sort((a, b) => (b.popularity ?? -1) - (a.popularity ?? -1) || a.slug.localeCompare(b.slug))
-    .slice(0, limit)
-    .map(toAnimeSummary);
+  return rows.map(toAnimeSummary);
 }
 
 /** sitemap.xml に並べるアニメページ。声優ページと同じく、中身が出ないものは載せない */

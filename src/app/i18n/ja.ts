@@ -257,7 +257,7 @@ export const ja = {
     indexTitle: "アニメから探す",
     searchLabel: "アニメ名で検索",
     searchNoResults: "「{{query}}」に一致するアニメは見つかりませんでした。",
-    indexDescription: "シーズンを選ぶと、その期のアニメが並びます。",
+    indexDescription: "アニメ名で探すか、シーズンを選ぶと、その期のアニメが並びます。",
     indexMetaTitle: "アニメから声優の音声作品を探す | {{app}}",
     indexMetaDescription:
       "シーズンごとのアニメから、出演声優の ASMR・朗読・ボイスドラマをたどれます。",

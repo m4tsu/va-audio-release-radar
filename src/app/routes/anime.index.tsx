@@ -4,7 +4,7 @@ import { AnimeIndexPage } from "@/app/pages/anime-index";
 import { fetchAnimeSeasons } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 
-/** アニメ導線の入口。シーズンの索引。画面は `@/app/pages/anime-index` */
+/** アニメ導線の入口。アニメ名の検索とシーズンの索引。画面は `@/app/pages/anime-index` */
 export const Route = createFileRoute("/anime/")({
   loader: async () => {
     const [seasons, origin] = await Promise.all([fetchAnimeSeasons(), siteOriginForLoader()]);

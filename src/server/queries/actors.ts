@@ -3,6 +3,7 @@ import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
 import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
 import { chunked } from "../db/chunked";
+import { stripLikeWildcards } from "../db/like";
 import { audioCredits, storeListings, voiceActorAliases, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
 
@@ -335,12 +336,4 @@ export function toVoiceActor(row: VoiceActorRow): VoiceActor {
     ...(row.imageUrl ? { imageUrl: row.imageUrl } : {}),
     status: row.status,
   };
-}
-
-/**
- * LIKE のワイルドカードを落とす。検索語に "%" や "_" が入ったときに全件一致にならないようにする。
- * SQLite の ESCAPE 句は drizzle の `like` から渡せないので、エスケープではなく除去で済ませる
- */
-export function stripLikeWildcards(value: string): string {
-  return value.replace(/[%_]/g, "");
 }

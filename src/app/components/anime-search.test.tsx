@@ -3,24 +3,22 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import { AnimeSearch } from "@/app/components/anime-search";
 import { LocaleContext } from "@/app/i18n";
+import { animeSummary } from "@/app/test/fixtures";
 
 const searchAnimeFn = vi.hoisted(() => vi.fn(async () => [] as unknown[]));
 
 /** server function はブラウザから呼べないので差し替える */
 vi.mock("@/app/server-fns/anime", () => ({ searchAnimeFn }));
 
-function anime(overrides: Record<string, unknown> = {}) {
-  return {
-    slug: "roshidere",
-    titleNative: "時々ボソッとロシア語でデレる隣のアーリャさん",
-    titleRomaji: "Tokidoki Bosotto Russia-go de Dereru Tonari no Alya-san",
-    titleEnglish: "Alya Sometimes Hides Her Feelings in Russian",
-    seasonYear: 2024,
-    season: "SUMMER",
-    actorCount: 2,
-    ...overrides,
-  };
-}
+const ANIME = animeSummary({
+  slug: "roshidere",
+  titleNative: "時々ボソッとロシア語でデレる隣のアーリャさん",
+  titleRomaji: "Tokidoki Bosotto Russia-go de Dereru Tonari no Alya-san",
+  titleEnglish: "Alya Sometimes Hides Her Feelings in Russian",
+  seasonYear: 2024,
+  season: "SUMMER",
+  actorCount: 2,
+});
 
 describe("AnimeSearch の入力欄", () => {
   test("入力前は例示も結果も出さない", () => {
@@ -44,7 +42,7 @@ describe("AnimeSearch の入力欄", () => {
 describe("AnimeSearch の結果", () => {
   test("入力すると一致した作品が出て、作品のページへ結ぶ", async () => {
     const user = userEvent.setup();
-    searchAnimeFn.mockResolvedValueOnce([anime()]);
+    searchAnimeFn.mockResolvedValueOnce([ANIME]);
     render(<AnimeSearch />);
 
     // 略称でも当たる (別名タイトルを引くのはサーバー側)
