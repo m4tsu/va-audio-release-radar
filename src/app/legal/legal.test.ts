@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { LOCALES } from "@/app/i18n";
+import { createTranslator, LOCALES } from "@/app/i18n";
 import type { LegalBlock, LegalDocument, LocalizedLegalDocument } from "./index";
 import { privacy } from "./privacy";
 import { terms } from "./terms";
@@ -47,6 +47,17 @@ describe.each(Object.entries(DOCUMENTS))("%s", (_name, document) => {
   test("空の文が無い", () => {
     for (const locale of LOCALES) {
       for (const text of texts(document[locale])) expect(text.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * サービス名は辞書 (`i18n/ja.ts` の `app.name`) が正で、本文はそれをベタ書きしている。
+   * 名前を変えたときに本文の直し漏れを見つける
+   */
+  test("本文がサービス名を辞書と同じ綴りで書いている", () => {
+    for (const locale of LOCALES) {
+      const name = createTranslator(locale)("app.name");
+      expect(texts(document[locale]).some((text) => text.includes(name))).toBe(true);
     }
   });
 

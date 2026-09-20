@@ -37,6 +37,12 @@ describe("辞書", () => {
     expect([...enFlat.keys()].sort()).toEqual([...jaFlat.keys()].sort());
   });
 
+  /** サービス名は言語で変えない。片方だけ書き換えると画面とタブと規約で綴りが割れる */
+  test("app.name が全言語で同じ", () => {
+    const names = LOCALES.map((locale) => createTranslator(locale)("app.name"));
+    expect(new Set(names).size).toBe(1);
+  });
+
   /**
    * 埋め込み変数の綴りが言語間でずれると、片方の言語でだけ "{{count}}" が
    * 生のまま画面に出る。型では追えないのでここで突き合わせる
