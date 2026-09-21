@@ -410,7 +410,8 @@ describe("buildFeedUrl", () => {
 });
 
 describe("parseSearchHtml (新着一覧)", () => {
-  it("タグページと同じセレクタで読め、1 ページ 15 件が取れる", () => {
+  // フィクスチャは disp_number=100 で取ったもので 15 件 (docs/stores/pokedora.md の「出典」)
+  it("タグページと同じセレクタで読める", () => {
     for (const section of POKEDORA_SECTIONS) {
       const parsed = parseSearchHtml(feedHtml[section], FETCHED_AT);
       expect(parsed.works).toHaveLength(15);
@@ -515,7 +516,8 @@ describe("pokedoraAdapter.fetchNewReleases", () => {
     expect(result?.works.map((work) => work.storeProductId)).toEqual(["2"]);
     expect(result?.listedCount).toBe(2);
     const urls: string[] = fetchTextMock.mock.calls.map((call) => call[0]);
-    expect(urls.some((url) => url.includes("product_id=1&"))).toBe(false);
+    const detailUrls = urls.filter((url) => url.includes("detail.php"));
+    expect(detailUrls).toEqual([buildProductUrl("2")]);
   });
 
   it("新着が全部既知なら empty で返す", async () => {
@@ -546,7 +548,7 @@ describe("pokedoraAdapter.fetchNewReleases", () => {
     expect(result?.warnings).toContain("bl の新着一覧を取れなかった (timeout)");
   });
 
-  // 新着一覧は常に 15 件返るので、0 件はセレクタが壊れた合図
+  // 新着一覧は常に埋まって返るので、0 件はセレクタが壊れた合図
   it("一覧は取れたのに作品が 0 件なら error にする", async () => {
     respond({ men: ok(listPage([])), bl: ok(listPage([])) });
 

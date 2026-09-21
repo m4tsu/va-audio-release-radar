@@ -11,6 +11,11 @@
 DB には書き込んでいない。コードも変更していない。
 robots.txt の引用と、そこから導いた使ってよい形は [`docs/stores/pokedora.md`](../stores/pokedora.md) にある。
 
+> **この記録の「`disp_number` は効かない」は後に否定されている。** ここで試したのは
+> `disp_number=100` の 1 通りだけで、値を変えると件数が変わる。
+> [`pokedora-disp-number-2026-09-21.md`](./pokedora-disp-number-2026-09-21.md) を見ること。
+> 以下の数字は `disp_number=100` を付けた条件での測定値としてそのまま残す。
+
 ## 0. 調査方法とリクエスト実績
 
 - 外部へのリクエストは **8 件**。**すべて `pokedora.com`**

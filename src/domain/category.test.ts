@@ -110,3 +110,14 @@ describe("categorize (ポケドラ)", () => {
     );
   });
 });
+
+describe("categorize (ポケドラの新着一覧に出る区分)", () => {
+  // 声優タグ経由では出なかったが、ストア全体の新着一覧には出る
+  test("オーディオブックは audiobook にする", () => {
+    expect(categorize("pokedora", "オーディオブック")).toBe("audiobook");
+  });
+
+  test("知らない区分は既定の audio_drama に倒す", () => {
+    expect(categorize("pokedora", "見たことのない区分")).toBe("audio_drama");
+  });
+});

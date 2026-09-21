@@ -67,6 +67,13 @@ const POKEDORA_DRAMA_WORDS = ["ドラマCD", "BLCD", "ボイスドラマ", "オ�
  */
 const POKEDORA_OTHER_WORDS = ["音楽"];
 
+/**
+ * ポケドラの商品カテゴリのうち朗読。声優タグ経由では出なかったが、ストア全体の新着一覧には
+ * 出る (`crawler/fixtures/pokedora-list-order1-men-page1.html`)。
+ * 既定の audio_drama に倒すと朗読がドラマ CD として保存される
+ */
+const POKEDORA_AUDIOBOOK_WORDS = ["オーディオブック"];
+
 export function categorize(
   storeSlug: StoreSlug,
   storeCategory?: string,
@@ -93,6 +100,7 @@ export function categorize(
  *
  * 実データ 492 件の内訳は BLCD 351 / 一般ドラマCD 76 / シチュエーションCD 35 /
  * 音楽 17 / 女性向けドラマCD 11 / 配信限定シチュエーション 2 の 6 種類だった。
+ * これは声優タグ経由で集めたもので、ストア全体の新着一覧にはこれ以外の区分も出る。
  *
  * DLsite と違ってジャンルとタイトルを見ないのは、ポケドラの商品カテゴリがストア自身の
  * 売り場区分で、それだけで答えが出るため。関連ワード (genres に入れている) のほうは
@@ -100,11 +108,13 @@ export function categorize(
  * 3 件はいずれもシチュエーション系のカテゴリに置かれており、カテゴリだけで正しく決まる。
  *
  * 既定を audio_drama にしてあるのは、ポケドラがドラマ CD のストアで、上の 6 種類のうち
- * 4 種類がドラマ系だから (DLsite 全年齢音声の既定を asmr にしてあるのと同じ理屈)
+ * 4 種類がドラマ系だから (DLsite 全年齢音声の既定を asmr にしてあるのと同じ理屈)。
+ * 既定に落ちる前に、朗読とシチュエーションと音楽だけを名指しで拾う
  */
 function categorizePokedora(storeCategory: string | undefined): WorkCategory {
   const category = storeCategory ?? "";
   if (includesAny([category], POKEDORA_OTHER_WORDS)) return "other";
+  if (includesAny([category], POKEDORA_AUDIOBOOK_WORDS)) return "audiobook";
   if (includesAny([category], SITUATION_WORDS)) return "situation_voice";
   if (includesAny([category], POKEDORA_DRAMA_WORDS)) return "audio_drama";
   return "audio_drama";
