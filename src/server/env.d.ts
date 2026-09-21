@@ -29,10 +29,18 @@ interface AppSecrets {
    */
   SITE_URL?: string;
   /**
-   * 利用規約・プライバシーポリシーに載せる問い合わせ窓口 (`https:` の URL か `mailto:`)。
+   * 利用規約・プライバシーポリシーに載せる外部の問い合わせ窓口 (`https:` の URL か `mailto:`)。
    * wrangler.jsonc の `vars` に置く。空文字なら未設定として、窓口の案内を出さない
+   * (サイト内のお問い合わせ画面への案内は設定の有無に関わらず出る)
    */
   CONTACT_URL?: string;
+  /**
+   * お問い合わせ画面の bot 対策 (Cloudflare Turnstile) の画面側の鍵 (`@/server/turnstile`)。
+   * HTML に出る公開鍵なので秘匿値ではなく wrangler.jsonc の `vars` に置く
+   */
+  TURNSTILE_SITE_KEY?: string;
+  /** 同じく検証側の鍵。wrangler secret で持つ。未設定なら送信は 503 */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 export {};

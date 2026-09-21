@@ -7,6 +7,7 @@
   // 秘匿値 (未設定ならその機能は 503):
   //   npx wrangler secret put INGEST_TOKEN   クローラーからの取り込み用 Bearer トークン
   //   npx wrangler secret put ADMIN_TOKEN    管理画面用トークン
+  //   npx wrangler secret put TURNSTILE_SECRET_KEY  お問い合わせの bot 対策の検証用 (Cloudflare Turnstile)
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "voice-actor-audio-release-radar",
   "main": "@tanstack/react-start/server-entry",
@@ -17,9 +18,11 @@
   // canonical / og:url / sitemap を絶対 URL にするときのオリジン (@/server/site の siteOrigin)。
   // 空文字なら未設定として、実際に来たリクエストのオリジンを使う。
   // 本番で正規のホストに固定したくなったらここに "https://example.com" のように入れる
-  // CONTACT_URL は利用規約・プライバシーポリシーに載せる問い合わせ窓口 ("https://..." か "mailto:...")。
-  // 空文字なら窓口の案内を出さない。公開前に入れること
-  "vars": { "SITE_URL": "", "CONTACT_URL": "" },
+  // CONTACT_URL は利用規約・プライバシーポリシーに載せる外部の問い合わせ窓口 ("https://..." か "mailto:...")。
+  // 空文字なら外部窓口の案内を出さない (サイト内の /contact への案内は常に出る)。
+  // TURNSTILE_SITE_KEY はお問い合わせ画面の bot 対策の画面側の鍵。HTML に出る公開鍵なので vars に置く。
+  // 空文字か TURNSTILE_SECRET_KEY 未設定なら /contact から送信できない。公開前に両方入れること
+  "vars": { "SITE_URL": "", "CONTACT_URL": "", "TURNSTILE_SITE_KEY": "" },
   "d1_databases": [
     {
       "binding": "DB",

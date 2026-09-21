@@ -5,3 +5,7 @@
 INGEST_TOKEN=
 # 管理画面 (/admin/*) を開くためのトークン
 ADMIN_TOKEN=
+# お問い合わせ (/contact) の bot 対策 (Cloudflare Turnstile) の検証用の鍵。
+# 画面側の鍵は wrangler.jsonc の vars.TURNSTILE_SITE_KEY。ローカルでは Cloudflare が公開している
+# テスト用の鍵の組が使える (site key: 1x00000000000000000000AA / secret: 1x0000000000000000000000000000000AA)
+TURNSTILE_SECRET_KEY=
