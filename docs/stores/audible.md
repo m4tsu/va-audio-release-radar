@@ -7,7 +7,9 @@
 実装: `crawler/adapters/audible.ts`
 共通の原則は [`README.md`](./README.md)。
 
-> **並び順 (`sort=`) は使わない。robots.txt が禁じている。** 網羅はページング (`&page=N`) で行う。
+> **ナレーター検索 (`/search`) では並び順 (`sort=`) を使わない。robots.txt が禁じている。**
+> 網羅はページング (`&page=N`) で行う。新着一覧 (`/newreleases`) は逆で、`sort=` 付きの形が
+> 1 本ずつ許可され、`page=` はほぼ使えない (「新着一覧」)。
 
 ---
 
@@ -248,8 +250,15 @@ Allow: /coming-soon?page=
   23 件はナレーター欄自体が無い。佐藤元の検索が連れてきた佐藤恵の作品 10 件は、
   **佐藤恵自身が追跡対象**なので無駄になっていない
 - ブラウザ相当の UA を送る。スクレイパー判定で 302 に飛ばされるのを避けるため
-- (新着一覧を使う場合) **`/newreleases` の一覧は 80 件中 14 件 (18%) がナレーター欄が空**、
-  `/coming-soon` は 39 件中 15 件 (38%) が空
+- **AI 読み上げの作品はナレーター名を取れない。** 一覧の `li.narratorLabel` に
+  「Virtual Voice」「デジタルボイス」と出るが、**人名と違ってリンクにならない**。
+  パーサーはリンクからしか名前を取らないので `creditedNames` が空になる。
+  人のナレーターが居ないので、**月次の声優検索でもこの作品は出てこない**。
+  日次はこれを送らずに件数だけ警告に残す
+  (実例は `crawler/fixtures/audible-newreleases-pubdate-desc.html`、
+  件数は [`audible-daily-feed-2026-09-21.md`](../research/audible-daily-feed-2026-09-21.md))
+- `/coming-soon` は 39 件中 15 件 (38%) でナレーター名が取れない
+  ([`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md))
 
 ---
 
@@ -269,5 +278,7 @@ Allow: /coming-soon?page=
 ## 8. 出典
 
 - [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) —
+- [`docs/research/audible-daily-feed-2026-09-21.md`](../research/audible-daily-feed-2026-09-21.md) —
+  日次の走行 1 回目の件数と、ナレーター名を取れない作品が AI 読み上げであること
   robots の再確認、`sort=` 違反の発見、`/newreleases` と `/coming-soon` の許可される形、実測
 - `crawler/adapters/audible.ts` のファイル冒頭コメント — robots の引用と、`page` が 1 始まりであることの実測

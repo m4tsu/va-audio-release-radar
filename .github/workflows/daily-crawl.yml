@@ -36,8 +36,10 @@ jobs:
     # 後者は新作の数とは違う。対象声優が居ない作品は保存されないので DB に入らず、
     # 一覧から消えるまで毎日引き直す (docs/stores/dlsite.md と docs/stores/pokedora.md の
     # 「ストア全体の新着一覧」/「新着一覧 (キーワード無し)」)。
-    # DLsite は 2 フロア、ポケドラは 2 区分を引く。1 回ぶんの実測は
-    # docs/research/dlsite-daily-feed-2026-09-21.md。
+    # 入口の数はストアで違う。DLsite は 2 フロア、ポケドラは 2 区分、
+    # Audible は robots が許可する並び順違いの 8 本。1 回ぶんの実測は
+    # docs/research/dlsite-daily-feed-2026-09-21.md と
+    # docs/research/audible-daily-feed-2026-09-21.md。
     # 上限はストアが増えたときの歯止めとして置いている
     timeout-minutes: 30
     steps:

@@ -133,7 +133,10 @@ export function buildSearchUrl(narratorName: string, page: number = FIRST_PAGE):
  * `page=` は `0` と `2` だけが列挙されていて `1` が無く、`sort=` との併用も禁止。
  * そのため網羅は**並び順違いの 1 ページ目の和集合**で稼ぐ。どの並びがどれだけ取り分を
  * 増やしたかは `docs/research/new-release-feeds-2026-09-19.md`。
- * 取り分 0 だった `price-asc-rank` は入れていない
+ *
+ * 許可されているのに入れていないもの: `price-asc-rank` (測って取り分 0 だった)、
+ * `price-desc-rank` / `runtime-desc-rank` / `submitted=1&page=0` / カテゴリ node 14 本
+ * (取り分を測っていない)。取りこぼしが問題になったら、測ってから足す
  */
 export const AUDIBLE_FEED_URLS = [
   "https://www.audible.co.jp/newreleases",
@@ -556,14 +559,21 @@ function pickFallback(base: AdapterResult, attempts: readonly AdapterResult[]): 
  * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
  *
  * 一覧にナレーターと配信日が載るので、作品ページは引かない。
- * 逆にナレーター欄が空の作品は照合のしようがないので送らない。
- * その作品は月次の声優起点で拾う (`decisions/0007` の「帰結」)
+ * ナレーター名がリンクにならない作品 (AI 読み上げ) は人のナレーターが居ないので送らない。
+ * 詳しくは `docs/stores/audible.md` の「既知の落とし穴」
  */
+/**
+ * 新着一覧 1 本を人が見分けるための短い名前。URL をそのまま出すと長すぎて
+ * ログでも警告でも読めないので、並び順の部分だけを出す
+ */
+function feedLabel(url: string): string {
+  return /[?&]sort=([^&]+)/.exec(url)?.[1] ?? (url.includes("page=") ? "page=2" : "既定");
+}
+
 async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
   const fetchedAt = new Date().toISOString();
   const warnings: string[] = [];
   const failures: string[] = [];
-  let invalidCount = 0;
   let pages = 0;
   /** 新着枠の総件数。並び順が違っても同じプールを見ているので、最初に読めた値を使う */
   let windowTotal: number | undefined;
@@ -571,29 +581,44 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   // 並び順をまたいで ASIN で畳む。同じ作品が別の並びに出ても 1 件になる
   const listed = new Map<string, RawWork>();
 
+  // 8 本は同じプールの並び替えなので、検証落ちと警告は ASIN と文面で畳んでから数える。
+  // 単純に足すと同じ作品の検証落ちが最大 8 回、同じ警告が 8 回出る
+  const invalidPerPage: number[] = [];
+  const parseWarnings = new Set<string>();
+
   for (const url of AUDIBLE_FEED_URLS) {
     const result = await fetchText(url, {
       store: STORE_SLUG,
-      requestKey: `newreleases-${pages + failures.length}`,
+      requestKey: `newreleases-${feedLabel(url)}`,
       kind: "html",
       snapshot: options.snapshot,
     });
     if (!result.ok) {
       // この並びだけ引けなかった。他の並びは使うので走行は続ける
-      failures.push(result.reason);
-      warnings.push(`新着一覧を 1 本取れなかった (${result.reason})`);
+      failures.push(`${feedLabel(url)}: ${result.reason}`);
+      warnings.push(`新着一覧 (${feedLabel(url)}) を取れなかった (${result.reason})`);
       continue;
     }
 
     pages += 1;
     const parsed = parseSearchHtml(result.body, fetchedAt);
-    invalidCount += parsed.invalidCount;
-    warnings.push(...parsed.warnings);
+    invalidPerPage.push(parsed.invalidCount);
+    for (const warning of parsed.warnings) parseWarnings.add(warning);
     windowTotal ??= parsed.totalCount;
+    // 新着枠は常に埋まっている。0 件は「新作が無い」ではなく表示が変わった合図
+    if (parsed.works.length === 0) {
+      warnings.push(
+        `新着一覧 (${feedLabel(url)}) から作品を 1 件も読めなかった。表示が変わった可能性`,
+      );
+    }
     for (const work of parsed.works) {
       if (!listed.has(work.storeProductId)) listed.set(work.storeProductId, work);
     }
   }
+
+  // 同じ作品が複数の並びで落ちるので、最大値を取る (和にすると重複して数える)
+  const invalidCount = Math.max(0, ...invalidPerPage);
+  warnings.push(...parseWarnings);
 
   const base = {
     storeSlug: STORE_SLUG,
@@ -607,7 +632,7 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   };
 
   if (pages === 0) {
-    return { ...base, status: "error", reason: `新着一覧の取得に失敗 (${failures[0] ?? "不明"})` };
+    return { ...base, status: "error", reason: `新着一覧の取得に失敗 (${failures.join(" / ")})` };
   }
   if (listed.size === 0) {
     return { ...base, status: "error", reason: "新着一覧から作品を 1 件も読めなかった" };
@@ -624,12 +649,13 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   const known = options.knownIds;
   const fresh = [...listed.values()].filter((work) => known?.has(work.storeProductId) !== true);
 
-  // ナレーター欄が空の作品は誰の作品か決められない。取り込み側に送っても捨てられるだけなので、
-  // ここで落として件数を残す (月次の声優起点なら、その声優の名前で引くので拾える)
+  // ナレーター名がリンクで出ない作品。実測ではどれも AI 読み上げ (Virtual Voice /
+  // デジタルボイス) で、人のナレーターが居ないので月次の声優検索でも出てこない。
+  // 取り込み側に送っても捨てられるだけなので、ここで落として件数を残す
   const withNarrator = fresh.filter((work) => work.creditedNames.length > 0);
   const missing = fresh.length - withNarrator.length;
   if (missing > 0) {
-    warnings.push(`ナレーター欄が空の新着 ${missing} 件を送らなかった (月次の補完で拾う)`);
+    warnings.push(`ナレーター名を取れない新着 ${missing} 件を送らなかった (AI 読み上げ)`);
   }
 
   return { ...base, works: withNarrator, status: withNarrator.length === 0 ? "empty" : "ok" };

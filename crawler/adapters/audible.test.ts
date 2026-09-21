@@ -39,7 +39,7 @@ const looseMatchHtml = readFileSync(
 );
 /** 新着一覧の実 HTML (2026-09-21 取得)。素の /newreleases と、配信日の新しい順 */
 const newReleasesHtml = readFileSync(path.join(FIXTURES_DIR, "audible-newreleases.html"), "utf8");
-/** 同じ日の配信日の新しい順。フィクスチャの 6 件すべてナレーター欄が空 */
+/** 同じ日の配信日の新しい順。フィクスチャの 6 件はすべて AI 読み上げ (Virtual Voice) */
 const newReleasesPubdateDescHtml = readFileSync(
   path.join(FIXTURES_DIR, "audible-newreleases-pubdate-desc.html"),
   "utf8",
@@ -860,8 +860,11 @@ describe("parseSearchHtml (新着一覧)", () => {
     });
   });
 
-  // 一覧に載らない作品があるので、照合できない作品がここで出る
-  it("ナレーター欄が空の作品も一覧としては読める", () => {
+  /**
+   * AI 読み上げの作品はナレーター欄に「Virtual Voice」と出るが、人名のリンクが無い。
+   * パーサーはリンクからしか名前を取らないので creditedNames が空になる
+   */
+  it("ナレーター名がリンクで出ない作品は creditedNames が空になる", () => {
     const parsed = parseSearchHtml(newReleasesPubdateDescHtml, FETCHED_AT);
     expect(parsed.works).toHaveLength(6);
     expect(parsed.works.every((work) => work.creditedNames.length === 0)).toBe(true);
@@ -929,7 +932,7 @@ describe("audibleAdapter.fetchNewReleases", () => {
    * 誰の作品か決められないので送らない。取り込み側に送っても捨てられるだけで、
    * 「対象声優が居ない」と混ざって理由が読めなくなる
    */
-  it("ナレーター欄が空の作品は送らず、件数を警告に出す", async () => {
+  it("ナレーター名を取れない作品は送らず、件数を警告に出す", async () => {
     fetchTextMock.mockResolvedValue(
       feedPage(`${item("B000000001", "上田 麗奈")}${item("B000000002")}`),
     );
@@ -940,7 +943,7 @@ describe("audibleAdapter.fetchNewReleases", () => {
     // 一覧に出た数は落とす前の数
     expect(result?.listedCount).toBe(2);
     expect(result?.warnings).toContain(
-      "ナレーター欄が空の新着 1 件を送らなかった (月次の補完で拾う)",
+      "ナレーター名を取れない新着 1 件を送らなかった (AI 読み上げ)",
     );
   });
 
@@ -994,7 +997,8 @@ describe("audibleAdapter.fetchNewReleases", () => {
     expect(result?.works).toHaveLength(1);
     expect(result?.pages).toBe(AUDIBLE_FEED_URLS.length - 1);
     expect(result?.complete).toBe(false);
-    expect(result?.warnings).toContain("新着一覧を 1 本取れなかった (timeout)");
+    // どの並びが落ちたかが分かる形で残す
+    expect(result?.warnings).toContain("新着一覧 (既定) を取れなかった (timeout)");
   });
 
   it("どれも引けなければ error にする", async () => {
@@ -1008,6 +1012,8 @@ describe("audibleAdapter.fetchNewReleases", () => {
 
     expect(result?.status).toBe("error");
     expect(result?.complete).toBe(false);
-    expect(result?.reason).toBe("新着一覧の取得に失敗 (timeout)");
+    // 落ちた入口を全部出す
+    expect(result?.reason).toContain("既定: timeout");
+    expect(result?.reason).toContain("pubdate-desc-rank: timeout");
   });
 });
