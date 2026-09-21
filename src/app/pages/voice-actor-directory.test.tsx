@@ -34,6 +34,28 @@ const DELTA = actorSummary({
 
 const ACTORS = [ALPHA, BETA, DELTA];
 
+/**
+ * 英語表示の並びと頭文字を見るための顔ぶれ。`nameEn` は AniList の fullName と同じく名が先。
+ * 「架空ベータ」はローマ字を持たない
+ */
+const UEDA = actorSummary({
+  id: "va_ueda",
+  slug: "ueda",
+  canonicalName: "架空上田",
+  nameEn: "Reina Ueda",
+  workCount: 1,
+  storeSlugs: ["dlsite"],
+});
+const HIKASA = actorSummary({
+  id: "va_hikasa",
+  slug: "hikasa",
+  canonicalName: "架空日笠",
+  nameEn: "Youko Hikasa",
+  workCount: 2,
+  storeSlugs: ["audible"],
+});
+const EN_ACTORS = [UEDA, HIKASA, BETA];
+
 function directory(label = "声優から探す") {
   return screen.getByRole("list", { name: label });
 }
@@ -42,8 +64,24 @@ function rows(label?: string) {
   return within(directory(label)).getAllByRole("listitem");
 }
 
-function storeFilter() {
-  return screen.getByRole("group", { name: "ストアで絞り込む" });
+function storeFilter(label = "ストアで絞り込む") {
+  return screen.getByRole("group", { name: label });
+}
+
+function initialFilter() {
+  return screen.getByRole("group", { name: "Filter by initial" });
+}
+
+function buttonLabels(group: HTMLElement) {
+  return within(group)
+    .getAllByRole("button")
+    .map((button) => button.textContent);
+}
+
+/** 英語表示で名前順に切り替える。頭文字と並びはどちらも英語表示でしか変わらない */
+async function sortByNameInEnglish(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("combobox", { name: "Sort by: Most works" }));
+  await user.click(screen.getByRole("option", { name: "Name" }));
 }
 
 describe("VoiceActorDirectoryPage の並べ替え", () => {
@@ -154,6 +192,124 @@ describe("VoiceActorDirectoryPage の表示", () => {
     const list = directory("Voice actors");
     expect(within(list).getByRole("link", { name: /Kakuu Alpha/ })).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: /架空ベータ/ })).toBeInTheDocument();
+  });
+});
+
+describe("VoiceActorDirectoryPage の英語表示", () => {
+  test("名前順にするとローマ字の姓のアルファベット順になり、ローマ字の無い声優も残る", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await sortByNameInEnglish(user);
+
+    expect(rows("Voice actors").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Youko Hikasa"),
+      expect.stringContaining("Reina Ueda"),
+      expect.stringContaining("架空ベータ"),
+    ]);
+  });
+
+  test("作品数の多い順に戻すと作品数順になる", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await sortByNameInEnglish(user);
+    await user.click(screen.getByRole("combobox", { name: "Sort by: Name" }));
+    await user.click(screen.getByRole("option", { name: "Most works" }));
+
+    expect(rows("Voice actors")[0]).toHaveTextContent("Youko Hikasa");
+  });
+
+  /** 声優が居ない文字を押せると、押した先が必ず空になる */
+  test("頭文字に出るのは、その文字で始まる声優が居る文字だけ", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    expect(buttonLabels(initialFilter())).toEqual(["All", "H", "U"]);
+  });
+
+  test("頭文字を押すとその文字の声優だけになり、すべてで戻る", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await user.click(within(initialFilter()).getByRole("button", { name: "U" }));
+
+    expect(rows("Voice actors").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Reina Ueda"),
+    ]);
+    expect(screen.getByText("1 voice actor")).toBeInTheDocument();
+
+    await user.click(within(initialFilter()).getByRole("button", { name: "All" }));
+
+    expect(rows("Voice actors")).toHaveLength(3);
+  });
+
+  test("頭文字とストアの絞り込みは同時に効く", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await user.click(
+      within(storeFilter("Filter by store")).getByRole("button", { name: "DLsite" }),
+    );
+    await user.click(within(initialFilter()).getByRole("button", { name: "U" }));
+
+    expect(rows("Voice actors").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Reina Ueda"),
+    ]);
+  });
+
+  /** 押せる文字はストアで絞った後の顔ぶれから作るので、選んでいた文字が消えることがある */
+  test("ストアを変えて選んでいた頭文字が消えたら、頭文字の絞り込みが解ける", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await user.click(within(initialFilter()).getByRole("button", { name: "U" }));
+    await user.click(
+      within(storeFilter("Filter by store")).getByRole("button", { name: "Audible" }),
+    );
+
+    expect(buttonLabels(initialFilter())).toEqual(["All", "H"]);
+    expect(rows("Voice actors").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Youko Hikasa"),
+    ]);
+  });
+
+  /** 解けた絞り込みが戻ると、押していない文字で絞られた一覧が出る */
+  test("消えて解けた頭文字は、ストアをすべてに戻しても掛かり直さない", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await user.click(within(initialFilter()).getByRole("button", { name: "U" }));
+    await user.click(
+      within(storeFilter("Filter by store")).getByRole("button", { name: "Audible" }),
+    );
+    await user.click(within(storeFilter("Filter by store")).getByRole("button", { name: "All" }));
+
+    expect(rows("Voice actors")).toHaveLength(3);
+    const pressed = within(initialFilter())
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-pressed") === "true");
+    expect(pressed.map((button) => button.textContent)).toEqual(["All"]);
+  });
+
+  /** ストアを変えても、その文字の声優が残っていれば頭文字の絞り込みは効いたまま */
+  test("ストアを変えても選んでいた頭文字が残っていれば絞り込みは続く", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />, "en");
+
+    await user.click(within(initialFilter()).getByRole("button", { name: "U" }));
+    await user.click(
+      within(storeFilter("Filter by store")).getByRole("button", { name: "DLsite" }),
+    );
+
+    expect(rows("Voice actors").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Reina Ueda"),
+    ]);
+  });
+
+  test("日本語表示に頭文字の絞り込みは出ない", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={EN_ACTORS} />);
+
+    expect(screen.queryByRole("group", { name: "頭文字で絞り込む" })).not.toBeInTheDocument();
   });
 });
 

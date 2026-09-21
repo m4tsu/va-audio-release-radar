@@ -12,6 +12,7 @@ import {
   ACTOR_SORTS,
   type ActorSort,
   arrangeActors,
+  availableInitials,
   DEFAULT_ACTOR_SORT,
   isActorSort,
 } from "@/app/lib/actor-directory";
@@ -25,7 +26,7 @@ import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
  * 出るのは音声作品が 1 件以上ある声優だけ (`listActors`)。中身は全部 SSR で出して
  * インデックスさせる。声優ページへの内部リンクをまとめて置ける唯一のページでもある。
  *
- * 並べ替えとストアの絞り込みは `lib/actor-directory` が持つ
+ * 並べ替えと絞り込み (ストア・頭文字) は `lib/actor-directory` が持つ
  */
 export function VoiceActorDirectoryPage({ actors }: { actors: ActorSummary[] }) {
   const t = useT();
@@ -51,9 +52,29 @@ const SORT_LABEL_KEYS = {
 
 function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
   const t = useT();
+  const locale = useLocale();
   const [sort, setSort] = useState<ActorSort>(DEFAULT_ACTOR_SORT);
   const [store, setStore] = useState<StoreSlug | null>(null);
-  const shown = useMemo(() => arrangeActors(actors, { sort, store }), [actors, sort, store]);
+  const [initial, setInitial] = useState<string | null>(null);
+  const initials = useMemo(
+    () => availableInitials(actors, { store, locale }),
+    [actors, store, locale],
+  );
+  const shown = useMemo(
+    () => arrangeActors(actors, { sort, store, initial, locale }),
+    [actors, sort, store, initial, locale],
+  );
+
+  /**
+   * ストアを変えると押せる頭文字が変わる。選んでいた文字が消えるなら頭文字の絞り込みも解く。
+   * 残したままだと 0 人の一覧になり、後でストアを戻したときに押していない文字で絞られる
+   */
+  const changeStore = (next: StoreSlug | null) => {
+    setStore(next);
+    if (initial !== null && !availableInitials(actors, { store: next, locale }).includes(initial)) {
+      setInitial(null);
+    }
+  };
 
   return (
     <section className="space-y-4">
@@ -65,12 +86,16 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
           isOption={isActorSort}
           onChange={setSort}
         />
-        <StoreFilter value={store} onChange={setStore} />
+        <StoreFilter value={store} onChange={changeStore} />
         {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる */}
         <p aria-live="polite" className="ms-auto text-muted-foreground text-sm">
           {t("voiceActors.shownCount", { count: shown.length })}
         </p>
       </div>
+
+      {initials.length > 0 ? (
+        <InitialFilter value={initial} initials={initials} onChange={setInitial} />
+      ) : null}
 
       {/* 絞り込んでいなければ 0 人にはならない (呼び出し側が全員 0 人のときを先に弾いている) */}
       {shown.length === 0 && store !== null ? (
@@ -99,7 +124,7 @@ function StoreFilter({
     // ボタンの集まりに名前を付けるための fieldset。見出しは出さず、読み上げ名だけを持たせる
     <fieldset aria-label={t("voiceActors.storeFilterLabel")} className="flex flex-wrap gap-1">
       <FilterButton
-        label={t("voiceActors.storeFilterAll")}
+        label={t("voiceActors.filterAll")}
         selected={value === null}
         onClick={() => onChange(null)}
       />
@@ -115,13 +140,51 @@ function StoreFilter({
   );
 }
 
+/**
+ * 頭文字の絞り込み。ローマ字の姓の頭文字を持つ声優が居るときだけ出るので、
+ * 日本語表示では出ない (`availableInitials`)。並べ替えを名前順にしていなくても効く
+ */
+function InitialFilter({
+  value,
+  initials,
+  onChange,
+}: {
+  value: string | null;
+  initials: string[];
+  onChange: (next: string | null) => void;
+}) {
+  const t = useT();
+
+  return (
+    <fieldset aria-label={t("voiceActors.initialFilterLabel")} className="flex flex-wrap gap-1">
+      <FilterButton
+        label={t("voiceActors.filterAll")}
+        selected={value === null}
+        onClick={() => onChange(null)}
+      />
+      {initials.map((initial) => (
+        <FilterButton
+          key={initial}
+          label={initial}
+          // 1 文字のボタンが文字ごとに違う幅になると、索引として目で追えない
+          className="w-9 px-0"
+          selected={value === initial}
+          onClick={() => onChange(initial)}
+        />
+      ))}
+    </fieldset>
+  );
+}
+
 function FilterButton({
   label,
   selected,
+  className,
   onClick,
 }: {
   label: string;
   selected: boolean;
+  className?: string;
   onClick: () => void;
 }) {
   return (
@@ -130,6 +193,7 @@ function FilterButton({
       size="sm"
       variant={selected ? "default" : "outline"}
       aria-pressed={selected}
+      className={className}
       onClick={onClick}
     >
       {label}

@@ -157,7 +157,10 @@ export const ja = {
     sortWorkCount: "作品数の多い順",
     /** ストアの絞り込み。選択肢のうちストア名 (`STORE_LABELS`) は辞書に持たない */
     storeFilterLabel: "ストアで絞り込む",
-    storeFilterAll: "すべて",
+    /** 頭文字の絞り込み。選択肢の文字そのものは辞書に持たない。英語表示のときだけ出る */
+    initialFilterLabel: "頭文字で絞り込む",
+    /** ストアと頭文字のどちらでも使う「絞っていない」選択肢 */
+    filterAll: "すべて",
     shownCount: "{{count}} 人",
     filteredEmptyTitle: "{{store}} に作品がある声優はいません",
   },
