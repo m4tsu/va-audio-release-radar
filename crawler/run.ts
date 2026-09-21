@@ -391,6 +391,10 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(
       `声優シードを投入: ${seeded.actors} 人 / alias ${seeded.aliases} 件 (${actorsFile})\n`,
     );
+    if (seeded.clearedScreened > 0) {
+      // 辞書が増えたので、過去に「対象外」と判断した作品を次の日次が引き直す
+      process.stdout.write(`辞書が増えたので、対象外の判断 ${seeded.clearedScreened} 件を捨てた\n`);
+    }
   }
 
   // ポケドラは名前で検索できない (声優はタグで、URL に tag_id が要る)。先に辞書を読む
@@ -653,12 +657,13 @@ const ACTOR_UPSERT_CHUNK = 200;
 async function upsertAllActors(
   client: AdminApiClient,
   seeds: readonly ActorSeed[],
-): Promise<{ actors: number; aliases: number }> {
-  const total = { actors: 0, aliases: 0 };
+): Promise<{ actors: number; aliases: number; clearedScreened: number }> {
+  const total = { actors: 0, aliases: 0, clearedScreened: 0 };
   for (let start = 0; start < seeds.length; start += ACTOR_UPSERT_CHUNK) {
     const result = await client.upsertActors(seeds.slice(start, start + ACTOR_UPSERT_CHUNK));
     total.actors += result.actors;
     total.aliases += result.aliases;
+    total.clearedScreened += result.clearedScreened;
   }
   return total;
 }

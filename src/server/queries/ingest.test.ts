@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { audioCredits, audioWorks, crawlRuns, storeListings } from "../db/schema";
 import { ingest } from "./ingest";
+import { screenedStoreProductIds } from "./screened";
 import { daysAgo, NOW, payload, rawWork, setupDb, UEDA } from "./test-fixtures";
 
 describe("ingest", () => {
@@ -363,6 +364,39 @@ describe("ingest", () => {
     // 捨てた作品の credit も残らない
     const credits = await db.select().from(audioCredits);
     expect(credits.map((credit) => credit.creditedName).sort()).toEqual(["上田麗奈", "知らない人"]);
+  });
+
+  /**
+   * 捨てた作品は `store_listings` に入らないので「既知」にならない。
+   * 覚えておかないと、一覧から消えるまで毎日詳細を引き直すことになる
+   */
+  it("捨てた作品の商品 ID を覚える", async () => {
+    const db = await setupDb();
+    const { voiceActorId: _omitted, ...base } = payload();
+
+    await ingest(
+      db,
+      {
+        ...base,
+        works: [
+          rawWork({ storeProductId: "KEEP", creditedNames: ["上田麗奈"] }),
+          rawWork({ storeProductId: "DROP", creditedNames: ["知らない人"] }),
+        ],
+      },
+      NOW,
+    );
+
+    // 保存した作品は覚えない。`store_listings` にあるので既知として引ける
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["DROP"]);
+  });
+
+  it("声優起点の走行では覚えない", async () => {
+    const db = await setupDb();
+
+    // 声優起点は対象声優が居なくても保存するので、覚える対象が無い
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["知らない人"] })] }), NOW);
+
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual([]);
   });
 
   /** 捨てるのは「保存しない」であって「消す」ではない。削除の経路は持たない */

@@ -78,6 +78,13 @@
       "when": 1789980067856,
       "tag": "0010_perpetual_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789988527290,
+      "tag": "0011_gifted_captain_america",
+      "breakpoints": true
     }
   ]
 }

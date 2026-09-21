@@ -154,13 +154,15 @@ https://www.dlsite.com/{floor}/fsr/=/language/jp/work_type_category[0]/audio/ord
   網羅率として記録すると意味を取り違える
 - **出演者は一覧から取れない。** 代表 1 名すら空の作品があるので、一覧に出た新規 ID は全件
   `product.json` を引く。誰の作品かを決めるのは取り込み側
-- **同じ作品を毎日引き直す。** 詳細を省けるのは DB にある作品だけで、対象声優が居ない作品は
-  保存されない ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
-  一覧から消えるまで毎日 `product.json` を引くので、1 回の走行の往復は**両フロアの一覧の件数に近づく**。
+- **`product.json` を引くのは、一覧に出た作品のうち初めて見たものだけ。** 対象声優が居なくて
+  保存しなかった作品も商品 ID を覚えているので、2 日目以降は引き直さない
+  ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
+  声優の辞書が増えた翌日だけ、一覧のぶんを引き直す。
+  **初日は違う。** 一覧に出た全件を引く。前後の往復の差は
+  [`daily-feed-screened-2026-09-21.md`](../research/daily-feed-screened-2026-09-21.md)。
   一覧に留まる日数はフロアで違う (`/home/` は
   [`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md)、`/garumani/` は
-  [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md))。
-  1 回ぶんの実測は [`dlsite-daily-feed-2026-09-21.md`](../research/dlsite-daily-feed-2026-09-21.md)
+  [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md))
 
 ### 作品詳細 API
 

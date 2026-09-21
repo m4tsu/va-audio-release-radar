@@ -59,7 +59,7 @@ const OPTION_SPEC = {
  * 型を絞ってあるのは、送る形をテストから確かめられるようにするため
  */
 export type IngestTarget = {
-  knownIds(storeSlug: StoreSlug): Promise<Set<string>>;
+  knownIds(storeSlug: StoreSlug, includeScreened?: boolean): Promise<Set<string>>;
   ingest(payload: IngestPayload): Promise<IngestResponse>;
 };
 
@@ -115,7 +115,9 @@ async function loadKnownIds(
   // 送らない走行では引かない。DB に触れずに取得部分だけ試せるようにするため
   if (client === undefined) return undefined;
   try {
-    return await client.knownIds(storeSlug);
+    // 「見たが対象声優が居なかった」作品も混ぜる。混ぜないと一覧から消えるまで
+    // 毎日詳細を引き直すことになる (`src/server/queries/screened.ts`)
+    return await client.knownIds(storeSlug, true);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     warnings.push(`known-ids を取れなかった (${reason})。既知の作品も取り直す`);

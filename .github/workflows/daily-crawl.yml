@@ -37,15 +37,17 @@ jobs:
   daily:
     name: 新着一覧から取り込む
     runs-on: ubuntu-latest
-    # ストアごとに 新着一覧 1 ページ × 入口の数 + 「一覧に出たが DB に無い作品」の詳細。
-    # 後者は新作の数とは違う。対象声優が居ない作品は保存されないので DB に入らず、
-    # 一覧から消えるまで毎日引き直す (docs/stores/dlsite.md と docs/stores/pokedora.md の
+    # ストアごとに 新着一覧 1 ページ × 入口の数 + 「初めて見た作品」の詳細。
+    # 対象声優が居なくて保存しなかった作品も商品 ID を覚えているので、2 日目以降は引き直さない
+    # (docs/stores/dlsite.md と docs/stores/pokedora.md の
     # 「ストア全体の新着一覧」/「新着一覧 (キーワード無し)」)。
+    # 声優の辞書が増えた翌日だけ一覧のぶんを引き直すので、そこが最大になる。
     # 入口の数はストアで違う。DLsite は 2 フロア、ポケドラは 2 区分、
     # Audible は robots が許可する並び順違いの 8 本。
     # Audible だけは一覧に出演者が載るので詳細を引かず、往復が 8 で一定になる。
     # 1 回ぶんの実測は docs/research/dlsite-daily-feed-2026-09-21.md と
-    # docs/research/audible-daily-feed-2026-09-21.md。
+    # docs/research/audible-daily-feed-2026-09-21.md、覚えた後との差は
+    # docs/research/daily-feed-screened-2026-09-21.md。
     # 上限はストアが増えたときの歯止めとして置いている
     timeout-minutes: 30
     steps:

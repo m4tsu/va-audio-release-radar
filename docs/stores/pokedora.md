@@ -76,9 +76,10 @@ https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0&or
   1 ページ 15 件が覆う日数は
   [`pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md) にあり、
   日次はそれより多い件数で引くので窓はより広い
-- **同じ作品を毎日引き直す。** 詳細を省けるのは DB にある作品だけで、対象声優が居ない作品は
-  保存されない ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
-  一覧から消えるまで毎日詳細ページを引く
+- **詳細ページを引くのは、一覧に出た作品のうち初めて見たものだけ。** 対象声優が居なくて
+  保存しなかった作品も商品 ID を覚えているので、2 日目以降は引き直さない
+  ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md)、
+  往復の差は [`daily-feed-screened-2026-09-21.md`](../research/daily-feed-screened-2026-09-21.md))
 - **`div.search_count` の総件数は載せない。** ストア全体の作品数であって新着数ではないので、
   網羅率として記録すると意味を取り違える
 - 実測は [`research/pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md)

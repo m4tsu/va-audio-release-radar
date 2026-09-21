@@ -210,6 +210,35 @@ export const crawlLeases = sqliteTable("crawl_leases", {
   expiresAt: text("expires_at").notNull(),
 });
 
+/**
+ * 新着一覧で見て「対象声優が 1 人も出ていない」と判断した商品。
+ *
+ * 日次の走行はストア全体の新着を引くので、追っていない声優の作品が大量に流れてくる。
+ * それは保存しない (`docs/decisions/0007-daily-crawl-from-store-feeds.md`) が、保存しないと
+ * `store_listings` に入らず「既知」にもならないので、一覧から消えるまで毎日詳細を引き直す。
+ * ここに残して 2 度目以降の詳細取得を省く。
+ *
+ * **作品の情報は持たない。** 持つのは「この商品 ID は見た」という事実だけで、
+ * 出演者の表記も題名も残さない (残さない判断は上の決定記録の「帰結」)。
+ *
+ * 判断の材料は声優の辞書なので、辞書が変わればこの表は捨てる
+ * (`src/server/queries/screened.ts`)。捨てないと、新しく追った声優の既存作品が永久に入らない
+ */
+export const screenedStoreProducts = sqliteTable(
+  "screened_store_products",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    storeSlug: text("store_slug", { enum: STORE_SLUGS }).notNull(),
+    storeProductId: text("store_product_id").notNull(),
+    /** 見た日時。捨てる判断には使っていないが、溜まり方を後から見られるように持つ */
+    screenedAt: text("screened_at").notNull(),
+  },
+  (t) => [
+    // クローラーが引くのはストア単位の ID 一覧。重複も防ぐ
+    uniqueIndex("screened_store_products_store_product_unique").on(t.storeSlug, t.storeProductId),
+  ],
+);
+
 export const crawlRuns = sqliteTable(
   "crawl_runs",
   {

@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, inArray, isNotNull, like, or, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  like,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
 import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
@@ -13,6 +25,7 @@ import {
   voiceActors,
 } from "../db/schema";
 import type { AppDb } from "../db/types";
+import { clearScreened } from "./screened";
 
 /** 一覧・検索結果の 1 行。作品数は声優ページへ行く前の目安として画面に出す */
 export type ActorSummary = {
@@ -64,8 +77,10 @@ export async function upsertActors(
   db: AppDb,
   actors: ActorSeed[],
   now: string = new Date().toISOString(),
-): Promise<{ actors: number; aliases: number }> {
+): Promise<{ actors: number; aliases: number; clearedScreened: number }> {
   let aliasCount = 0;
+  // 「対象声優が居ない」の判断は辞書に対するもの。増えたかどうかを入れる前に数える
+  const before = await dictionarySize(db);
 
   for (const actor of actors) {
     await db
@@ -113,7 +128,19 @@ export async function upsertActors(
     }
   }
 
-  return { actors: actors.length, aliases: aliasCount };
+  // 声優か別名が増えたら、過去の「対象外」の判断を捨てる。
+  // 捨てないと、新しく追い始めた声優の既存作品が新着一覧から永久に入らない
+  const after = await dictionarySize(db);
+  const clearedScreened = after > before ? await clearScreened(db) : 0;
+
+  return { actors: actors.length, aliases: aliasCount, clearedScreened };
+}
+
+/** 名寄せに使う辞書の行数。声優と別名の合計 */
+async function dictionarySize(db: AppDb): Promise<number> {
+  const [actors] = await db.select({ count: count() }).from(voiceActors);
+  const [aliases] = await db.select({ count: count() }).from(voiceActorAliases);
+  return (actors?.count ?? 0) + (aliases?.count ?? 0);
 }
 
 /**

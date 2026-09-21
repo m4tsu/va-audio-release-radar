@@ -29,7 +29,15 @@ export type IngestResponse = {
   skippedByNoTargetActor: number;
 };
 
-export type UpsertActorsResponse = { actors: number; aliases: number };
+export type UpsertActorsResponse = {
+  actors: number;
+  aliases: number;
+  /**
+   * 辞書が増えたので捨てた「対象外」の判断の数。
+   * 次の日次は、捨てたぶんの詳細を引き直す (`src/server/queries/screened.ts`)
+   */
+  clearedScreened: number;
+};
 
 /** 対象声優リスト (`crawler/actors.generated.json`) の 1 件。検証そのものはサーバー側の zod に任せる */
 export type ActorSeed = {
@@ -120,9 +128,16 @@ export class AdminApiClient {
     return this.#send<IngestResponse>("POST", "/api/admin/ingest", payload);
   }
 
-  /** 既に DB にある商品 ID。DLsite の詳細取得を新規だけに絞るために使う */
-  async knownIds(storeSlug: StoreSlug): Promise<Set<string>> {
-    const ids = await this.#send<unknown>("GET", `/api/admin/known-ids?store=${storeSlug}`);
+  /**
+   * 詳細取得を省いてよい商品 ID。
+   *
+   * 既定は「DB にある作品」だけ。`includeScreened` を立てると「見たが対象声優が
+   * 居なかった作品」も混ざる。混ぜてよいのは日次の走行だけで、声優起点は対象声優が
+   * 居なくても保存するので、混ぜると一覧の情報だけで保存してしまう
+   */
+  async knownIds(storeSlug: StoreSlug, includeScreened = false): Promise<Set<string>> {
+    const query = `store=${storeSlug}${includeScreened ? "&screened=1" : ""}`;
+    const ids = await this.#send<unknown>("GET", `/api/admin/known-ids?${query}`);
     if (!Array.isArray(ids)) throw new AdminApiError("known-ids が配列を返さなかった");
     return new Set(ids.filter((id): id is string => typeof id === "string"));
   }

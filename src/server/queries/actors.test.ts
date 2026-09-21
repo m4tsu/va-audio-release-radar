@@ -9,6 +9,7 @@ import {
   upsertActors,
 } from "./actors";
 import { ingest } from "./ingest";
+import { recordScreened, screenedStoreProductIds } from "./screened";
 import {
   daysAgo,
   giveEachActorAnAnime,
@@ -46,6 +47,47 @@ describe("upsertActors", () => {
     const actor = await getActorBySlug(db, UEDA.slug);
     expect(actor?.status).toBe("inactive");
     expect(actor?.aliases).toHaveLength(1);
+  });
+
+  /**
+   * 「対象声優が 1 人も居ない」は辞書に対する判断なので、辞書が増えれば答えが変わる。
+   * 捨てないと、新しく追い始めた声優の既存作品が新着一覧から永久に入らない
+   */
+  it("声優が増えたら、過去の「対象外」の判断を捨てる", async () => {
+    const db = await setupDb([]);
+    await upsertActors(db, [UEDA], NOW);
+    await recordScreened(db, "dlsite", ["RJ1", "RJ2"], NOW);
+
+    const result = await upsertActors(db, [UEDA, HANAZAWA], NOW);
+
+    expect(result.clearedScreened).toBe(2);
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual([]);
+  });
+
+  it("別名が増えたときも捨てる", async () => {
+    const db = await setupDb([]);
+    await upsertActors(db, [UEDA], NOW);
+    await recordScreened(db, "dlsite", ["RJ1"], NOW);
+
+    const result = await upsertActors(
+      db,
+      [{ ...UEDA, aliases: [{ name: "上田 麗奈", source: "manual", verified: true }] }],
+      NOW,
+    );
+
+    expect(result.clearedScreened).toBe(1);
+  });
+
+  // 同じ辞書で呼び直しただけなら答えは変わらない。捨てると往復が無駄に増える
+  it("辞書が変わらなければ捨てない", async () => {
+    const db = await setupDb([]);
+    await upsertActors(db, [UEDA], NOW);
+    await recordScreened(db, "dlsite", ["RJ1"], NOW);
+
+    const result = await upsertActors(db, [UEDA], NOW);
+
+    expect(result.clearedScreened).toBe(0);
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["RJ1"]);
   });
 });
 

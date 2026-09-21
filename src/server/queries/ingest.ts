@@ -14,6 +14,7 @@ import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings } from "../db/schema";
 import type { AppDb, BatchStatements } from "../db/types";
 import { loadActorIndex } from "./actors";
+import { recordScreened } from "./screened";
 
 /**
  * 1 回の `db.batch` に入れる文の数。D1 の batch は 1 トランザクションとして送られるので
@@ -105,6 +106,19 @@ export async function ingest(
       )
     : resolvedByWork;
   result.skippedByNoTargetActor = resolvedByWork.length - kept.length;
+
+  // 捨てた商品 ID を覚えて、翌日以降に詳細を引き直さないようにする。
+  // 保存しない作品は `store_listings` に入らないので、これが無いと一覧から消えるまで
+  // 毎日引き直すことになる (`src/server/queries/screened.ts`)
+  if (isFeedRun && result.skippedByNoTargetActor > 0) {
+    const keptIds = new Set(kept.map((item) => item.work.storeProductId));
+    await recordScreened(
+      db,
+      payload.storeSlug,
+      resolvedByWork.map((item) => item.work.storeProductId).filter((id) => !keptIds.has(id)),
+      now,
+    );
+  }
 
   const works = kept.map((item) => item.work);
   result.upserted = works.length;
