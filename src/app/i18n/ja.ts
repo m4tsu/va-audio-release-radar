@@ -303,10 +303,14 @@ export const ja = {
     unauthorizedMissing:
       "サーバーに ADMIN_TOKEN が設定されていない。`wrangler secret put ADMIN_TOKEN` (ローカルは .dev.vars) で設定すること。",
 
+    /** 管理画面どうしの行き来。どの画面から出しても同じ文言なので、行き先の名前で持つ */
+    toHealth: "クローラー健全性へ",
+    toUnmatched: "未解決クレジットへ",
+    toInquiries: "問い合わせへ",
+
     healthMetaTitle: "クローラー健全性 | 管理",
     healthTitle: "クローラー健全性",
     healthSummary: "直近 24 時間: 成功 {{ok}} / 失敗 {{error}}。要対応 {{warnings}} 件。",
-    healthToUnmatched: "未解決クレジットへ",
     healthEmpty: "まだクロールの記録がない。",
     healthColumnActor: "声優",
     /** 声優に紐付かない走行 (ストアの新着一覧) の行に出す */
@@ -326,7 +330,6 @@ export const ja = {
     unmatchedMetaTitle: "未解決クレジット | 管理",
     unmatchedTitle: "未解決クレジット",
     unmatchedSummary: "{{count}} 件の表記が声優に結び付いていない。",
-    unmatchedToHealth: "クローラー健全性へ",
     unmatchedEmpty: "未解決の表記はない。",
     unmatchedCount: "{{count}} 件",
     unmatchedCandidate: "候補:",
@@ -339,6 +342,27 @@ export const ja = {
     unmatchedSaving: "割り当て中…",
     unmatchedSubmit: "{{count}} 件を割り当てる",
     unmatchedError: "割り当てに失敗した",
+
+    inquiriesMetaTitle: "問い合わせ | 管理",
+    inquiriesTitle: "問い合わせ",
+    inquiriesSummary: "新しい順。このページに {{count}} 件。",
+    inquiriesEmpty: "まだ問い合わせは届いていない。",
+    inquiriesColumnReceivedAt: "受け取った日時",
+    inquiriesColumnKind: "種別",
+    inquiriesColumnBody: "本文",
+    inquiriesColumnContact: "連絡先",
+    /** 連絡先は任意。空欄のままにせず、書かれなかったことが読めるようにする */
+    inquiriesNoContact: "未記入",
+    /** 送信者が選んだ種別。`INQUIRY_KINDS` と同じ綴りで引く */
+    inquiryKind: {
+      request: "要望",
+      bug: "不具合",
+      other: "その他",
+    },
+    inquiriesPagination: "問い合わせのページ送り",
+    inquiriesPage: "{{page}} ページ目",
+    inquiriesPrev: "前のページ",
+    inquiriesNext: "次のページ",
   },
 } as const;
 

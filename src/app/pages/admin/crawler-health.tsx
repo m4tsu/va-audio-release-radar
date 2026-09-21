@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AdminUnauthorized } from "@/app/components/admin-gate";
+import { AdminNav, AdminUnauthorized } from "@/app/components/admin-gate";
 import { PageHeader } from "@/app/components/page-header";
 import { storeLabel } from "@/app/components/store-badge";
 import { Badge } from "@/app/components/ui/badge";
@@ -43,11 +43,7 @@ export function CrawlerHealthPage(props: CrawlerHealthPageProps) {
           error: last24h.error,
           warnings,
         })}
-        actions={
-          <Link to="/admin/unmatched-credits" className="text-sm underline underline-offset-4">
-            {t("admin.healthToUnmatched")}
-          </Link>
-        }
+        actions={<AdminNav current="health" />}
       />
 
       {entries.length === 0 ? (

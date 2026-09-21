@@ -132,12 +132,17 @@ describe("CrawlerHealthPage の表", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  test("もう 1 つの管理画面への導線を置く", () => {
+  test("他の管理画面への導線を置き、自分自身へは出さない", () => {
     renderWithLocale(<CrawlerHealthPage authorized health={crawlerHealth()} />);
 
     expect(screen.getByRole("link", { name: "未解決クレジットへ" })).toHaveAttribute(
       "href",
       "/admin/unmatched-credits",
     );
+    expect(screen.getByRole("link", { name: "問い合わせへ" })).toHaveAttribute(
+      "href",
+      "/admin/inquiries",
+    );
+    expect(screen.queryByRole("link", { name: "クローラー健全性へ" })).not.toBeInTheDocument();
   });
 });

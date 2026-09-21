@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/app/components/page-header";
 import { useT } from "@/app/i18n";
 
@@ -17,5 +18,29 @@ export function AdminUnauthorized({ configured }: { configured: boolean }) {
         {configured ? t("admin.unauthorizedConfigured") : t("admin.unauthorizedMissing")}
       </p>
     </div>
+  );
+}
+
+/**
+ * 管理画面どうしの行き来。画面が増えるたびに各ページが互いへのリンクを持つと
+ * 組み合わせの数だけ書き足すことになるので、行き先の一覧をここ 1 か所に置く
+ */
+const ADMIN_PAGES = [
+  { key: "health", to: "/admin/crawler-health", label: "admin.toHealth" },
+  { key: "unmatched", to: "/admin/unmatched-credits", label: "admin.toUnmatched" },
+  { key: "inquiries", to: "/admin/inquiries", label: "admin.toInquiries" },
+] as const;
+
+/** 今いる画面は出さない。自分自身へのリンクは行き先にならない */
+export function AdminNav({ current }: { current: (typeof ADMIN_PAGES)[number]["key"] }) {
+  const t = useT();
+  return (
+    <>
+      {ADMIN_PAGES.filter((page) => page.key !== current).map((page) => (
+        <Link key={page.key} to={page.to} className="text-sm underline underline-offset-4">
+          {t(page.label)}
+        </Link>
+      ))}
+    </>
   );
 }

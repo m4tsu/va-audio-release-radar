@@ -11,19 +11,32 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
  */
 
 /**
- * `to` のパスパラメータを `params` で埋める。
+ * `to` のパスパラメータを `params` で埋め、`search` を検索文字列として付ける。
  *
  * 実物と違って符号化はしない。`/works/$id` に "dlsite:RJ1" を渡すと
  * "/works/dlsite:RJ1" になる。テストで見たいのは行き先であって URL の符号化ではなく、
  * 符号化された形は e2e (sitemap と作品ページ) が見ている
  */
-export function resolveHref(to: string, params?: Record<string, string>): string {
-  return to.replace(/\$([A-Za-z0-9_]+)/g, (whole, key: string) => params?.[key] ?? whole);
+export function resolveHref(
+  to: string,
+  params?: Record<string, string>,
+  search?: Record<string, unknown>,
+): string {
+  const path = to.replace(/\$([A-Za-z0-9_]+)/g, (whole, key: string) => params?.[key] ?? whole);
+  // 実物は既定値と同じ欄を URL から省くが、ここでは渡された欄をそのまま並べる。
+  // どの欄を省くかを決めるのはルートの validateSearch で、リンクを描く側の仕事ではない
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(search ?? {})) {
+    if (value !== undefined) query.set(key, String(value));
+  }
+  const suffix = query.toString();
+  return suffix ? `${path}?${suffix}` : path;
 }
 
 type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
   to: string;
   params?: Record<string, string>;
+  search?: Record<string, unknown>;
   children?: ReactNode;
   /** 実物が現在地に応じて付け替える props。どこに居るかを持たないので受け取って捨てる */
   activeProps?: { className?: string };
@@ -34,6 +47,7 @@ type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
 export function Link({
   to,
   params,
+  search,
   activeProps,
   inactiveProps,
   activeOptions,
@@ -43,7 +57,7 @@ export function Link({
   void activeProps;
   void inactiveProps;
   void activeOptions;
-  return <a href={resolveHref(to, params)} {...rest} />;
+  return <a href={resolveHref(to, params, search)} {...rest} />;
 }
 
 /** `useRouter().invalidate()` が呼ばれた回数。再取得を促したかをテストから読む */

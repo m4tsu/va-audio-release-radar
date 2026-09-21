@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AdminUnauthorized } from "@/app/components/admin-gate";
+import { AdminNav, AdminUnauthorized } from "@/app/components/admin-gate";
 import { AssignCreditForm } from "@/app/components/assign-credit-form";
 import { PageHeader } from "@/app/components/page-header";
 import { storeLabel } from "@/app/components/store-badge";
@@ -29,11 +29,7 @@ export function UnmatchedCreditsPage(props: UnmatchedCreditsPageProps) {
       <PageHeader
         title={t("admin.unmatchedTitle")}
         description={t("admin.unmatchedSummary", { count: groups.length })}
-        actions={
-          <Link to="/admin/crawler-health" className="text-sm underline underline-offset-4">
-            {t("admin.unmatchedToHealth")}
-          </Link>
-        }
+        actions={<AdminNav current="unmatched" />}
       />
 
       {groups.length === 0 ? (

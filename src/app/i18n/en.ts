@@ -262,12 +262,15 @@ export const en: Translations = {
     unauthorizedMissing:
       "ADMIN_TOKEN is not set on the server. Set it with `wrangler secret put ADMIN_TOKEN` (or .dev.vars locally).",
 
+    toHealth: "Go to crawler health",
+    toUnmatched: "Go to unmatched credits",
+    toInquiries: "Go to inquiries",
+
     healthMetaTitle: "Crawler health | Admin",
     healthTitle: "Crawler health",
     // 件数が 1 でも 0 でも通る書き方にする (複数形の選択は count を渡すキーでしか効かない)
     healthSummary:
       "Last 24 hours: {{ok}} succeeded / {{error}} failed. Needs attention: {{warnings}}.",
-    healthToUnmatched: "Go to unmatched credits",
     healthEmpty: "No crawl has been recorded yet.",
     healthColumnActor: "Voice actor",
     healthFeedRun: "New releases feed",
@@ -289,7 +292,6 @@ export const en: Translations = {
       one: "{{count}} credited name is not linked to a voice actor.",
       other: "{{count}} credited names are not linked to a voice actor.",
     },
-    unmatchedToHealth: "Go to crawler health",
     unmatchedEmpty: "There are no unmatched names.",
     unmatchedCount: { one: "{{count}} work", other: "{{count}} works" },
     unmatchedCandidate: "Candidate:",
@@ -302,5 +304,27 @@ export const en: Translations = {
     unmatchedSaving: "Assigning…",
     unmatchedSubmit: { one: "Assign {{count}} work", other: "Assign {{count}} works" },
     unmatchedError: "Could not assign",
+
+    inquiriesMetaTitle: "Inquiries | Admin",
+    inquiriesTitle: "Inquiries",
+    inquiriesSummary: {
+      one: "Newest first. {{count}} inquiry on this page.",
+      other: "Newest first. {{count}} inquiries on this page.",
+    },
+    inquiriesEmpty: "No inquiry has arrived yet.",
+    inquiriesColumnReceivedAt: "Received",
+    inquiriesColumnKind: "Kind",
+    inquiriesColumnBody: "Message",
+    inquiriesColumnContact: "Contact",
+    inquiriesNoContact: "Not provided",
+    inquiryKind: {
+      request: "Request",
+      bug: "Bug",
+      other: "Other",
+    },
+    inquiriesPagination: "Inquiry pages",
+    inquiriesPage: "Page {{page}}",
+    inquiriesPrev: "Previous page",
+    inquiriesNext: "Next page",
   },
 };

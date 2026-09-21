@@ -16,6 +16,7 @@ import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminCrawlerHealthRouteImport } from './routes/admin/crawler-health'
+import { Route as AdminInquiriesRouteImport } from './routes/admin/inquiries'
 import { Route as AdminUnmatchedCreditsRouteImport } from './routes/admin/unmatched-credits'
 import { Route as AnimeIndexRouteImport } from './routes/anime.index'
 import { Route as AnimeSlugRouteImport } from './routes/anime.$slug'
@@ -62,6 +63,11 @@ const TermsRoute = TermsRouteImport.update({
 const AdminCrawlerHealthRoute = AdminCrawlerHealthRouteImport.update({
   id: '/admin/crawler-health',
   path: '/admin/crawler-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminInquiriesRoute = AdminInquiriesRouteImport.update({
+  id: '/admin/inquiries',
+  path: '/admin/inquiries',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUnmatchedCreditsRoute = AdminUnmatchedCreditsRouteImport.update({
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
+  '/admin/inquiries': typeof AdminInquiriesRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
   '/api/health': typeof ApiHealthRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
+  '/admin/inquiries': typeof AdminInquiriesRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
   '/api/health': typeof ApiHealthRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/admin/crawler-health': typeof AdminCrawlerHealthRoute
+  '/admin/inquiries': typeof AdminInquiriesRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
   '/api/health': typeof ApiHealthRoute
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/terms'
     | '/admin/crawler-health'
+    | '/admin/inquiries'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
     | '/api/health'
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/terms'
     | '/admin/crawler-health'
+    | '/admin/inquiries'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
     | '/api/health'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/terms'
     | '/admin/crawler-health'
+    | '/admin/inquiries'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
     | '/api/health'
@@ -263,6 +275,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   AdminCrawlerHealthRoute: typeof AdminCrawlerHealthRoute
+  AdminInquiriesRoute: typeof AdminInquiriesRoute
   AdminUnmatchedCreditsRoute: typeof AdminUnmatchedCreditsRoute
   AnimeSlugRoute: typeof AnimeSlugRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -326,6 +339,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/crawler-health'
       fullPath: '/admin/crawler-health'
       preLoaderRoute: typeof AdminCrawlerHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/inquiries': {
+      id: '/admin/inquiries'
+      path: '/admin/inquiries'
+      fullPath: '/admin/inquiries'
+      preLoaderRoute: typeof AdminInquiriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/unmatched-credits': {
@@ -423,6 +443,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   AdminCrawlerHealthRoute: AdminCrawlerHealthRoute,
+  AdminInquiriesRoute: AdminInquiriesRoute,
   AdminUnmatchedCreditsRoute: AdminUnmatchedCreditsRoute,
   AnimeSlugRoute: AnimeSlugRoute,
   ApiHealthRoute: ApiHealthRoute,

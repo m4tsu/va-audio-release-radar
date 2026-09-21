@@ -46,4 +46,18 @@ describe("UnmatchedCreditsPage の一覧", () => {
 
     expect(screen.getByText("未解決の表記はない。")).toBeInTheDocument();
   });
+
+  test("他の管理画面への導線を置き、自分自身へは出さない", () => {
+    renderWithLocale(<UnmatchedCreditsPage authorized groups={[]} actors={ACTORS} />);
+
+    expect(screen.getByRole("link", { name: "クローラー健全性へ" })).toHaveAttribute(
+      "href",
+      "/admin/crawler-health",
+    );
+    expect(screen.getByRole("link", { name: "問い合わせへ" })).toHaveAttribute(
+      "href",
+      "/admin/inquiries",
+    );
+    expect(screen.queryByRole("link", { name: "未解決クレジットへ" })).not.toBeInTheDocument();
+  });
 });

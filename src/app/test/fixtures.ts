@@ -18,6 +18,7 @@ import type {
   WorkSummary,
   WorkWithListings,
 } from "@/app/lib/view-types";
+import type { Inquiry } from "@/domain/types";
 
 /**
  * 画面のテストが使うデータ。
@@ -204,6 +205,21 @@ export function crawlerHealth(over: Partial<CrawlerHealth> = {}): CrawlerHealth 
   return {
     entries: [crawlerHealthEntry()],
     last24h: { ok: 1, error: 0 },
+    ...over,
+  };
+}
+
+/**
+ * 届いた問い合わせ 1 件。型の正は `@/domain/types` (表と送信の検証が同じ形を共有する)。
+ * 連絡先は任意なので、未記入の行を作るテストは `contact` を上書きで消す
+ */
+export function inquiry(over: Partial<Inquiry> = {}): Inquiry {
+  return {
+    id: 1,
+    kind: "request",
+    body: "架空の問い合わせ本文",
+    contact: "kakuu@example.com",
+    receivedAt: NOW,
     ...over,
   };
 }
