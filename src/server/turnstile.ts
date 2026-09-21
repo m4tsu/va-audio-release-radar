@@ -11,8 +11,11 @@
 /** Cloudflare の検証エンドポイント。Worker からの外部アクセスはここだけ */
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-/** 失敗の理由は Cloudflare が返す識別子をそのまま持つ。画面には出さず、運用で読むためのもの */
+/** 失敗の理由は Cloudflare が返す識別子をそのまま持つ。画面には出さず、運用のログで読むためのもの */
 export type TurnstileResult = { ok: true } | { ok: false; errorCodes: string[] };
+
+/** Cloudflare の応答のうち、判定に使う部分だけ */
+type SiteverifyBody = { success?: boolean; "error-codes"?: string[] };
 
 /**
  * トークンを Cloudflare に問い合わせて確かめる。
@@ -38,7 +41,8 @@ export async function verifyTurnstile(
   // Cloudflare 側が落ちているときに「検証を通った」とは扱わない
   if (!response.ok) return { ok: false, errorCodes: [`http-${response.status}`] };
 
-  const body = (await response.json()) as { success?: boolean; "error-codes"?: string[] };
-  if (body.success === true) return { ok: true };
-  return { ok: false, errorCodes: body["error-codes"] ?? [] };
+  // 200 でも JSON とは限らない (間に割り込む代理サーバーなど)。読めないものは通っていない扱い
+  const body: SiteverifyBody | null = await response.json<SiteverifyBody>().catch(() => null);
+  if (body?.success === true) return { ok: true };
+  return { ok: false, errorCodes: body?.["error-codes"] ?? ["invalid-json"] };
 }

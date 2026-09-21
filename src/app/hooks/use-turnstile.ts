@@ -81,26 +81,33 @@ export function useTurnstile(siteKey: string | null): Turnstile {
 }
 
 /**
+ * 読み込みの決着。`load` と `error` は 1 度しか起きないので、
+ * 既にある `<script>` に後から待ち受けを足しても二度と呼ばれない。
+ * 決着そのものをここに覚えておき、同じ画面を開き直したときは同じ約束を待つ
+ */
+let loading: Promise<void> | undefined;
+
+/**
  * スクリプトを 1 度だけ読み込む。読み込みに失敗しても解決する
- * (トークンが出ないので送信が止まる。画面を例外で落とすほどのことではない)
+ * (トークンが出ないので送信が止まる。画面を例外で落とすほどのことではない)。
+ * 失敗したときは次の呼び出しで読み込み直す。一時的な失敗のまま固まらないようにする
  */
 async function loadTurnstile(): Promise<TurnstileApi | undefined> {
   if (typeof window === "undefined") return undefined;
   if (window.turnstile) return window.turnstile;
 
-  await new Promise<void>((resolve) => {
-    const existing = document.getElementById(SCRIPT_ID);
-    const script = existing ?? document.createElement("script");
+  loading ??= new Promise<void>((resolve) => {
+    const script = document.createElement("script");
+    script.id = SCRIPT_ID;
+    script.src = SCRIPT_SRC;
+    script.async = true;
     script.addEventListener("load", () => resolve(), { once: true });
     script.addEventListener("error", () => resolve(), { once: true });
-    if (existing) return;
-
-    const added = script as HTMLScriptElement;
-    added.id = SCRIPT_ID;
-    added.src = SCRIPT_SRC;
-    added.async = true;
-    document.head.appendChild(added);
+    document.getElementById(SCRIPT_ID)?.remove();
+    document.head.appendChild(script);
   });
 
+  await loading;
+  if (!window.turnstile) loading = undefined;
   return window.turnstile;
 }

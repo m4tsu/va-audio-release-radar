@@ -7,6 +7,7 @@ import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { useTurnstile } from "@/app/hooks/use-turnstile";
 import { type PlainTKey, type TranslateFn, useT } from "@/app/i18n";
+import type { InquiryRejection } from "@/app/server-fns/inquiries";
 import { submitInquiryFn } from "@/app/server-fns/inquiries";
 import {
   INQUIRY_BODY_MAX_LENGTH,
@@ -64,14 +65,24 @@ export function InquiryForm({ turnstileSiteKey }: { turnstileSiteKey: string | n
 
     setState({ phase: "sending" });
     try {
-      await submitInquiryFn({ data: { ...parsed.data, turnstileToken: turnstile.token } });
+      const result = await submitInquiryFn({
+        data: { ...parsed.data, turnstileToken: turnstile.token },
+      });
+      // トークンは 1 回しか使えない。受け付けられても弾かれても、次の送信には新しい組が要る
+      turnstile.reset();
+      if (!result.accepted) {
+        setState({ phase: "error", message: rejectionMessage(result.reason, t) });
+        return;
+      }
+      setKind("request");
       setBody("");
       setContact("");
-      // トークンは 1 回しか使えない。続けて送れるように widget を引き直す
-      turnstile.reset();
       setState({ phase: "accepted" });
     } catch (error) {
-      setState({ phase: "error", message: failureMessage(error, t) });
+      // 通信そのものが失敗したとき。理由は利用者に出せる形ではないので畳む
+      void error;
+      turnstile.reset();
+      setState({ phase: "error", message: t("contact.errorFailed") });
     }
   };
 
@@ -170,24 +181,9 @@ function invalidInputMessage(error: ZodError, t: TranslateFn): string {
 }
 
 /**
- * サーバーが拒んだ理由を画面の言葉にする。
- * 503 (鍵が置かれていない) と 403 (検証を通らなかった) は直し方が違うので分ける
+ * サーバーが受け付けなかった理由を画面の言葉にする。
+ * 鍵が置かれていないのと検証を通らなかったのでは、利用者が次にできることが違う
  */
-function failureMessage(error: unknown, t: TranslateFn): string {
-  switch (statusOf(error)) {
-    case 503:
-      return t("contact.errorUnavailable");
-    case 403:
-      return t("contact.errorRejected");
-    default:
-      return t("contact.errorFailed");
-  }
-}
-
-/** 投げられたものから HTTP の状態コードを取る。Response のことも、それを包んだ例外のこともある */
-function statusOf(error: unknown): number | undefined {
-  if (error instanceof Response) return error.status;
-  if (typeof error !== "object" || error === null) return undefined;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === "number" ? status : undefined;
+function rejectionMessage(reason: InquiryRejection, t: TranslateFn): string {
+  return reason === "unconfigured" ? t("contact.errorUnavailable") : t("contact.errorRejected");
 }

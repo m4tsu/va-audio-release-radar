@@ -36,6 +36,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           buildUrl(origin, "/anime"),
           buildUrl(origin, "/terms"),
           buildUrl(origin, "/privacy"),
+          buildUrl(origin, "/contact"),
           // 出せる作品が 1 件も無いシーズンは listSeasonsWithAnime が返さないので、
           // 空の一覧が sitemap に載ることはない
           ...seasons.map((entry) =>

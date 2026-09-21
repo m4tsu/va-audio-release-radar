@@ -5,7 +5,9 @@ import { InquiryForm } from "@/app/components/inquiry-form";
 import { renderWithLocale } from "@/app/test/render";
 import { INQUIRY_BODY_MAX_LENGTH, INQUIRY_CONTACT_MAX_LENGTH } from "@/domain/types";
 
-const submitInquiryFn = vi.fn<(input: unknown) => Promise<unknown>>(async () => undefined);
+const submitInquiryFn = vi.fn<(input: unknown) => Promise<unknown>>(async () => ({
+  accepted: true,
+}));
 vi.mock("@/app/server-fns/inquiries", () => ({
   submitInquiryFn: (input: unknown) => submitInquiryFn(input),
 }));
@@ -27,7 +29,7 @@ const SITE_KEY = "test-site-key";
 
 beforeEach(() => {
   submitInquiryFn.mockReset();
-  submitInquiryFn.mockResolvedValue(undefined);
+  submitInquiryFn.mockResolvedValue({ accepted: true });
   turnstile.render.mockClear();
   turnstile.reset.mockClear();
   turnstile.remove.mockClear();
@@ -94,6 +96,7 @@ describe("InquiryForm の送信", () => {
     );
     expect(body()).toHaveValue("");
     expect(screen.getByLabelText("連絡先 (任意)")).toHaveValue("");
+    expect(screen.getByLabelText("種別")).toHaveValue("request");
     // トークンは 1 回しか使えないので widget を引き直す
     expect(turnstile.reset).toHaveBeenCalled();
   });
@@ -181,11 +184,11 @@ describe("InquiryForm が送らない場合", () => {
   });
 });
 
-describe("InquiryForm がサーバーに拒まれたとき", () => {
-  /** 503 は鍵の置き忘れ、403 は検証を通らなかったとき。直し方が違うので別の文言にする */
-  test("503 なら受け付けの設定が無いことを伝える", async () => {
+describe("InquiryForm が受け付けられなかったとき", () => {
+  /** 鍵の置き忘れと検証の失敗では、利用者が次にできることが違うので別の文言にする */
+  test("鍵が置かれていなければ受け付けの設定が無いことを伝える", async () => {
     const user = userEvent.setup();
-    submitInquiryFn.mockRejectedValue(new Response("", { status: 503 }));
+    submitInquiryFn.mockResolvedValue({ accepted: false, reason: "unconfigured" });
     await renderReady();
 
     await user.type(body(), "要望");
@@ -194,11 +197,14 @@ describe("InquiryForm がサーバーに拒まれたとき", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "お問い合わせの受け付けが設定されていません。",
     );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // 書いたものは消さない。送り直せなくなる
+    expect(body()).toHaveValue("要望");
   });
 
-  test("403 なら bot 対策を通らなかったことを伝える", async () => {
+  test("検証を通らなければそのことを伝え、widget を引き直す", async () => {
     const user = userEvent.setup();
-    submitInquiryFn.mockRejectedValue(new Response("", { status: 403 }));
+    submitInquiryFn.mockResolvedValue({ accepted: false, reason: "rejected" });
     await renderReady();
 
     await user.type(body(), "要望");
@@ -207,9 +213,10 @@ describe("InquiryForm がサーバーに拒まれたとき", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "bot 対策の確認を通りませんでした。",
     );
+    expect(turnstile.reset).toHaveBeenCalled();
   });
 
-  test("状態コードが読めない失敗はまとめて伝える", async () => {
+  test("通信そのものが失敗したらまとめて伝える", async () => {
     const user = userEvent.setup();
     submitInquiryFn.mockRejectedValue(new Error("架空の失敗"));
     await renderReady();
