@@ -28,6 +28,7 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:export:local": "node --no-warnings scripts/d1-export-local.mjs",
+    "db:export:actors": "node --no-warnings scripts/d1-export-actors.mjs",
     "db:restore:local": "node --no-warnings scripts/d1-restore-local.mjs",
     "db:import:remote": "wrangler d1 execute DB --remote --file",
     "db:counts": "node --no-warnings scripts/d1-counts.mjs",

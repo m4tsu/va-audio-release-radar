@@ -28,7 +28,7 @@ import {
 } from "./d1-data.mjs";
 
 /** マイグレーションの SQL を 1 つにつなぐ。索引の本数を数えるため */
-function readMigrationSql(dir) {
+export function readMigrationSql(dir) {
   return readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .sort()

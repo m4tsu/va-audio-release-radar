@@ -67,6 +67,7 @@ node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,pri
 | `npm run db:generate` | スキーマの差分から `migrations/*.sql` を生成する。続けて適用まで行う |
 | `npm run db:migrate:local` / `db:migrate:remote` | ローカル / 本番 D1 に適用 |
 | `npm run db:export:local` | 手元の D1 の中身を本番に流し込める SQL に書き出す (既定で Audible を除く。理由は「本番 D1」) |
+| `npm run db:export:actors` | 生成済みの声優リストから、既に D1 に居る声優のかな・ローマ字・性別を埋める SQL を書き出す (「本番 D1」) |
 | `npm run db:import:remote -- <file>` | 書き出した SQL を本番 D1 に流し込む。人が実行する |
 | `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す (「本番 D1」)。中身はすべて入れ替わる |
 | `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
@@ -128,6 +129,31 @@ npm run db:counts -- --remote
   この層は月次では戻らない
 - 流し込みは wrangler が 1 つの取り込みとして行い、途中で失敗すれば元の状態に戻る (wrangler がその旨を表示する)。
   失敗したら原因を直して同じファイルを流し直す
+
+### 本番の声優のかな・ローマ字・性別を埋める
+
+生成済みの声優リスト (`crawler/actors.generated.json`) から、本番に既に居る声優の `name_kana` /
+`name_en` / `gender` を埋める。かなでの検索、英語表示のローマ字の名前と A-Z の索引、
+声優一覧の性別の絞り込みは、この 3 列を見る。
+
+書き出すのは `UPDATE` だけで、行を作らず、消さず、別名義の表には触れない
+(`scripts/d1-export-actors.mjs`)。リストが値を持たない列は `SET` に入れないので、
+本番に既に入っている値は消えない。
+
+```bash
+npx wrangler d1 execute DB --remote --command \
+  "select count(name_kana) kana, count(name_en) en, sum(gender = 'unknown') unknown from voice_actors"
+npm run db:export:actors                 # work/d1-export/actors.sql に書く
+npm run db:import:remote -- work/d1-export/actors.sql
+npx wrangler d1 execute DB --remote --command \
+  "select count(name_kana) kana, count(name_en) en, sum(gender = 'unknown') unknown from voice_actors"
+```
+
+- 書き出しに出る「合計」が 1 日に書ける行数の上限に収まることを、流す前に確かめる
+  (見方は「手元のデータを本番へ移す」と同じ)
+- リストに居て本番に居ない声優の文は 0 行更新で通る。本番に声優の行を足すのは取り込み API
+  (`src/server/queries/actors.ts` の `upsertActors`) の役目で、この SQL ではない
+- 流した後も残る空欄は、リスト側が値を持たないぶん
 
 ### プランの確認
 
