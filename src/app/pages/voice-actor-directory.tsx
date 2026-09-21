@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActorSearch } from "@/app/components/actor-search";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
@@ -48,7 +48,7 @@ export function VoiceActorDirectoryPage({ actors }: { actors: ActorSummary[] }) 
 /**
  * 開いた直後に描く人数。
  *
- * 1 行のマークアップは中身の数十倍あるので、2,000 人規模を全部描くと HTML が数 MB になり、
+ * 1 行のマークアップは中身の数十倍あるので、全員を描くと HTML が数 MB になり、
  * その全部をハイドレートすることになる。データは全員ぶん手元にあるので、押せば取得せずに出せる
  */
 const INITIAL_VISIBLE = 100;
@@ -67,6 +67,7 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
   const [initial, setInitial] = useState<string | null>(null);
   // 一度押したら以後は解かない。並べ替えや絞り込みのたびに畳み直すと、押した操作が無かったことになる
   const [expanded, setExpanded] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
   const initials = useMemo(
     () => availableInitials(actors, { store, locale }),
     [actors, store, locale],
@@ -75,9 +76,20 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
     () => arrangeActors(actors, { sort, store, initial, locale }),
     [actors, sort, store, initial, locale],
   );
-  // 切るのは並べ替えと絞り込みを通した後。先に切ると、上位 100 人の中だけを並べ替えることになる
+  // 切るのは並べ替えと絞り込みを通した後。先に切ると、切り取った中だけを並べ替えることになる
   const visible = expanded ? shown : shown.slice(0, INITIAL_VISIBLE);
   const truncated = visible.length < shown.length;
+
+  /**
+   * 「すべて表示」は押すと自分が消えるので、focus が body へ落ちる。そのままだと次の Tab が
+   * 文書の先頭からになり、キーボードでは出したばかりの行へ 100 行たどり直すことになる。
+   * 最初に現れた行へ focus を移す
+   */
+  useEffect(() => {
+    if (!expanded) return;
+    const firstRevealed = listRef.current?.children[INITIAL_VISIBLE];
+    firstRevealed?.querySelector("a")?.focus();
+  }, [expanded]);
 
   /**
    * ストアを変えると押せる頭文字が変わる。選んでいた文字が消えるなら頭文字の絞り込みも解く。
@@ -118,7 +130,7 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
         <EmptyState title={t("voiceActors.filteredEmptyTitle", { store: storeLabel(store) })} />
       ) : (
         <>
-          <ActorList actors={visible} />
+          <ActorList ref={listRef} actors={visible} />
           {truncated ? (
             <Button
               type="button"
@@ -233,12 +245,19 @@ function FilterButton({
  * 声優の行。名前と作品数のほかに、どのストアに作品があるかと、その場でのフォローを置く。
  * 一覧から声優ページへ往復せずにフォローを済ませられるようにするため
  */
-function ActorList({ actors }: { actors: ActorSummary[] }) {
+function ActorList({
+  actors,
+  ref,
+}: {
+  actors: ActorSummary[];
+  /** 「すべて表示」の後に focus を移す先を探すために要る (`ActorDirectory`) */
+  ref?: React.Ref<HTMLUListElement>;
+}) {
   const t = useT();
   const locale = useLocale();
 
   return (
-    <ul aria-label={t("voiceActors.title")} className="grid gap-2 lg:grid-cols-2">
+    <ul ref={ref} aria-label={t("voiceActors.title")} className="grid gap-2 lg:grid-cols-2">
       {actors.map((actor) => (
         // min-w-0 が無いと、いちばん長い行の幅で列が決まり、どの行も画面からはみ出す
         <li

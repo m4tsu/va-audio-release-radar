@@ -389,6 +389,18 @@ describe("VoiceActorDirectoryPage の表示件数の上限", { timeout: 20_000 }
     expect(screen.queryByRole("button", { name: "すべて表示" })).not.toBeInTheDocument();
   });
 
+  /** 押すとボタン自身が消えるので、focus の行き先を作らないと文書の先頭へ落ちる */
+  test("すべて表示を押すと、最初に現れた行へ focus が移る", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />);
+
+    await user.click(screen.getByRole("button", { name: "すべて表示" }));
+
+    // 作品数の多い順で 101 人目。押す前は並んでいなかった行。
+    // 読み上げ名ではなく href で見る。focus が body に落ちていても読み上げ名は一致してしまう
+    expect(document.activeElement).toHaveAttribute("href", "/voice-actors/many-19");
+  });
+
   test("上限に収まっていればボタンを出さない", () => {
     renderWithLocale(<VoiceActorDirectoryPage actors={ACTORS} />);
 
