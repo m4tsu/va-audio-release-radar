@@ -31,8 +31,9 @@ import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
  * 残りは「すべて表示」を押したときに出す。
  *
  * 並べ替えと絞り込み (ストア・性別・頭文字) は `lib/actor-directory` が持つ。
- * 性別は絞り込みの軸にするだけで、誰がどの性別かは画面のどこにも書かない
- * (出どころが利用者の編集できる外部 DB なので、誤りを人物の属性として掲示しない)
+ * 性別は絞り込みの軸にするだけで、誰がどの性別かは描かない。出どころが利用者の
+ * 編集できる外部 DB なので、誤りを人物の属性として掲示しないため。
+ * 絞り込みはブラウザの中で行うので、値そのものは他の列と同じくページのデータには載る
  */
 export function VoiceActorDirectoryPage({ actors }: { actors: ActorSummary[] }) {
   const t = useT();

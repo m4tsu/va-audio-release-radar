@@ -43,7 +43,11 @@ export type ActorSummary = {
   nameEn?: string;
   imageUrl?: string;
   status: VoiceActor["status"];
-  /** 一覧の絞り込みだけが見る。画面には文字として出さない (`pages/voice-actor-directory`) */
+  /**
+   * 一覧の絞り込みが見る。絞り込みはブラウザの中で行うので、この値は声優ごとに
+   * ページのデータに載る。載せないのは描いた文字のほうで、
+   * 誰がどの性別かを読める形で掲示しない (`pages/voice-actor-directory`)
+   */
   gender: VoiceActor["gender"];
   workCount: number;
   /** この声優の作品が載っているストア。`STORE_SLUGS` の順。一覧のストア絞り込みが見る */
