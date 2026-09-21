@@ -8,7 +8,7 @@ import {
 } from "@/app/lib/appearance";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { ActorDetail } from "@/app/lib/view-types";
-import { VoiceActorPage } from "@/app/pages/voice-actor";
+import { hasAnyWork, VoiceActorPage } from "@/app/pages/voice-actor";
 import { fetchActorBySlug, fetchActorStoreCoverage } from "@/app/server-fns/actors";
 import { fetchAnimeByActor } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
@@ -50,28 +50,23 @@ export const Route = createFileRoute("/voice-actors/$slug")({
     ]);
     if (!actor) throw notFound();
 
-    // ストアごとにセクションを出すので、ストアごとに引く (片方が 0 件でもセクションは出す)
-    const works = await Promise.all(
-      STORE_SLUGS.map(async (storeSlug) => ({
-        storeSlug,
-        items: await fetchWorksByActor({
-          data: { voiceActorId: actor.id, storeSlug, limit: WORKS_PER_STORE },
-        }),
-      })),
-    );
-
-    // 追跡対象は AniList 由来の 2,500 人規模。DB にはクロール履歴を残すために全員入れるが、
-    // その大半は音声作品を出していない。中身の無いページを 200 で返すと、検索エンジンから見て
-    // 薄いページが 2,000 枚並ぶことになるので、作品が 1 件も無い声優は 404 にする。
-    // 声優そのものは `getActorBySlug` が返し続ける (管理用)
-    if (works.every((section) => section.items.length === 0)) throw notFound();
-
-    // 出演アニメと網羅の状態は 404 の判定の後に引く。音声作品が無ければページ自体を出さないので、
-    // 先に引いても捨てることになる
-    const [anime, coverage] = await Promise.all([
+    const [works, anime, coverage] = await Promise.all([
+      // ストアごとにセクションを出すので、ストアごとに引く (片方が 0 件でもセクションは出す)
+      Promise.all(
+        STORE_SLUGS.map(async (storeSlug) => ({
+          storeSlug,
+          items: await fetchWorksByActor({
+            data: { voiceActorId: actor.id, storeSlug, limit: WORKS_PER_STORE },
+          }),
+        })),
+      ),
       fetchAnimeByActor({ data: { voiceActorId: actor.id, limit: ANIME_PER_ACTOR } }),
       fetchActorStoreCoverage({ data: { voiceActorId: actor.id } }),
     ]);
+
+    // 音声作品も出演アニメも無ければ、名前しか出せるものが無い。200 で返すと中身の無い
+    // ページになるので 404 にする。声優そのものは `getActorBySlug` が返し続ける (管理用)
+    if (!hasAnyWork(works) && anime.length === 0) throw notFound();
 
     return { actor, works, anime, coverage, origin };
   },
@@ -95,6 +90,12 @@ export const Route = createFileRoute("/voice-actors/$slug")({
         { property: "og:description", content: description },
         { property: "og:type", content: "profile" },
         { property: "og:url", content: canonical },
+        // 音声作品がまだ 1 件も無いページは、出せるのが名前と出演アニメだけ。
+        // フォローの入口としては要るが、検索結果に並べても読む中身が無いので載せない。
+        // sitemap 側も同じ条件で外している (`sitemapEntries`)
+        ...(hasAnyWork(loaderData?.works ?? [])
+          ? []
+          : [{ name: "robots", content: "noindex" } as const]),
       ],
       links: [{ rel: "canonical", href: canonical }],
       scripts: [

@@ -53,6 +53,17 @@ describe("arrangeActors", () => {
     ).toEqual(["b", "c", "a"]);
   });
 
+  /** 一覧には音声作品がまだ 1 件も無い声優も並ぶ。作品のある声優を押し下げない */
+  test("作品が 1 件も無い声優は作品数の多い順で末尾に来る", () => {
+    const withEmpty: Row[] = [{ slug: "empty", workCount: 0, storeSlugs: [] }, ...ACTORS];
+
+    expect(
+      slugs(
+        arrangeActors(withEmpty, { sort: "workCount", store: null, initial: null, locale: "ja" }),
+      ),
+    ).toEqual(["b", "c", "a", "empty"]);
+  });
+
   /** 同数のたびに並びが入れ替わると、操作するたびに別の画面に見える */
   test("作品数が同じなら名前順のまま残る", () => {
     const arranged = arrangeActors(ACTORS, {

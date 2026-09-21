@@ -18,9 +18,13 @@ import { notAdultRated } from "./works";
 /**
  * アニメ導線。
  *
- * 読み取りはすべて「音声作品を持つ声優だけ」で絞る。全キャストを並べるとキャスト DB になり、
- * `docs/product.md` の「作らないもの」(アニメのキャスト DB) を越えるため。
- * 絞り込みを画面側ではなくここに置いているのは、画面を足すたびに忘れないようにするため
+ * 一覧・検索・sitemap は「音声作品を持つ出演者が 1 人以上いる作品」だけを返す。中身の無い
+ * ページへ送らないため。絞り込みを画面側ではなくここに置いているのは、画面を足すたびに
+ * 忘れないようにするため。
+ *
+ * 例外は作品 1 件のページ (`getAnimeBySlug`) で、そこは出演者を絞らない。まだ音声作品を
+ * 出していない人をフォローする経路がここしか無いため
+ * (`docs/decisions/0012-follow-actors-without-works.md`)
  */
 
 // --- 取り込み --------------------------------------------------------------
@@ -382,9 +386,23 @@ export async function hasSeasonAnime(
 }
 
 /**
- * 作品 1 件。出演者は音声作品を持つ人だけを、主演 → 助演の順で返す。
+ * このアニメに音声作品を持つ出演者が 1 人でも居るか。ページを出すかどうかの判定に使う。
  *
- * 音声作品を持つ出演者が 0 人なら undefined。呼び出し側は notFound() を返す
+ * 出演の行を絞る `appearanceActorHasAudioWork` と違い、作品そのものに掛ける条件。
+ * 副問い合わせの中の `anime_appearances` は外側の join とは別の行を指す
+ */
+const animeHasAudioWorkActor = sql`exists (
+  select 1 from ${animeAppearances}
+  where ${animeAppearances.animeTitleId} = ${animeTitles.id}
+    and ${appearanceActorHasAudioWork}
+)`;
+
+/**
+ * 作品 1 件。出演者は全員を、主演 → 助演の順で返す。
+ *
+ * 出演者を音声作品のある人に絞らないのは、まだ 1 本も出していない人もここからフォローできる
+ * ようにするため。ページを出す条件のほうは変わらず「音声作品を持つ出演者が 1 人以上」で、
+ * 0 人なら undefined を返す。呼び出し側は notFound() を返す
  * (中身の無いページを 200 で返すと、検索エンジンから見て薄いページが並ぶため)
  */
 export async function getAnimeBySlug(db: AppDb, slug: string): Promise<AnimeDetail | undefined> {
@@ -411,7 +429,7 @@ export async function getAnimeBySlug(db: AppDb, slug: string): Promise<AnimeDeta
     .from(animeTitles)
     .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
     .innerJoin(voiceActors, eq(voiceActors.id, animeAppearances.voiceActorId))
-    .where(and(eq(animeTitles.slug, slug), appearanceActorHasAudioWork));
+    .where(and(eq(animeTitles.slug, slug), animeHasAudioWorkActor));
 
   const head = rows[0];
   if (head === undefined) return undefined;
@@ -436,8 +454,10 @@ export async function getAnimeBySlug(db: AppDb, slug: string): Promise<AnimeDeta
     }))
     .sort(byRoleThenName);
 
+  // `actorCount` は「音声作品がある出演者」の人数 (一覧のカードと同じ意味)。
+  // `loadWorkCountsByActor` は 1 件も無い出演者の行を作らないので、その大きさがそのまま人数になる
   return {
-    ...toAnimeSummary({ ...head, actorCount: new Set(rows.map((row) => row.actorId)).size }),
+    ...toAnimeSummary({ ...head, actorCount: workCounts.size }),
     cast,
   };
 }

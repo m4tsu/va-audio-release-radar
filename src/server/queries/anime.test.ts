@@ -161,7 +161,7 @@ describe("upsertAnime", () => {
 });
 
 describe("getAnimeBySlug", () => {
-  it("音声作品を持つ出演者だけを返す", async () => {
+  it("音声作品を持たない出演者も返し、人数には数えない", async () => {
     const db = await setupDb([UEDA, HANAZAWA]);
     await upsertAnime(
       db,
@@ -190,7 +190,13 @@ describe("getAnimeBySlug", () => {
 
     const detail = await getAnimeBySlug(db, anime().slug);
 
-    expect(detail?.cast.map((member) => member.actor.id)).toEqual([UEDA.id]);
+    // 花澤は作品が 1 件も無いが、この行からフォローできるように並ぶ
+    expect(detail?.cast.map((member) => member.actor.id).sort()).toEqual(
+      [HANAZAWA.id, UEDA.id].sort(),
+    );
+    expect(detail?.cast.find((member) => member.actor.id === HANAZAWA.id)?.workCounts).toEqual([]);
+    // 人数は「音声作品がある出演者」のまま (一覧のカードと同じ意味)
+    expect(detail?.actorCount).toBe(1);
   });
 
   it("出演者が全員音声作品を持たなければ undefined", async () => {

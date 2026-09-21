@@ -5,6 +5,7 @@ import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } fr
 import { chunked } from "../db/chunked";
 import { stripLikeWildcards } from "../db/like";
 import {
+  animeAppearances,
   audioCredits,
   crawlRuns,
   storeListings,
@@ -118,9 +119,8 @@ export async function upsertActors(
 /**
  * 声優一覧 (作品数付き、canonical_name 順)。
  *
- * 作品が 1 件も無い声優は返さない。追跡対象は AniList 由来の 2,500 人規模 で、
- * その大半は音声作品を出していない。クロール履歴を残すために DB には全員入れるが、
- * 中身の無いページへのリンクを並べても利用者の役に立たないため表には出さない
+ * 作品が 1 件も無い声優も返す。その人の「初めての 1 本」を待つためにフォローする経路が要る。
+ * 既定の並び (作品数の多い順) では作品のある声優の後ろに来る (`lib/actor-directory`)
  */
 export async function listActors(db: AppDb): Promise<ActorSummary[]> {
   const rows = await summaryQuery(db).orderBy(asc(voiceActors.canonicalName));
@@ -203,7 +203,7 @@ export async function getActorStoreCoverage(
  * `normalizeName` は空白・中黒などを落とすので SQL では表現できない。名前だけを全件読んで
  * JS 側で突き合わせている (`matchByNormalizedName`)。追跡対象が 2,500 人規模になり
  * 1 回の検索で声優と別名を全件読むようになったので、遅くなったら正規化済みの列を持たせて
- * 索引を張る。作品が 1 件も無い声優は結果に含めない (`listActors` と同じ理由)
+ * 索引を張る。作品が 1 件も無い声優も結果に含める (`listActors` と同じ理由)
  */
 export async function searchActors(db: AppDb, q: string, limit = 20): Promise<ActorSummary[]> {
   const query = q.trim();
@@ -297,18 +297,33 @@ const workCountExpression = sql<number>`count(distinct ${audioCredits.audioWorkI
 const storeSlugsExpression = sql<string | null>`group_concat(distinct ${storeListings.storeSlug})`;
 
 /**
- * 作品が 1 件以上ある声優かどうか。
+ * 作品が 1 件以上ある声優かどうか。sitemap に載せる声優を選ぶのに使う
+ * (`sitemapEntries` (queries/works.ts))。
  *
  * EXISTS にするのは、声優 1 人ずつ作品数を引き直すと 2,500 人ぶんのクエリになるため。
- * 1 件見つかった時点で打ち切られるので、作品数を数えるより安い。
- * `sitemapEntries` (queries/works.ts) も同じ条件を使う
+ * 1 件見つかった時点で打ち切られるので、作品数を数えるより安い
  */
 export const hasAnyAudioCredit: SQL = sql`exists (
   select 1 from ${audioCredits} where ${audioCredits.voiceActorId} = ${voiceActors.id}
 )`;
 
 /**
+ * ページが出る声優かどうか。音声作品か出演アニメのどちらかがあれば出る
+ * (404 の条件は `routes/voice-actors.$slug.tsx`)。
+ *
+ * 一覧と検索がこれで絞るのは、どちらも声優ページへのリンクを並べる場所だから。
+ * 絞らないと 404 になるページへのリンクが並ぶ
+ */
+const hasPage: SQL = sql`(${hasAnyAudioCredit} or exists (
+  select 1 from ${animeAppearances}
+  where ${animeAppearances.voiceActorId} = ${voiceActors.id}
+))`;
+
+/**
  * 一覧・検索で共有する select。`extra` は呼び出し側の追加条件。
+ *
+ * 作品の有無で絞らない (絞るのは `hasPage`)。作品が 1 件も無い声優は leftJoin の相手が
+ * 居ないので `workCount` が 0、`storeSlugs` が空で返る。
  *
  * 作品数もストアも年齢区分で絞らない。保存する時点で許可集合の外 (R18) を弾いているので
  * (`ingest`)、ここで絞っても結果は変わらず、全声優ぶんの集計に `audio_works` の join が増えるだけになる
@@ -332,7 +347,7 @@ function summaryQuery(db: AppDb, extra?: SQL) {
       // 作品がどのストアに載っているかは listing が持つ。作品 1 件につき行が増えるが、
       // 作品数は count(distinct) で数えているので重複しても狂わない
       .leftJoin(storeListings, eq(storeListings.audioWorkId, audioCredits.audioWorkId))
-      .where(extra === undefined ? hasAnyAudioCredit : and(hasAnyAudioCredit, extra))
+      .where(extra === undefined ? hasPage : and(hasPage, extra))
       .groupBy(voiceActors.id)
   );
 }

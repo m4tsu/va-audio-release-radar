@@ -2,6 +2,7 @@ import { INGEST_PROTOCOL_VERSION, type IngestPayload, type RawWork } from "@/dom
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { type ActorSeed, upsertActors } from "./actors";
+import { upsertAnime } from "./anime";
 import { ingest } from "./ingest";
 
 /** テストで使う基準時刻。相対日数の計算をこの時点からにして結果を固定する */
@@ -32,8 +33,8 @@ export async function setupDb(actors: ActorSeed[] = [UEDA], now: string = NOW): 
 /**
  * 指定した声優にそれぞれ作品を 1 件ずつ持たせる。
  *
- * 一覧・検索・sitemap は作品が 1 件以上ある声優しか返さない。
- * 「表に出ること」を確かめたいテストは、まずここで作品を持たせる必要がある
+ * sitemap は作品が 1 件以上ある声優しか返さない。作品数やストアが絡む一覧のテストも、
+ * まずここで作品を持たせる
  */
 export async function giveEachActorAWork(db: AppDb, actors: ActorSeed[], now: string = NOW) {
   for (const [index, actor] of actors.entries()) {
@@ -83,4 +84,33 @@ export function payload(overrides: Partial<IngestPayload> = {}): IngestPayload {
 /** NOW から指定日数さかのぼった ISO 文字列。期間フィルタのテストで使う */
 export function daysAgo(days: number): string {
   return new Date(Date.parse(NOW) - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * 指定した声優をアニメ 1 本に出演させる。
+ *
+ * 一覧・検索・声優ページは、音声作品が無い声優でも出演アニメがあれば出す。
+ * 「音声作品が無くても表に出ること」を確かめたいテストはここで出演を持たせる
+ */
+export async function giveEachActorAnAnime(db: AppDb, actors: ActorSeed[], now: string = NOW) {
+  if (actors.length === 0) return;
+  await upsertAnime(
+    db,
+    [
+      {
+        id: "anilist:9000001",
+        slug: "test-anime",
+        titleRomaji: "Test Anime",
+        seasonYear: 2026,
+        season: "FALL",
+        appearances: actors.map((actor, index) => ({
+          voiceActorId: actor.id,
+          characterId: `anilist:91000${index}`,
+          characterNameNative: "テストキャラ",
+          role: "main" as const,
+        })),
+      },
+    ],
+    now,
+  );
 }

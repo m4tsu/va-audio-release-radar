@@ -102,6 +102,46 @@ describe("VoiceActorPage のストアごとのセクション", () => {
   });
 });
 
+/**
+ * 音声作品がまだ 1 件も無い声優。ページは 200 で返り、フォローと出演アニメだけが残る
+ * (`docs/decisions/0012-follow-actors-without-works.md`)
+ */
+describe("VoiceActorPage の作品が 1 件も無いとき", () => {
+  const EMPTY: ActorStoreWorks[] = [
+    { storeSlug: "dlsite", items: [] },
+    { storeSlug: "audible", items: [] },
+    { storeSlug: "pokedora", items: [] },
+  ];
+
+  test("まだ見つかっていないことを 1 つだけ出し、ストアごとの節は出さない", () => {
+    render({ works: EMPTY });
+
+    expect(screen.getByText("音声作品はまだ見つかっていません")).toBeInTheDocument();
+    for (const store of ["DLsite", "Audible", "ポケドラ"]) {
+      expect(screen.queryByRole("heading", { level: 2, name: store })).not.toBeInTheDocument();
+    }
+  });
+
+  /** 選んでも結果の変わらない絞り込みを出すと、押した人が壊れていると思う */
+  test("出演形態の絞り込みを出さない", () => {
+    render({ works: EMPTY });
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  test("フォローと出演アニメは出る", async () => {
+    const user = userEvent.setup();
+    await readyFollowStore();
+    render({ works: EMPTY, anime: [actorAnimeAppearance({ slug: "kakuu-no-anime" })] });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("架空アルファの音声作品");
+    expect(screen.getByRole("link", { name: /架空のアニメ/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
+  });
+});
+
 describe("VoiceActorPage の出演形態", () => {
   test("作品ごとに出演形態を出す", () => {
     render();

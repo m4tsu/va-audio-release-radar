@@ -617,7 +617,7 @@ describe("sitemapEntries", () => {
   });
 
   it("作品が 1 件も無い声優は出さない", async () => {
-    // そのページは notFound() を返すので、sitemap に載せると 404 を検索エンジンに出す
+    // そのページは noindex で返るので、sitemap に載せると指定が食い違う
     const db = await setupDb([UEDA, HANAZAWA]);
     await ingest(db, payload(), NOW);
 

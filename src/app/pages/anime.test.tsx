@@ -70,11 +70,28 @@ describe("AnimePage の出演者", () => {
     expect(screen.getByText("ASMR 2")).toBeInTheDocument();
   });
 
-  test("媒体別の内訳が無ければ、あることだけを言う", () => {
-    const anime = animeDetail({ cast: [animeCastMember({ workCounts: [] })] });
+  /** 音声作品がまだ 1 件も無い出演者も並べる。ここがその人をフォローする入口になる */
+  test("音声作品が無い出演者は、無いことを言ったうえで声優ページへ結ぶ", async () => {
+    const user = userEvent.setup();
+    await readyFollowStore();
+    const anime = animeDetail({
+      cast: [
+        animeCastMember({
+          workCounts: [],
+          actor: { id: "va_beta", slug: "beta", canonicalName: "架空ベータ" },
+        }),
+      ],
+    });
     renderWithLocale(<AnimePage anime={anime} />);
 
-    expect(screen.getByText("音声作品あり")).toBeInTheDocument();
+    expect(screen.getByText("音声作品はまだありません")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "架空ベータ" })).toHaveAttribute(
+      "href",
+      "/voice-actors/beta",
+    );
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    expect(useFollowStore.getState().isFollowing("va_beta")).toBe(true);
   });
 });
 

@@ -66,7 +66,8 @@ test("トップの新着タブはハイドレーション後に切り替わる",
  */
 test("アニメのキャストからフォローしても移動せず、読み込み直しても残る", async ({ page }) => {
   await page.goto("/anime/e2e-anime-alpha");
-  await page.getByRole("button", { name: "フォロー", exact: true }).click();
+  // キャストは出演者全員なので行が複数ある。押すのは先頭の 1 行だけ
+  await page.getByRole("button", { name: "フォロー", exact: true }).first().click();
 
   await expect(page).toHaveURL(/\/anime\/e2e-anime-alpha$/);
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
@@ -75,7 +76,7 @@ test("アニメのキャストからフォローしても移動せず、読み�
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
 
   await page.getByRole("button", { name: "フォロー中" }).click();
-  await expect(page.getByRole("button", { name: "フォロー", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "フォロー", exact: true }).first()).toBeVisible();
 });
 
 /** フォローに依存する表示は SSR の応答に無く、ブラウザの保存を読んでから現れる */
@@ -85,7 +86,7 @@ test("シーズンの一覧の印と絞り込みはフォローしてから出�
   await expect(page.getByRole("checkbox")).toHaveCount(0);
 
   await page.goto("/anime/e2e-anime-alpha");
-  await page.getByRole("button", { name: "フォロー", exact: true }).click();
+  await page.getByRole("button", { name: "フォロー", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
 
   await page.goto("/anime/season/2026-fall");

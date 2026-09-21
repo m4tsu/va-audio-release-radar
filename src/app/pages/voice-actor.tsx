@@ -37,8 +37,20 @@ import type { StoreSlug } from "@/domain/types";
 export type ActorStoreWorks = { storeSlug: StoreSlug; items: WorkWithListings[] };
 
 /**
+ * どのストアにも作品が無いか。ルートはこれを見て `robots` の指定を決めるので、
+ * 画面とルートで判定がずれないようここから出す
+ */
+export function hasAnyWork(works: readonly ActorStoreWorks[]): boolean {
+  return works.some((section) => section.items.length > 0);
+}
+
+/**
  * 声優ページ。「{声優名} ASMR」「{声優名} Audible」のような
  * 実体検索での流入を受ける想定なので、中身は全部 SSR で出しインデックスさせる。
+ *
+ * 音声作品がまだ 1 件も無い声優のページも出す。「初めての 1 本」を待つ人のフォローを
+ * 受けるためで、そのときはストアごとのセクションではなく、まだ見つかっていないことを 1 つ出す
+ * (`docs/decisions/0012-follow-actors-without-works.md`)。
  *
  * クライアントでしか決まらないのはフォローボタンの状態だけ。出演形態の絞り込みは
  * URL の検索文字列に置く (ルートが読む)。ページ内の状態にすると、絞った画面を
@@ -64,6 +76,7 @@ export function VoiceActorPage({
   const t = useT();
   const locale = useLocale();
   const name = actorDisplayName(actor, locale);
+  const anyWork = hasAnyWork(works);
   // 絞り込むのはルートが取ってきた範囲の中だけ。1 ストアの件数には上限があり
   // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
   // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
@@ -99,18 +112,29 @@ export function VoiceActorPage({
         }
       />
 
-      <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
+      {anyWork ? (
+        <>
+          <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
 
-      {sections.map((section) => (
-        <StoreSection
-          key={section.storeSlug}
-          storeSlug={section.storeSlug}
-          items={section.items}
-          emptiedByFilter={section.emptiedByFilter}
-          partial={section.partial}
-          actor={actor}
+          {sections.map((section) => (
+            <StoreSection
+              key={section.storeSlug}
+              storeSlug={section.storeSlug}
+              items={section.items}
+              emptiedByFilter={section.emptiedByFilter}
+              partial={section.partial}
+              actor={actor}
+            />
+          ))}
+        </>
+      ) : (
+        // ストアごとに「ありません」を 3 つ並べても、1 件も無いことは同じだけ伝わって
+        // 読む量だけ増える。出演形態の絞り込みも選べる中身が無いので出さない
+        <EmptyState
+          title={t("actor.noWorksYetTitle")}
+          description={t("actor.noWorksYetDescription")}
         />
-      ))}
+      )}
 
       {anime.length > 0 ? <AnimeSection items={anime} /> : null}
     </div>

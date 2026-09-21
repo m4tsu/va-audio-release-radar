@@ -13,8 +13,9 @@ import type { AnimeCastMember, AnimeDetail } from "@/app/lib/view-types";
 /**
  * アニメ 1 作品のページ。
  *
- * 出すのは「この作品の出演者で、音声作品を出している人」だけ。キャスト表ではないので
- * 全員は並べない。絞り込みは `getAnimeBySlug` 側でかけてあり、ここでは並べるだけ。
+ * 出すのはこの作品の出演者全員。まだ音声作品を出していない人も並べるのは、その人を
+ * フォローする経路がここにしか無いため。並べる順は `getAnimeBySlug` が決めてあり、
+ * ここでは並べるだけ。
  * 各行からフォローできるのは、アニメから入った人が声優ページを開かずに登録を終えられるようにするため
  */
 export function AnimePage({ anime }: { anime: AnimeDetail }) {
@@ -107,7 +108,7 @@ function CastCard({ member }: { member: AnimeCastMember }) {
         </p>
         <p className="text-muted-foreground text-xs">
           {member.workCounts.length === 0
-            ? t("anime.hasAudioWorks")
+            ? t("anime.noAudioWorksYet")
             : member.workCounts
                 .map((item) =>
                   t("anime.workCount", {

@@ -189,7 +189,7 @@ export const ja = {
   voiceActors: {
     metaTitle: "声優から探す | {{app}}",
     metaDescription:
-      "ASMR・朗読・ボイスドラマなどの音声作品が見つかっている声優の一覧です。名前を選ぶとその人の作品が見られます。",
+      "アニメに出演している声優の一覧です。名前を選ぶとその人の音声作品が見られます。まだ音声作品が無い声優もフォローできます。",
     title: "声優から探す",
     emptyTitle: "声優が見つかりません",
     sortName: "名前順",
@@ -211,6 +211,10 @@ export const ja = {
     metaDescription:
       "{{name}}が出演する ASMR・朗読・ボイスドラマを、DLsite・Audible・ポケットドラマCD から新着順にまとめています。",
     storeEmptyTitle: "{{store}} で見つかった作品はありません",
+    /** どのストアにも 1 件も無いとき。ストアごとの「ありません」の代わりに 1 つだけ出す */
+    noWorksYetTitle: "音声作品はまだ見つかっていません",
+    noWorksYetDescription:
+      "フォローしておくと、この声優の音声作品が見つかったときに一覧に出てきます。",
     /** 出演形態で絞り込んだ結果、そのストアに残る作品が無いとき。作品自体はある */
     filteredEmptyTitle: "{{store}} にこの出演形態の作品はありません",
     /** 直近の取得がそのストアの全作品に届かなかったとき。網羅を約束しないことを画面で示す */
@@ -297,10 +301,11 @@ export const ja = {
     metaTitle: "{{title}}の出演声優の音声作品",
     metaDescription:
       "{{title}}の出演声優のうち、ASMR・朗読・ボイスドラマなどの音声作品がある {{count}} 人とその作品。",
-    castTitle: "音声作品がある出演者",
+    castTitle: "出演者",
     /** 「2026 年秋 ／ Frieren」。`{{alternate}}` は見出しに出していないほうのアニメ名 */
     subtitle: "{{season}} ／ {{alternate}}",
-    hasAudioWorks: "音声作品あり",
+    /** 音声作品がまだ 1 件も無い出演者。行にはフォローだけが残る */
+    noAudioWorksYet: "音声作品はまだありません",
     workCount: "{{category}} {{count}}",
     roleMain: "主演",
     roleSupporting: "助演",

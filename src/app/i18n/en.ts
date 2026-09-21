@@ -162,7 +162,7 @@ export const en: Translations = {
   voiceActors: {
     metaTitle: "Voice actors | {{app}}",
     metaDescription:
-      "Every voice actor with ASMR, audiobooks or audio dramas we have found. Pick a name to see their works.",
+      "Every voice actor we track from anime. Pick a name to see their works, or follow someone whose first release is still to come.",
     title: "Voice actors",
     emptyTitle: "No voice actors found",
     sortName: "Name",
@@ -181,6 +181,9 @@ export const en: Translations = {
     metaDescription:
       "ASMR, audiobooks and audio dramas featuring {{name}} on DLsite, Audible and Pocket Drama CD, newest first.",
     storeEmptyTitle: "No works found on {{store}}",
+    noWorksYetTitle: "No audio works found yet",
+    noWorksYetDescription:
+      "Follow this voice actor and their audio works will show up here once we find them.",
     filteredEmptyTitle: "No works with this cast size on {{store}}",
     partialCoverage: "Only part of this actor's works on {{store}} are listed here.",
     partialCoverageLink: "See all works on {{store}}",
@@ -251,9 +254,9 @@ export const en: Translations = {
       other:
         "{{count}} voice actors from {{title}} with ASMR, audiobooks or audio dramas, and their works.",
     },
-    castTitle: "Cast with audio works",
+    castTitle: "Cast",
     subtitle: "{{season}} / {{alternate}}",
-    hasAudioWorks: "Has audio works",
+    noAudioWorksYet: "No audio works yet",
     workCount: "{{category}} {{count}}",
     roleMain: "Main",
     roleSupporting: "Supporting",

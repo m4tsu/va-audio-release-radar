@@ -11,6 +11,7 @@ import {
 import { ingest } from "./ingest";
 import {
   daysAgo,
+  giveEachActorAnAnime,
   giveEachActorAWork,
   HANAZAWA,
   NOW,
@@ -96,13 +97,17 @@ describe("searchActors", () => {
     expect(await searchActors(db, "%")).toEqual([]);
   });
 
-  it("作品が 1 件も無い声優は検索結果に出さない", async () => {
-    // DB には AniList 由来の 2,500 人が入るが、作品の無い声優のページは作らない
+  it("作品が 1 件も無い声優も作品数 0 で返す", async () => {
+    // その人の「初めての 1 本」を待つ人が、検索からフォローへ進めるようにする
     const db = await setupDb([UEDA, HANAZAWA]);
     await giveEachActorAWork(db, [UEDA]);
+    await giveEachActorAnAnime(db, [HANAZAWA]);
 
-    expect((await searchActors(db, "上田")).map((actor) => actor.slug)).toEqual([UEDA.slug]);
-    expect(await searchActors(db, "花澤")).toEqual([]);
+    const found = await searchActors(db, "花澤");
+
+    expect(found.map((actor) => actor.slug)).toEqual([HANAZAWA.slug]);
+    expect(found[0]?.workCount).toBe(0);
+    expect(found[0]?.storeSlugs).toEqual([]);
   });
 });
 
@@ -118,12 +123,25 @@ describe("listActors", () => {
     expect(actors.map((actor) => actor.workCount)).toEqual([1, 1]);
   });
 
-  it("作品が 1 件も無い声優は返さない", async () => {
+  it("作品が 1 件も無い声優も作品数 0 で返す", async () => {
     const db = await setupDb([UEDA, HANAZAWA]);
     await ingest(db, payload(), NOW);
+    await giveEachActorAnAnime(db, [HANAZAWA]);
 
     // payload() が credit を付けるのは 上田麗奈 だけ
+    const byslug = new Map((await listActors(db)).map((actor) => [actor.slug, actor.workCount]));
+
+    expect(byslug.get(UEDA.slug)).toBe(1);
+    expect(byslug.get(HANAZAWA.slug)).toBe(0);
+  });
+
+  /** 一覧は声優ページへのリンクを並べる場所。404 になるページへは送らない */
+  it("作品も出演アニメも無い声優は返さない", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await giveEachActorAWork(db, [UEDA]);
+
     expect((await listActors(db)).map((actor) => actor.slug)).toEqual([UEDA.slug]);
+    expect(await searchActors(db, "花澤")).toEqual([]);
   });
 
   it("credit の多い声優も作品数を正しく数える", async () => {

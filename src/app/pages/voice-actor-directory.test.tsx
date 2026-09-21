@@ -185,6 +185,27 @@ describe("VoiceActorDirectoryPage の表示", () => {
     expect(link).toHaveTextContent("3 作品");
   });
 
+  /** 音声作品がまだ 1 件も無い声優も一覧に出す。その人をフォローする入口がここにしか無い */
+  test("作品が 1 件も無い声優も行に出て、末尾に来る", async () => {
+    const user = userEvent.setup();
+    await readyFollowStore();
+    const empty = actorSummary({
+      id: "va_empty",
+      slug: "empty",
+      canonicalName: "架空エプシロン",
+      workCount: 0,
+      storeSlugs: [],
+    });
+    renderWithLocale(<VoiceActorDirectoryPage actors={[empty, ...ACTORS]} />);
+
+    const last = within(rows().at(-1) as HTMLElement);
+    expect(last.getByRole("link")).toHaveAttribute("href", "/voice-actors/empty");
+    expect(last.getByRole("link")).toHaveTextContent("0 作品");
+
+    await user.click(last.getByRole("button", { name: "フォロー" }));
+    expect(last.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
+  });
+
   /** ローマ字を持たない声優は英語表示でも名前が消えない */
   test("英語表示ではローマ字を持つ声優はローマ字、持たない声優は漢字表記で出る", () => {
     renderWithLocale(<VoiceActorDirectoryPage actors={[ALPHA, BETA]} />, "en");
