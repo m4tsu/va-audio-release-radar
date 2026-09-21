@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, like, or, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
 import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
@@ -159,14 +159,14 @@ export async function getActorBySlug(db: AppDb, slug: string): Promise<ActorDeta
 export type ActorStoreCoverage = { storeSlug: StoreSlug; complete: boolean };
 
 /**
- * ストアごとの直近の走行から、取り切れたかどうかを引く。
+ * ストアごとに、真偽を記録した直近の走行から取り切れたかどうかを引く。
  *
- * 走行が無いストアと、直近の走行が真偽を決められなかったストア (`coverage_complete` が NULL) は
- * 返さない。分からないものを「取り切れていない」側に寄せると、一度も引いていないストアにまで
- * 「一部しか載っていない」と出ることになる。
+ * `coverage_complete` が NULL の走行は飛ばして、その手前の走行を見る。取得に失敗した走行も
+ * 行を残す (`crawler/run.ts` の失敗報告) ので、直近の 1 行だけを見ると失敗のたびに
+ * 「取り切れていない」が消え、取得できた範囲だけのページが全作品のように見えてしまう。
+ * 一度も真偽を記録していないストアは返さない。分からないものを取り切れていない側に寄せると、
+ * 一度も引いていないストアにまで注記が出る。
  *
- * 見るのは直近の 1 走行だけで、それより前は見ない。上限に当たるかは作品数で決まり、
- * 過去に当たったかどうかは今の話ではないため。
  * ストアは 3 つで固定なので 1 ストアずつ引く (`crawl_runs_store_actor_started_idx` が効く)
  */
 export async function getActorStoreCoverage(
@@ -178,8 +178,14 @@ export async function getActorStoreCoverage(
       const [run] = await db
         .select({ complete: crawlRuns.coverageComplete })
         .from(crawlRuns)
-        // 並べるのは取得を始めた時刻。取り込みの時刻 (`finished_at`) は古い行に無い
-        .where(and(eq(crawlRuns.voiceActorId, voiceActorId), eq(crawlRuns.storeSlug, storeSlug)))
+        .where(
+          and(
+            eq(crawlRuns.voiceActorId, voiceActorId),
+            eq(crawlRuns.storeSlug, storeSlug),
+            isNotNull(crawlRuns.coverageComplete),
+          ),
+        )
+        // 並べるのは取得を始めた時刻。`finished_at` は NULL を許すので単独の基準にできない
         .orderBy(desc(crawlRuns.startedAt))
         .limit(1);
       return run === undefined || run.complete === null

@@ -220,6 +220,24 @@ describe("VoiceActorPage の網羅の注記", () => {
     expect(screen.queryByText(/一部だけを載せています/)).not.toBeInTheDocument();
   });
 
+  /** Audible は空白の有無で結果が変わる。クローラーが先に試す表記に合わせる */
+  test("Audible のリンクは検証済みの空白入り別名で引く", () => {
+    render({
+      actor: actorDetail({
+        canonicalName: "架空アルファ",
+        aliases: [
+          { voiceActorId: "va_alpha", name: "架空 アルファ", source: "manual", verified: true },
+        ],
+      }),
+      coverage: [{ storeSlug: "audible", complete: false }],
+    });
+
+    expect(screen.getByRole("link", { name: "Audible で全作品を見る" })).toHaveAttribute(
+      "href",
+      "https://www.audible.co.jp/search?searchNarrator=%E6%9E%B6%E7%A9%BA%20%E3%82%A2%E3%83%AB%E3%83%95%E3%82%A1",
+    );
+  });
+
   /** 名前から声優ページを開く手段がストアに無い。押せないリンクは出さない */
   test("ポケドラは注記だけでリンクを出さない", () => {
     render({ coverage: [{ storeSlug: "pokedora", complete: false }] });

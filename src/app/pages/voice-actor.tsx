@@ -108,7 +108,7 @@ export function VoiceActorPage({
           items={section.items}
           emptiedByFilter={section.emptiedByFilter}
           partial={section.partial}
-          actorName={actor.canonicalName}
+          actor={actor}
         />
       ))}
 
@@ -162,7 +162,7 @@ function StoreSection({
   items,
   emptiedByFilter,
   partial,
-  actorName,
+  actor,
 }: {
   storeSlug: StoreSlug;
   items: WorkWithListings[];
@@ -170,14 +170,14 @@ function StoreSection({
   emptiedByFilter: boolean;
   /** このストアの作品を取り切れていないか */
   partial: boolean;
-  /** ストアの検索に渡す名前 */
-  actorName: string;
+  /** ストアの検索に渡す声優。名前の選び方はストアで違う (`@/app/lib/store-search`) */
+  actor: ActorDetail;
 }) {
   const t = useT();
   return (
     <section className="space-y-3">
       <h2 className="font-semibold text-xl tracking-tight">{storeLabel(storeSlug)}</h2>
-      {partial ? <PartialCoverageNote storeSlug={storeSlug} actorName={actorName} /> : null}
+      {partial ? <PartialCoverageNote storeSlug={storeSlug} actor={actor} /> : null}
       {items.length === 0 ? (
         <EmptyState
           title={
@@ -208,16 +208,10 @@ function StoreSection({
  * 一部しか載っていない事実だけでも伝わる方が良い。
  * `rel` に `sponsored` を付けないのは、報酬の発生しない検索結果へのリンクだから
  */
-function PartialCoverageNote({
-  storeSlug,
-  actorName,
-}: {
-  storeSlug: StoreSlug;
-  actorName: string;
-}) {
+function PartialCoverageNote({ storeSlug, actor }: { storeSlug: StoreSlug; actor: ActorDetail }) {
   const t = useT();
   const store = storeLabel(storeSlug);
-  const href = storeActorSearchUrl(storeSlug, actorName);
+  const href = storeActorSearchUrl(storeSlug, actor);
 
   return (
     <p className="text-muted-foreground text-sm">

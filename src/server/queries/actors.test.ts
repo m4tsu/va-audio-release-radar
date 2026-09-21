@@ -312,11 +312,27 @@ describe("getActorStoreCoverage", () => {
   });
 
   /** 真偽を決められなかった走行を「取り切れていない」側に寄せない */
-  it("網羅率を記録していない走行は返さない", async () => {
+  it("網羅率を一度も記録していないストアは返さない", async () => {
     const db = await setupDb();
     await crawl(db, { runId: "r-dlsite", storeSlug: "dlsite", startedAt: NOW });
 
     expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([]);
+  });
+
+  /** 失敗した走行にも行が残る。直近の 1 行だけを見ると注記が消えて全作品のように見える */
+  it("網羅率を記録していない走行は飛ばして手前の走行を見る", async () => {
+    const db = await setupDb();
+    await crawl(db, {
+      runId: "r-known",
+      storeSlug: "dlsite",
+      startedAt: daysAgo(1),
+      coverageComplete: false,
+    });
+    await crawl(db, { runId: "r-failed", storeSlug: "dlsite", startedAt: NOW });
+
+    expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([
+      { storeSlug: "dlsite", complete: false },
+    ]);
   });
 
   it("同じストアでは直近の走行だけを見る", async () => {
