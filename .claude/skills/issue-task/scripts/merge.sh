@@ -33,7 +33,7 @@ if [ -n "$overlap" ]; then
 fi
 
 # 3. rebase 後の状態で検査する。
-#    E2E は差分が E2E の守備範囲に触れたときだけ。ページと部品だけの変更では走らせない
+#    E2E は needs-e2e.sh が決める。今は #43 が直るまで常に省略される
 npm run check
 if e2e_reason=$(bash scripts/needs-e2e.sh main); then
   echo "E2E を実行する (差分が E2E の範囲に触れている):"
@@ -43,7 +43,7 @@ if e2e_reason=$(bash scripts/needs-e2e.sh main); then
   fi
   npm run test:e2e
 else
-  echo "E2E は省略する (差分が src/app/pages と src/app/components に収まっている)"
+  echo "E2E は省略する (scripts/needs-e2e.sh の判定)"
 fi
 
 # 4. fast-forward だけで main を進める
