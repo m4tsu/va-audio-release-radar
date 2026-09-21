@@ -179,6 +179,23 @@ test("/contact は入力欄を SSR で返す", async ({ request }) => {
   expect(html).toMatch(/<button[^>]*>送信する<\/button>/);
 });
 
+/**
+ * 種別と対象のページは URL の検索文字列から来る (`src/app/lib/contact-search.ts`)。
+ * 読むのはルートの `validateSearch` なので、その結果が入力欄に届いているかは
+ * サーバーが返す HTML でしか見られない
+ */
+test("/contact は訂正のリンクから開くと、選ばれた種別と対象の URL を SSR で返す", async ({
+  request,
+}) => {
+  const res = await request.get(`/contact?kind=correction&about=${encodeURIComponent(WORK_PATH)}`);
+  expect(res.status()).toBe(200);
+
+  const html = await res.text();
+  expect(html).toMatch(/<option value="correction" selected/);
+  const body = html.match(/<textarea[^>]*>([^<]*)<\/textarea>/)?.[1];
+  expect(body).toContain(WORK_PATH);
+});
+
 test("/anime は転送せず、先頭のシーズンのアニメを JS を動かす前の HTML に入れている", async ({
   request,
 }) => {

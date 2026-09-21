@@ -156,3 +156,15 @@ describe("WorkPage のストアへの導線", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("WorkPage の訂正の申し出", () => {
+  /** 気づいた人が作品名や URL を書き写さずに済むよう、対象をリンクに載せる */
+  test("この作品を対象にした問い合わせへ送る", () => {
+    renderWithLocale(<WorkPage detail={DETAIL} />);
+
+    expect(screen.getByRole("link", { name: "掲載内容の誤りを知らせる" })).toHaveAttribute(
+      "href",
+      "/contact?kind=correction&about=%2Fworks%2Fdlsite%253ARJ1",
+    );
+  });
+});

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, Store, Tag, Users } from "lucide-react";
 import type { ReactNode } from "react";
+import { CorrectionLink } from "@/app/components/correction-link";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
@@ -128,6 +129,9 @@ export function VoiceActorPage({
       )}
 
       {anime.length > 0 ? <AnimeSection items={anime} /> : null}
+
+      {/* 別名義が結び付いていないことに気づくのは、作品と出演アニメを見比べた後 */}
+      <CorrectionLink path={`/voice-actors/${actor.slug}`} />
     </div>
   );
 }

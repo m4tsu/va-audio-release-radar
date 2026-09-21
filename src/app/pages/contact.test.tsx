@@ -42,6 +42,32 @@ describe("ContactPage", () => {
     );
   });
 
+  /** `/contact` を直接開いたとき。リンクから開いた場合との違いを 1 か所で見る */
+  test("種別と対象の指定が無ければ、既定の種別と空の本文で始まる", () => {
+    renderWithLocale(<ContactPage turnstileSiteKey="test-site-key" contactUrl={null} />);
+
+    expect(screen.getByLabelText("種別")).toHaveValue("request");
+    expect(screen.getByLabelText("本文")).toHaveValue("");
+    expect(screen.queryByText(/別名義の申し出には根拠を書いてください/)).not.toBeInTheDocument();
+  });
+
+  test("訂正の申し出として開くと、種別が選ばれ本文の先頭に対象の URL が入る", () => {
+    renderWithLocale(
+      <ContactPage
+        turnstileSiteKey="test-site-key"
+        contactUrl={null}
+        defaultKind="correction"
+        targetUrl="https://example.test/voice-actors/alpha"
+      />,
+    );
+
+    expect(screen.getByLabelText("種別")).toHaveValue("correction");
+    expect(screen.getByLabelText("本文")).toHaveValue(
+      "https://example.test/voice-actors/alpha\n\n",
+    );
+    expect(screen.getByText(/別名義の申し出には根拠を書いてください/)).toBeInTheDocument();
+  });
+
   test("送信できるときは外部の窓口の案内を出さない", () => {
     renderWithLocale(
       <ContactPage turnstileSiteKey="test-site-key" contactUrl="mailto:example@example.com" />,

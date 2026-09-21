@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AppearanceBadge } from "@/app/components/appearance-badge";
+import { CorrectionLink } from "@/app/components/correction-link";
 import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { StoreLink } from "@/app/components/store-link";
 import { Badge } from "@/app/components/ui/badge";
@@ -115,6 +116,9 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
         {/* ストアの枚数だけ繰り返さないよう、区画に 1 度だけ添える */}
         <p className="text-muted-foreground text-xs">{t("work.checkAtStore")}</p>
       </section>
+
+      {/* 出演者の名前の誤りに気づくのは、クレジットを読み終えた後。作品 ID は URL と同じ形で渡す */}
+      <CorrectionLink path={`/works/${encodeURIComponent(work.id)}`} />
     </article>
   );
 }

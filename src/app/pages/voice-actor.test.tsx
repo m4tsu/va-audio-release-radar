@@ -436,3 +436,15 @@ describe("VoiceActorPage のフォロー", () => {
     expect(screen.getByRole("button", { name: "フォロー" })).toBeDisabled();
   });
 });
+
+describe("VoiceActorPage の訂正の申し出", () => {
+  /** 別名義が結び付いていないことに気づいた人が、声優名を書き写さずに知らせられる */
+  test("この声優を対象にした問い合わせへ送る", () => {
+    render();
+
+    expect(screen.getByRole("link", { name: "掲載内容の誤りを知らせる" })).toHaveAttribute(
+      "href",
+      "/contact?kind=correction&about=%2Fvoice-actors%2Falpha",
+    );
+  });
+});
