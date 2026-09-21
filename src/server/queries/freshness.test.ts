@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { crawlRuns } from "../db/schema";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
-import { lastSuccessAt, loadCrawlerFreshness, STALE_AFTER_HOURS } from "./freshness";
+import { loadCrawlerFreshness, STALE_AFTER_HOURS } from "./freshness";
 
 /** 基準時刻。鮮度の境目をこの時点から組み立てて結果を固定する */
 const NOW = "2026-09-21T12:00:00.000Z";
@@ -19,11 +19,14 @@ async function insertRun(
     storeSlug: "dlsite" | "audible" | "pokedora";
     status: "ok" | "error";
     finishedAt?: string;
+    /** 渡すと声優起点の走行になる。既定は日次 (新着一覧) */
+    voiceActorId?: string;
   },
 ): Promise<void> {
   await db.insert(crawlRuns).values({
     id: run.id,
     storeSlug: run.storeSlug,
+    voiceActorId: run.voiceActorId ?? null,
     startedAt: run.finishedAt ?? NOW,
     finishedAt: run.finishedAt ?? null,
     status: run.status,
@@ -134,22 +137,25 @@ describe("loadCrawlerFreshness", () => {
     expect(dlsite?.lastSuccessAt).toBeUndefined();
     expect(dlsite?.fresh).toBe(false);
   });
-});
 
-describe("lastSuccessAt", () => {
-  it("そのストアの成功した走行のうち最新を返す", async () => {
+  /**
+   * 声優起点は手で起動するもの。1 回走らせただけで日次が止まっているのを覆い隠すと、
+   * cron が動いていないことに気づけなくなる
+   */
+  it("声優起点の走行は数えない", async () => {
     const db = await createMigratedTestDb();
-    await insertRun(db, { id: "old", storeSlug: "dlsite", status: "ok", finishedAt: hoursAgo(5) });
-    await insertRun(db, { id: "new", storeSlug: "dlsite", status: "ok", finishedAt: hoursAgo(1) });
-    await insertRun(db, { id: "other", storeSlug: "audible", status: "ok", finishedAt: NOW });
+    await insertRun(db, {
+      id: "by-actor",
+      storeSlug: "dlsite",
+      status: "ok",
+      finishedAt: hoursAgo(1),
+      voiceActorId: "va_x",
+    });
 
-    expect(await lastSuccessAt(db, "dlsite")).toBe(hoursAgo(1));
-  });
+    const freshness = await loadCrawlerFreshness(db, NOW);
+    const dlsite = freshness.stores.find((store) => store.storeSlug === "dlsite");
 
-  it("成功が無ければ undefined", async () => {
-    const db = await createMigratedTestDb();
-    await insertRun(db, { id: "ng", storeSlug: "dlsite", status: "error", finishedAt: NOW });
-
-    expect(await lastSuccessAt(db, "dlsite")).toBeUndefined();
+    expect(dlsite?.lastSuccessAt).toBeUndefined();
+    expect(dlsite?.fresh).toBe(false);
   });
 });

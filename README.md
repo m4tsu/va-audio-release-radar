@@ -173,10 +173,11 @@ npm run radar:crawl -- --dry-run --only 上田麗奈
 | 走行が失敗した | ワークフローが `crawl-failure` ラベルの Issue を立てる (開いていれば追記) |
 | **cron が起動しなかった** | 外形監視。ワークフローが動かないので Issue も立たない |
 
-2 つ目のために `GET /api/crawler-freshness` がある。ストアごとに直近に成功した取り込みを見て、
-**すべて新しければ 200、1 つでも古ければ 503** を返す。認証は要らない。
-監視サービスにはこの URL を登録し、5xx で通知が飛ぶようにする。判定の幅は
-`src/server/queries/freshness.ts` の `STALE_AFTER_HOURS` が持つ。
+2 つ目のために `GET /api/crawler-freshness` がある。ストアごとに日次の走行が成功した時刻を見て、
+新しければ 2xx、古ければ 5xx を返す。認証は要らない。
+監視サービスにはこの URL を登録し、**5xx で通知が飛ぶようにする**。本文を読む設定は要らない。
+返す状態と判定の幅は `src/server/queries/freshness.ts` と
+`src/app/routes/api/crawler-freshness.ts` が持つ。
 
 ```bash
 curl -i https://<本番の URL>/api/crawler-freshness
@@ -186,8 +187,9 @@ curl -i https://<本番の URL>/api/crawler-freshness
 200 を返す。デプロイ後の疎通と E2E の起動待ち専用。
 
 > **公開リポジトリの cron は、一定期間コミットが無いと GitHub が自動で止める。**
-> 止まっても通知は来ない。外形監視はこの場合にも鳴る唯一の経路になる。
-> 再開は Actions の画面から手で行う。
+> 止まればワークフローが動かないので、上の Issue も立たない。
+> 外形監視はこの場合にも鳴る経路になる。再開は Actions の画面から手で行う。
+> (GitHub 側の挙動なので、通知の有無も期間もリポジトリからは確かめられない)
 
 ## ディレクトリ構成
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, eq, isNull, max } from "drizzle-orm";
 import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
 import { crawlRuns } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -36,8 +36,9 @@ export type CrawlerFreshness = {
  * 日次の走行は件数が日ごとに揺れるので、件数で判定すると誤報になる
  * (`docs/decisions/0007-daily-crawl-from-store-feeds.md` の「帰結」)。
  *
- * 走行の種類 (声優起点 / 新着一覧) は区別しない。どちらであれ成功した取り込みが
- * 新しければ、そのストアの経路は生きている
+ * **数えるのは日次の走行 (声優に紐付かない = `voice_actor_id` が NULL) だけ。**
+ * 声優起点は手で起動するものなので、1 回走らせただけで日次が止まっているのを覆い隠す。
+ * 監視の目的は cron が動いていることの確認なので、その走行だけを見る
  */
 export async function loadCrawlerFreshness(db: AppDb, now: string): Promise<CrawlerFreshness> {
   const rows = await db
@@ -47,7 +48,7 @@ export async function loadCrawlerFreshness(db: AppDb, now: string): Promise<Craw
       lastSuccessAt: max(crawlRuns.finishedAt),
     })
     .from(crawlRuns)
-    .where(eq(crawlRuns.status, "ok"))
+    .where(and(eq(crawlRuns.status, "ok"), isNull(crawlRuns.voiceActorId)))
     .groupBy(crawlRuns.storeSlug);
 
   const latest = new Map(rows.map((row) => [row.storeSlug, row.lastSuccessAt ?? undefined]));
@@ -73,18 +74,4 @@ export async function loadCrawlerFreshness(db: AppDb, now: string): Promise<Craw
     staleAfterHours: STALE_AFTER_HOURS,
     stores,
   };
-}
-
-/**
- * 1 ストアの直近に成功した取り込みの時刻。管理画面の健全性が使う。
- * `loadCrawlerFreshness` と違い、呼び出し側が持っている run の一覧から決められないときだけ使う
- */
-export async function lastSuccessAt(db: AppDb, storeSlug: StoreSlug): Promise<string | undefined> {
-  const [row] = await db
-    .select({ finishedAt: crawlRuns.finishedAt })
-    .from(crawlRuns)
-    .where(and(eq(crawlRuns.storeSlug, storeSlug), eq(crawlRuns.status, "ok")))
-    .orderBy(desc(crawlRuns.finishedAt))
-    .limit(1);
-  return row?.finishedAt ?? undefined;
 }

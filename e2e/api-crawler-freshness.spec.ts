@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 
 /**
  * 外形監視が見る経路。本文ではなく HTTP の状態で判断できることを固定する。
- * E2E 用の D1 には成功した取り込みが無いので、503 と「まだ 1 度も成功していない」形になる
+ *
+ * 固定データ (`e2e/fixtures/seed.sql`) の走行はすべて声優起点で、日次の走行が 1 件も無い。
+ * 鮮度は日次だけを数えるので、3 ストアとも「まだ 1 度も成功していない」になる
  */
 test("GET /api/crawler-freshness が取り込みの無いストアを 503 で返す", async ({ request }) => {
   const res = await request.get("/api/crawler-freshness");

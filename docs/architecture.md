@@ -90,7 +90,8 @@ crawler  →  src/domain
 ## 画面と公開 API
 
 ルートは `src/app/routes/` のファイル構成が正。画面データは server functions で取り、JSON を外に出すのは
-`/api/health`、`/api/admin/*`、`sitemap.xml`、`robots.txt` だけ。
+`/api/health`、`/api/crawler-freshness`、`/api/admin/*`、`sitemap.xml`、`robots.txt` だけ。
+このうち認証が要るのは `/api/admin/*` だけで、鮮度の判定は外形監視から見えるように開けてある。
 利用者が書いたものを受け取る経路はお問い合わせ (`/contact`) の 1 つで、認可の代わりに bot 対策
 (Cloudflare Turnstile) の検証を通す。ここが Worker から外へ出る唯一の通信で、検証の失敗と鍵の未設定を
 応答で分ける。フォロー情報は添えない。

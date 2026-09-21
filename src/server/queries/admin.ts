@@ -22,10 +22,13 @@ const HEALTH_RUN_SCAN_LIMIT = 2000;
 /** 前回より件数がここまで落ちたら警告する */
 const WORK_COUNT_DROP_RATIO = 0.5;
 
-/** 2 つの時刻の差 (時)。読めない時刻は「ずっと前」として扱い、警告が漏れないようにする */
-function hoursSince(from: string, to: string): number {
+/**
+ * 2 つの時刻の差 (時)。読めない時刻は undefined を返す。
+ * 「ずっと前」として数値にすると、警告文に意味のない桁が出る
+ */
+function hoursSince(from: string, to: string): number | undefined {
   const diff = Date.parse(to) - Date.parse(from);
-  return Number.isFinite(diff) ? diff / (60 * 60 * 1000) : Number.POSITIVE_INFINITY;
+  return Number.isFinite(diff) ? diff / (60 * 60 * 1000) : undefined;
 }
 
 export type UnmatchedCreditGroup = {
@@ -427,6 +430,7 @@ function judgeWarning(
   // 止まったことは件数ではなく、最後に成功してからの時間で分かる
   if (latest.voiceActorId === null) {
     const hours = hoursSince(latest.finishedAt ?? latest.startedAt, now);
+    if (hours === undefined) return { warning: true, reason: "取り込みの時刻を読めない" };
     if (hours > STALE_AFTER_HOURS) {
       return { warning: true, reason: `${Math.floor(hours)} 時間 取り込みがない` };
     }
