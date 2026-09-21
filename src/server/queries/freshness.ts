@@ -6,8 +6,9 @@ import type { AppDb } from "../db/types";
 /**
  * 取り込みが止まったと見なすまでの時間。
  *
- * 日次の走行は 1 日 1 回なので、1 回落としただけで鳴ると誤報が増える。
- * 2 回続けて落ちたら鳴る幅にしてある。これより長くすると「止まっている」に気づくのが遅れる
+ * 日次の走行は 1 日 1 回なので、**1 回落とすと次の予定時刻の約 6 時間後に鳴る**。
+ * 24 時間ちょうどにしないのは、GitHub の定期実行が混雑で遅れることがあるため。
+ * 猶予を増やすと気づくのが遅れ、減らすと遅れただけで鳴る
  */
 export const STALE_AFTER_HOURS = 30;
 
@@ -60,6 +61,8 @@ export async function loadCrawlerFreshness(db: AppDb, now: string): Promise<Craw
     const lastSuccessAt = latest.get(storeSlug);
     if (lastSuccessAt === undefined) return { storeSlug, fresh: false };
     const ageHours = (checkedAtMs - Date.parse(lastSuccessAt)) / (60 * 60 * 1000);
+    // 読めない時刻を経過時間として出さない。NaN は JSON で null になり、型と食い違う
+    if (!Number.isFinite(ageHours)) return { storeSlug, lastSuccessAt, fresh: false };
     return {
       storeSlug,
       lastSuccessAt,

@@ -79,10 +79,14 @@ jobs:
         # 失敗しても GitHub は黙っているので、人が見る場所に出す。
         # cron が起動しなかった場合はここも動かないので、外形監視と両方が要る
         # (README.md の「外形監視」)。
-        # cancelled() を入れるのは timeout-minutes で打ち切られた走行を拾うため
+        # cancelled() を入れるのは timeout-minutes で打ち切られた走行を拾うため。
+        # 手で止めた走行でも鳴るが、鳴らないより取りこぼしが小さい
         if: failure() || cancelled()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # gh は既定でリポジトリをリモートの設定から引く。取り出しが落ちた走行でも
+          # 通知が出るように、対象を明示する
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # ラベルが無いと gh issue create が落ちる。--force は既にあっても失敗しない
