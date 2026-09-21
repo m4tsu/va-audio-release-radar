@@ -109,13 +109,20 @@ export async function ingest(
 
   // 捨てた商品 ID を覚えて、翌日以降に詳細を引き直さないようにする。
   // 保存しない作品は `store_listings` に入らないので、これが無いと一覧から消えるまで
-  // 毎日引き直すことになる (`src/server/queries/screened.ts`)
+  // 毎日引き直すことになる (`src/server/queries/screened.ts`)。
+  //
+  // **出演者が 1 人も付いていない作品は覚えない。** クローラーは詳細の取得に失敗しても
+  // 一覧の情報だけで送ってくる (`crawler/adapters/dlsite.ts` の `applyDetails`) ので、
+  // 1 回の取得失敗と「見たが対象声優が居ない」が同じ形になる。覚えると、取り直せば
+  // 分かったはずの作品を辞書が増えるまで二度と引かなくなる
   if (isFeedRun && result.skippedByNoTargetActor > 0) {
     const keptIds = new Set(kept.map((item) => item.work.storeProductId));
     await recordScreened(
       db,
       payload.storeSlug,
-      resolvedByWork.map((item) => item.work.storeProductId).filter((id) => !keptIds.has(id)),
+      resolvedByWork
+        .filter((item) => !keptIds.has(item.work.storeProductId) && item.credits.length > 0)
+        .map((item) => item.work.storeProductId),
       now,
     );
   }

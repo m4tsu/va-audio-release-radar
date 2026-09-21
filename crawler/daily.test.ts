@@ -108,13 +108,17 @@ const OK_RESPONSE: IngestResponse = {
 function stubTarget(
   known: readonly string[] | Error = [],
   respond: (payload: IngestPayload) => Promise<IngestResponse> = () => Promise.resolve(OK_RESPONSE),
-): { target: IngestTarget; sent: IngestPayload[] } {
+): { target: IngestTarget; sent: IngestPayload[]; askedScreened: () => boolean | undefined } {
   const sent: IngestPayload[] = [];
+  let askedScreened: boolean | undefined;
   return {
     sent,
+    askedScreened: () => askedScreened,
     target: {
-      knownIds: (_storeSlug: StoreSlug) =>
-        known instanceof Error ? Promise.reject(known) : Promise.resolve(new Set(known)),
+      knownIds: (_storeSlug: StoreSlug, includeScreened?: boolean) => {
+        askedScreened = includeScreened;
+        return known instanceof Error ? Promise.reject(known) : Promise.resolve(new Set(known));
+      },
       ingest: (payload) => {
         sent.push(payload);
         return respond(payload);
@@ -186,6 +190,18 @@ describe("runStore", () => {
     // 既知が分からないので adapter には渡さない (全件の詳細を取り直すだけで済む)
     expect(seen.knownIds).toBeUndefined();
     expect(sent).toHaveLength(1);
+  });
+
+  /**
+   * 「見たが対象声優が居なかった」作品も既知として扱わないと、一覧から消えるまで
+   * 毎日詳細を引き直す (`src/server/queries/screened.ts`)
+   */
+  it("既知 ID を引くときに screened を混ぜるよう頼む", async () => {
+    const { target, askedScreened } = stubTarget();
+
+    await runStore(stubAdapter(feedResult()), target, false);
+
+    expect(askedScreened()).toBe(true);
   });
 
   it("取り込みの結果を保存件数と破棄件数として返す", async () => {

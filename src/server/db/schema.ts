@@ -221,8 +221,12 @@ export const crawlLeases = sqliteTable("crawl_leases", {
  * **作品の情報は持たない。** 持つのは「この商品 ID は見た」という事実だけで、
  * 出演者の表記も題名も残さない (残さない判断は上の決定記録の「帰結」)。
  *
- * 判断の材料は声優の辞書なので、辞書が変わればこの表は捨てる
- * (`src/server/queries/screened.ts`)。捨てないと、新しく追った声優の既存作品が永久に入らない
+ * 判断の材料は声優の辞書なので、**辞書に名前が増えたら**この表は捨てる
+ * (`src/server/queries/screened.ts`)。捨てないと、新しく追った声優の既存作品が永久に入らない。
+ *
+ * 増えたかどうかは行数で見るので、既存の声優の改名 (行数が変わらない) では捨てない。
+ * 改名で名寄せの答えが変わった作品は、月次の声優起点が新しい名前で引いて拾う
+ * (あちらは対象声優が居なくても保存するので、この表を見ない)
  */
 export const screenedStoreProducts = sqliteTable(
   "screened_store_products",

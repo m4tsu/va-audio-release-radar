@@ -12,6 +12,7 @@ import {
   unexcludeCreditName,
 } from "./admin";
 import { ingest } from "./ingest";
+import { recordScreened, screenedStoreProductIds } from "./screened";
 import { daysAgo, HANAZAWA, NOW, payload, rawWork, setupDb, UEDA } from "./test-fixtures";
 
 describe("listUnmatchedCredits", () => {
@@ -189,6 +190,41 @@ describe("assignCredit", () => {
     expect(aliases).toEqual([
       expect.objectContaining({ name: "ReinaU", source: "manual", verified: true }),
     ]);
+  });
+
+  /**
+   * 別名も名寄せの辞書。足した表記で落ちていた作品を日次が拾い直せるように、
+   * 過去の「対象声優が居ない」の判断を捨てる
+   */
+  it("alias を足したら、過去の「対象外」の判断を捨てる", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["ReinaU"] })] }), NOW);
+    await recordScreened(db, "dlsite", ["RJ1", "RJ2"], NOW);
+
+    await assignCredit(db, {
+      creditedName: "ReinaU",
+      sourceStoreSlug: "dlsite",
+      voiceActorId: UEDA.id,
+      addAlias: true,
+    });
+
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual([]);
+  });
+
+  // 辞書を触らない割り当てでは捨てない。捨てると往復が無駄に増える
+  it("alias を足さない割り当てでは捨てない", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ creditedNames: ["ReinaU"] })] }), NOW);
+    await recordScreened(db, "dlsite", ["RJ1"], NOW);
+
+    await assignCredit(db, {
+      creditedName: "ReinaU",
+      sourceStoreSlug: "dlsite",
+      voiceActorId: UEDA.id,
+      addAlias: false,
+    });
+
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["RJ1"]);
   });
 
   it("alias を足すと次の ingest で自動的に verified になる", async () => {

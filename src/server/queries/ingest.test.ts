@@ -390,6 +390,30 @@ describe("ingest", () => {
     expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["DROP"]);
   });
 
+  /**
+   * クローラーは詳細の取得に失敗しても一覧の情報だけで送ってくる。DLsite の一覧は
+   * 出演者欄が空のことがあるので、覚えると取り直せば分かったはずの作品を二度と引かなくなる
+   */
+  it("出演者が 1 人も付いていない作品は覚えない", async () => {
+    const db = await setupDb();
+    const { voiceActorId: _omitted, ...base } = payload();
+
+    await ingest(
+      db,
+      {
+        ...base,
+        works: [
+          rawWork({ storeProductId: "NO-CREDITS", creditedNames: [] }),
+          rawWork({ storeProductId: "DROP", creditedNames: ["知らない人"] }),
+        ],
+      },
+      NOW,
+    );
+
+    // どちらも保存はされないが、覚えるのは「見て居なかった」ほうだけ
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["DROP"]);
+  });
+
   it("声優起点の走行では覚えない", async () => {
     const db = await setupDb();
 

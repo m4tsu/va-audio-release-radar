@@ -14,6 +14,7 @@ import {
 import type { AppDb } from "../db/types";
 import { loadActorIndex } from "./actors";
 import { STALE_AFTER_HOURS } from "./freshness";
+import { clearScreened } from "./screened";
 
 /** 1 グループにつき画面に出す作品例の数。多すぎると一覧が縦に伸びるので絞る */
 const SAMPLE_WORKS_PER_GROUP = 3;
@@ -166,6 +167,10 @@ export async function assignCredit(
         target: [voiceActorAliases.voiceActorId, voiceActorAliases.name],
         set: { source: "manual", verified: true },
       });
+    // 辞書が増えたので、過去の「対象声優が居ない」の判断を捨てる。
+    // 捨てないと、足したばかりの別名で落ちていた作品が日次で拾い直されない
+    // (`src/server/queries/screened.ts`)
+    await clearScreened(db);
   }
 
   return { updated: Number(counted?.count ?? 0), aliasAdded: input.addAlias };

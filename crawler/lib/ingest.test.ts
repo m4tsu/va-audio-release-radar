@@ -47,6 +47,25 @@ describe("AdminApiClient", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer dev");
   });
 
+  /**
+   * 「見たが対象声優が居なかった」作品も混ぜるかどうかで、送り先の答えが変わる。
+   * 日次だけが混ぜる (`crawler/daily.ts`)
+   */
+  it("screened を混ぜるときだけクエリを足す", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new AdminApiClient("http://x", "dev");
+
+    await client.knownIds("dlsite");
+    await client.knownIds("dlsite", true);
+
+    const urls = fetchMock.mock.calls.map((call) => (call as unknown as [string])[0]);
+    expect(urls).toEqual([
+      "http://x/api/admin/known-ids?store=dlsite",
+      "http://x/api/admin/known-ids?store=dlsite&screened=1",
+    ]);
+  });
+
   it("到達できないときはやり直し、成功すれば結果を返す", async () => {
     const fetchMock = vi
       .fn()
