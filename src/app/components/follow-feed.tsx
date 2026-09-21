@@ -4,6 +4,7 @@ import { EmptyState } from "@/app/components/empty-state";
 import { WorkCard } from "@/app/components/work-card";
 import { useT } from "@/app/i18n";
 import { isUnreadSince } from "@/app/lib/format";
+import { earliestFirstSeen } from "@/app/lib/listed-at";
 import type { FeedItem } from "@/app/lib/view-types";
 import { fetchFeed } from "@/app/server-fns/works";
 import { useFollowStore } from "@/app/store/follow-store";
@@ -233,12 +234,4 @@ function FeedCards({
       ))}
     </div>
   );
-}
-
-/** その作品をどのストアであれ最初に見つけた日時。未読判定の材料 */
-function earliestFirstSeen(listings: FeedItem["listings"]): string | undefined {
-  return listings
-    .map((listing) => listing.firstSeenAt)
-    .sort()
-    .at(0);
 }

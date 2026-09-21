@@ -5,7 +5,14 @@ import { Badge } from "@/app/components/ui/badge";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
-import { categoryLabel, formatDuration, formatMonthDay, formatReleaseDate } from "@/app/lib/format";
+import {
+  categoryLabel,
+  formatDuration,
+  formatMonthDay,
+  formatReleaseDate,
+  formatYearMonth,
+} from "@/app/lib/format";
+import { listedAt } from "@/app/lib/listed-at";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkWithListings } from "@/app/lib/view-types";
 
@@ -51,6 +58,8 @@ export function WorkCard({
   const shownActors = actorLimit === undefined ? dedupedActors : dedupedActors.slice(0, actorLimit);
   const hiddenActorCount = dedupedActors.length - shownActors.length;
   const upcoming = item.freshness === "upcoming";
+  // 発売日が無い作品にだけ入る。発売日の代わりに出す「掲載を見つけた時点」
+  const listed = listedAt(item);
 
   return (
     <article className="relative flex gap-4 rounded-xl border bg-card p-3 text-card-foreground shadow-sm">
@@ -84,9 +93,15 @@ export function WorkCard({
           ))}
           <Badge variant="secondary">{categoryLabel(work.category, locale)}</Badge>
           <AppearanceBadge castSize={item.castSize} />
-          {/* 新しさは一番強く出す層なので、この 1 枚だけ色で塗る */}
+          {/*
+            新しさは一番強く出す層なので、この 1 枚だけ色で塗る。
+            発売日が無い作品の「新しい」は発売ではなく掲載を見つけたことなので語を分ける
+            (サーバー側の判定 `classifyWork` も発売日の有無で分岐している)
+          */}
           {item.isNew ? (
-            <Badge className="bg-highlight text-highlight-foreground">{t("work.badgeNew")}</Badge>
+            <Badge className="bg-highlight text-highlight-foreground">
+              {work.releaseDate ? t("work.badgeNew") : t("work.badgeListed")}
+            </Badge>
           ) : null}
           {upcoming && work.releaseDate ? (
             <Badge variant="outline" className="border-highlight/40 bg-highlight/10 text-highlight">
@@ -137,6 +152,16 @@ export function WorkCard({
             <div className="flex gap-1">
               <dt className="sr-only">{t("work.releaseDate")}</dt>
               <dd>{formatReleaseDate(work.releaseDate, locale)}</dd>
+            </div>
+          ) : null}
+          {/*
+            発売日が無い作品は、この行が無いと時点が何も読めない。見出しを表に出すのは、
+            発売日と同じ見た目で月だけ並ぶと発売日として読まれるため
+          */}
+          {listed ? (
+            <div className="flex gap-1">
+              <dt>{t("work.listedAt")}</dt>
+              <dd>{formatYearMonth(listed, locale)}</dd>
             </div>
           ) : null}
           {work.durationSeconds ? (

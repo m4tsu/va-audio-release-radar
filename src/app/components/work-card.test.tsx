@@ -1,10 +1,16 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { WorkCard } from "@/app/components/work-card";
-import { workWithListings } from "@/app/test/fixtures";
+import { workListing, workSummary, workWithListings } from "@/app/test/fixtures";
 import { renderWithLocale } from "@/app/test/render";
 
 const item = workWithListings();
+
+/** 発売日を持たない作品 (ポケドラと Audible のポッドキャスト)。掲載を見つけたのは 2026-03 */
+const listedOnly = workWithListings({
+  work: workSummary({ releaseDate: undefined }),
+  listings: [workListing({ firstSeenAt: "2026-03-01T00:00:00.000Z" })],
+});
 
 function actor(index: number) {
   return { id: `va_${index}`, slug: `actor-${index}`, name: `声優${index}` };
@@ -93,5 +99,65 @@ describe("WorkCard の出演声優", () => {
     );
 
     expect(actorLinks().map((link) => link.textContent)).toEqual(["Reina Ueda", "花澤香菜"]);
+  });
+});
+
+describe("WorkCard の日付", () => {
+  test("発売日がある作品は発売日を出し、掲載を確認した月は出さない", () => {
+    const withRelease = workWithListings({ work: workSummary({ releaseDate: "2026-09-01" }) });
+    renderWithLocale(<WorkCard item={withRelease} />);
+
+    expect(screen.getByText("2026年9月1日")).toBeInTheDocument();
+    expect(screen.queryByText("掲載確認")).not.toBeInTheDocument();
+  });
+
+  /** ポケットドラマ CD は全作品が発売日を持たない。行ごと落とすと時点が何も読めない */
+  test("発売日が無い作品は掲載を確認した月を見出しつきで出す", () => {
+    renderWithLocale(<WorkCard item={listedOnly} />);
+
+    expect(screen.getByText("掲載確認")).toBeInTheDocument();
+    expect(screen.getByText("2026年3月")).toBeInTheDocument();
+  });
+
+  test("英語表示でも掲載を確認した月を出す", () => {
+    renderWithLocale(<WorkCard item={listedOnly} />, "en");
+
+    expect(screen.getByText("Listed")).toBeInTheDocument();
+    expect(screen.getByText("March 2026")).toBeInTheDocument();
+  });
+});
+
+describe("WorkCard の新着の印", () => {
+  test("発売日が新しい作品には NEW を出す", () => {
+    const released = workWithListings({
+      work: workSummary({ releaseDate: "2026-09-18" }),
+      isNew: true,
+    });
+    renderWithLocale(<WorkCard item={released} />);
+
+    expect(screen.getByText("NEW")).toBeInTheDocument();
+    expect(screen.queryByText("掲載")).not.toBeInTheDocument();
+  });
+
+  /** 発売日が無い作品の「新しい」は発売ではなく掲載を見つけたこと。同じ語で並べない */
+  test("発売日が無い作品には掲載の印を出す", () => {
+    renderWithLocale(<WorkCard item={{ ...listedOnly, isNew: true }} />);
+
+    expect(screen.getByText("掲載")).toBeInTheDocument();
+    expect(screen.queryByText("NEW")).not.toBeInTheDocument();
+  });
+
+  test("英語表示では LISTED を出す", () => {
+    renderWithLocale(<WorkCard item={{ ...listedOnly, isNew: true }} />, "en");
+
+    expect(screen.getByText("LISTED")).toBeInTheDocument();
+    expect(screen.queryByText("NEW")).not.toBeInTheDocument();
+  });
+
+  test("新着でなければどちらの印も出さない", () => {
+    renderWithLocale(<WorkCard item={listedOnly} />);
+
+    expect(screen.queryByText("掲載")).not.toBeInTheDocument();
+    expect(screen.queryByText("NEW")).not.toBeInTheDocument();
   });
 });

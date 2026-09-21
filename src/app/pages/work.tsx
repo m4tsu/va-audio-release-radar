@@ -7,7 +7,13 @@ import { Separator } from "@/app/components/ui/separator";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
-import { categoryLabel, formatDuration, formatReleaseDate } from "@/app/lib/format";
+import {
+  categoryLabel,
+  formatDuration,
+  formatReleaseDate,
+  formatYearMonth,
+} from "@/app/lib/format";
+import { listedAt } from "@/app/lib/listed-at";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { WorkCredit, WorkDetail, WorkListing } from "@/app/lib/view-types";
 
@@ -25,6 +31,8 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
   const credits = dedupeCredits(detail.credits);
   // https 以外の表紙 URL は出さない (DB には検証を足す前に入った行が残りうる)
   const coverImageUrl = safeHttpsUrl(work.coverImageUrl);
+  // 発売日が無い作品にだけ入る。発売日の代わりではなく、発売日「不明」の次の行として添える
+  const listed = listedAt(detail);
 
   return (
     <article className="space-y-8">
@@ -59,6 +67,13 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
             <dd>
               {work.releaseDate ? formatReleaseDate(work.releaseDate, locale) : t("common.unknown")}
             </dd>
+            {/* 発売日が不明な作品でも、いつごろのものかがこの行で読める */}
+            {listed ? (
+              <>
+                <dt className="text-muted-foreground">{t("work.listedAt")}</dt>
+                <dd>{formatYearMonth(listed, locale)}</dd>
+              </>
+            ) : null}
             {/* DLsite は再生時間を提供せず常に不明になるので、値が無い作品は行ごと出さない */}
             {work.durationSeconds ? (
               <>

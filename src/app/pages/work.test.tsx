@@ -43,6 +43,26 @@ describe("WorkPage の中身", () => {
     expect(screen.getByText("大人数")).toBeInTheDocument();
   });
 
+  test("発売日がある作品は発売日を出し、掲載を確認した月は出さない", () => {
+    renderWithLocale(<WorkPage detail={DETAIL} />);
+
+    expect(screen.getByText("2026年9月1日")).toBeInTheDocument();
+    expect(screen.queryByText("掲載確認")).not.toBeInTheDocument();
+  });
+
+  /** ポケットドラマ CD は全作品が発売日を持たない。不明としか出ないと時点が読めない */
+  test("発売日が不明な作品には掲載を確認した月を添える", () => {
+    const detail = workDetail({
+      work: workSummary({ releaseDate: undefined }),
+      listings: [workListing({ firstSeenAt: "2026-03-01T00:00:00.000Z" })],
+    });
+    renderWithLocale(<WorkPage detail={detail} />);
+
+    expect(screen.getByText("不明")).toBeInTheDocument();
+    expect(screen.getByText("掲載確認")).toBeInTheDocument();
+    expect(screen.getByText("2026年3月")).toBeInTheDocument();
+  });
+
   test("再生時間が無い作品は行ごと出さない", () => {
     const detail = workDetail({ work: workSummary({ durationSeconds: undefined }) });
     renderWithLocale(<WorkPage detail={detail} />);

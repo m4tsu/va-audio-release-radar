@@ -288,6 +288,11 @@ export const ja = {
       "{{category}}の音声作品「{{title}}」の発売日・再生時間・出演者。{{stores}} で配信中。",
     makerName: "サークル / 出版社",
     releaseDate: "発売日",
+    /**
+     * 発売日を持たない作品に出す時点 (`lib/listed-at.ts`)。発売日と読み違えられないよう、
+     * 日付の見出しにも新着の印と同じ「掲載」を置く
+     */
+    listedAt: "掲載確認",
     duration: "再生時間",
     castTitle: "出演",
     castEmpty: "出演者の情報はありません。",
@@ -297,6 +302,8 @@ export const ja = {
     checkAtStore: "価格と販売状況はストアでご確認ください。",
     /** 新着の印。両言語とも短い方が並びが崩れないので英語のまま */
     badgeNew: "NEW",
+    /** 発売日を持たない作品の新着の印。出たのではなく見つけたので、NEW と語を分ける */
+    badgeListed: "掲載",
     badgeUpcoming: "発売予定 {{date}}",
     unread: "未読",
     noImage: "no image",
