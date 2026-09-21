@@ -26,6 +26,7 @@ import {
   spacedUnverifiedAliasNames,
   spacedVerifiedAliasNames,
 } from "./lib/ingest.ts";
+import { STORE_COLUMN_LABELS } from "./lib/labels.ts";
 import { CRAWLER_DIR } from "./lib/paths.ts";
 
 /**
@@ -50,13 +51,6 @@ const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
 };
 
 const ALL_STORES: readonly StoreSlug[] = STORE_SLUGS;
-
-/** 集計表の見出し。slug をそのまま出すと列が狭くて読みにくいので短い表示名にする */
-const STORE_COLUMN_LABELS: Record<StoreSlug, string> = {
-  dlsite: "DLsite",
-  audible: "Audible",
-  pokedora: "ポケドラ",
-};
 
 const ACTORS_JSON = path.join(CRAWLER_DIR, "actors.generated.json");
 

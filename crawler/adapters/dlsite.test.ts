@@ -723,17 +723,17 @@ describe("dlsiteAdapter.fetchNewReleases", () => {
     expect(result?.warnings).toContain("RJ2: 対象外の年齢区分 (age_category=3) のため除外");
   });
 
-  // 新着一覧は常に 30 件返るので、0 件はセレクタが壊れた合図
-  it("一覧は取れたのに作品が 0 件なら警告に残す", async () => {
+  // 新着一覧は常に 30 件返るので、0 件はセレクタが壊れた合図。
+  // empty で返すと終了コード 0 になり、壊れたことに気づけない
+  it("一覧は取れたのに作品が 0 件なら error にする", async () => {
     respond({ home: ok(searchPage([])), garumani: ok(searchPage([])) });
 
     const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
 
+    expect(result?.status).toBe("error");
+    expect(result?.reason).toBe("新着一覧から作品を 1 件も読めなかった");
     expect(result?.warnings).toContain(
       "home の新着一覧から作品を 1 件も読めなかった。表示が変わった可能性",
-    );
-    expect(result?.warnings).toContain(
-      "garumani の新着一覧から作品を 1 件も読めなかった。表示が変わった可能性",
     );
   });
 

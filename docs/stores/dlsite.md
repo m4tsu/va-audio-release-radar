@@ -156,10 +156,11 @@ https://www.dlsite.com/{floor}/fsr/=/language/jp/work_type_category[0]/audio/ord
   `product.json` を引く。誰の作品かを決めるのは取り込み側
 - **同じ作品を毎日引き直す。** 詳細を省けるのは DB にある作品だけで、対象声優が居ない作品は
   保存されない ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
-  一覧から消えるまで毎日 `product.json` を引くので、1 回の走行は一覧 30 件に近い往復になる。
+  一覧から消えるまで毎日 `product.json` を引くので、1 回の走行の往復は**両フロアの一覧の件数に近づく**。
   一覧に留まる日数はフロアで違う (`/home/` は
   [`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md)、`/garumani/` は
-  [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md))
+  [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md))。
+  1 回ぶんの実測は [`dlsite-daily-feed-2026-09-21.md`](../research/dlsite-daily-feed-2026-09-21.md)
 
 ### 作品詳細 API
 
@@ -336,4 +337,6 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
   女性向け 3 フロアの切り分け、声優 10 名の件数差、フロアをまたぐ作品 ID、予約作品
 - [`docs/decisions/0002-actor-first-crawling.md`](../decisions/0002-actor-first-crawling.md) — 声優起点
 - [`docs/decisions/0003-no-r18-keep-bl.md`](../decisions/0003-no-r18-keep-bl.md) — R18 を載せない
+- [`docs/research/dlsite-daily-feed-2026-09-21.md`](../research/dlsite-daily-feed-2026-09-21.md) —
+  日次の走行 1 回目の件数と所要
 - [`docs/decisions/0011-dlsite-garumani-floor.md`](../decisions/0011-dlsite-garumani-floor.md) — 引くフロア

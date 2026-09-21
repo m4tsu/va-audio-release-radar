@@ -636,6 +636,11 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   if (pages === 0) {
     return { ...base, status: "error", reason: `新着一覧の取得に失敗 (${failures.join(" / ")})` };
   }
+  // ページは取れたのに 1 件も読めない。新着一覧は常に埋まっているので、
+  // これは「新作が無い」ではなく表示が変わった合図。緑のまま通さない
+  if (listed.size === 0) {
+    return { ...base, status: "error", reason: "新着一覧から作品を 1 件も読めなかった" };
+  }
 
   // 既知の作品は詳細も取らず、送りもしない。日次の目的は新作の検出で、
   // 既知の作品の項目を直すのは月次の役目 (`decisions/0007`)

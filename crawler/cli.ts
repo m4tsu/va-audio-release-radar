@@ -9,6 +9,7 @@ import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { ActorQuery, AdapterResult, Coverage, SourceAdapter } from "./adapters/types.ts";
 import { loadPokedoraDirectory, lookupActor } from "./discovery/pokedora-directory.ts";
 import { type ActorSeed, spacedVerifiedAliasNames } from "./lib/ingest.ts";
+import { STORE_LABELS } from "./lib/labels.ts";
 import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
 import { loadActorSeeds } from "./run.ts";
 
@@ -34,12 +35,6 @@ const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
 };
 
 /** 見出しに出すストア名 */
-const STORE_LABELS: Record<StoreSlug, string> = {
-  dlsite: "DLsite",
-  audible: "Audible",
-  pokedora: "ポケットドラマCD",
-};
-
 const USAGE = `使い方:
   node crawler/cli.ts actor "<声優名>" [オプション]
   node crawler/cli.ts diff  "<声優名>" [オプション]

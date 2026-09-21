@@ -15,6 +15,7 @@ import {
   IngestProtocolMismatchError,
   type IngestResponse,
 } from "./lib/ingest.ts";
+import { STORE_LABELS } from "./lib/labels.ts";
 
 /**
  * 日次の走行。ストアの新着一覧を引き、まだ知らない作品だけを取り込みに送る
@@ -31,12 +32,6 @@ import {
 
 /** 新着一覧を実装した adapter。他のストアは後続の issue で足す */
 const FEED_ADAPTERS: readonly SourceAdapter[] = [dlsiteAdapter];
-
-const STORE_LABELS: Record<StoreSlug, string> = {
-  dlsite: "DLsite",
-  audible: "Audible",
-  pokedora: "ポケドラ",
-};
 
 const USAGE = `使い方:
   INGEST_TOKEN=... node crawler/daily.ts --base-url https://example.workers.dev [オプション]
@@ -103,14 +98,35 @@ export function formatOutcome(outcome: FeedOutcome): string {
   return `${label} ${status} ${counts.join(" / ")}${reason}`;
 }
 
+/**
+ * 既知の作品 ID。取れなくても走行は止めない。止めると `crawl_runs` に行が残らず、
+ * 走行が動かなかったのか新作が無かったのかを後から区別できなくなる。
+ * 既知が分からなければ全件の詳細を取り直すだけで済む (`crawler/run.ts` の `loadKnownIds` と同じ扱い)
+ */
+async function loadKnownIds(
+  client: IngestTarget | undefined,
+  storeSlug: StoreSlug,
+  warnings: string[],
+): Promise<ReadonlySet<string> | undefined> {
+  // 送らない走行では引かない。DB に触れずに取得部分だけ試せるようにするため
+  if (client === undefined) return undefined;
+  try {
+    return await client.knownIds(storeSlug);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    warnings.push(`known-ids を取れなかった (${reason})。既知の作品も取り直す`);
+    return undefined;
+  }
+}
+
 export async function runStore(
   adapter: SourceAdapter,
   client: IngestTarget | undefined,
   snapshot: boolean,
 ): Promise<FeedOutcome> {
   const storeSlug = adapter.storeSlug;
-  // 送らない走行でも既知は引かない。DB に触れずに取得部分だけ試せるようにするため
-  const knownIds = client === undefined ? undefined : await client.knownIds(storeSlug);
+  const warnings: string[] = [];
+  const knownIds = await loadKnownIds(client, storeSlug, warnings);
 
   const startedAt = new Date().toISOString();
   // fetchNewReleases を持つ adapter だけを FEED_ADAPTERS に入れているので必ず在る
@@ -123,7 +139,7 @@ export async function runStore(
       sent: 0,
       complete: false,
       reason: "新着一覧に対応していない",
-      warnings: [],
+      warnings,
     };
   }
 
@@ -134,7 +150,7 @@ export async function runStore(
     sent: result.works.length,
     complete: result.complete,
     ...(result.reason === undefined ? {} : { reason: result.reason }),
-    warnings: result.warnings,
+    warnings: [...warnings, ...result.warnings],
   };
   if (client === undefined) return base;
 
