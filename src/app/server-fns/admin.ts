@@ -66,3 +66,25 @@ export const fetchCrawlerHealth = createServerFn({ method: "GET" }).handler(asyn
   ]);
   return crawlerHealth(getDb());
 });
+
+/**
+ * 届いた問い合わせの読み出し。飛ばす件数まで受け取るので、画面は 1 ページぶんずつ辿れる。
+ * 上限は 1 度に読む件数の歯止め。管理画面が出す件数より大きく取ってあるのは、
+ * 「次のページがあるか」を数えるために 1 件多く引くため
+ */
+const INQUIRY_DEFAULTS = { limit: 50, offset: 0 };
+const inquiryPageSchema = z.object({
+  limit: z.number().int().min(1).max(200).default(INQUIRY_DEFAULTS.limit),
+  offset: z.number().int().min(0).default(INQUIRY_DEFAULTS.offset),
+});
+
+export const fetchInquiries = createServerFn({ method: "GET" })
+  .validator(inquiryPageSchema.default(INQUIRY_DEFAULTS))
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const [{ getDb }, { listInquiries }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/inquiries"),
+    ]);
+    return listInquiries(getDb(), data.limit, data.offset);
+  });

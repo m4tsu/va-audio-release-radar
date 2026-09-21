@@ -85,6 +85,25 @@ describe("listInquiries", () => {
     expect(rows.map((row) => row.body)).toEqual(["2", "1"]);
   });
 
+  /** 管理画面が 2 ページ目を出すときの読み方。飛ばした先から続きが返る */
+  it("飛ばした件数のぶんだけ後ろから返す", async () => {
+    const db = await createMigratedTestDb();
+    for (let index = 0; index < 4; index += 1) {
+      await saveInquiry(db, { kind: "other", body: `${index}` }, at(index * MINUTE_MS));
+    }
+
+    const rows = await listInquiries(db, 2, 2);
+
+    expect(rows.map((row) => row.body)).toEqual(["1", "0"]);
+  });
+
+  it("飛ばした先に行が無ければ空配列", async () => {
+    const db = await createMigratedTestDb();
+    await saveInquiry(db, { kind: "other", body: "1 件だけ" }, NOW);
+
+    expect(await listInquiries(db, 2, 2)).toEqual([]);
+  });
+
   it("1 件も無ければ空配列", async () => {
     const db = await createMigratedTestDb();
 

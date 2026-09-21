@@ -42,14 +42,23 @@ export async function saveInquiry(
 
 /**
  * 新しい順に読む。同じ時刻の行は後から入った方 (id が大きい方) を先に出す。
- * 受け取った時刻の精度はミリ秒なので、同時に届いた 2 件の並びが実行ごとに入れ替わらないようにする
+ * 受け取った時刻の精度はミリ秒なので、同時に届いた 2 件の並びが実行ごとに入れ替わらないようにする。
+ *
+ * `offset` は続きを読むための飛ばし件数。並びが受け取った時刻と id で一意に決まるので、
+ * 同じ引数なら何度読んでも同じ行が返る。読んでいる間に新しい行が届くと後ろへずれるが、
+ * 届いた順に積むだけの表なので、ずれるのは新しい側の 1 ページ目だけで済む
  */
-export async function listInquiries(db: AppDb, limit = DEFAULT_LIST_LIMIT): Promise<Inquiry[]> {
+export async function listInquiries(
+  db: AppDb,
+  limit = DEFAULT_LIST_LIMIT,
+  offset = 0,
+): Promise<Inquiry[]> {
   const rows = await db
     .select()
     .from(inquiries)
     .orderBy(desc(inquiries.receivedAt), desc(inquiries.id))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
 
   return rows.map(toInquiry);
 }
