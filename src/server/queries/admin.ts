@@ -13,6 +13,7 @@ import {
 } from "../db/schema";
 import type { AppDb } from "../db/types";
 import { loadActorIndex } from "./actors";
+import { STALE_AFTER_HOURS } from "./freshness";
 
 /** 1 グループにつき画面に出す作品例の数。多すぎると一覧が縦に伸びるので絞る */
 const SAMPLE_WORKS_PER_GROUP = 3;
@@ -20,6 +21,12 @@ const SAMPLE_WORKS_PER_GROUP = 3;
 const HEALTH_RUN_SCAN_LIMIT = 2000;
 /** 前回より件数がここまで落ちたら警告する */
 const WORK_COUNT_DROP_RATIO = 0.5;
+
+/** 2 つの時刻の差 (時)。読めない時刻は「ずっと前」として扱い、警告が漏れないようにする */
+function hoursSince(from: string, to: string): number {
+  const diff = Date.parse(to) - Date.parse(from);
+  return Number.isFinite(diff) ? diff / (60 * 60 * 1000) : Number.POSITIVE_INFINITY;
+}
 
 export type UnmatchedCreditGroup = {
   creditedName: string;
@@ -364,7 +371,7 @@ export async function crawlerHealth(
 
     const previousOk = rest.find((run) => run.status === "ok");
     const actor = latest.voiceActorId === null ? undefined : actorNames.get(latest.voiceActorId);
-    const { warning, reason } = judgeWarning(latest, previousOk);
+    const { warning, reason } = judgeWarning(latest, previousOk, now);
 
     entries.push({
       storeSlug: latest.storeSlug,
@@ -402,15 +409,29 @@ function recordedAt(run: { startedAt: string; finishedAt?: string }): string {
 }
 
 function judgeWarning(
-  latest: { status: "ok" | "error"; workCount: number; voiceActorId: string | null },
+  latest: {
+    status: "ok" | "error";
+    workCount: number;
+    voiceActorId: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+  },
   previousOk: { workCount: number } | undefined,
+  now: string,
 ): { warning: boolean; reason?: string } {
   if (latest.status === "error") {
     return { warning: true, reason: "直近の実行が失敗している" };
   }
   // 声優に紐付かない走行 (新着一覧) は日ごとに件数が揺れるので前回比で判定しない。
-  // この層の健全性は「直近に成功した取り込みがあるか」で見る (decisions/0007)
-  if (latest.voiceActorId === null) return { warning: false };
+  // この層の健全性は「直近に成功した取り込みがあるか」で見る (decisions/0007)。
+  // 止まったことは件数ではなく、最後に成功してからの時間で分かる
+  if (latest.voiceActorId === null) {
+    const hours = hoursSince(latest.finishedAt ?? latest.startedAt, now);
+    if (hours > STALE_AFTER_HOURS) {
+      return { warning: true, reason: `${Math.floor(hours)} 時間 取り込みがない` };
+    }
+    return { warning: false };
+  }
   if (!previousOk || previousOk.workCount === 0) {
     // 比較対象が無い / 前回も 0 件なら、落ちたのか元からそうなのか判断できない
     return { warning: false };

@@ -164,6 +164,31 @@ INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199 --only 
 npm run radar:crawl -- --dry-run --only 上田麗奈
 ```
 
+## 外形監視
+
+クロールが止まったことに気づく経路は 2 つある。**両方が要る。**
+
+| 何が起きたか | 気づく経路 |
+|---|---|
+| 走行が失敗した | ワークフローが `crawl-failure` ラベルの Issue を立てる (開いていれば追記) |
+| **cron が起動しなかった** | 外形監視。ワークフローが動かないので Issue も立たない |
+
+2 つ目のために `GET /api/crawler-freshness` がある。ストアごとに直近に成功した取り込みを見て、
+**すべて新しければ 200、1 つでも古ければ 503** を返す。認証は要らない。
+監視サービスにはこの URL を登録し、5xx で通知が飛ぶようにする。判定の幅は
+`src/server/queries/freshness.ts` の `STALE_AFTER_HOURS` が持つ。
+
+```bash
+curl -i https://<本番の URL>/api/crawler-freshness
+```
+
+**`/api/health` は使わない。** あちらは DB に触らない契約で、クロールが何日止まっていても
+200 を返す。デプロイ後の疎通と E2E の起動待ち専用。
+
+> **公開リポジトリの cron は、一定期間コミットが無いと GitHub が自動で止める。**
+> 止まっても通知は来ない。外形監視はこの場合にも鳴る唯一の経路になる。
+> 再開は Actions の画面から手で行う。
+
 ## ディレクトリ構成
 
 ```

@@ -525,6 +525,41 @@ describe("crawlerHealth", () => {
     expect(health.entries[0]?.warning).toBe(false);
   });
 
+  /**
+   * 日次が止まったことは件数からは読めない。新着一覧の走行は 1 日 1 回なので、
+   * 最後に成功してからの時間で判定する (decisions/0007)
+   */
+  it("声優に紐付かない走行は、しばらく取り込みが無ければ警告する", async () => {
+    const db = await setupDb();
+    await addRun(db, {
+      id: "stale",
+      startedAt: daysAgo(3),
+      workCount: 30,
+      status: "ok",
+      voiceActorId: null,
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries[0]?.warning).toBe(true);
+    expect(health.entries[0]?.warningReason).toBe("72 時間 取り込みがない");
+  });
+
+  it("声優に紐付かない走行でも、直近に成功していれば警告しない", async () => {
+    const db = await setupDb();
+    await addRun(db, {
+      id: "fresh",
+      startedAt: daysAgo(1),
+      workCount: 30,
+      status: "ok",
+      voiceActorId: null,
+    });
+
+    const health = await crawlerHealth(db, NOW);
+
+    expect(health.entries[0]?.warning).toBe(false);
+  });
+
   it("声優に紐付かない走行はストアごとに 1 つの束になり、声優の名前を付けない", async () => {
     const db = await setupDb();
     await addRun(db, {

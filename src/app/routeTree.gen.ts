@@ -21,6 +21,7 @@ import { Route as AdminInquiriesRouteImport } from './routes/admin/inquiries'
 import { Route as AdminUnmatchedCreditsRouteImport } from './routes/admin/unmatched-credits'
 import { Route as AnimeIndexRouteImport } from './routes/anime.index'
 import { Route as AnimeSlugRouteImport } from './routes/anime.$slug'
+import { Route as ApiCrawlerFreshnessRouteImport } from './routes/api/crawler-freshness'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as VoiceActorsIndexRouteImport } from './routes/voice-actors.index'
 import { Route as VoiceActorsSlugRouteImport } from './routes/voice-actors.$slug'
@@ -91,6 +92,11 @@ const AnimeSlugRoute = AnimeSlugRouteImport.update({
   path: '/anime/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCrawlerFreshnessRoute = ApiCrawlerFreshnessRouteImport.update({
+  id: '/api/crawler-freshness',
+  path: '/api/crawler-freshness',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/admin/inquiries': typeof AdminInquiriesRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
+  '/api/crawler-freshness': typeof ApiCrawlerFreshnessRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/admin/inquiries': typeof AdminInquiriesRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
+  '/api/crawler-freshness': typeof ApiCrawlerFreshnessRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/admin/inquiries': typeof AdminInquiriesRoute
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
+  '/api/crawler-freshness': typeof ApiCrawlerFreshnessRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/admin/inquiries'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
+    | '/api/crawler-freshness'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/admin/inquiries'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
+    | '/api/crawler-freshness'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
@@ -267,6 +278,7 @@ export interface FileRouteTypes {
     | '/admin/inquiries'
     | '/admin/unmatched-credits'
     | '/anime/$slug'
+    | '/api/crawler-freshness'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
@@ -291,6 +303,7 @@ export interface RootRouteChildren {
   AdminInquiriesRoute: typeof AdminInquiriesRoute
   AdminUnmatchedCreditsRoute: typeof AdminUnmatchedCreditsRoute
   AnimeSlugRoute: typeof AnimeSlugRoute
+  ApiCrawlerFreshnessRoute: typeof ApiCrawlerFreshnessRoute
   ApiHealthRoute: typeof ApiHealthRoute
   VoiceActorsSlugRoute: typeof VoiceActorsSlugRoute
   WorksIdRoute: typeof WorksIdRoute
@@ -389,6 +402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnimeSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/crawler-freshness': {
+      id: '/api/crawler-freshness'
+      path: '/api/crawler-freshness'
+      fullPath: '/api/crawler-freshness'
+      preLoaderRoute: typeof ApiCrawlerFreshnessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -467,6 +487,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminInquiriesRoute: AdminInquiriesRoute,
   AdminUnmatchedCreditsRoute: AdminUnmatchedCreditsRoute,
   AnimeSlugRoute: AnimeSlugRoute,
+  ApiCrawlerFreshnessRoute: ApiCrawlerFreshnessRoute,
   ApiHealthRoute: ApiHealthRoute,
   VoiceActorsSlugRoute: VoiceActorsSlugRoute,
   WorksIdRoute: WorksIdRoute,

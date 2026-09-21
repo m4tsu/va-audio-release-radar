@@ -28,6 +28,11 @@ concurrency:
   group: crawl
   cancel-in-progress: false
 
+# 失敗を Issue に書くのに要る。読み取りは checkout のぶん
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   daily:
     name: 新着一覧から取り込む
@@ -70,3 +75,22 @@ jobs:
           path: crawler/.cache/snapshots
           retention-days: 7
           if-no-files-found: ignore
+      - name: 失敗を Issue に出す
+        # 失敗しても GitHub は黙っているので、人が見る場所に出す。
+        # cron が起動しなかった場合はここも動かないので、外形監視と両方が要る
+        # (README.md の「外形監視」)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # 同じ理由の Issue を毎日増やさない。開いているものがあれば追記だけする
+          existing="$(gh issue list --label crawl-failure --state open --limit 1 --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "日次のクロールがまた失敗した: $RUN_URL"
+          else
+            gh issue create \
+              --title "日次のクロールが失敗した" \
+              --label crawl-failure \
+              --body "$(printf '%s\n\n%s\n' "走行のログ: $RUN_URL" "直ったらこの Issue を閉じる。閉じないと次の失敗が追記になって気づきにくい。")"
+          fi
