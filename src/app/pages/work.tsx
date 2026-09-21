@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { AppearanceBadge } from "@/app/components/appearance-badge";
 import { storeLabel } from "@/app/components/store-badge";
 import { StoreLink } from "@/app/components/store-link";
 import { Badge } from "@/app/components/ui/badge";
@@ -39,6 +40,7 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary">{categoryLabel(work.category, locale)}</Badge>
+            <AppearanceBadge castSize={detail.castSize} />
             {listings.map((listing) => (
               <Badge key={listing.storeSlug} variant="outline">
                 {storeLabel(listing.storeSlug)}

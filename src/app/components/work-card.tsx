@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { AppearanceBadge } from "@/app/components/appearance-badge";
 import { StoreBadge } from "@/app/components/store-badge";
 import { Badge } from "@/app/components/ui/badge";
 import { useLocale, useT } from "@/app/i18n";
@@ -77,6 +78,7 @@ export function WorkCard({
             <StoreBadge key={listing.storeSlug} store={listing.storeSlug} />
           ))}
           <Badge variant="secondary">{categoryLabel(work.category, locale)}</Badge>
+          <AppearanceBadge castSize={item.castSize} />
           {item.isNew ? <Badge>{t("work.badgeNew")}</Badge> : null}
           {upcoming && work.releaseDate ? (
             <Badge variant="outline">

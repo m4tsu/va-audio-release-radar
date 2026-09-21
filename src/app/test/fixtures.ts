@@ -81,6 +81,8 @@ export function workWithListings(over: Partial<WorkWithListings> = {}): WorkWith
     listings: [workListing()],
     freshness: "recent",
     isNew: false,
+    // 既定は 1 人 = 単独。出演形態を見るテストはここを上書きする
+    castSize: 1,
     ...over,
   };
 }

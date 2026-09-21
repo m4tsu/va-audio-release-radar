@@ -149,6 +149,7 @@ export const en: Translations = {
     metaDescription:
       "ASMR, audiobooks and audio dramas featuring {{name}} on DLsite, Audible and Pocket Drama CD, newest first.",
     storeEmptyTitle: "No works found on {{store}}",
+    filteredEmptyTitle: "No works with this cast size on {{store}}",
     animeTitle: "Anime appearances",
   },
 
@@ -183,6 +184,15 @@ export const en: Translations = {
     audiobook: "Audiobook",
     situation_voice: "Situation voice",
     other: "Other",
+  },
+
+  appearance: {
+    solo: "Solo",
+    small: "Small cast",
+    large: "Large cast",
+    unknown: "Cast unknown",
+    filterLabel: "Cast size: {{name}}",
+    filterAll: "All",
   },
 
   format: {

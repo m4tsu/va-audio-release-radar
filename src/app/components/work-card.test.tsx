@@ -17,6 +17,21 @@ function actorLinks() {
     .filter((link) => link.getAttribute("href")?.startsWith("/voice-actors/"));
 }
 
+describe("WorkCard の出演形態", () => {
+  test("クレジットの人数から決まる区分を出す", () => {
+    renderWithLocale(<WorkCard item={workWithListings({ castSize: 3 })} />);
+
+    expect(screen.getByText("少人数")).toBeInTheDocument();
+  });
+
+  /** クレジットが取れていないことを「単独」と読ませない */
+  test("クレジットが 0 件なら不明として出す", () => {
+    renderWithLocale(<WorkCard item={workWithListings({ castSize: 0 })} />);
+
+    expect(screen.getByText("出演形態不明")).toBeInTheDocument();
+  });
+});
+
 describe("WorkCard の出演声優", () => {
   test("渡された声優の名前を出し、その声優のページへ結ぶ", () => {
     renderWithLocale(<WorkCard item={item} actors={[actor(1), actor(2)]} />);

@@ -37,6 +37,12 @@ describe("WorkPage の中身", () => {
     expect(screen.getByText("1時間26分")).toBeInTheDocument();
   });
 
+  test("出演形態を出す", () => {
+    renderWithLocale(<WorkPage detail={workDetail({ castSize: 6 })} />);
+
+    expect(screen.getByText("大人数")).toBeInTheDocument();
+  });
+
   test("再生時間が無い作品は行ごと出さない", () => {
     const detail = workDetail({ work: workSummary({ durationSeconds: undefined }) });
     renderWithLocale(<WorkPage detail={detail} />);

@@ -172,6 +172,8 @@ export const ja = {
     metaDescription:
       "{{name}}が出演する ASMR・朗読・ボイスドラマを、DLsite・Audible・ポケットドラマCD から新着順にまとめています。",
     storeEmptyTitle: "{{store}} で見つかった作品はありません",
+    /** 出演形態で絞り込んだ結果、そのストアに残る作品が無いとき。作品自体はある */
+    filteredEmptyTitle: "{{store}} にこの出演形態の作品はありません",
     animeTitle: "出演アニメ",
   },
 
@@ -213,6 +215,21 @@ export const ja = {
     audiobook: "朗読",
     situation_voice: "シチュエーションボイス",
     other: "その他",
+  },
+
+  /**
+   * 作品の出演形態。クレジットの人数から決まる自前の区分なので翻訳する (`lib/appearance.ts`)。
+   * 人数そのものは出さない。ストアのクレジットには漏れがあり、実数として読ませられない
+   */
+  appearance: {
+    solo: "単独",
+    small: "少人数",
+    large: "大人数",
+    /** クレジットが 1 件も取れていない作品。人数が分からないことをそのまま言う */
+    unknown: "出演形態不明",
+    /** 絞り込みの読み上げ名。画面には選ばれている方しか出ないので今の値を畳み込む */
+    filterLabel: "出演形態: {{name}}",
+    filterAll: "すべて",
   },
 
   /**
