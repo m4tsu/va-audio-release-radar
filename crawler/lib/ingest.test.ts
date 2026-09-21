@@ -3,6 +3,7 @@ import { INGEST_PROTOCOL_VERSION } from "../../src/domain/index.ts";
 import {
   AdminApiClient,
   AdminApiError,
+  describeGenderCounts,
   failureReport,
   IngestProtocolMismatchError,
 } from "./ingest.ts";
@@ -156,6 +157,20 @@ describe("プロトコル版の不一致", () => {
 
     expect(await failure).toBeInstanceOf(AdminApiError);
     expect(await failure).not.toBeInstanceOf(IngestProtocolMismatchError);
+  });
+});
+
+describe("describeGenderCounts", () => {
+  it("4 つの区分を並べ、該当が 0 人でも省かない", () => {
+    expect(
+      describeGenderCounts([{ gender: "female" }, { gender: "female" }, { gender: "male" }]),
+    ).toBe("女性 2 人 / 男性 1 人 / それ以外 0 人 / 不明 0 人");
+  });
+
+  it("性別を持たない件は「不明」に数える", () => {
+    expect(describeGenderCounts([{}, { gender: "unknown" }])).toBe(
+      "女性 0 人 / 男性 0 人 / それ以外 0 人 / 不明 2 人",
+    );
   });
 });
 

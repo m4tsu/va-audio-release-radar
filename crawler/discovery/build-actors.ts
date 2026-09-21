@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { describeGenderCounts } from "../lib/ingest.ts";
 import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
 import {
   type ActorEntity,
@@ -213,6 +214,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
   // 手で上書きした人数を別に出すのは、AniList のワープロ式のまま出ている人が何人残っているかが
   // この差でしか分からないため (英語表示に出る表記を直す作業の残りがそのまま見える)
+  // 生成の時点で数えるのは、2,500 人ぶんを投入先へ送る前に、性別が取れているかを見られるようにするため
+  process.stdout.write(`  性別: ${describeGenderCounts(result.actors)}\n`);
   process.stdout.write(
     `  ローマ字付き: ${result.actors.filter((actor) => actor.nameEn !== undefined).length} 人 ` +
       `(うち手で上書き: ${result.actors.filter((actor) => toActorNameEn(overrides[actor.canonicalName]?.nameEn) !== undefined).length} 人)\n`,

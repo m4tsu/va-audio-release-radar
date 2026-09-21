@@ -21,6 +21,7 @@ import {
   type ActorSeed,
   AdminApiClient,
   AdminApiError,
+  describeGenderCounts,
   failureReport,
   IngestProtocolMismatchError,
   spacedUnverifiedAliasNames,
@@ -391,6 +392,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(
       `声優シードを投入: ${seeded.actors} 人 / alias ${seeded.aliases} 件 (${actorsFile})\n`,
     );
+    process.stdout.write(`  性別: ${describeGenderCounts(seeds)}\n`);
     if (seeded.clearedScreened > 0) {
       // 辞書が増えたので、過去に「対象外」と判断した作品を次の日次が引き直す
       process.stdout.write(`辞書が増えたので、対象外の判断 ${seeded.clearedScreened} 件を捨てた\n`);

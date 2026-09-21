@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { ANIME_FORMATS, type AnimeFormat } from "../../src/domain/index.ts";
+import { ANIME_FORMATS, type AnimeFormat, type VoiceActorGender } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { SNAPSHOT_DIR, safeFileName } from "../lib/paths.ts";
 
@@ -69,7 +69,7 @@ export const SEASON_PAGE_QUERY = `query ($season: MediaSeason, $seasonYear: Int,
         edges {
           role
           node { id name { native full } image { medium } }
-          voiceActors(language: JAPANESE) { id name { native full } image { medium } }
+          voiceActors(language: JAPANESE) { id name { native full } image { medium } gender }
         }
       }
     }
@@ -110,6 +110,11 @@ export type MediaCredit = {
   characterNameFull?: string;
   characterImageUrl?: string;
   actorImageUrl?: string;
+  /**
+   * 列挙に写した性別。AniList が値を持たない声優では undefined になる
+   * (「その他」と区別するため、ここで "unknown" に倒さない)
+   */
+  gender?: VoiceActorGender;
   /** "MAIN" | "SUPPORTING" | "BACKGROUND" など */
   role?: string;
 };
@@ -189,6 +194,7 @@ function parseCharacterEdges(characters: unknown, mediaId: number): MediaCredit[
       const nativeName = asString(name?.native);
       const fullName = asString(name?.full);
       const actorImageUrl = asString(asRecord(actor?.image)?.medium);
+      const gender = asVoiceActorGender(actor?.gender);
       credits.push({
         mediaId,
         staffId,
@@ -199,6 +205,7 @@ function parseCharacterEdges(characters: unknown, mediaId: number): MediaCredit[
         ...(characterNameFull === undefined ? {} : { characterNameFull }),
         ...(characterImageUrl === undefined ? {} : { characterImageUrl }),
         ...(actorImageUrl === undefined ? {} : { actorImageUrl }),
+        ...(gender === undefined ? {} : { gender }),
         ...(role === undefined ? {} : { role }),
       });
     }
@@ -222,6 +229,8 @@ export type StaffRecord = {
   /** 日本語表記。DLsite との突き合わせに使う唯一の鍵 */
   nativeName: string;
   fullName?: string;
+  /** AniList が言っている性別を列挙に写したもの。言っていなければ "unknown" */
+  gender: VoiceActorGender;
   /** 演じたキャラクターの数 (作品をまたいで合計) */
   roleCount: number;
   /** そのうち MAIN 扱いのもの */
@@ -254,6 +263,7 @@ export function aggregateStaff(credits: readonly SeasonCredit[]): {
     anilistStaffId: number;
     nativeName?: string;
     fullName?: string;
+    gender?: VoiceActorGender;
     roleCount: number;
     mainRoleCount: number;
     latestOrder: number;
@@ -275,6 +285,8 @@ export function aggregateStaff(credits: readonly SeasonCredit[]): {
     };
     accumulator.nativeName ??= credit.nativeName;
     accumulator.fullName ??= credit.fullName;
+    // 同じ声優の credit は同じ値を持つ。最初に見た値を採り、言っていない credit で上書きしない
+    accumulator.gender ??= credit.gender;
     accumulator.roleCount += 1;
     if (credit.role === MAIN_ROLE) accumulator.mainRoleCount += 1;
     accumulator.mediaIds.add(credit.mediaId);
@@ -305,6 +317,7 @@ export function aggregateStaff(credits: readonly SeasonCredit[]): {
       anilistStaffId: accumulator.anilistStaffId,
       nativeName: accumulator.nativeName,
       ...(accumulator.fullName === undefined ? {} : { fullName: accumulator.fullName }),
+      gender: accumulator.gender ?? "unknown",
       roleCount: accumulator.roleCount,
       mainRoleCount: accumulator.mainRoleCount,
       latestSeason: accumulator.latestSeason,
@@ -487,6 +500,22 @@ function asStringArray(value: unknown): string[] {
     if (name !== undefined) names.push(name.trim());
   }
   return names;
+}
+
+/**
+ * AniList の `Staff.gender` を列挙に写す。
+ *
+ * AniList の値は自由記述の文字列で、しかも利用者が編集できる。そのまま保存すると
+ * 表記の揺れがそのまま列挙になるので、女性・男性だけを名指しで拾い、
+ * 読める値が入っていてどちらでもないものは "other" にする。
+ * 空なら undefined を返し、「その他」と「AniList が言っていない」を呼び出し側で分けられるようにする
+ */
+export function asVoiceActorGender(value: unknown): VoiceActorGender | undefined {
+  const raw = asString(value)?.trim().toLowerCase();
+  if (raw === undefined) return undefined;
+  if (raw === "female") return "female";
+  if (raw === "male") return "male";
+  return "other";
 }
 
 /** AniList が知っている形式だけを残す。増えた値を勝手に別の形式に丸めない */

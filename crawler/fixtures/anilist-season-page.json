@@ -55,7 +55,8 @@
                     },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n128426-3yOZ6Mkt0YQe.png"
-                    }
+                    },
+                    "gender": "Male"
                   }
                 ]
               },
@@ -80,7 +81,8 @@
                     },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n101686-VLnYKZQ2GcS3.png"
-                    }
+                    },
+                    "gender": "Female"
                   }
                 ]
               },
@@ -105,7 +107,8 @@
                     },
                     "image": {
                       "medium": null
-                    }
+                    },
+                    "gender": "Female"
                   }
                 ]
               },
@@ -130,7 +133,8 @@
                     },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n95296-lM6uJcZ1p2xU.png"
-                    }
+                    },
+                    "gender": "Male"
                   }
                 ]
               },
@@ -229,7 +233,8 @@
                     },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n95655-8YQ9dJ2fXcZ1.png"
-                    }
+                    },
+                    "gender": "Female"
                   },
                   {
                     "id": 119518,
@@ -239,7 +244,8 @@
                     },
                     "image": {
                       "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n119518-0fZ2QpLm7Rkd.png"
-                    }
+                    },
+                    "gender": "Female"
                   }
                 ]
               }

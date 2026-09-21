@@ -124,7 +124,7 @@ query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
         edges {
           role
           node { id name { native full } image { medium } }
-          voiceActors(language: JAPANESE) { id name { native full } image { medium } }
+          voiceActors(language: JAPANESE) { id name { native full } image { medium } gender }
         }
       }
     }
@@ -164,6 +164,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 | 日本語表記の名前 | ○ | `name.native` → `canonicalName`。**ストアとの突き合わせに使う唯一の鍵** |
 | ローマ字表記 | ○ | `name.full` ("Reina Ueda") → `slug` の元、英語表示に出す名前 |
 | 声優の画像 | ○ | `image.medium` |
+| 性別 | ○ | `gender`。**自由記述の文字列で、利用者が編集できる。** 実応答は `Female` / `Male` / `Non-binary` / null の 4 通りだった (2026-09-21、[`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md))。そのまま保存せず列挙に写す |
 | 作品 (アニメ) | ○ | `media.id` / `title.{native,romaji,english}` / `coverImage.large` |
 | 表紙の代表色 | ○ | `coverImage.color` ("#e4a128") |
 | 別名タイトル | ○ | `synonyms`。**空配列のことがある** (2026-09-20 の実応答で、上位 3 件中 1 件) |
@@ -197,6 +198,8 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   除外すると実在の声優が丸ごと落ちる
 - **3 語以上**「ブリドカット・セーラ・恵美」= Sarah Emi Bridcutt は最後の語を姓、
   残りを名として前から並べる
+- **性別を返さない声優が居る** (2026-09-21 の実測で対象 2,512 人中 162 人)。
+  返さないことと「女性でも男性でもない」ことは別なので、同じ値に畳まない
 - **`roleCount` (アニメでの役の多さ) と音声作品数はほぼ無相関** (スピアマン −0.047)。
   主役級ほど音声作品が多い、ということはない。対象の絞り込みに役の多さを使わない
 - 対象声優の大半は音声作品を出していない。DB には全員入れるが、作品 0 件の声優の
@@ -273,6 +276,8 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 
 ## 8. 出典
 
+- [`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md) —
+  `Staff.gender` の生の値の内訳と、対象声優に畳んだときの埋まり具合
 - [`docs/research/discovery-spike-2026-09-18.md`](../research/discovery-spike-2026-09-18.md) —
   12 シーズン 1,176 作品から 2,569 人、DLsite との交差 57 人、`roleCount` の無相関、
   AniList へのリクエストは通し実行で 24 件

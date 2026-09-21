@@ -151,12 +151,19 @@ describe("buildActorEntity", () => {
         nameEn: "Reina Ueda",
         anilistStaffId: 118602,
         status: "active",
+        gender: "unknown",
         aliases: [
           { name: "上田 麗奈", source: "manual", verified: false },
           { name: "上田麗 奈", source: "manual", verified: false },
         ],
       },
     });
+  });
+
+  // 集計に性別が無い場合に "unknown" が入ることは、上の toEqual が見ている
+  it("集計に性別があればそれをそのまま持つ", () => {
+    const result = buildActorEntity(staff({ gender: "female" }));
+    expect("actor" in result && result.actor.gender).toBe("female");
   });
 
   it("nativeName の前後の空白を落とす", () => {
@@ -241,6 +248,7 @@ describe("buildActorEntity", () => {
         nameEn: "Yukana",
         anilistStaffId: 118602,
         status: "active",
+        gender: "unknown",
         aliases: [],
       },
     });

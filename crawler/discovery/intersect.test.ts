@@ -77,6 +77,7 @@ describe("intersect", () => {
     partial: Partial<StaffRecord> & { anilistStaffId: number; nativeName: string },
   ): StaffRecord {
     return {
+      gender: "unknown",
       roleCount: 1,
       mainRoleCount: 0,
       latestSeason: "2026 SUMMER",

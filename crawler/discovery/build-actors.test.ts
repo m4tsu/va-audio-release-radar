@@ -13,6 +13,7 @@ function actor(overrides: Partial<ActorEntity> = {}): ActorEntity {
     nameKana: "うえだれいな",
     anilistStaffId: 118602,
     status: "active",
+    gender: "female",
     aliases: [],
     ...overrides,
   };

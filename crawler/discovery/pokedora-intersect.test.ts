@@ -33,6 +33,7 @@ function staff(anilistStaffId: number, nativeName: string, roleCount = 10): Staf
   return {
     anilistStaffId,
     nativeName,
+    gender: "unknown",
     roleCount,
     mainRoleCount: 1,
     latestSeason: "2026 FALL",

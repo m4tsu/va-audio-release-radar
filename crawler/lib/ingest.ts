@@ -2,6 +2,8 @@ import {
   INGEST_PROTOCOL_VERSION,
   type IngestPayload,
   type StoreSlug,
+  VOICE_ACTOR_GENDERS,
+  type VoiceActorGender,
 } from "../../src/domain/index.ts";
 
 /**
@@ -47,8 +49,32 @@ export type ActorSeed = {
   nameKana?: string;
   nameEn?: string;
   anilistStaffId?: number;
+  /** 省くとサーバー側の zod が "unknown" を入れる */
+  gender?: VoiceActorGender;
   aliases?: Array<{ name: string; source: string; verified: boolean }>;
 };
+
+/** 性別の日本語表記。クローラーの標準出力にだけ出る (画面には出さない) */
+const GENDER_LABELS: Record<VoiceActorGender, string> = {
+  female: "女性",
+  male: "男性",
+  other: "それ以外",
+  unknown: "不明",
+};
+
+/**
+ * 性別の内訳を 1 行にする。「女性 1 人 / 男性 2 人 / それ以外 0 人 / 不明 3 人」。
+ *
+ * 0 人の区分も省かずに出す。省くと、取れていない (全員が不明) のか
+ * 該当が居ないだけなのかが出力から読めなくなる
+ */
+export function describeGenderCounts(actors: readonly { gender?: VoiceActorGender }[]): string {
+  const counts: Record<VoiceActorGender, number> = { female: 0, male: 0, other: 0, unknown: 0 };
+  for (const actor of actors) counts[actor.gender ?? "unknown"] += 1;
+  return VOICE_ACTOR_GENDERS.map((gender) => `${GENDER_LABELS[gender]} ${counts[gender]} 人`).join(
+    " / ",
+  );
+}
 
 /**
  * 検証済みの空白入り alias 名を、リストに書かれた順番のまま返す。

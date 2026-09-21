@@ -1,3 +1,4 @@
+import type { VoiceActorGender } from "../../src/domain/index.ts";
 import { toStoredKana } from "./kana-text.ts";
 
 /**
@@ -15,6 +16,8 @@ export type StaffInput = {
   nativeName: string;
   /** "Reina Ueda" のような名-姓のローマ字表記 */
   fullName?: string;
+  /** AniList が言っている性別を列挙に写したもの。集計が付けていなければ「不明」として扱う */
+  gender?: VoiceActorGender;
   roleCount?: number;
   /** 同じ nativeName を別の staff id も持っている。取り違えるので対象から外す */
   ambiguous?: boolean;
@@ -66,6 +69,11 @@ export type ActorEntity = {
   nameEn?: string;
   anilistStaffId: number;
   status: "active";
+  /**
+   * 性別。AniList が言っていない声優も「不明」として必ず持たせる。
+   * 省くと、投入先の既定値と「AniList に無かった」が区別できなくなる
+   */
+  gender: VoiceActorGender;
   aliases: ActorAlias[];
 };
 
@@ -269,6 +277,7 @@ export function buildActorEntity(
       ...(nameEn === undefined ? {} : { nameEn }),
       anilistStaffId: staff.anilistStaffId,
       status: "active",
+      gender: staff.gender ?? "unknown",
       aliases: buildAliases(canonicalName, override, isSingleWordFullName(staff.fullName)),
     },
   };

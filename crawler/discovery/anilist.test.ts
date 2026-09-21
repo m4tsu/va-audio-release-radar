@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
   aggregateStaff,
+  asVoiceActorGender,
   describeGraphqlErrors,
   enumerateSeasons,
   parseSeasonPage,
@@ -126,6 +127,7 @@ describe("parseSeasonPage", () => {
       characterImageUrl:
         "https://s4.anilist.co/file/anilistcdn/character/medium/b127278-2Yp2Zv1qXk0n.png",
       actorImageUrl: "https://s4.anilist.co/file/anilistcdn/staff/medium/n128426-3yOZ6Mkt0YQe.png",
+      gender: "male",
       role: "MAIN",
     });
   });
@@ -138,6 +140,7 @@ describe("parseSeasonPage", () => {
       characterId: 406588,
       nativeName: "上田麗奈",
       fullName: "Reina Ueda",
+      gender: "female",
       role: "SUPPORTING",
     });
   });
@@ -172,6 +175,28 @@ describe("parseSeasonPage", () => {
   });
 });
 
+describe("asVoiceActorGender", () => {
+  /**
+   * AniList の値は自由記述で利用者が編集できる。2026-09-21 に 12 シーズンぶんを取った実応答では
+   * "Female" / "Male" / "Non-binary" / null の 4 通りだったが、今後もこの 4 通りとは限らない
+   */
+  it("女性・男性だけを名指しで拾う", () => {
+    expect(asVoiceActorGender("Female")).toBe("female");
+    expect(asVoiceActorGender("Male")).toBe("male");
+  });
+
+  it("読める値が入っていてどちらでもなければ「その他」にする", () => {
+    expect(asVoiceActorGender("Non-binary")).toBe("other");
+    expect(asVoiceActorGender("Intersex")).toBe("other");
+  });
+
+  it("AniList が言っていなければ undefined を返す (「その他」に混ぜない)", () => {
+    expect(asVoiceActorGender(null)).toBeUndefined();
+    expect(asVoiceActorGender(undefined)).toBeUndefined();
+    expect(asVoiceActorGender("  ")).toBeUndefined();
+  });
+});
+
 describe("describeGraphqlErrors", () => {
   it("errors があれば 1 行にまとめる", () => {
     expect(describeGraphqlErrors({ errors: [{ message: "Too Many Requests" }] })).toBe(
@@ -198,6 +223,8 @@ describe("aggregateStaff", () => {
       characterId: 102,
       nativeName: "上田麗奈",
       fullName: "Reina Ueda",
+      // 1 件目には性別が無い。AniList は同じ声優でも作品によって返さないことがある
+      gender: "female",
       role: "SUPPORTING",
       season: { year: 2026, season: "SUMMER" },
     },
@@ -246,6 +273,12 @@ describe("aggregateStaff", () => {
       latestSeason: "2026 SUMMER",
       ambiguous: false,
     });
+  });
+
+  it("性別は 1 件でも言っている credit があればその値、無ければ「不明」", () => {
+    const { staff } = aggregateStaff(credits);
+    expect(staff.find((person) => person.anilistStaffId === 10)?.gender).toBe("female");
+    expect(staff.find((person) => person.anilistStaffId === 20)?.gender).toBe("unknown");
   });
 
   it("同じ nativeName を別の staff が持っていたら ambiguous を立てる", () => {
