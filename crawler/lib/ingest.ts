@@ -70,7 +70,12 @@ const GENDER_LABELS: Record<VoiceActorGender, string> = {
  */
 export function describeGenderCounts(actors: readonly { gender?: VoiceActorGender }[]): string {
   const counts: Record<VoiceActorGender, number> = { female: 0, male: 0, other: 0, unknown: 0 };
-  for (const actor of actors) counts[actor.gender ?? "unknown"] += 1;
+  for (const actor of actors) {
+    // 声優リストは JSON をそのまま読むので、列挙に無い値が混じりうる。
+    // そのまま数えると合計が人数と合わなくなり、内訳を出す意味が無くなる
+    const gender = actor.gender;
+    counts[gender !== undefined && VOICE_ACTOR_GENDERS.includes(gender) ? gender : "unknown"] += 1;
+  }
   return VOICE_ACTOR_GENDERS.map((gender) => `${GENDER_LABELS[gender]} ${counts[gender]} 人`).join(
     " / ",
   );

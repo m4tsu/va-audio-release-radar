@@ -172,6 +172,14 @@ describe("describeGenderCounts", () => {
       "女性 0 人 / 男性 0 人 / それ以外 0 人 / 不明 2 人",
     );
   });
+
+  /** 声優リストは JSON をそのまま読むので、手で書き換えられた値が届きうる */
+  it("列挙に無い値も数から落とさない (合計が人数と合う)", () => {
+    const actors = [{ gender: "Female" }, { gender: "male" }] as unknown as Parameters<
+      typeof describeGenderCounts
+    >[0];
+    expect(describeGenderCounts(actors)).toBe("女性 0 人 / 男性 1 人 / それ以外 0 人 / 不明 1 人");
+  });
 });
 
 describe("failureReport", () => {

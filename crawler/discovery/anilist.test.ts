@@ -223,7 +223,7 @@ describe("aggregateStaff", () => {
       characterId: 102,
       nativeName: "上田麗奈",
       fullName: "Reina Ueda",
-      // 1 件目には性別が無い。AniList は同じ声優でも作品によって返さないことがある
+      // 同じ声優でも、上の 1 件目のように性別が入っていない credit がある
       gender: "female",
       role: "SUPPORTING",
       season: { year: 2026, season: "SUMMER" },

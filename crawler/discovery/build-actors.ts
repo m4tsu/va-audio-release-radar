@@ -46,6 +46,7 @@ const USAGE = `使い方:
   --out <path>            出力先 (既定 crawler/actors.generated.json)
   --min-role-count <N>    roleCount がこの値未満の声優を落とす (既定 0 = 全員)
   --allow-kana-loss       今ある出力にあるかなが消えても書き出す
+  --allow-gender-loss     今ある出力にある性別が消えても書き出す
 `;
 
 const OPTION_SPEC = {
@@ -55,6 +56,7 @@ const OPTION_SPEC = {
   out: { type: "string" },
   "min-role-count": { type: "string" },
   "allow-kana-loss": { type: "boolean" },
+  "allow-gender-loss": { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -125,6 +127,36 @@ export async function kanaLosses(
       if (actor.nameKana === undefined) return false;
       const rebuilt = next.get(actor.canonicalName);
       return rebuilt !== undefined && rebuilt.nameKana === undefined;
+    })
+    .map((actor) => actor.canonicalName);
+}
+
+/**
+ * 今ある出力で性別が付いていて、今回の生成では「不明」に戻る声優。
+ *
+ * かなと同じ形の取りこぼしが性別にもある。staff 集計は `crawler/.cache/` にあって
+ * 追跡されないので、性別を取る前の集計が残っている場所で生成し直すと、
+ * 追跡されている出力の性別が全員ぶん黙って消える。書き出す前に気づけるよう数える。
+ *
+ * 出力から声優ごと消える場合は数えない (`kanaLosses` と同じ理由)
+ */
+export async function genderLosses(
+  outFile: string,
+  actors: readonly ActorEntity[],
+): Promise<string[]> {
+  let previous: unknown;
+  try {
+    previous = JSON.parse(await readFile(outFile, "utf8"));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(previous)) return [];
+  const next = new Map(actors.map((actor) => [actor.canonicalName, actor]));
+  return (previous as ActorEntity[])
+    .filter((actor) => {
+      if (actor.gender === undefined || actor.gender === "unknown") return false;
+      const rebuilt = next.get(actor.canonicalName);
+      return rebuilt !== undefined && rebuilt.gender === "unknown";
     })
     .map((actor) => actor.canonicalName);
 }
@@ -212,10 +244,10 @@ export async function main(argv: readonly string[]): Promise<number> {
       );
     }
   }
-  // 手で上書きした人数を別に出すのは、AniList のワープロ式のまま出ている人が何人残っているかが
-  // この差でしか分からないため (英語表示に出る表記を直す作業の残りがそのまま見える)
   // 生成の時点で数えるのは、2,500 人ぶんを投入先へ送る前に、性別が取れているかを見られるようにするため
   process.stdout.write(`  性別: ${describeGenderCounts(result.actors)}\n`);
+  // 手で上書きした人数を別に出すのは、AniList のワープロ式のまま出ている人が何人残っているかが
+  // この差でしか分からないため (英語表示に出る表記を直す作業の残りがそのまま見える)
   process.stdout.write(
     `  ローマ字付き: ${result.actors.filter((actor) => actor.nameEn !== undefined).length} 人 ` +
       `(うち手で上書き: ${result.actors.filter((actor) => toActorNameEn(overrides[actor.canonicalName]?.nameEn) !== undefined).length} 人)\n`,
@@ -250,6 +282,20 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stderr.write(
       `  ${kanaFile} を用意してから生成する (取得は crawler/discovery/wikipedia-kana.ts)。\n` +
         "  消すつもりなら --allow-kana-loss を付ける\n",
+    );
+    return 1;
+  }
+
+  const lostGender = await genderLosses(outFile, result.actors);
+  if (lostGender.length > 0 && values["allow-gender-loss"] !== true) {
+    process.stderr.write(
+      `\n[エラー] 今ある ${outFile} の性別が ${lostGender.length} 人ぶん消えるので書き出さない\n`,
+    );
+    process.stderr.write(`  例: ${lostGender.slice(0, 5).join("、")}\n`);
+    process.stderr.write(
+      `  性別を取った staff 集計を用意してから生成する` +
+        ` (取得は node crawler/discovery/run.ts --anilist-only)。\n` +
+        "  消すつもりなら --allow-gender-loss を付ける\n",
     );
     return 1;
   }

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ActorEntity } from "./actor-entity.ts";
-import { kanaLosses } from "./build-actors.ts";
+import { genderLosses, kanaLosses } from "./build-actors.ts";
 
 function actor(overrides: Partial<ActorEntity> = {}): ActorEntity {
   return {
@@ -52,5 +52,32 @@ describe("kanaLosses", () => {
   it("出力がまだ無ければ比べる相手が無い", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "build-actors-"));
     expect(await kanaLosses(path.join(directory, "none.json"), [actor()])).toEqual([]);
+  });
+});
+
+describe("genderLosses", () => {
+  it("今ある出力で付いていて、これから書く出力で「不明」に戻る声優を返す", async () => {
+    const file = await outFileWith([actor(), actor({ canonicalName: "梶裕貴", gender: "male" })]);
+    expect(
+      await genderLosses(file, [
+        actor({ gender: "unknown" }),
+        actor({ canonicalName: "梶裕貴", gender: "male" }),
+      ]),
+    ).toEqual(["上田麗奈"]);
+  });
+
+  it("元から「不明」なら失うものが無い", async () => {
+    const file = await outFileWith([actor({ gender: "unknown" })]);
+    expect(await genderLosses(file, [actor({ gender: "unknown" })])).toEqual([]);
+  });
+
+  it("声優ごと出力から消えた場合は数えない (絞り込みは意図した結果)", async () => {
+    const file = await outFileWith([actor()]);
+    expect(await genderLosses(file, [])).toEqual([]);
+  });
+
+  it("出力がまだ無ければ比べる相手が無い", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "build-actors-"));
+    expect(await genderLosses(path.join(directory, "none.json"), [actor()])).toEqual([]);
   });
 });
