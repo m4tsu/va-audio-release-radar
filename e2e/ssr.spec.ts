@@ -131,6 +131,21 @@ test("利用規約とプライバシーポリシーは SSR で本文まで返る
   expect(await privacy.text()).toContain("1. 基本方針");
 });
 
+/**
+ * 入力欄が SSR の HTML に入っていること。
+ * ハイドレーション前でも何を書く場所なのかが読め、JS を切っていても欄が見える
+ */
+test("/contact は入力欄を SSR で返す", async ({ request }) => {
+  const res = await request.get("/contact");
+  expect(res.status()).toBe(200);
+
+  const html = await res.text();
+  expect(html).toMatch(/<h1[^>]*>お問い合わせ<\/h1>/);
+  expect(html).toContain("<textarea");
+  expect(html).toContain("<select");
+  expect(html).toMatch(/<button[^>]*>送信する<\/button>/);
+});
+
 test("/anime は転送せず、先頭のシーズンのアニメを JS を動かす前の HTML に入れている", async ({
   request,
 }) => {

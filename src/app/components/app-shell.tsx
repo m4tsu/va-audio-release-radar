@@ -85,6 +85,9 @@ export function AppShell() {
             <Link to="/privacy" className="underline-offset-2 hover:underline">
               {t("footer.privacy")}
             </Link>
+            <Link to="/contact" className="underline-offset-2 hover:underline">
+              {t("footer.contact")}
+            </Link>
           </nav>
         </div>
       </footer>

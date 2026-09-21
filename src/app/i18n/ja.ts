@@ -31,6 +31,7 @@ export const ja = {
     noPrice: "このサイトは価格を載せていません。価格と販売状況は各ストアでご確認ください。",
     terms: "利用規約",
     privacy: "プライバシーポリシー",
+    contact: "お問い合わせ",
   },
 
   /** 利用規約・プライバシーポリシー。本文は `src/app/legal/` にあり、ここは見出しと meta だけ */
@@ -44,6 +45,45 @@ export const ja = {
     privacyMetaDescription:
       "{{app}} が利用者のブラウザに保存する情報、サーバーに送られる情報、外部サービスへの通信について説明します。",
     effectiveDate: "制定日: {{date}}",
+    /** 規約・ポリシーの本文から `/contact` へ渡すリンクの文字列 */
+    contactFormLink: "お問い合わせフォーム",
+  },
+
+  /** お問い合わせ画面 (`/contact`)。入力欄と送信の結果はすべてここ */
+  contact: {
+    title: "お問い合わせ",
+    metaTitle: "お問い合わせ | {{app}}",
+    metaDescription: "{{app}} への要望、不具合の報告、掲載内容の訂正・削除の申し出を受け付けます。",
+    intro: "要望・不具合の報告・その他のご連絡を受け付けます。個別の返信はお約束できません。",
+    kindLabel: "種別",
+    kindRequest: "要望",
+    kindBug: "不具合",
+    kindOther: "その他",
+    bodyLabel: "本文",
+    bodyHint: "{{max}} 文字まで",
+    contactLabel: "連絡先 (任意)",
+    contactHint: "返信が必要なときだけ、メールアドレスや SNS のアカウントを書いてください。",
+    submit: "送信する",
+    submitting: "送信中…",
+    accepted: "送信しました。ありがとうございます。",
+    /** 入力が通らないときの理由。上限は `@/domain/types` の値を埋め込む */
+    errorBodyEmpty: "本文を入力してください。",
+    errorBodyTooLong: "本文は {{max}} 文字以内で入力してください。",
+    errorContactTooLong: "連絡先は {{max}} 文字以内で入力してください。",
+    /** widget がまだ通っていない間に押されたとき */
+    errorPending: "bot 対策の確認が終わるまで少しお待ちください。",
+    /** サーバーが 403 を返したとき (検証を通らなかった) */
+    errorRejected: "bot 対策の確認を通りませんでした。画面を読み込み直してからお試しください。",
+    /** サーバーが 503 を返したとき (鍵が置かれていない) */
+    errorUnavailable: "お問い合わせの受け付けが設定されていません。",
+    errorFailed: "送信できませんでした。時間をおいてお試しください。",
+    /** 送信できない環境。設定が無いので入力しても送れないことを先に言う */
+    unavailable: "現在この画面からは送信できません。",
+    unavailableAlternative: "次の窓口へご連絡ください。",
+    /** 入力欄の近くに置く注記。保存されることと bot 対策を読み込むことを送信前に伝える */
+    storageNote: "送信した内容はサーバーに保存されます。",
+    turnstileNote: "この画面は Cloudflare の bot 対策を読み込みます。",
+    privacyLink: "プライバシーポリシー",
   },
 
   common: {

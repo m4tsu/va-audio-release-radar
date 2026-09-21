@@ -29,6 +29,7 @@ export const en: Translations = {
       "This site does not list prices. Please see each store for the price and availability.",
     terms: "Terms of Service",
     privacy: "Privacy Policy",
+    contact: "Contact",
   },
 
   legal: {
@@ -41,6 +42,39 @@ export const en: Translations = {
     privacyMetaDescription:
       "What {{app}} stores in your browser, what is sent to its servers, and which third-party services your browser connects to.",
     effectiveDate: "Effective: {{date}}",
+    contactFormLink: "contact form",
+  },
+
+  contact: {
+    title: "Contact",
+    metaTitle: "Contact | {{app}}",
+    metaDescription:
+      "Send {{app}} a request, report a problem, or ask for listed content to be corrected or removed.",
+    intro:
+      "Send a request, report a problem, or get in touch about anything else. Individual replies are not guaranteed.",
+    kindLabel: "Type",
+    kindRequest: "Request",
+    kindBug: "Problem",
+    kindOther: "Other",
+    bodyLabel: "Message",
+    bodyHint: "Up to {{max}} characters",
+    contactLabel: "How to reach you (optional)",
+    contactHint: "Leave an email address or social account only if you need a reply.",
+    submit: "Send",
+    submitting: "Sending…",
+    accepted: "Your message has been sent. Thank you.",
+    errorBodyEmpty: "Enter a message.",
+    errorBodyTooLong: "The message must be {{max}} characters or fewer.",
+    errorContactTooLong: "The contact detail must be {{max}} characters or fewer.",
+    errorPending: "Wait a moment for the bot check to finish.",
+    errorRejected: "The bot check did not pass. Reload the page and try again.",
+    errorUnavailable: "This form has not been set up to receive messages.",
+    errorFailed: "The message could not be sent. Please try again later.",
+    unavailable: "Messages cannot be sent from this page at the moment.",
+    unavailableAlternative: "Please use the following contact point.",
+    storageNote: "What you send is stored on the server.",
+    turnstileNote: "This page loads Cloudflare's bot protection.",
+    privacyLink: "Privacy Policy",
   },
 
   common: {

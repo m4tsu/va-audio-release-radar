@@ -34,6 +34,10 @@ describe("AppShell の導線", () => {
       "href",
       "/privacy",
     );
+    expect(within(footer).getByRole("link", { name: "お問い合わせ" })).toHaveAttribute(
+      "href",
+      "/contact",
+    );
   });
 
   test("表示の設定 (言語と配色) をヘッダーに置く", () => {
