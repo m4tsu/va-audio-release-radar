@@ -64,7 +64,7 @@ issue 本文 (または引数の文章) を `work/task.md` に保存する。
 npm run check
 ```
 
-E2E はここでは実行しない。`scripts/needs-e2e.sh` が判定するが、今は常に省略される (#43 で戻す)。
+E2E はここでは実行しない。走らせるかは 7 の `merge.sh` が `scripts/needs-e2e.sh` の判定で決める。
 
 ## 6. レビュー
 
@@ -99,7 +99,8 @@ bash .claude/skills/issue-task/scripts/merge.sh
 
 - main を rebase する。コンフリクトはこの worktree で解消し、`git rebase --continue` してから再実行する
 - rebase 後に `npm run check` を再実行する。E2E を走らせるかは `scripts/needs-e2e.sh` が決める。
-  今は常に省略される (#43 で戻す。ポート 5399 は E2E 専用で固定)
+  ポート 5399 は E2E 専用で固定なので、他の worktree の E2E とは同時に走らない
+  (共有の `.git` に置いたロックで順番待ちになる)
 - main の作業ツリーの未コミット変更と、このブランチの変更ファイルが重なれば止まる。
   main 側のコミットか stash をユーザーに依頼する
 - `git merge --ff-only` で main を進める。新しいマイグレーションは main のローカル D1 にも当てる

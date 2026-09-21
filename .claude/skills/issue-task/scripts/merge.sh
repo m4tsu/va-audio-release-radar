@@ -32,16 +32,22 @@ if [ -n "$overlap" ]; then
   exit 1
 fi
 
-# 3. rebase 後の状態で検査する。
-#    E2E は needs-e2e.sh が決める。今は #43 が直るまで常に省略される
+# 3. rebase 後の状態で検査する。E2E を走らせるかは needs-e2e.sh が差分から決める
 npm run check
 if e2e_reason=$(bash scripts/needs-e2e.sh main); then
   echo "E2E を実行する (差分が E2E の範囲に触れている):"
   echo "$e2e_reason" | sed 's/^/  - /'
-  if ss -ltn 2>/dev/null | grep -q ":5399 "; then
-    die "E2E 用ポート 5399 が使用中 (別の worktree の E2E)。空いてから再実行する"
+  # E2E 用ポート 5399 は 1 つしか無い。並行する worktree と取り合わないよう、
+  # 共有の .git に置いたロックで順番に走らせる。listen しているかを見て判じると、
+  # ポートが開くのは e2e:prepare (D1 の作り直し) のあとなので、同時に始めた
+  # 2 つがどちらも「空いている」と見て両方走ってしまう
+  exec 9>"$(git rev-parse --git-common-dir)/issue-task-e2e.lock"
+  if ! flock -n 9; then
+    echo "E2E 用ポート 5399 が空くのを待つ (別の worktree が E2E 中)"
+    flock 9
   fi
   npm run test:e2e
+  exec 9>&-
 else
   echo "E2E は省略する (scripts/needs-e2e.sh の判定)"
 fi

@@ -9,10 +9,6 @@
 # 判定を人に任せると「触ったかどうか」の記憶に頼ることになるので、差分から機械的に決める。
 set -euo pipefail
 
-# E2E は今のところ落ちるのが常態で、変更の良し悪しを判定できない。#43 で直して戻すまでは
-# 差分によらず走らせない。戻すときはこの 1 行を消す
-exit 1
-
 base="${1:-main}"
 
 # E2E が守っている範囲。ここに当たらない変更では E2E を走らせない
@@ -20,6 +16,7 @@ patterns=(
   'src/app/routes/'      # loader / head / server handlers。SSR の応答そのもの
   'src/app/server-fns/'  # ルートと画面がサーバーを呼ぶ境界
   'src/server/'          # 応答の中身を作る側
+  'src/app/store/'       # IndexedDB のフォロー。jsdom には IndexedDB が無く E2E でしか通らない
   'src/router.tsx'       # ルーターの組み立て
   'migrations/'          # 固定データを流す先のスキーマ
   'e2e/'
