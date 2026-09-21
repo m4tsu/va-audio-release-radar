@@ -1,5 +1,4 @@
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { FollowingPage } from "@/app/pages/following";
 import { useFollowStore } from "@/app/store/follow-store";
@@ -10,7 +9,11 @@ import { renderWithLocale } from "@/app/test/render";
 
 /** フィードの中身は follow-feed.test.tsx が見る。ここでは呼ばれても空を返させる */
 const fetchFeed = vi.fn<(input: unknown) => Promise<ReturnType<typeof feedItem>[]>>(async () => []);
-vi.mock("@/app/server-fns/works", () => ({ fetchFeed: (input: unknown) => fetchFeed(input) }));
+/** 最新リリースの中身は follow-manager.test.tsx が見る */
+vi.mock("@/app/server-fns/works", () => ({
+  fetchFeed: (input: unknown) => fetchFeed(input),
+  fetchWorkStatsForActors: async () => [],
+}));
 
 /** 出演アニメの中身は followed-anime.test.tsx が見る。ここでは区画が出ることだけ */
 const fetchAnimeForActors = vi.fn<(input: unknown) => Promise<ReturnType<typeof animeSummary>[]>>(
@@ -88,63 +91,15 @@ describe("FollowingPage の通知", () => {
   });
 });
 
+/** 管理の中身 (名前・最新リリース・解除) は follow-manager.test.tsx が見る */
 describe("FollowingPage のフォロー管理", () => {
-  test("フォロー中の声優を並べ、声優ページへ結ぶ", async () => {
+  test("フォローが 1 人でもいれば管理の区画を出す", async () => {
     await readyFollowStore();
     await useFollowStore.getState().follow(ALPHA);
     renderWithLocale(<FollowingPage vapidPublicKey={null} />);
 
     const list = screen.getByRole("list", { name: "フォロー中の声優" });
-    expect(within(list).getByRole("link", { name: "架空アルファ" })).toHaveAttribute(
-      "href",
-      "/voice-actors/alpha",
-    );
-    expect(
-      screen.getByRole("heading", { level: 2, name: /フォロー中の声優 1 人/ }),
-    ).toBeInTheDocument();
-  });
-
-  test("解除すると一覧から消え、空表示に戻る", async () => {
-    const user = userEvent.setup();
-    await readyFollowStore();
-    await useFollowStore.getState().follow(ALPHA);
-    renderWithLocale(<FollowingPage vapidPublicKey={null} />);
-
-    await user.click(screen.getByRole("button", { name: "架空アルファのフォローを解除" }));
-
-    expect(screen.getByText("まだ誰もフォローしていません")).toBeInTheDocument();
-  });
-
-  /**
-   * フォロー一覧の名前は保存した行だけで描く (サーバーに引き直さない)。
-   * ローマ字がその行に入っていることをこの経路で確かめる
-   */
-  test("英語表示ではローマ字で出す", async () => {
-    await readyFollowStore();
-    await useFollowStore.getState().follow(ALPHA);
-    renderWithLocale(<FollowingPage vapidPublicKey={null} />, "en");
-
-    const list = screen.getByRole("list", { name: "Voice actors you follow" });
-    expect(within(list).getByRole("link", { name: "Kakuu Alpha" })).toBeInTheDocument();
-  });
-
-  test("ローマ字を持たない声優は英語表示でも漢字表記のまま出る", async () => {
-    await readyFollowStore();
-    await useFollowStore
-      .getState()
-      .follow({ voiceActorId: "va_beta", slug: "beta", canonicalName: "架空ベータ" });
-    renderWithLocale(<FollowingPage vapidPublicKey={null} />, "en");
-
-    const list = screen.getByRole("list", { name: "Voice actors you follow" });
-    expect(within(list).getByRole("link", { name: "架空ベータ" })).toBeInTheDocument();
-  });
-
-  test("このブラウザにしか無いことを添える", async () => {
-    await readyFollowStore();
-    await useFollowStore.getState().follow(ALPHA);
-    renderWithLocale(<FollowingPage vapidPublicKey={null} />);
-
-    expect(screen.getByText("このブラウザにのみ保存されます")).toBeInTheDocument();
+    expect(within(list).getByRole("link", { name: "架空アルファ" })).toBeInTheDocument();
   });
 });
 
