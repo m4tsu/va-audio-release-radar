@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
   INGEST_PROTOCOL_VERSION,
+  INQUIRY_BODY_MAX_LENGTH,
+  INQUIRY_CONTACT_MAX_LENGTH,
   ingestPayloadSchema,
+  inquirySubmissionSchema,
   rawWorkSchema,
   readProtocolVersion,
   seasonOrder,
@@ -186,6 +189,69 @@ describe("ingestPayloadSchema の protocolVersion", () => {
       works: [],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("inquirySubmissionSchema", () => {
+  test("種別・本文・連絡先が揃った送信を受け付ける", () => {
+    const result = inquirySubmissionSchema.safeParse({
+      kind: "bug",
+      body: "声優ページが開けない",
+      contact: "user@example.com",
+    });
+    expect(result.success && result.data).toEqual({
+      kind: "bug",
+      body: "声優ページが開けない",
+      contact: "user@example.com",
+    });
+  });
+
+  test("連絡先は省いても空でも通り、どちらも未記入になる", () => {
+    for (const submission of [
+      { kind: "request", body: "ストアを増やしてほしい" },
+      { kind: "request", body: "ストアを増やしてほしい", contact: "" },
+      // 未記入の欄はブラウザから空白のまま届くことがある
+      { kind: "request", body: "ストアを増やしてほしい", contact: "   " },
+    ]) {
+      const result = inquirySubmissionSchema.safeParse(submission);
+      expect(result.success).toBe(true);
+      expect(result.success && result.data.contact).toBeUndefined();
+    }
+  });
+
+  test("本文が空、または空白だけなら拒否する", () => {
+    for (const body of ["", " ", "\n\t "]) {
+      expect(inquirySubmissionSchema.safeParse({ kind: "other", body }).success).toBe(false);
+    }
+  });
+
+  test("本文は上限ちょうどまで通り、超えると拒否する", () => {
+    const limit = "あ".repeat(INQUIRY_BODY_MAX_LENGTH);
+    expect(inquirySubmissionSchema.safeParse({ kind: "other", body: limit }).success).toBe(true);
+    expect(inquirySubmissionSchema.safeParse({ kind: "other", body: `${limit}あ` }).success).toBe(
+      false,
+    );
+  });
+
+  test("長さは前後の空白を落としてから見る", () => {
+    // 空白ぶんで弾かれると、画面に出ている文字数と拒否の基準がずれる
+    const body = ` ${"あ".repeat(INQUIRY_BODY_MAX_LENGTH)} `;
+    const result = inquirySubmissionSchema.safeParse({ kind: "other", body });
+    expect(result.success && result.data.body.length).toBe(INQUIRY_BODY_MAX_LENGTH);
+  });
+
+  test("連絡先も上限を超えれば拒否する", () => {
+    const contact = "a".repeat(INQUIRY_CONTACT_MAX_LENGTH + 1);
+    expect(
+      inquirySubmissionSchema.safeParse({ kind: "other", body: "本文", contact }).success,
+    ).toBe(false);
+  });
+
+  test("種別が選択肢に無ければ拒否する", () => {
+    expect(inquirySubmissionSchema.safeParse({ kind: "question", body: "本文" }).success).toBe(
+      false,
+    );
+    expect(inquirySubmissionSchema.safeParse({ body: "本文" }).success).toBe(false);
   });
 });
 

@@ -5,6 +5,7 @@ import {
   ANIME_ROLES,
   ANIME_SEASONS,
   CREDIT_CONFIDENCES,
+  INQUIRY_KINDS,
   STORE_SLUGS,
   WORK_CATEGORIES,
 } from "@/domain/types";
@@ -163,6 +164,28 @@ export const excludedCreditNames = sqliteTable(
     // 未解決キューの単位 (名前 × ストア) と同じ組で一意にする
     uniqueIndex("excluded_credit_names_name_store_unique").on(t.creditedName, t.sourceStoreSlug),
   ],
+);
+
+/**
+ * お問い合わせ画面から届いた 1 件。
+ *
+ * 対応状況・既読・返信・削除の列を持たないのは、届いた事実と、それを受けて人がした対応とが
+ * 別の性質の記録だから。前者は送信者が決めて二度と変わらず、後者は運用が決まってから形が付く。
+ * 読み取りは新しい順の一覧だけなので、それ以外の索引も持たない
+ */
+export const inquiries = sqliteTable(
+  "inquiries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind", { enum: INQUIRY_KINDS }).notNull(),
+    body: text("body").notNull(),
+    /** 返信先として送信者が任意で書くもの。未記入なら NULL */
+    contact: text("contact"),
+    /** サーバーが受け取った時刻。送信者が申告した時刻は持たない */
+    receivedAt: text("received_at").notNull(),
+  },
+  // 新しい順の一覧が唯一の読み取りなので、受け取った時刻に索引を張る
+  (t) => [index("inquiries_received_at_idx").on(t.receivedAt)],
 );
 
 /**

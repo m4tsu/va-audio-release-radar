@@ -34,6 +34,15 @@ export type AnimeRole = "main" | "supporting";
  */
 export type AnimeFormat = "TV" | "TV_SHORT" | "MOVIE" | "SPECIAL" | "OVA" | "ONA" | "MUSIC";
 
+/**
+ * 問い合わせの種別。送信者が選ぶ。
+ *
+ * 分け方を送信者に委ねるのは、受け取る側が本文を読む前に「直せるもの (bug)」と
+ * 「作るかどうかを決めるもの (request)」を見分けられるようにするため。
+ * どちらでもない送信を書けなくしないために `other` を置く
+ */
+export type InquiryKind = "request" | "bug" | "other";
+
 export type VoiceActor = {
   id: string; // 例 "va_ueda-reina" (slug 由来。シードで固定)
   slug: string; // URL 用。ローマ字小文字ハイフン ("ueda-reina")
@@ -139,6 +148,22 @@ export type AnimeAppearance = {
   characterNameFull?: string; // "Jinshi"
   characterImageUrl?: string;
   role: AnimeRole;
+};
+
+/**
+ * 保存された問い合わせ 1 件。
+ *
+ * 対応状況・既読・返信は持たない。届いた事実だけを残す入れ物にしてある
+ */
+export type Inquiry = {
+  /** 表の自動採番。送信者は ID を知らないので、外から指定できる値にしない */
+  id: number;
+  kind: InquiryKind;
+  body: string;
+  /** 返信先として送信者が任意で書くもの。未記入なら undefined */
+  contact?: string;
+  /** サーバーが受け取った時刻。送信者が申告した時刻は持たない */
+  receivedAt: string;
 };
 
 /** クローラーの adapter が返す正規化前の 1 作品 */
@@ -262,6 +287,9 @@ export const CREDIT_CONFIDENCES = [
   "unmatched",
 ] as const satisfies readonly CreditConfidence[];
 
+/** 並びはそのまま画面の選択肢の並びになる。よく来るものから置く */
+export const INQUIRY_KINDS = ["request", "bug", "other"] as const satisfies readonly InquiryKind[];
+
 /**
  * 値配列が型の全メンバーを過不足なく含むことをコンパイル時に確認する補助型。
  * 一致していれば `true` 型になり、ずれていれば決して `true` にならないタプル型になるため、
@@ -295,6 +323,10 @@ const _animeFormatsCoverAllTypes: AssertSameLiteralSet<
   AnimeFormat,
   (typeof ANIME_FORMATS)[number]
 > = true;
+const _inquiryKindsCoverAllTypes: AssertSameLiteralSet<
+  InquiryKind,
+  (typeof INQUIRY_KINDS)[number]
+> = true;
 void [
   _storeSlugsCoverAllTypes,
   _workCategoriesCoverAllTypes,
@@ -303,6 +335,7 @@ void [
   _animeSeasonsCoverAllTypes,
   _animeRolesCoverAllTypes,
   _animeFormatsCoverAllTypes,
+  _inquiryKindsCoverAllTypes,
 ];
 
 // --- 年齢区分の方針 --------------------------------------------------------
@@ -402,3 +435,42 @@ export function readProtocolVersion(body: unknown): number | undefined {
   const value = (body as { protocolVersion?: unknown }).protocolVersion;
   return typeof value === "number" && Number.isInteger(value) ? value : undefined;
 }
+
+// --- 問い合わせの検証 ------------------------------------------------------
+// 送信フォームから保存までの境界で検証する。上限をドメインに置くのは、入力欄の残り文字数と
+// サーバーの拒否が別々の値を持つと、画面では書けるのに送れない状態になるため
+
+/**
+ * 本文の上限 (文字数)。
+ * 上限を置くのは、1 行の大きさを送信側に決めさせないため。
+ * 不具合の再現手順を書ききれる桁にしてある
+ */
+export const INQUIRY_BODY_MAX_LENGTH = 2000;
+
+/** 連絡先の上限 (文字数)。メールアドレスか SNS のアカウント 1 つが入れば足りる */
+export const INQUIRY_CONTACT_MAX_LENGTH = 200;
+
+/**
+ * 送信された問い合わせの検証。`Inquiry` から表が決める項目 (id と受け取った時刻) を除いた形を作る。
+ *
+ * 前後の空白を落としてから長さを見るので、空白だけの本文は空として弾く。
+ * 連絡先は空文字を undefined に畳む。未記入の欄はブラウザから空文字で届き、
+ * そのまま保存すると「未記入」と「空文字」の 2 通りが表に混ざるため
+ */
+export const inquirySubmissionSchema = z.object({
+  kind: z.enum(INQUIRY_KINDS),
+  body: z
+    .string()
+    .trim()
+    .min(1, "本文を入力する")
+    .max(INQUIRY_BODY_MAX_LENGTH, `本文は ${INQUIRY_BODY_MAX_LENGTH} 文字以内で入力する`),
+  contact: z
+    .string()
+    .trim()
+    .max(INQUIRY_CONTACT_MAX_LENGTH, `連絡先は ${INQUIRY_CONTACT_MAX_LENGTH} 文字以内で入力する`)
+    .transform((value) => (value.length === 0 ? undefined : value))
+    .optional(),
+});
+
+/** 検証を通った送信内容 */
+export type InquirySubmission = z.infer<typeof inquirySubmissionSchema>;
