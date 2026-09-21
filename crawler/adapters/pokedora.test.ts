@@ -494,6 +494,22 @@ describe("pokedoraAdapter.fetchNewReleases", () => {
     expect(result?.complete).toBe(true);
   });
 
+  // 同じ商品が一般と BL の両方に出たときに二重にしない
+  it("区分をまたいで同じ作品 ID が出ても 1 件にする", async () => {
+    respond({ men: ok(listPage(["1"])), bl: ok(listPage(["1"], "bl")) });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["1"]);
+    expect(result?.listedCount).toBe(1);
+    expect(result?.pages).toBe(2);
+    // 詳細も 1 回しか引かない
+    const detailUrls: string[] = fetchTextMock.mock.calls
+      .map((call) => call[0])
+      .filter((url: string) => url.includes("detail.php"));
+    expect(detailUrls).toEqual([buildProductUrl("1")]);
+  });
+
   it("区分ごとに 1 ページだけ引く", async () => {
     respond({ men: ok(listPage(["1"])) });
 

@@ -67,12 +67,18 @@ https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0&or
   30 件、`100` は 15 件に落ちる (2026-09-21 実測。
   [`pokedora-disp-number-2026-09-21.md`](../research/pokedora-disp-number-2026-09-21.md))。
   総件数は `div.search_count` に出る
-- `pageno` がページ送り。`pageno=2` が 16〜30 件目を返すことを確認済み
+- `pageno` がページ送り。`disp_number=100` (1 ページ 15 件) のとき `pageno=2` が
+  16〜30 件目を返すことを確認済み
 - 許可の根拠: robots が禁じているのは `/cart/*` と `/mypage/*` だけで、`list.php` も
   `order` も `pageno` も禁じられていない
 - **日次の走行が使う。** 引くのは一般と BL の 1 ページ目だけで、ページ送りはしない
-  ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。1 ページが覆う日数は
-  [`pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md)
+  ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
+  1 ページ 15 件が覆う日数は
+  [`pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md) にあり、
+  日次はそれより多い件数で引くので窓はより広い
+- **同じ作品を毎日引き直す。** 詳細を省けるのは DB にある作品だけで、対象声優が居ない作品は
+  保存されない ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
+  一覧から消えるまで毎日詳細ページを引く
 - **`div.search_count` の総件数は載せない。** ストア全体の作品数であって新着数ではないので、
   網羅率として記録すると意味を取り違える
 - 実測は [`research/pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md)
@@ -281,8 +287,10 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 - **新着順 (`order=1`) が何の日付で並べているか。** `lastmod` でも `product_id` でも
   ないことは分かっているが、正体は分からない (§6)
 - **「NEW」バッジが何日間付くか。** バッジの付いた件数は数えたが、日数に直せない (件数は [`pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md))
-- **1 ページ目に出ない新商品があるか。** 1 ページ目より深いページは一般の 2 ページ目しか引いていない
-  (日次の走行が引く件数は `crawler/adapters/pokedora.ts` の `FEED_DISP_NUMBER`)
+- **1 ページ目に出ない新商品があるか。** 深いページを引いたのは `disp_number=100` (15 件/ページ) の
+  ときの一般の 2 ページ目だけで、これは日次が引く 1 ページ目の範囲に収まっている。
+  つまり日次の 1 ページ目より深いところは一度も見ていない
+  (引く件数は `crawler/adapters/pokedora.ts` の `FEED_DISP_NUMBER`)
 - **一覧から商品が消える条件。** 総件数が減った日があり、非公開化か別ストアへの移動かは見ていない (測定は [`pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md))
 - **無限スクロール (`section.autopager`) が新着一覧にもあるか。** タグページでは使っているが、
   一覧の HTML では見ていない。JS が何を読むかもブラウザを立ち上げていないので分からない

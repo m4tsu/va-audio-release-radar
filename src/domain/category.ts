@@ -109,7 +109,8 @@ export function categorize(
  *
  * 既定を audio_drama にしてあるのは、ポケドラがドラマ CD のストアで、上の 6 種類のうち
  * 4 種類がドラマ系だから (DLsite 全年齢音声の既定を asmr にしてあるのと同じ理屈)。
- * 既定に落ちる前に、朗読とシチュエーションと音楽だけを名指しで拾う
+ * 名指しの分岐のうち `POKEDORA_DRAMA_WORDS` は既定と同じ答えを返す。残してあるのは、
+ * 既定を変えたときにドラマ系まで一緒に動かないようにするため
  */
 function categorizePokedora(storeCategory: string | undefined): WorkCategory {
   const category = storeCategory ?? "";
