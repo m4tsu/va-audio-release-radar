@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectFollowsStored } from "./follow";
 import { waitForHydration } from "./hydration";
 
 /**
@@ -40,6 +41,7 @@ test("フォローはページをまたいで保持される", async ({ page }) 
   // 読み込みが済むまでボタンは disabled。click は有効になるまで待つ
   await page.getByRole("button", { name: "フォロー", exact: true }).click();
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+  await expectFollowsStored(page, 1);
 
   await page.goto("/following");
   await expect(
@@ -71,6 +73,7 @@ test("アニメのキャストからフォローしても移動せず、読み�
 
   await expect(page).toHaveURL(/\/anime\/e2e-anime-alpha$/);
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+  await expectFollowsStored(page, 1);
 
   await page.reload();
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
@@ -88,6 +91,7 @@ test("シーズンの一覧の印と絞り込みはフォローしてから出�
   await page.goto("/anime/e2e-anime-alpha");
   await page.getByRole("button", { name: "フォロー", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "フォロー中" })).toBeVisible();
+  await expectFollowsStored(page, 1);
 
   await page.goto("/anime/season/2026-fall");
   await expect(

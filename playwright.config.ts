@@ -11,6 +11,15 @@ const persistTo = ".wrangler-e2e/state";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  /**
+   * 既定の worker 数は CPU 数から決まる。走らせるマシンと同居する他のプロセス次第で
+   * 変わってしまうので、決め打ちにする。
+   *
+   * 1 にする理由: ブラウザを並べてもサーバーは 1 つで、速くならずにメモリだけ増える。
+   * 増やすと dev サーバーが OOM kill され、全件が ECONNREFUSED で落ちる。
+   * 測定は docs/research/e2e-workers-2026-09-21.md
+   */
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   // vite dev はモジュールを初回アクセス時に変換する。最初の数件はそれを待つぶん遅い
   timeout: 60_000,

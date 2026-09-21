@@ -9,8 +9,14 @@ import { create } from "zustand";
  * クライアントで同じなので hydration の不一致にならない
  */
 
-/** IndexedDB のデータベース名。バージョンはテーブルの物理スキーマ用 */
-const DB_NAME = "voice-actor-audio-release-radar";
+/**
+ * IndexedDB のデータベース名。バージョンはテーブルの物理スキーマ用。
+ * E2E がフォローの保存が届いたかを直接見るので、名前は外へ出す (`e2e/follow.ts`)
+ */
+export const FOLLOW_DB_NAME = "voice-actor-audio-release-radar";
+
+/** フォローを入れる表の名前。`FOLLOW_DB_NAME` と同じ理由で外へ出す */
+export const FOLLOWS_TABLE = "follows";
 
 export type FollowedActor = {
   voiceActorId: string;
@@ -68,13 +74,13 @@ let tablePromise: Promise<Tables> | null = null;
 function tables(): Promise<Tables> {
   tablePromise ??= (async () => {
     const { default: Dexie } = await import("dexie");
-    const db = new Dexie(DB_NAME);
+    const db = new Dexie(FOLLOW_DB_NAME);
     // 主キーは声優 ID。createdAt は並べ替え用の索引
-    db.version(1).stores({ follows: "voiceActorId, createdAt" });
+    db.version(1).stores({ [FOLLOWS_TABLE]: "voiceActorId, createdAt" });
     // 既に version 1 の DB を持っているブラウザがあるので、宣言は足すだけにする
-    db.version(2).stores({ follows: "voiceActorId, createdAt", meta: "key" });
+    db.version(2).stores({ [FOLLOWS_TABLE]: "voiceActorId, createdAt", meta: "key" });
     return {
-      follows: db.table<FollowedActor, string>("follows"),
+      follows: db.table<FollowedActor, string>(FOLLOWS_TABLE),
       meta: db.table<MetaRow, string>("meta"),
     };
   })();
