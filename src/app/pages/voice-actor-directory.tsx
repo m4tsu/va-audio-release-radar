@@ -23,9 +23,9 @@ import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
 /**
  * 声優の一覧。名前を知らない・思い出せない人がここから声優ページへ入る。
  *
- * 出るのはページが出る声優全員で、音声作品がまだ 1 件も無い人も入る (`listActors`)。
- * 中身は全部 SSR で出してインデックスさせる。
- * 声優ページへの内部リンクをまとめて置ける唯一のページでもある。
+ * 受け取るのはページが出る声優全員で、音声作品がまだ 1 件も無い人も入る (`listActors`)。
+ * 並べ替えと絞り込みを全員に効かせるため全員ぶんを持つが、描くのは `INITIAL_VISIBLE` 人までで、
+ * 残りは「すべて表示」を押したときに出す。
  *
  * 並べ替えと絞り込み (ストア・頭文字) は `lib/actor-directory` が持つ
  */
@@ -45,6 +45,14 @@ export function VoiceActorDirectoryPage({ actors }: { actors: ActorSummary[] }) 
   );
 }
 
+/**
+ * 開いた直後に描く人数。
+ *
+ * 1 行のマークアップは中身の数十倍あるので、2,000 人規模を全部描くと HTML が数 MB になり、
+ * その全部をハイドレートすることになる。データは全員ぶん手元にあるので、押せば取得せずに出せる
+ */
+const INITIAL_VISIBLE = 100;
+
 /** 並べ替えの選択肢の文言。`ACTOR_SORTS` の各値に 1 つずつ要る */
 const SORT_LABEL_KEYS = {
   name: "voiceActors.sortName",
@@ -57,6 +65,8 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
   const [sort, setSort] = useState<ActorSort>(DEFAULT_ACTOR_SORT);
   const [store, setStore] = useState<StoreSlug | null>(null);
   const [initial, setInitial] = useState<string | null>(null);
+  // 一度押したら以後は解かない。並べ替えや絞り込みのたびに畳み直すと、押した操作が無かったことになる
+  const [expanded, setExpanded] = useState(false);
   const initials = useMemo(
     () => availableInitials(actors, { store, locale }),
     [actors, store, locale],
@@ -65,6 +75,9 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
     () => arrangeActors(actors, { sort, store, initial, locale }),
     [actors, sort, store, initial, locale],
   );
+  // 切るのは並べ替えと絞り込みを通した後。先に切ると、上位 100 人の中だけを並べ替えることになる
+  const visible = expanded ? shown : shown.slice(0, INITIAL_VISIBLE);
+  const truncated = visible.length < shown.length;
 
   /**
    * ストアを変えると押せる頭文字が変わる。選んでいた文字が消えるなら頭文字の絞り込みも解く。
@@ -90,7 +103,9 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
         <StoreFilter value={store} onChange={changeStore} />
         {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる */}
         <p aria-live="polite" className="ms-auto text-muted-foreground text-sm">
-          {t("voiceActors.shownCount", { count: shown.length })}
+          {truncated
+            ? t("voiceActors.shownOfTotal", { count: visible.length, total: shown.length })
+            : t("voiceActors.shownCount", { count: shown.length })}
         </p>
       </div>
 
@@ -102,7 +117,19 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
       {shown.length === 0 && store !== null ? (
         <EmptyState title={t("voiceActors.filteredEmptyTitle", { store: storeLabel(store) })} />
       ) : (
-        <ActorList actors={shown} />
+        <>
+          <ActorList actors={visible} />
+          {truncated ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setExpanded(true)}
+            >
+              {t("voiceActors.showAll")}
+            </Button>
+          ) : null}
+        </>
       )}
     </section>
   );

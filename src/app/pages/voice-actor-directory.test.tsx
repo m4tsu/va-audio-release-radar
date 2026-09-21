@@ -56,6 +56,23 @@ const HIKASA = actorSummary({
 });
 const EN_ACTORS = [UEDA, HIKASA, BETA];
 
+/**
+ * 上限 (100 人) を越える顔ぶれ。
+ *
+ * 作品数を受け取った順と逆に振る。日本語表示の名前順は受け取った順そのままなので
+ * (`lib/actor-directory` の `sortActors`)、並べ替えを変えると顔ぶれが入れ替わり、
+ * 切る前に全員を並べ替えているかが見える
+ */
+const MANY = Array.from({ length: 120 }, (_, i) =>
+  actorSummary({
+    id: `va_many_${i}`,
+    slug: `many-${i}`,
+    canonicalName: `架空その${i}`,
+    workCount: i + 1,
+    storeSlugs: i % 2 === 0 ? ["dlsite"] : ["audible"],
+  }),
+);
+
 function directory(label = "声優から探す") {
   return screen.getByRole("list", { name: label });
 }
@@ -344,5 +361,82 @@ describe("VoiceActorDirectoryPage のフォロー", () => {
     await user.click(row.getByRole("button", { name: "フォロー" }));
 
     expect(row.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
+  });
+});
+
+/**
+ * 上限そのものを見る区画。1 件ずつが 100 行以上を描くので、既定の 5 秒では
+ * 他のテストと並走したときに足りない
+ */
+describe("VoiceActorDirectoryPage の表示件数の上限", { timeout: 20_000 }, () => {
+  test("上限までしか並ばず、読み上げが当てはまる人数と並んでいる人数の両方を出す", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />);
+
+    expect(rows()).toHaveLength(100);
+    expect(rows()[0]).toHaveTextContent("架空その119");
+    expect(rows().at(-1)).toHaveTextContent("架空その20");
+    expect(screen.getByText("120 人中 100 人")).toBeInTheDocument();
+  });
+
+  test("すべて表示を押すと残りが出て、ボタンが消える", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />);
+
+    await user.click(screen.getByRole("button", { name: "すべて表示" }));
+
+    expect(rows()).toHaveLength(120);
+    expect(screen.getByText("120 人")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "すべて表示" })).not.toBeInTheDocument();
+  });
+
+  test("上限に収まっていればボタンを出さない", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={ACTORS} />);
+
+    expect(screen.queryByRole("button", { name: "すべて表示" })).not.toBeInTheDocument();
+    expect(screen.getByText("3 人")).toBeInTheDocument();
+  });
+
+  /** 先に切ると、作品数の上位 100 人の中だけを並べ替えることになる */
+  test("並べ替えは全員に効いてから切られる", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />);
+
+    await user.click(screen.getByRole("combobox", { name: "並び替え: 作品数の多い順" }));
+    await user.click(screen.getByRole("option", { name: "名前順" }));
+
+    // 「架空その0」は作品数が最も少ないので、作品数順の上位 100 人には居ない
+    expect(rows()[0]).toHaveTextContent("架空その0");
+    expect(rows()).toHaveLength(100);
+  });
+
+  /** ストアで絞ると全員が 60 人になり、上限に収まるのでボタンが消える */
+  test("絞り込みも全員に効いてから切られる", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />);
+
+    await user.click(within(storeFilter()).getByRole("button", { name: "Audible" }));
+
+    expect(rows()).toHaveLength(60);
+    expect(screen.getByText("60 人")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "すべて表示" })).not.toBeInTheDocument();
+  });
+
+  test("一度すべて表示にすると、絞り込みを変えても全員のまま", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />);
+
+    await user.click(screen.getByRole("button", { name: "すべて表示" }));
+    await user.click(within(storeFilter()).getByRole("button", { name: "Audible" }));
+    await user.click(within(storeFilter()).getByRole("button", { name: "すべて" }));
+
+    expect(rows()).toHaveLength(120);
+    expect(screen.queryByRole("button", { name: "すべて表示" })).not.toBeInTheDocument();
+  });
+
+  test("英語表示でもボタンと読み上げが英語で出る", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={MANY} />, "en");
+
+    expect(screen.getByText("100 of 120 voice actors")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show all" })).toBeInTheDocument();
   });
 });

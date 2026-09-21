@@ -343,7 +343,8 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
     db
       .select({ slug: voiceActors.slug, updatedAt: voiceActors.updatedAt })
       .from(voiceActors)
-      // 作品が 1 件も無い声優のページは notFound() を返すので sitemap にも出さない
+      // 作品が 1 件も無い声優のページは noindex なので sitemap にも出さない
+      // (条件は `routes/voice-actors.$slug.tsx` と揃える)
       .where(hasAnyAudioCredit)
       .orderBy(asc(voiceActors.slug)),
     db

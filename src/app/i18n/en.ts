@@ -171,6 +171,8 @@ export const en: Translations = {
     initialFilterLabel: "Filter by initial",
     filterAll: "All",
     shownCount: { one: "{{count}} voice actor", other: "{{count}} voice actors" },
+    shownOfTotal: "{{count}} of {{total}} voice actors",
+    showAll: "Show all",
     filteredEmptyTitle: "No voice actors have works on {{store}}",
   },
 
