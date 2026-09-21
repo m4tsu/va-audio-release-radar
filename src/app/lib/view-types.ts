@@ -1,4 +1,8 @@
-import type { fetchActorBySlug, fetchAllActors } from "@/app/server-fns/actors";
+import type {
+  fetchActorBySlug,
+  fetchActorStoreCoverage,
+  fetchAllActors,
+} from "@/app/server-fns/actors";
 import type { fetchCrawlerHealth, fetchUnmatchedCredits } from "@/app/server-fns/admin";
 import type {
   fetchAnimeByActor,
@@ -34,6 +38,8 @@ export type FeedItem = Awaited<ReturnType<typeof fetchFeed>>[number];
 
 export type ActorSummary = Awaited<ReturnType<typeof fetchAllActors>>[number];
 export type ActorDetail = NonNullable<Awaited<ReturnType<typeof fetchActorBySlug>>>;
+/** ストア 1 つぶんの網羅の状態。走行の記録が無いストアは含まれない */
+export type ActorStoreCoverage = Awaited<ReturnType<typeof fetchActorStoreCoverage>>[number];
 
 export type UnmatchedCreditGroup = Awaited<ReturnType<typeof fetchUnmatchedCredits>>[number];
 export type CrawlerHealth = Awaited<ReturnType<typeof fetchCrawlerHealth>>;

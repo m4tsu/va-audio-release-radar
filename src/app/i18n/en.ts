@@ -150,6 +150,8 @@ export const en: Translations = {
       "ASMR, audiobooks and audio dramas featuring {{name}} on DLsite, Audible and Pocket Drama CD, newest first.",
     storeEmptyTitle: "No works found on {{store}}",
     filteredEmptyTitle: "No works with this cast size on {{store}}",
+    partialCoverage: "Only part of this actor's works on {{store}} are listed here.",
+    partialCoverageLink: "See all works on {{store}}",
     animeTitle: "Anime appearances",
   },
 

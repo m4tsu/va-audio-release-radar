@@ -54,6 +54,7 @@ function render(over: Partial<Parameters<typeof VoiceActorPage>[0]> = {}, locale
       actor={ACTOR}
       works={WORKS}
       anime={[]}
+      coverage={[]}
       appearance="all"
       onAppearanceChange={() => {}}
       {...over}
@@ -177,6 +178,54 @@ describe("VoiceActorPage の出演形態", () => {
     render({ appearance: "small" });
 
     expect(screen.getByRole("combobox", { name: "出演形態: 少人数" })).toBeInTheDocument();
+  });
+});
+
+describe("VoiceActorPage の網羅の注記", () => {
+  test("取り切れていないストアには注記とストアの検索へのリンクを出す", () => {
+    render({ coverage: [{ storeSlug: "audible", complete: false }] });
+
+    expect(screen.getByText("Audible の作品は一部だけを載せています。")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Audible で全作品を見る" });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://www.audible.co.jp/search?searchNarrator=%E6%9E%B6%E7%A9%BA%E3%82%A2%E3%83%AB%E3%83%95%E3%82%A1",
+    );
+    expect(link).toHaveAttribute("rel", "noopener nofollow");
+  });
+
+  /** 検索語は表示言語で変えない。相手は日本語のストアで、ローマ字表記では引けない */
+  test("英語表示でも注記を出し、検索語は正規表記のまま", () => {
+    render({ coverage: [{ storeSlug: "audible", complete: false }] }, "en");
+
+    expect(
+      screen.getByText("Only part of this actor's works on Audible are listed here."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See all works on Audible" })).toHaveAttribute(
+      "href",
+      "https://www.audible.co.jp/search?searchNarrator=%E6%9E%B6%E7%A9%BA%E3%82%A2%E3%83%AB%E3%83%95%E3%82%A1",
+    );
+  });
+
+  test("取り切れたストアには何も出さない", () => {
+    render({ coverage: [{ storeSlug: "dlsite", complete: true }] });
+
+    expect(screen.queryByText(/一部だけを載せています/)).not.toBeInTheDocument();
+  });
+
+  /** 走行の記録が無いストアは `coverage` に入ってこない */
+  test("走行の記録が無ければ何も出さない", () => {
+    render();
+
+    expect(screen.queryByText(/一部だけを載せています/)).not.toBeInTheDocument();
+  });
+
+  /** 名前から声優ページを開く手段がストアに無い。押せないリンクは出さない */
+  test("ポケドラは注記だけでリンクを出さない", () => {
+    render({ coverage: [{ storeSlug: "pokedora", complete: false }] });
+
+    expect(screen.getByText("ポケドラ の作品は一部だけを載せています。")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /全作品を見る/ })).not.toBeInTheDocument();
   });
 });
 

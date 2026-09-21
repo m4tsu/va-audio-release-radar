@@ -174,6 +174,9 @@ export const ja = {
     storeEmptyTitle: "{{store}} で見つかった作品はありません",
     /** 出演形態で絞り込んだ結果、そのストアに残る作品が無いとき。作品自体はある */
     filteredEmptyTitle: "{{store}} にこの出演形態の作品はありません",
+    /** 直近の取得がそのストアの全作品に届かなかったとき。網羅を約束しないことを画面で示す */
+    partialCoverage: "{{store}} の作品は一部だけを載せています。",
+    partialCoverageLink: "{{store}} で全作品を見る",
     animeTitle: "出演アニメ",
   },
 

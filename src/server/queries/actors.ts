@@ -1,10 +1,16 @@
-import { and, asc, eq, inArray, like, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, or, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
 import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { stripLikeWildcards } from "../db/like";
-import { audioCredits, storeListings, voiceActorAliases, voiceActors } from "../db/schema";
+import {
+  audioCredits,
+  crawlRuns,
+  storeListings,
+  voiceActorAliases,
+  voiceActors,
+} from "../db/schema";
 import type { AppDb } from "../db/types";
 
 /** 一覧・検索結果の 1 行。作品数は声優ページへ行く前の目安として画面に出す */
@@ -141,6 +147,48 @@ export async function getActorBySlug(db: AppDb, slug: string): Promise<ActorDeta
       verified: alias.verified,
     })),
   };
+}
+
+/**
+ * この声優について、そのストアの作品を取り切れているか。
+ *
+ * 取り切れていないストアでは、このサイトに載っているのは取得できた範囲だけになる
+ * (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。画面はこれを見て
+ * ストアの検索へ送る導線を出す
+ */
+export type ActorStoreCoverage = { storeSlug: StoreSlug; complete: boolean };
+
+/**
+ * ストアごとの直近の走行から、取り切れたかどうかを引く。
+ *
+ * 走行が無いストアと、直近の走行が真偽を決められなかったストア (`coverage_complete` が NULL) は
+ * 返さない。分からないものを「取り切れていない」側に寄せると、一度も引いていないストアにまで
+ * 「一部しか載っていない」と出ることになる。
+ *
+ * 見るのは直近の 1 走行だけで、それより前は見ない。上限に当たるかは作品数で決まり、
+ * 過去に当たったかどうかは今の話ではないため。
+ * ストアは 3 つで固定なので 1 ストアずつ引く (`crawl_runs_store_actor_started_idx` が効く)
+ */
+export async function getActorStoreCoverage(
+  db: AppDb,
+  voiceActorId: string,
+): Promise<ActorStoreCoverage[]> {
+  const perStore = await Promise.all(
+    STORE_SLUGS.map(async (storeSlug) => {
+      const [run] = await db
+        .select({ complete: crawlRuns.coverageComplete })
+        .from(crawlRuns)
+        // 並べるのは取得を始めた時刻。取り込みの時刻 (`finished_at`) は古い行に無い
+        .where(and(eq(crawlRuns.voiceActorId, voiceActorId), eq(crawlRuns.storeSlug, storeSlug)))
+        .orderBy(desc(crawlRuns.startedAt))
+        .limit(1);
+      return run === undefined || run.complete === null
+        ? undefined
+        : { storeSlug, complete: run.complete };
+    }),
+  );
+
+  return perStore.filter((entry): entry is ActorStoreCoverage => entry !== undefined);
 }
 
 /**

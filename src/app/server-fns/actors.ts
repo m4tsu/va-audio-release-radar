@@ -19,6 +19,20 @@ export const fetchActorBySlug = createServerFn({ method: "GET" })
     return (await getActorBySlug(getDb(), data.slug)) ?? null;
   });
 
+/**
+ * ストアごとに、この声優の作品を取り切れているか。声優ページが「一部しか載っていない」注記を
+ * 出すかどうかの判定に使う
+ */
+export const fetchActorStoreCoverage = createServerFn({ method: "GET" })
+  .validator(z.object({ voiceActorId: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const [{ getDb }, { getActorStoreCoverage }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/actors"),
+    ]);
+    return getActorStoreCoverage(getDb(), data.voiceActorId);
+  });
+
 export const searchActorsFn = createServerFn({ method: "GET" })
   .validator(
     z.object({

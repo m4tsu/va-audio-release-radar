@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { StoreSlug } from "@/domain/types";
 import { audioCredits, audioWorks, storeListings } from "../db/schema";
-import { getActorBySlug, listActors, searchActors, upsertActors } from "./actors";
+import {
+  getActorBySlug,
+  getActorStoreCoverage,
+  listActors,
+  searchActors,
+  upsertActors,
+} from "./actors";
 import { ingest } from "./ingest";
 import {
+  daysAgo,
   giveEachActorAWork,
   HANAZAWA,
   NOW,
@@ -242,5 +249,111 @@ describe("getActorBySlug", () => {
     expect(actor?.aliases).toEqual([
       { voiceActorId: UEDA.id, name: "上田 麗奈", source: "manual", verified: true },
     ]);
+  });
+});
+
+describe("getActorStoreCoverage", () => {
+  /** 走行を 1 本取り込む。網羅の判定以外は既定のままでよい */
+  async function crawl(
+    db: Awaited<ReturnType<typeof setupDb>>,
+    run: {
+      runId: string;
+      storeSlug: StoreSlug;
+      startedAt: string;
+      coverageComplete?: boolean;
+    },
+  ) {
+    const { coverageComplete, ...rest } = run;
+    await ingest(
+      db,
+      payload({
+        ...rest,
+        voiceActorId: UEDA.id,
+        works: [rawWork({ storeSlug: run.storeSlug, storeProductId: `P-${run.runId}` })],
+        ...(coverageComplete === undefined ? {} : { coverageComplete }),
+      }),
+      NOW,
+    );
+  }
+
+  it("取り切れていないストアと取り切れたストアを区別して返す", async () => {
+    const db = await setupDb();
+    await crawl(db, {
+      runId: "r-dlsite",
+      storeSlug: "dlsite",
+      startedAt: NOW,
+      coverageComplete: true,
+    });
+    await crawl(db, {
+      runId: "r-audible",
+      storeSlug: "audible",
+      startedAt: NOW,
+      coverageComplete: false,
+    });
+
+    expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([
+      { storeSlug: "dlsite", complete: true },
+      { storeSlug: "audible", complete: false },
+    ]);
+  });
+
+  it("走行の記録が無いストアは返さない", async () => {
+    const db = await setupDb();
+    await crawl(db, {
+      runId: "r-dlsite",
+      storeSlug: "dlsite",
+      startedAt: NOW,
+      coverageComplete: false,
+    });
+
+    expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([
+      { storeSlug: "dlsite", complete: false },
+    ]);
+  });
+
+  /** 真偽を決められなかった走行を「取り切れていない」側に寄せない */
+  it("網羅率を記録していない走行は返さない", async () => {
+    const db = await setupDb();
+    await crawl(db, { runId: "r-dlsite", storeSlug: "dlsite", startedAt: NOW });
+
+    expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([]);
+  });
+
+  it("同じストアでは直近の走行だけを見る", async () => {
+    const db = await setupDb();
+    await crawl(db, {
+      runId: "r-old",
+      storeSlug: "dlsite",
+      startedAt: daysAgo(3),
+      coverageComplete: false,
+    });
+    await crawl(db, {
+      runId: "r-new",
+      storeSlug: "dlsite",
+      startedAt: NOW,
+      coverageComplete: true,
+    });
+
+    expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([
+      { storeSlug: "dlsite", complete: true },
+    ]);
+  });
+
+  it("他の声優の走行は混ざらない", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(
+      db,
+      payload({
+        runId: "r-hanazawa",
+        storeSlug: "dlsite",
+        voiceActorId: HANAZAWA.id,
+        startedAt: NOW,
+        coverageComplete: false,
+        works: [rawWork({ storeProductId: "P-hanazawa" })],
+      }),
+      NOW,
+    );
+
+    expect(await getActorStoreCoverage(db, UEDA.id)).toEqual([]);
   });
 });

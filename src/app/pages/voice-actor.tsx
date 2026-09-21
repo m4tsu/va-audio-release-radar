@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ListFilter } from "lucide-react";
+import { ExternalLink, ListFilter } from "lucide-react";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
@@ -25,7 +25,13 @@ import {
 import { characterDisplayName } from "@/app/lib/character-name";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { seasonLabel } from "@/app/lib/season";
-import type { ActorAnimeAppearance, ActorDetail, WorkWithListings } from "@/app/lib/view-types";
+import { storeActorSearchUrl } from "@/app/lib/store-search";
+import type {
+  ActorAnimeAppearance,
+  ActorDetail,
+  ActorStoreCoverage,
+  WorkWithListings,
+} from "@/app/lib/view-types";
 import type { StoreSlug } from "@/domain/types";
 
 export type ActorStoreWorks = { storeSlug: StoreSlug; items: WorkWithListings[] };
@@ -42,12 +48,15 @@ export function VoiceActorPage({
   actor,
   works,
   anime,
+  coverage,
   appearance,
   onAppearanceChange,
 }: {
   actor: ActorDetail;
   works: ActorStoreWorks[];
   anime: ActorAnimeAppearance[];
+  /** ストアごとの網羅の状態。走行の記録が無いストアは入っていない */
+  coverage: ActorStoreCoverage[];
   /** 出演形態の絞り込み。URL から来る */
   appearance: AppearanceFilter;
   onAppearanceChange: (next: AppearanceFilter) => void;
@@ -58,11 +67,18 @@ export function VoiceActorPage({
   // 絞り込むのはルートが取ってきた範囲の中だけ。1 ストアの件数には上限があり
   // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
   // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
+
+  // 取り切れていないストア。取り切れたストアと、走行の記録が無いストアは入らない
+  const partialStores = new Set(
+    coverage.filter((entry) => !entry.complete).map((entry) => entry.storeSlug),
+  );
+
   const sections = works.map((section) => ({
     storeSlug: section.storeSlug,
     items: section.items.filter((item) => matchesAppearance(appearance, item.castSize)),
     // 0 件の理由。絞り込みで消えたのか、そのストアに元から無いのかで言い方が変わる
     emptiedByFilter: appearance !== "all" && section.items.length > 0,
+    partial: partialStores.has(section.storeSlug),
   }));
 
   return (
@@ -91,6 +107,8 @@ export function VoiceActorPage({
           storeSlug={section.storeSlug}
           items={section.items}
           emptiedByFilter={section.emptiedByFilter}
+          partial={section.partial}
+          actorName={actor.canonicalName}
         />
       ))}
 
@@ -143,16 +161,23 @@ function StoreSection({
   storeSlug,
   items,
   emptiedByFilter,
+  partial,
+  actorName,
 }: {
   storeSlug: StoreSlug;
   items: WorkWithListings[];
   /** 0 件なのが絞り込みのせいか。そのストアに元から作品が無いときと言い方を変える */
   emptiedByFilter: boolean;
+  /** このストアの作品を取り切れていないか */
+  partial: boolean;
+  /** ストアの検索に渡す名前 */
+  actorName: string;
 }) {
   const t = useT();
   return (
     <section className="space-y-3">
       <h2 className="font-semibold text-xl tracking-tight">{storeLabel(storeSlug)}</h2>
+      {partial ? <PartialCoverageNote storeSlug={storeSlug} actorName={actorName} /> : null}
       {items.length === 0 ? (
         <EmptyState
           title={
@@ -169,6 +194,46 @@ function StoreSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * このストアの作品を取り切れていないという注記と、ストアの検索への導線。
+ *
+ * 取れる件数には上限があり、back catalog は取得できた範囲と決めている
+ * (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。網羅を約束しないことを
+ * ここで示し、全作品はストア側で見てもらう。
+ *
+ * 検索 URL を組み立てられないストアでは注記だけを出す。押せないリンクを出すより、
+ * 一部しか載っていない事実だけでも伝わる方が良い。
+ * `rel` に `sponsored` を付けないのは、報酬の発生しない検索結果へのリンクだから
+ */
+function PartialCoverageNote({
+  storeSlug,
+  actorName,
+}: {
+  storeSlug: StoreSlug;
+  actorName: string;
+}) {
+  const t = useT();
+  const store = storeLabel(storeSlug);
+  const href = storeActorSearchUrl(storeSlug, actorName);
+
+  return (
+    <p className="text-muted-foreground text-sm">
+      {t("actor.partialCoverage", { store })}{" "}
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener nofollow"
+          className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-foreground"
+        >
+          {t("actor.partialCoverageLink", { store })}
+          <ExternalLink className="size-3.5" aria-hidden="true" />
+        </a>
+      ) : null}
+    </p>
   );
 }
 

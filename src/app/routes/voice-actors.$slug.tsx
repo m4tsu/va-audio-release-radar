@@ -9,7 +9,7 @@ import {
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { ActorDetail } from "@/app/lib/view-types";
 import { VoiceActorPage } from "@/app/pages/voice-actor";
-import { fetchActorBySlug } from "@/app/server-fns/actors";
+import { fetchActorBySlug, fetchActorStoreCoverage } from "@/app/server-fns/actors";
 import { fetchAnimeByActor } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 import { fetchWorksByActor } from "@/app/server-fns/works";
@@ -66,13 +66,14 @@ export const Route = createFileRoute("/voice-actors/$slug")({
     // 声優そのものは `getActorBySlug` が返し続ける (管理用)
     if (works.every((section) => section.items.length === 0)) throw notFound();
 
-    // 出演アニメは 404 の判定の後に引く。音声作品が無ければページ自体を出さないので、
+    // 出演アニメと網羅の状態は 404 の判定の後に引く。音声作品が無ければページ自体を出さないので、
     // 先に引いても捨てることになる
-    const anime = await fetchAnimeByActor({
-      data: { voiceActorId: actor.id, limit: ANIME_PER_ACTOR },
-    });
+    const [anime, coverage] = await Promise.all([
+      fetchAnimeByActor({ data: { voiceActorId: actor.id, limit: ANIME_PER_ACTOR } }),
+      fetchActorStoreCoverage({ data: { voiceActorId: actor.id } }),
+    ]);
 
-    return { actor, works, anime, origin };
+    return { actor, works, anime, coverage, origin };
   },
   head: ({ loaderData, params, match }) => {
     const actor = loaderData?.actor;
@@ -142,7 +143,7 @@ function absoluteUrl(origin: string | undefined, path: string): string {
 }
 
 function RouteComponent() {
-  const { actor, works, anime } = Route.useLoaderData();
+  const { actor, works, anime, coverage } = Route.useLoaderData();
   const { appearance } = Route.useSearch();
   const navigate = Route.useNavigate();
   // 親のルートが素通しした値がここまで来る。型は絞り込みの値でも、中身は URL の文字列そのもの
@@ -153,6 +154,7 @@ function RouteComponent() {
       actor={actor}
       works={works}
       anime={anime}
+      coverage={coverage}
       appearance={filter}
       onAppearanceChange={(next) => {
         // 絞り込みの変更で履歴を積むと、戻るボタンが選び直した回数だけ必要になる。
