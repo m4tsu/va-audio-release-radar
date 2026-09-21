@@ -31,6 +31,15 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  /*
+   * バッジの層の色。色が付くのは「どこで買えるか」(ストア) と「新しいか」(highlight) だけで、
+   * 作品の属性 (形式・出演形態) は無彩色に残す。濃さの違いしか無いと層の別が読めないため
+   */
+  --store-dlsite: oklch(0.47 0.16 258);
+  --store-audible: oklch(0.47 0.13 62);
+  --store-pokedora: oklch(0.47 0.19 350);
+  --highlight: oklch(0.45 0.14 155);
+  --highlight-foreground: oklch(0.985 0 0);
 }
 
 .dark {
@@ -53,6 +62,12 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  /* 暗い背景では同じ色相のまま明度を上げる。文字色として使うので暗い側に置くと読めない */
+  --store-dlsite: oklch(0.8 0.12 258);
+  --store-audible: oklch(0.82 0.12 62);
+  --store-pokedora: oklch(0.8 0.14 350);
+  --highlight: oklch(0.8 0.15 155);
+  --highlight-foreground: oklch(0.205 0 0);
 }
 
 @theme inline {
@@ -78,6 +93,11 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-store-dlsite: var(--store-dlsite);
+  --color-store-audible: var(--store-audible);
+  --color-store-pokedora: var(--store-pokedora);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
 }
 
 @layer base {

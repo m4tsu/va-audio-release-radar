@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AppearanceBadge } from "@/app/components/appearance-badge";
-import { storeLabel } from "@/app/components/store-badge";
+import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { StoreLink } from "@/app/components/store-link";
 import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
@@ -42,9 +42,7 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
             <Badge variant="secondary">{categoryLabel(work.category, locale)}</Badge>
             <AppearanceBadge castSize={detail.castSize} />
             {listings.map((listing) => (
-              <Badge key={listing.storeSlug} variant="outline">
-                {storeLabel(listing.storeSlug)}
-              </Badge>
+              <StoreBadge key={listing.storeSlug} store={listing.storeSlug} />
             ))}
           </div>
 

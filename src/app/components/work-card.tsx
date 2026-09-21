@@ -73,15 +73,23 @@ export function WorkCard({
       </Link>
 
       <div className="min-w-0 flex-1 space-y-2">
+        {/*
+          バッジは 3 つの層でできている。どこで買えるか (ストア、ストアごとの色) と、
+          新しいか (NEW と発売予定、highlight 色) と、作品の属性 (形式と出演形態、無彩色)。
+          層の別は色で読ませ、どのバッジが何を指すかは文言だけで分かる状態を保つ
+        */}
         <div className="flex flex-wrap items-center gap-1.5">
           {listings.map((listing) => (
             <StoreBadge key={listing.storeSlug} store={listing.storeSlug} />
           ))}
           <Badge variant="secondary">{categoryLabel(work.category, locale)}</Badge>
           <AppearanceBadge castSize={item.castSize} />
-          {item.isNew ? <Badge>{t("work.badgeNew")}</Badge> : null}
+          {/* 新しさは一番強く出す層なので、この 1 枚だけ色で塗る */}
+          {item.isNew ? (
+            <Badge className="bg-highlight text-highlight-foreground">{t("work.badgeNew")}</Badge>
+          ) : null}
           {upcoming && work.releaseDate ? (
-            <Badge variant="outline">
+            <Badge variant="outline" className="border-highlight/40 bg-highlight/10 text-highlight">
               {t("work.badgeUpcoming", { date: formatMonthDay(work.releaseDate, locale) })}
             </Badge>
           ) : null}
