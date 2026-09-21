@@ -8,7 +8,8 @@ disable-model-invocation: true
 # issue-new
 
 引数の説明を、`.github/ISSUE_TEMPLATE/task.yml` の欄が埋まった issue にする。
-本文の下書きは `work/issue-new/<slug>.md` (git 管理外)。作成は `scripts/create.sh`。
+`task.yml` は Web のフォームの定義で、`gh issue create` では通らない。
+**欄の見出しと並びは 4 の型を写して自分で書く。** issue-batch はこの欄を読む。
 
 ## 1. 照合
 
@@ -62,14 +63,27 @@ depends on #12
 受け入れ条件は、Agent が実装の終わりを判定し、レビュアーが差分と照らす基準になる。
 「〜できる」より「〜すると〜が表示される」の形で書く。型や値やセレクタは書かない (コードが持つ)。
 
+このうち **2 つは issue-batch の `collect.sh` が正規表現で読む**ので、形を崩さない。
+崩すと並列の判定が静かに外れる。
+
+- `- [x] スキーマ (...)` のチェック → 同時に 1 つしか動かさない issue の判定
+- `depends on #N` (`blocked by #N` / `#N に依存` も可) → 依存の抽出
+
 ## 5. 作る
 
 依存される側から順に作る (番号が決まらないと `depends on` が書けない)。
 
+本文はヒアドキュメントで標準入力に流す。**下書きをファイルに残さない。**
+
 ```
-bash .claude/skills/issue-new/scripts/create.sh "<タイトル>" work/issue-new/<slug>.md <p1|p2|p3> [ready]
+gh issue create --title "<タイトル>" --label <p1|p2|p3>[,ready] --body-file - <<'BODY'
+### 目的
+...
+BODY
 ```
 
+- 引用符付きの `<<'BODY'` にする。本文の backtick・`$`・`#` がシェルに解釈されないため
+- 作成に失敗したら本文を書き直して送り直す。ファイルに退避しない
 - 優先度: `p1` 先に流す、`p2` 通常、`p3` 後回し。指定が無ければ `p2`
 - `ready` は受け入れ条件が埋まっていて依存が無い (または依存先が閉じている) ときだけ付ける。
   依存先が open のものは `ready` を付けず、依存先が閉じたときに付ける
