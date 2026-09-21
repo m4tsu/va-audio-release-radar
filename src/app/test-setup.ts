@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { resetFollowStoreForTest } from "@/app/store/follow-store";
+import { resetPushStoreForTest } from "@/app/store/push-store";
 import { resetRouterStub } from "@/app/test/router-stub";
 
 /**
@@ -27,4 +28,6 @@ afterEach(async () => {
   // フォローは zustand のモジュール変数。前のテストで付いた状態を次に持ち越さない。
   // 読み込みが走っていれば終わるまで待つ (待たないと後から `ready` になる)
   await resetFollowStoreForTest();
+  // 通知の購読も同じ。外枠を描いたテストが init を走らせ、unsupported が次のテストに残る
+  await resetPushStoreForTest();
 });

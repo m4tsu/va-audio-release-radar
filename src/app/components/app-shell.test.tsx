@@ -8,6 +8,11 @@ import { routerStub } from "@/app/test/router-stub";
 
 /** 言語の切り替えは cookie を書く。ここで見たいのは外枠なので、その 1 関数だけ差し替える */
 vi.mock("@/app/server-fns/locale", () => ({ writeLocaleCookie: vi.fn() }));
+/** 外枠は通知の購読状態を調べ始める。jsdom に Web Push は無いので、server function だけ差し替えておく */
+vi.mock("@/app/server-fns/push", () => ({
+  savePushSubscriptionFn: vi.fn(),
+  deletePushSubscriptionFn: vi.fn(),
+}));
 
 describe("AppShell の導線", () => {
   test("ヘッダーに 4 つの入口を並べる", () => {

@@ -42,6 +42,17 @@ interface AppSecrets {
   /** 同じく検証側の鍵。wrangler secret で持つ。未設定なら送信は 503 */
   TURNSTILE_SECRET_KEY?: string;
   /**
+   * Web Push の VAPID 公開鍵 (base64url)。ブラウザが購読を作るときにこの鍵を渡す (`@/app/server-fns/push`)。
+   * HTML に出る公開鍵なので秘匿値ではなく wrangler.jsonc の `vars` に置く。
+   * 空文字なら未設定として、通知の案内を画面に出さない
+   */
+  VAPID_PUBLIC_KEY?: string;
+  /**
+   * 対になる秘密鍵。wrangler secret で持つ。送信 (ダイジェストの cron) が署名に使う。
+   * 購読の登録だけなら要らない
+   */
+  VAPID_PRIVATE_KEY?: string;
+  /**
    * 検索エンジンに載せてよいか (`@/server/robots`)。`"1"` のときだけ許可する。
    * 秘匿値ではなく wrangler.jsonc の `vars` に置く。
    * **既定は載せない。** 公開前の URL が検索から拾われないようにするため

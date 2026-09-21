@@ -7,14 +7,16 @@ import type { LocalizedLegalDocument } from "./index";
  * - ブラウザ内の保存: `src/app/store/follow-store.ts` (IndexedDB)、`src/app/server-fns/locale.ts` (cookie)、
  *   `src/app/hooks/use-theme.ts` (localStorage)
  * - サーバーへ送るもの: `src/app/server-fns/works.ts` の `fetchFeed` (フォロー中の声優 ID)、
- *   `src/app/server-fns/inquiries.ts` の `submitInquiryFn` (お問い合わせの内容。`inquiries` 表に保存する)
+ *   `src/app/server-fns/inquiries.ts` の `submitInquiryFn` (お問い合わせの内容。`inquiries` 表に保存する)、
+ *   `src/app/store/push-store.ts` (通知の購読。宛先・鍵・言語・フォロー中の声優 ID を `push_subscriptions` に保存する)
+ * - 通知を購読したブラウザが通信する外部のもの: ブラウザの提供元の push service (`public/sw.js` が受ける)
  * - お問い合わせ画面が読み込む外部のもの: `src/app/hooks/use-turnstile.ts` (Cloudflare Turnstile)
  * - 外部サーバーから読むもの: `src/app/components/work-card.tsx` の表紙画像
  * - アクセスログ: `wrangler.jsonc` の `observability`
  */
 export const privacy: LocalizedLegalDocument = {
   ja: {
-    effectiveDate: "2026-09-21",
+    effectiveDate: "2026-09-22",
     sections: [
       {
         id: "overview",
@@ -60,6 +62,7 @@ export const privacy: LocalizedLegalDocument = {
             type: "list",
             items: [
               "フォロー中の新着を表示するとき、フォローしている声優の ID がサーバーに送られます。サーバーはその場で新着を返すだけで、送られた ID を保存しません。",
+              "新作のブラウザ通知を有効にすると、通知の宛先 (ブラウザが発行する URL と暗号鍵)、表示言語、フォローしている声優の ID がサーバーに送られ、通知を送るために保存されます。フォローを変えるたびに送り直され、サーバー側も同じ内容に更新されます。宛先はブラウザごとに異なり、利用者を特定するためには使いません。通知を止めるとサーバーから削除されます。ブラウザ側で通知を取り消した場合も、次に通知を送ろうとした時点で削除されます。",
               "表示言語の Cookie は、ページを取得するたびにサーバーへ送られ、その言語でページを作るために使われます。",
               "お問い合わせを送信すると、選んだ種別、本文、記入した場合の連絡先がサーバーに送られ、運営者が読めるように保存されます。運営者はこれを、内容の確認と本サービスの改善、必要な場合の返信のためにのみ使います。フォローしている声優は添えられません。",
               "本サービスは Cloudflare, Inc. の Cloudflare Workers 上で動作しています。ページの取得に伴い、IP アドレス、ブラウザの種類 (User-Agent)、取得した URL、日時などが Cloudflare のアクセスログに一定期間記録されます。運営者はこれを、本サービスの安定した運用と障害の調査のためにのみ使い、それ以外の目的で利用者を特定することはありません。Cloudflare における取り扱いは Cloudflare のプライバシーポリシーに従います。",
@@ -77,6 +80,7 @@ export const privacy: LocalizedLegalDocument = {
               "作品の表紙画像は、各販売サイト (DLsite、Audible、ポケットドラマCD) のサーバーから直接読み込みます。そのため、ページを表示すると利用者のブラウザから各販売サイトのサーバーへ通信が発生し、IP アドレスなどが各販売サイトに送られます。各販売サイトにおける取り扱いは、それぞれのプライバシーポリシーに従います。",
               "作品ページからのリンクは各販売サイトへ移動します。リンクにはアフィリエイト用の識別子が含まれることがあり、その場合、移動先の販売サイトが本サービスから移動したことを記録します。",
               "お問い合わせ画面は、自動化された送信を防ぐために Cloudflare, Inc. の bot 対策 (Cloudflare Turnstile) を利用者のブラウザに読み込みます。この画面を開くと利用者のブラウザから Cloudflare のサーバーへ通信が発生し、IP アドレスなどが Cloudflare に送られます。Cloudflare における取り扱いは Cloudflare のプライバシーポリシーに従います。この読み込みはお問い合わせ画面でのみ行われます。",
+              "新作のブラウザ通知は、利用者のブラウザの提供元 (Google、Apple、Mozilla など) が運営する通知配信サーバーを経由して届きます。通知を有効にすると、利用者のブラウザがその配信サーバーと通信します。通知の本文は暗号化されており、配信サーバーは内容を読めません。各提供元における取り扱いは、それぞれのプライバシーポリシーに従います。",
               "本サービスは、アクセス解析ツールや広告配信のためのタグ、SNS の埋め込みを使用していません。",
             ],
           },
@@ -121,7 +125,7 @@ export const privacy: LocalizedLegalDocument = {
   },
 
   en: {
-    effectiveDate: "2026-09-21",
+    effectiveDate: "2026-09-22",
     sections: [
       {
         id: "overview",
@@ -167,6 +171,7 @@ export const privacy: LocalizedLegalDocument = {
             type: "list",
             items: [
               "When the feed of new releases is shown, the IDs of the voice actors you follow are sent to the server. The server only returns the matching releases and does not store the IDs it receives.",
+              "If you turn on browser notifications for new releases, the delivery address (a URL and encryption keys issued by your browser), your language and the IDs of the voice actors you follow are sent to the server and stored in order to send you notifications. They are sent again whenever you change who you follow, and the server is updated to match. The address differs for each browser and is not used to identify you. Stopping notifications deletes them from the server. If you revoke the notification in your browser instead, they are deleted the next time a notification is attempted.",
               "The language cookie is sent to the server with each page request and used to render the page in that language.",
               "When you send a message from the contact page, the type you chose, the message and any contact detail you entered are sent to the server and stored so that the Operator can read them. The Operator uses them only to review what you sent, to improve the Service and to reply where needed. The voice actors you follow are not attached.",
               "The Service runs on Cloudflare Workers, operated by Cloudflare, Inc. When pages are requested, your IP address, browser type (User-Agent), the requested URL, the time and similar details are recorded in Cloudflare's access logs for a limited period. The Operator uses these logs only to keep the Service running reliably and to investigate failures, and does not use them to identify Users for any other purpose. Cloudflare's handling of this data is governed by Cloudflare's privacy policy.",
@@ -184,6 +189,7 @@ export const privacy: LocalizedLegalDocument = {
               "Cover images are loaded directly from the servers of each store (DLsite, Audible, Pocket Drama CD). Displaying a page therefore causes your browser to connect to those servers, which receive your IP address and similar details. Each store's handling of this data is governed by its own privacy policy.",
               "Links on work pages lead to the stores. A link may include an affiliate identifier, in which case the store records that you arrived from the Service.",
               "The contact page loads Cloudflare Turnstile, a bot protection service operated by Cloudflare, Inc., to prevent automated submissions. Opening that page therefore causes your browser to connect to Cloudflare's servers, which receive your IP address and similar details. Cloudflare's handling of this data is governed by Cloudflare's privacy policy. No other page loads it.",
+              "Browser notifications for new releases are delivered through the push service run by your browser's vendor (such as Google, Apple or Mozilla). When you turn notifications on, your browser connects to that service. The content of each notification is encrypted and cannot be read by the push service. Each vendor's handling of this data is governed by its own privacy policy.",
               "The Service does not use analytics tools, advertising tags or social media embeds.",
             ],
           },

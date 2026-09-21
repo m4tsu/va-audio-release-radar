@@ -5,6 +5,9 @@ import {
   INQUIRY_CONTACT_MAX_LENGTH,
   ingestPayloadSchema,
   inquirySubmissionSchema,
+  PUSH_SUBSCRIPTION_MAX_ACTORS,
+  pushSubscriptionSchema,
+  pushUnsubscribeSchema,
   rawWorkSchema,
   readProtocolVersion,
   seasonOrder,
@@ -266,5 +269,66 @@ describe("seasonOrder", () => {
     expect(seasonOrder({ seasonYear: 2026, season: "FALL" })).toBeLessThan(
       seasonOrder({ seasonYear: 2027, season: "WINTER" }),
     );
+  });
+});
+
+describe("pushSubscriptionSchema", () => {
+  function validSubscription() {
+    return {
+      endpoint: "https://push.example/sub/abc",
+      p256dh:
+        "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM",
+      auth: "tBHItJI5svbpez7KI4CCXg",
+      locale: "ja",
+      voiceActorIds: ["va_ueda-reina"],
+    };
+  }
+
+  test("ブラウザが返す形の購読を受け付ける", () => {
+    expect(pushSubscriptionSchema.safeParse(validSubscription()).success).toBe(true);
+  });
+
+  test("フォローが 0 件でも受け付ける", () => {
+    const result = pushSubscriptionSchema.safeParse({ ...validSubscription(), voiceActorIds: [] });
+    expect(result.success).toBe(true);
+  });
+
+  /** 宛先はそのまま fetch するので、http や別のスキームを通さない */
+  test("endpoint は https のみ", () => {
+    for (const endpoint of ["http://push.example/sub", "javascript:alert(1)", "not a url"]) {
+      expect(pushSubscriptionSchema.safeParse({ ...validSubscription(), endpoint }).success).toBe(
+        false,
+      );
+      expect(pushUnsubscribeSchema.safeParse({ endpoint }).success).toBe(false);
+    }
+    expect(
+      pushUnsubscribeSchema.safeParse({ endpoint: validSubscription().endpoint }).success,
+    ).toBe(true);
+  });
+
+  test("鍵は base64url の文字だけ", () => {
+    expect(
+      pushSubscriptionSchema.safeParse({ ...validSubscription(), p256dh: "not+base64url/==" })
+        .success,
+    ).toBe(false);
+    expect(pushSubscriptionSchema.safeParse({ ...validSubscription(), auth: "" }).success).toBe(
+      false,
+    );
+  });
+
+  test("対応していない言語は弾く", () => {
+    expect(pushSubscriptionSchema.safeParse({ ...validSubscription(), locale: "fr" }).success).toBe(
+      false,
+    );
+  });
+
+  test("追う声優は上限を超えると弾く", () => {
+    const voiceActorIds = Array.from(
+      { length: PUSH_SUBSCRIPTION_MAX_ACTORS + 1 },
+      (_, index) => `va_${index}`,
+    );
+    expect(
+      pushSubscriptionSchema.safeParse({ ...validSubscription(), voiceActorIds }).success,
+    ).toBe(false);
   });
 });

@@ -136,6 +136,26 @@ export const en: Translations = {
     browseAnimeTitle: "Browse by anime",
   },
 
+  push: {
+    title: "New release alerts",
+    description:
+      "In any week a voice actor you follow has a new release, this browser gets one notification.",
+    enable: "Get new release alerts",
+    enabling: "Setting up…",
+    enabled: "This browser is set to receive new release alerts.",
+    disable: "Stop alerts",
+    disabling: "Turning off…",
+    unsupported: "This browser does not support notifications.",
+    iosGuide:
+      "On iPhone and iPad, open the Share menu in Safari, choose “Add to Home Screen”, then open the site from that icon to turn on alerts.",
+    denied:
+      "Notifications are blocked in your browser settings. Allow notifications for this site to set them up here.",
+    errorFailed: "Could not save the notification settings. Please try again later.",
+    storageNote:
+      "While subscribed, the voice actors you follow and the delivery address for this browser are stored on the server. They are deleted when you stop alerts.",
+    privacyLink: "Privacy Policy",
+  },
+
   following: {
     metaTitle: "New from the voice actors you follow | {{app}}",
     title: "Following",

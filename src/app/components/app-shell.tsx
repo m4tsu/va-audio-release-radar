@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/app/components/theme-toggle";
 import { Button } from "@/app/components/ui/button";
 import { useT } from "@/app/i18n";
 import { useFollowStore } from "@/app/store/follow-store";
+import { usePushStore } from "@/app/store/push-store";
 
 /**
  * 全ページの外枠。ヘッダーの導線、フッターの注記と法務リンク、そして中身の差し込み口。
@@ -13,12 +14,15 @@ import { useFollowStore } from "@/app/store/follow-store";
 export function AppShell() {
   const t = useT();
   const init = useFollowStore((state) => state.init);
+  const initPush = usePushStore((state) => state.init);
 
   // フォローはブラウザ内 (IndexedDB) にしか無い。SSR では読めないので、
-  // マウント後にここで 1 回だけ読み込む。init 自体が多重実行を防ぐ
+  // マウント後にここで 1 回だけ読み込む。init 自体が多重実行を防ぐ。
+  // 通知の購読も同じ段取り。どのページでフォローを変えても購読中なら送り直せるよう、外枠で始める
   useEffect(() => {
     void init();
-  }, [init]);
+    void initPush();
+  }, [init, initPush]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">

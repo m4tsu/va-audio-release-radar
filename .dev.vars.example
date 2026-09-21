@@ -9,3 +9,8 @@ ADMIN_TOKEN=
 # 画面側の鍵は wrangler.jsonc の vars.TURNSTILE_SITE_KEY。ローカルでは Cloudflare が公開している
 # テスト用の鍵の組が使える (site key: 1x00000000000000000000AA / secret: 1x0000000000000000000000000000000AA)
 TURNSTILE_SECRET_KEY=
+# Web Push の VAPID 鍵の組。作り方は README の「Web Push」。
+# 公開鍵は本番では wrangler.jsonc の vars.VAPID_PUBLIC_KEY に置くが、ローカルではここに書いて上書きしてよい。
+# どちらも空なら通知の案内は画面に出ない
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=

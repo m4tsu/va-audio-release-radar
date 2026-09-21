@@ -12,7 +12,7 @@
 |---|---|---|
 | Worker | Cloudflare Workers + TanStack Start (SSR) + D1 | 画面、server functions、管理 API。**D1 に触るのはここだけ** |
 | クローラー | Node.js (`crawler/`)。GitHub Actions か手元で動く | ストアを取得して正規化し、Worker の管理 API に HTTP で送る。周期は下の「取得の周期」 |
-| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は通知を購読したブラウザで、その追う声優だけをサーバーが持つ (`src/server/db/schema.ts` の `push_subscription_actors`。購読の画面と送信は未実装) |
+| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は新作の通知 (Web Push) を購読したブラウザで、購読の宛先とその追う声優をサーバーに送り、フォローが変わるたびに送り直す (`src/app/store/push-store.ts` → `src/server/db/schema.ts` の `push_subscriptions` / `push_subscription_actors`)。送信は未実装 |
 | 外部 | DLsite / Audible / ポケットドラマ CD / AniList | 制約は [`stores/`](./stores/) |
 
 クローラーを Worker の中で動かさないのは、Workers からの外向き通信とサブリクエスト数の上限を避けるため。
@@ -89,12 +89,16 @@ crawler  →  src/domain
 
 ## 画面と公開 API
 
-ルートは `src/app/routes/` のファイル構成が正。画面データは server functions で取り、JSON を外に出すのは
-`/api/health`、`/api/crawler-freshness`、`/api/admin/*`、`sitemap.xml`、`robots.txt` だけ。
+ルートは `src/app/routes/` のファイル構成が正。画面データは server functions で取り、HTML 以外を外に出すのは
+`/api/health`、`/api/crawler-freshness`、`/api/admin/*`、`sitemap.xml`、`robots.txt`、`manifest.webmanifest`
+(ホーム画面用。言語 cookie で中身が変わる) と、`public/` の静的ファイル (`sw.js` は通知を表示するだけの
+service worker で、ページの資産をキャッシュしない) だけ。
 このうち認証が要るのは `/api/admin/*` だけで、鮮度の判定は外形監視から見えるように開けてある。
-利用者が書いたものを受け取る経路はお問い合わせ (`/contact`) の 1 つで、認可の代わりに bot 対策
-(Cloudflare Turnstile) の検証を通す。ここが Worker から外へ出る唯一の通信で、検証の失敗と鍵の未設定を
-応答で分ける。フォロー情報は添えない。
+利用者から受け取る経路は 2 つ。お問い合わせ (`/contact`) は認可の代わりに bot 対策 (Cloudflare Turnstile)
+の検証を通す。ここが Worker から外へ出る唯一の通信で、検証の失敗と鍵の未設定を応答で分ける。
+フォロー情報は添えない。もう 1 つは通知の購読 (`/following` の server functions) で、ブラウザが push service
+から受け取った宛先とフォロー中の声優 ID を保存する。認可は無く、Zod で形と件数を絞り、偽の宛先は送信時の
+失効で消える。宛先は利用者の識別に使わない (`src/server/db/schema.ts` の `push_subscriptions`)。
 声優ページとアニメのページは、音声作品があればインデックス対象、無ければ noindex で
 sitemap にも出さない。声優は音声作品も出演アニメも無ければ 404、アニメは出演が無ければ 404。
 フォロー一覧はブラウザごとに違うので noindex。
@@ -108,9 +112,11 @@ sitemap にも出さない。声優は音声作品も出演アニメも無けれ
 ## 秘匿値
 
 `INGEST_TOKEN` (クローラー → 管理 API)、`ADMIN_TOKEN` (管理画面)、`TURNSTILE_SECRET_KEY`
-(お問い合わせの bot 対策の検証) を wrangler secret で持つ。未設定なら該当機能は 503 を返し、
-トークン違いや検証の失敗と区別できるようにする。ローカルは `.dev.vars`。
-公開してよい設定 (`SITE_URL`、`CONTACT_URL`、`TURNSTILE_SITE_KEY`) は `wrangler.jsonc` の `vars`。
+(お問い合わせの bot 対策の検証)、`VAPID_PRIVATE_KEY` (Web Push の署名。送信側だけが使う) を
+wrangler secret で持つ。未設定なら該当機能は 503 を返し、トークン違いや検証の失敗と区別できるようにする。
+ローカルは `.dev.vars`。
+公開してよい設定 (`SITE_URL`、`CONTACT_URL`、`TURNSTILE_SITE_KEY`、`VAPID_PUBLIC_KEY`) は `wrangler.jsonc` の `vars`。
+`VAPID_PUBLIC_KEY` が空なら通知の区画を画面に出さない。
 
 ## ローカル環境
 
@@ -121,7 +127,8 @@ sitemap にも出さない。声優は音声作品も出演アニメも無けれ
 
 ## 未実装
 
-- 通知 (配信手段、ログイン時のフォロー同期)。Worker の本番デプロイ (本番 D1 へのデータの移行手順は README にある)
+- 通知の送信 (週次の cron と Web Push の署名。購読の登録と、購読したブラウザのフォローの写しまでは入っている)、
+  ログイン時のフォロー同期。Worker の本番デプロイ (本番 D1 へのデータの移行手順は README にある)
 - 「取得の周期」の月次・シーズンごとの走行と、実行権の貸し出し。日次は 3 ストアとも動いている
 - 対象外の印を人が付ける経路。印を持つ表と、キューや解決し直しから外す側は入っているが、管理画面の操作がまだ無い
 - 販売終了の取り下げを観測して送る処理。listing は取り下げの日時を持てるが、書き込む経路がまだ無い

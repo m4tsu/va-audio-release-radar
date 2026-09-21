@@ -520,3 +520,41 @@ export const inquirySubmissionSchema = z.object({
 
 /** 検証を通った送信内容 */
 export type InquirySubmission = z.infer<typeof inquirySubmissionSchema>;
+
+/**
+ * 1 つの購読が追える声優の上限。フォローはブラウザ内で件数を制限していないので、
+ * サーバーへ送る側でだけ切る。対象声優の総数よりずっと少なく、1 人が追う数としては十分な値
+ */
+export const PUSH_SUBSCRIPTION_MAX_ACTORS = 500;
+
+/**
+ * ブラウザが払い出す鍵は base64url (詰め物なし)。`PushSubscription.toJSON()` の `keys` がこの形。
+ * そのまま DB に入れて送信時にデコードするので、形だけをここで見る
+ */
+const base64UrlSchema = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .regex(/^[A-Za-z0-9_-]+$/, "base64url で指定する");
+
+/**
+ * ブラウザから届く Web Push の購読。`endpoint` が宛先で、`https:` 以外は受け付けない
+ * (送信時にそのまま fetch するため)。`voiceActorIds` はブラウザのフォロー中の声優で、
+ * 空でもよい (購読してから後でフォローすることがある)
+ */
+export const pushSubscriptionSchema = z.object({
+  endpoint: httpsUrlSchema.pipe(z.string().max(2048)),
+  p256dh: base64UrlSchema(200),
+  auth: base64UrlSchema(100),
+  locale: z.enum(LOCALES),
+  voiceActorIds: z.array(z.string().min(1).max(200)).max(PUSH_SUBSCRIPTION_MAX_ACTORS),
+});
+
+/** 検証を通った購読 */
+export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
+
+/** 購読の解除。宛先だけで足りる */
+export const pushUnsubscribeSchema = z.object({
+  endpoint: httpsUrlSchema.pipe(z.string().max(2048)),
+});

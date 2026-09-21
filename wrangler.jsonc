@@ -25,7 +25,16 @@
   // ALLOW_INDEXING は robots.txt を「全部拒否」から「公開」に切り替える印。"1" のときだけ載せる。
   // 既定を空にしてあるのは、設定を忘れたまま公開されるより、公開したのに載らないほうが
   // 気づきやすいため (README の「公開前の扱い」)
-  "vars": { "SITE_URL": "", "CONTACT_URL": "", "TURNSTILE_SITE_KEY": "", "ALLOW_INDEXING": "" },
+  // VAPID_PUBLIC_KEY は Web Push の公開鍵 (base64url)。ブラウザが購読を作るときに使う公開鍵なので vars に置く。
+  // 対の秘密鍵は `npx wrangler secret put VAPID_PRIVATE_KEY`。鍵の組の作り方は README の「Web Push」。
+  // 空文字なら通知の案内を画面に出さない
+  "vars": {
+    "SITE_URL": "",
+    "CONTACT_URL": "",
+    "TURNSTILE_SITE_KEY": "",
+    "ALLOW_INDEXING": "",
+    "VAPID_PUBLIC_KEY": ""
+  },
   "d1_databases": [
     {
       "binding": "DB",

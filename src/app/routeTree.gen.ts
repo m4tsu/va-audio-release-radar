@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FollowingRouteImport } from './routes/following'
+import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -45,6 +46,11 @@ const ContactRoute = ContactRouteImport.update({
 const FollowingRoute = FollowingRouteImport.update({
   id: '/following',
   path: '/following',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
+  id: '/manifest.webmanifest',
+  path: '/manifest.webmanifest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contact': typeof ContactRoute
   '/following': typeof FollowingRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -171,6 +178,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contact': typeof ContactRoute
   '/following': typeof FollowingRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/contact': typeof ContactRoute
   '/following': typeof FollowingRoute
+  '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact'
     | '/following'
+    | '/manifest.webmanifest'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact'
     | '/following'
+    | '/manifest.webmanifest'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -270,6 +281,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contact'
     | '/following'
+    | '/manifest.webmanifest'
     | '/privacy'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -295,6 +307,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContactRoute: typeof ContactRoute
   FollowingRoute: typeof FollowingRoute
+  ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
   PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/following'
       fullPath: '/following'
       preLoaderRoute: typeof FollowingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.webmanifest': {
+      id: '/manifest.webmanifest'
+      path: '/manifest.webmanifest'
+      fullPath: '/manifest.webmanifest'
+      preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -479,6 +499,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContactRoute: ContactRoute,
   FollowingRoute: FollowingRoute,
+  ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
   PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

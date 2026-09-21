@@ -38,6 +38,18 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 画面側は `vars.TURNSTILE_SITE_KEY`、検証側は秘匿値の `TURNSTILE_SECRET_KEY`。
 どちらかが欠けていると画面が送信できない旨を出し、サーバーは 503 を返す。
 
+### Web Push
+
+フォロー一覧 (`/following`) のブラウザ通知には VAPID の鍵の組が要る。公開鍵は `vars.VAPID_PUBLIC_KEY`
+(ローカルでは `.dev.vars` に書いて上書きしてよい)、秘密鍵は秘匿値の `VAPID_PRIVATE_KEY`。
+公開鍵が空なら通知の区画は画面に出ない。鍵の組は Node で作れる (base64url の 2 行が出る):
+
+```
+node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});const pub=publicKey.export({format:'jwk'});const b=s=>Buffer.from(s,'base64url');console.log('VAPID_PUBLIC_KEY='+Buffer.concat([Buffer.from([4]),b(pub.x),b(pub.y)]).toString('base64url'));console.log('VAPID_PRIVATE_KEY='+privateKey.export({format:'jwk'}).d)"
+```
+
+ホーム画面用のアイコン (`public/icons/`) は `public/favicon.svg` から `node scripts/generate-icons.mjs` で作る。
+
 ## コマンド
 
 | コマンド | 何をするか |

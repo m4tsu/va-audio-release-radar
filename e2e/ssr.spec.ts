@@ -267,3 +267,36 @@ test("公開前の robots.txt は全部を拒否する", async ({ request }) => 
   expect(body).toContain("Disallow: /");
   expect(body).not.toContain("Sitemap:");
 });
+
+/**
+ * E2E に置く理由: **SSR の応答**。Web アプリマニフェストは言語 cookie で中身が変わる Worker のルートで、
+ * service worker は静的ファイルの配信そのもの。どちらもブラウザ通知 (Web Push) の前提で、
+ * 購読の操作そのものは push service が要るので E2E では触らない (jsdom のテストが見る)
+ */
+test("Web アプリマニフェストが言語に応じて返り、HTML から参照されている", async ({ request }) => {
+  const res = await request.get("/manifest.webmanifest");
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("application/manifest+json");
+  const manifest = await res.json();
+  expect(manifest.name).toBe("Koenect");
+  expect(manifest.start_url).toBe("/following");
+  expect(manifest.lang).toBe("ja");
+
+  const english = await request.get("/manifest.webmanifest", {
+    headers: { cookie: "locale=en" },
+  });
+  expect((await english.json()).lang).toBe("en");
+
+  const html = await (await request.get("/following")).text();
+  expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest"/>');
+  expect(html).toContain('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>');
+});
+
+test("service worker とアイコンが配信される", async ({ request }) => {
+  const worker = await request.get("/sw.js");
+  expect(worker.status()).toBe(200);
+  expect(worker.headers()["content-type"]).toContain("javascript");
+  expect(await worker.text()).toContain("showNotification");
+
+  expect((await request.get("/icons/icon-192.png")).status()).toBe(200);
+});

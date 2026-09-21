@@ -45,6 +45,9 @@ export const Route = createRootRoute({
       ],
       links: [
         { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+        // ホーム画面に追加したときの名前とアイコン。iOS は Web Push をホーム画面のアプリにしか届けない
+        { rel: "manifest", href: "/manifest.webmanifest" },
+        { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
         { rel: "stylesheet", href: appCss },
       ],
       scripts: [{ children: themeScript }],
