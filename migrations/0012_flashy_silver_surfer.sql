@@ -1,0 +1,1 @@
+ALTER TABLE `voice_actors` ADD `gender` text DEFAULT 'unknown' NOT NULL;

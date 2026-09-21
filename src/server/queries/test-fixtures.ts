@@ -14,6 +14,7 @@ export const UEDA: ActorSeed = {
   canonicalName: "上田麗奈",
   nameKana: "うえだれいな",
   status: "active",
+  gender: "female",
 };
 
 export const HANAZAWA: ActorSeed = {
@@ -21,6 +22,7 @@ export const HANAZAWA: ActorSeed = {
   slug: "hanazawa-kana",
   canonicalName: "花澤香菜",
   status: "active",
+  gender: "female",
 };
 
 /** マイグレーション済みの空 DB に声優を入れて返す */

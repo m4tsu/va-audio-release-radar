@@ -43,6 +43,15 @@ export type AnimeFormat = "TV" | "TV_SHORT" | "MOVIE" | "SPECIAL" | "OVA" | "ONA
  */
 export type InquiryKind = "request" | "bug" | "other";
 
+/**
+ * 声優の性別。真偽値ではなく列挙にしてあるのは、「女性でも男性でもないと分かっている」と
+ * 「分からない」を同じ値に畳むと、絞り込みで前者が黙って消えるため。
+ *
+ * 出どころが利用者の編集できる外部 DB (AniList) なので、画面には文字として出さない。
+ * 絞り込みの軸としてだけ使う
+ */
+export type VoiceActorGender = "female" | "male" | "other" | "unknown";
+
 export type VoiceActor = {
   id: string; // 例 "va_ueda-reina" (slug 由来。シードで固定)
   slug: string; // URL 用。ローマ字小文字ハイフン ("ueda-reina")
@@ -53,6 +62,7 @@ export type VoiceActor = {
   anilistStaffId?: number;
   imageUrl?: string;
   status: "active" | "inactive" | "unknown";
+  gender: VoiceActorGender;
 };
 
 export type VoiceActorAlias = {
@@ -264,6 +274,13 @@ export const WORK_CATEGORIES = [
 
 export const AGE_RATINGS = ["general", "r18", "unknown"] as const satisfies readonly AgeRating[];
 
+export const VOICE_ACTOR_GENDERS = [
+  "female",
+  "male",
+  "other",
+  "unknown",
+] as const satisfies readonly VoiceActorGender[];
+
 export const ANIME_SEASONS = [
   "WINTER",
   "SPRING",
@@ -326,6 +343,10 @@ const _creditConfidencesCoverAllTypes: AssertSameLiteralSet<
 > = true;
 const _ageRatingsCoverAllTypes: AssertSameLiteralSet<AgeRating, (typeof AGE_RATINGS)[number]> =
   true;
+const _voiceActorGendersCoverAllTypes: AssertSameLiteralSet<
+  VoiceActorGender,
+  (typeof VOICE_ACTOR_GENDERS)[number]
+> = true;
 const _animeSeasonsCoverAllTypes: AssertSameLiteralSet<
   AnimeSeason,
   (typeof ANIME_SEASONS)[number]
@@ -345,6 +366,7 @@ void [
   _workCategoriesCoverAllTypes,
   _creditConfidencesCoverAllTypes,
   _ageRatingsCoverAllTypes,
+  _voiceActorGendersCoverAllTypes,
   _animeSeasonsCoverAllTypes,
   _animeRolesCoverAllTypes,
   _animeFormatsCoverAllTypes,

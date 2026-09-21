@@ -50,6 +50,7 @@ export function actorDetail(over: Partial<ActorDetail> = {}): ActorDetail {
     slug: "alpha",
     canonicalName: "架空アルファ",
     status: "active",
+    gender: "unknown",
     aliases: [],
     ...over,
   };

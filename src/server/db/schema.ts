@@ -7,6 +7,7 @@ import {
   CREDIT_CONFIDENCES,
   INQUIRY_KINDS,
   STORE_SLUGS,
+  VOICE_ACTOR_GENDERS,
   WORK_CATEGORIES,
 } from "@/domain/types";
 
@@ -38,6 +39,11 @@ export const voiceActors = sqliteTable(
     anilistStaffId: integer("anilist_staff_id"),
     imageUrl: text("image_url"),
     status: text("status", { enum: VOICE_ACTOR_STATUSES }).notNull().default("unknown"),
+    /**
+     * 性別。既定を "unknown" にしてあるのは、出どころ (AniList) が値を持たない声優を
+     * 「その他」と言い切らないため。読み取り側は女性・男性を名指しで絞る
+     */
+    gender: text("gender", { enum: VOICE_ACTOR_GENDERS }).notNull().default("unknown"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

@@ -8,6 +8,7 @@ function actor(patch: Partial<VoiceActor> = {}): VoiceActor {
     slug: "ueda-reina",
     canonicalName: "上田麗奈",
     status: "active",
+    gender: "female",
     ...patch,
   };
 }

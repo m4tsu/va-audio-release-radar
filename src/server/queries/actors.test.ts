@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StoreSlug } from "@/domain/types";
 import { audioCredits, audioWorks, storeListings } from "../db/schema";
 import {
+  actorSeedSchema,
   getActorBySlug,
   getActorStoreCoverage,
   listActors,
@@ -21,6 +22,30 @@ import {
   setupDb,
   UEDA,
 } from "./test-fixtures";
+
+/**
+ * 性別の既定は zod スキーマが持つ。省いたシードがそのまま通ることを、
+ * 投入の入口 (`POST /api/admin/actors` が使うスキーマ) から見る
+ */
+describe("actorSeedSchema の性別", () => {
+  const SEED = { id: "va_sato-rina", slug: "sato-rina", canonicalName: "佐藤利奈" };
+
+  it("性別を省いたシードは「不明」で保存される", async () => {
+    const db = await setupDb([]);
+
+    await upsertActors(db, [actorSeedSchema.parse(SEED)], NOW);
+
+    expect((await getActorBySlug(db, SEED.slug))?.gender).toBe("unknown");
+  });
+
+  it("性別を入れたシードはその値で保存される", async () => {
+    const db = await setupDb([]);
+
+    await upsertActors(db, [actorSeedSchema.parse({ ...SEED, gender: "female" })], NOW);
+
+    expect((await getActorBySlug(db, SEED.slug))?.gender).toBe("female");
+  });
+});
 
 describe("upsertActors", () => {
   it("同じ id で呼び直すと上書きし、alias は重複しない", async () => {

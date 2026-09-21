@@ -299,6 +299,7 @@ const AMASAKI: ActorSeed = {
   // AniList 側の表記。ストアには 﨑 (U+FA11) で出てくる
   canonicalName: "天崎滉平",
   status: "active",
+  gender: "male",
 };
 
 describe("reresolveUnmatchedCredits", () => {

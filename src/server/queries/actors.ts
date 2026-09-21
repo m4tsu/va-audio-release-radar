@@ -13,7 +13,13 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
-import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
+import {
+  STORE_SLUGS,
+  type StoreSlug,
+  VOICE_ACTOR_GENDERS,
+  type VoiceActor,
+  type VoiceActorAlias,
+} from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { stripLikeWildcards } from "../db/like";
 import {
@@ -56,6 +62,8 @@ export const actorSeedSchema = z.object({
   anilistStaffId: z.number().int().optional(),
   imageUrl: z.string().optional(),
   status: z.enum(["active", "inactive", "unknown"]).default("unknown"),
+  // 既定を置くのは、性別を送らない既存のシードがそのまま通るようにするため
+  gender: z.enum(VOICE_ACTOR_GENDERS).default("unknown"),
   aliases: z
     .array(
       z.object({
@@ -94,6 +102,7 @@ export async function upsertActors(
         anilistStaffId: actor.anilistStaffId ?? null,
         imageUrl: actor.imageUrl ?? null,
         status: actor.status,
+        gender: actor.gender,
         createdAt: now,
         updatedAt: now,
       })
@@ -107,6 +116,7 @@ export async function upsertActors(
           anilistStaffId: actor.anilistStaffId ?? null,
           imageUrl: actor.imageUrl ?? null,
           status: actor.status,
+          gender: actor.gender,
           updatedAt: now,
         },
       });
@@ -431,5 +441,6 @@ export function toVoiceActor(row: VoiceActorRow): VoiceActor {
     ...(row.anilistStaffId !== null ? { anilistStaffId: row.anilistStaffId } : {}),
     ...(row.imageUrl ? { imageUrl: row.imageUrl } : {}),
     status: row.status,
+    gender: row.gender,
   };
 }
