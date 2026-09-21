@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { setupDb, UEDA } from "../queries/test-fixtures";
+import { NOW, setupDb, UEDA } from "../queries/test-fixtures";
 import { pushDigestRuns, pushSubscriptionActors, pushSubscriptions } from "./schema";
 import type { AppDb } from "./types";
 
@@ -11,8 +11,6 @@ import type { AppDb } from "./types";
  * 制約は `migrations/*.sql` に書かれたものが本番に当たるので、スキーマの定義ではなく
  * 適用後の DB で確かめる
  */
-
-const NOW = "2026-09-18T00:00:00.000Z";
 
 async function insertSubscription(db: AppDb, endpoint = "https://push.example/sub/1") {
   const [row] = await db
@@ -86,7 +84,8 @@ describe("push_subscription_actors", () => {
 });
 
 describe("push_digest_runs", () => {
-  it("件数は書かなければ 0 で入る", async () => {
+  /** 走行の始めに書く行。件数はまだ無く、終了日時は終わりに埋める */
+  it("始めた時点の行は件数 0 で終了日時が空", async () => {
     const db = await setupDb();
 
     const [row] = await db

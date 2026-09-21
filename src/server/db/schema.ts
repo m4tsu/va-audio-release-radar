@@ -414,9 +414,10 @@ export const pushSubscriptions = sqliteTable(
     /** 最後に送信を試みた日時。成功・失敗を問わず更新する。一度も試していなければ NULL */
     lastAttemptedAt: text("last_attempted_at"),
     /**
-     * 最後に送ったダイジェストの予定時刻 (cron の起動時刻。実際に送った時刻ではない)。
-     * 送信は上限で区切って複数回の起動に持ち越すので、同じ週の起動が同じ購読へ 2 通送らない
-     * 判定はこの値と起動の予定時刻の一致で行う。一度も送っていなければ NULL
+     * 最後に送ったダイジェストの予定時刻。その週のダイジェストを送るべき時刻 (金曜 18:00 JST を
+     * UTC で表した値) で、cron が実際に起動した時刻でも送った時刻でもない。
+     * 送信は上限で区切って複数回の起動に持ち越すため、同じ週のどの起動も同じ値を使い、
+     * この値が一致する購読には送らない。一度も送っていなければ NULL
      */
     lastDigestScheduledAt: text("last_digest_scheduled_at"),
   },
@@ -451,18 +452,27 @@ export const pushSubscriptionActors = sqliteTable(
 );
 
 /**
- * ダイジェスト送信の走行 1 回分。`crawl_runs` と同じく、終わった時点で 1 行書く。
+ * ダイジェスト送信の走行 1 回分 (cron の起動 1 回)。
+ *
+ * 始めた時点で 1 行書き、終わりに件数と終了日時を埋める。`crawl_runs` のように終わってから書くと、
+ * Worker が実行時間の上限で途中で止まった走行が記録に残らないため。`finished_at` が NULL のまま
+ * 残った行は途中で止まった走行を意味する。
  *
  * 同じ予定時刻の走行が複数行になるのは、1 回の起動で送る件数を上限で区切り、残りを次の起動に
- * 持ち越すため。週ごとの合計はこの列で束ねて出す
+ * 持ち越すため。週ごとの合計はその列で束ねて出す
  */
 export const pushDigestRuns = sqliteTable(
   "push_digest_runs",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    /** この走行が処理したダイジェストの予定時刻。`push_subscriptions.last_digest_scheduled_at` と同じ値 */
+    /**
+     * この走行が処理したダイジェストの予定時刻。同じ週の走行はこの値が同じで、
+     * 送った購読の `push_subscriptions.last_digest_scheduled_at` にもこの値が入る
+     */
     digestScheduledAt: text("digest_scheduled_at").notNull(),
+    /** cron が実際に起動した時刻 */
     startedAt: text("started_at").notNull(),
+    /** 走行が終わった時刻。途中で止まった走行は NULL のまま残る */
     finishedAt: text("finished_at"),
     /** 新作があって送る対象になった購読の数。新作の無い購読は含めない */
     subscriptionCount: integer("subscription_count").notNull().default(0),

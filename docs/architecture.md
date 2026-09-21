@@ -12,7 +12,7 @@
 |---|---|---|
 | Worker | Cloudflare Workers + TanStack Start (SSR) + D1 | 画面、server functions、管理 API。**D1 に触るのはここだけ** |
 | クローラー | Node.js (`crawler/`)。GitHub Actions か手元で動く | ストアを取得して正規化し、Worker の管理 API に HTTP で送る。周期は下の「取得の周期」 |
-| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない |
+| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は通知を購読したブラウザで、その追う声優だけをサーバーが持つ (`src/server/db/schema.ts` の `push_subscription_actors`。購読の画面と送信は未実装) |
 | 外部 | DLsite / Audible / ポケットドラマ CD / AniList | 制約は [`stores/`](./stores/) |
 
 クローラーを Worker の中で動かさないのは、Workers からの外向き通信とサブリクエスト数の上限を避けるため。

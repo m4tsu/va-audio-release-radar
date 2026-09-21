@@ -44,6 +44,12 @@ export type AnimeFormat = "TV" | "TV_SHORT" | "MOVIE" | "SPECIAL" | "OVA" | "ONA
 export type InquiryKind = "request" | "bug" | "other";
 
 /**
+ * 表示言語。i18n の辞書 (`src/app/i18n`) と、通知の本文を組む言語を持つ DB の列が同じ値を見る。
+ * 辞書は src/app にあるが、DB スキーマ (src/server) は src/app を import できないので型と値はここに置く
+ */
+export type Locale = "ja" | "en";
+
+/**
  * 声優の性別。真偽値ではなく列挙にしてあるのは、「女性でも男性でもないと分かっている」と
  * 「分からない」を同じ値に畳むと、絞り込みで前者が黙って消えるため。
  *
@@ -320,11 +326,6 @@ export const CREDIT_CONFIDENCES = [
 /** 並びはそのまま画面の選択肢の並びになる。よく来るものから置く */
 export const INQUIRY_KINDS = ["request", "bug", "other"] as const satisfies readonly InquiryKind[];
 
-/**
- * 表示言語。i18n の辞書 (`src/app/i18n`) と、通知の本文を組む言語を持つ DB の列が同じ値配列を見る。
- * 辞書は src/app にあるが、DB スキーマ (src/server) は src/app を import できないので値はここに置く
- */
-export type Locale = "ja" | "en";
 export const LOCALES = ["ja", "en"] as const satisfies readonly Locale[];
 
 /**
@@ -350,6 +351,7 @@ const _creditConfidencesCoverAllTypes: AssertSameLiteralSet<
 > = true;
 const _ageRatingsCoverAllTypes: AssertSameLiteralSet<AgeRating, (typeof AGE_RATINGS)[number]> =
   true;
+const _localesCoverAllTypes: AssertSameLiteralSet<Locale, (typeof LOCALES)[number]> = true;
 const _voiceActorGendersCoverAllTypes: AssertSameLiteralSet<
   VoiceActorGender,
   (typeof VOICE_ACTOR_GENDERS)[number]
@@ -370,6 +372,7 @@ const _inquiryKindsCoverAllTypes: AssertSameLiteralSet<
 > = true;
 void [
   _storeSlugsCoverAllTypes,
+  _localesCoverAllTypes,
   _workCategoriesCoverAllTypes,
   _creditConfidencesCoverAllTypes,
   _ageRatingsCoverAllTypes,
