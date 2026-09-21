@@ -129,6 +129,26 @@ describe("VoiceActorPage の作品が 1 件も無いとき", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
+  /**
+   * 0 件なのは「そのストアに無い」ではない
+   * (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。ストアで探す導線を残す
+   */
+  test("取り切れていないストアがあれば、そのストアの検索へのリンクを出す", () => {
+    render({ works: EMPTY, coverage: [{ storeSlug: "audible", complete: false }] });
+
+    expect(screen.getByText("音声作品はまだ見つかっていません")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Audible で全作品を見る" })).toHaveAttribute(
+      "href",
+      "https://www.audible.co.jp/search?searchNarrator=%E6%9E%B6%E7%A9%BA%E3%82%A2%E3%83%AB%E3%83%95%E3%82%A1",
+    );
+  });
+
+  test("取り切れたストアしか無ければリンクを出さない", () => {
+    render({ works: EMPTY, coverage: [{ storeSlug: "audible", complete: true }] });
+
+    expect(screen.queryByRole("link", { name: /全作品を見る/ })).not.toBeInTheDocument();
+  });
+
   test("フォローと出演アニメは出る", async () => {
     const user = userEvent.setup();
     await readyFollowStore();

@@ -22,8 +22,8 @@ import { notAdultRated } from "./works";
  * ページへ送らないため。絞り込みを画面側ではなくここに置いているのは、画面を足すたびに
  * 忘れないようにするため。
  *
- * 例外は作品 1 件のページ (`getAnimeBySlug`) で、そこは出演者を絞らない。まだ音声作品を
- * 出していない人をフォローする経路がここしか無いため
+ * 例外は作品 1 件のページ (`getAnimeBySlug`) で、そこは出演者も作品も絞らない。まだ音声作品を
+ * 出していない人をフォローする経路がここしか無いため。そのページは検索エンジンに載せない
  * (`docs/decisions/0012-follow-actors-without-works.md`)
  */
 
@@ -386,24 +386,14 @@ export async function hasSeasonAnime(
 }
 
 /**
- * このアニメに音声作品を持つ出演者が 1 人でも居るか。ページを出すかどうかの判定に使う。
- *
- * 出演の行を絞る `appearanceActorHasAudioWork` と違い、作品そのものに掛ける条件。
- * 副問い合わせの中の `anime_appearances` は外側の join とは別の行を指す
- */
-const animeHasAudioWorkActor = sql`exists (
-  select 1 from ${animeAppearances}
-  where ${animeAppearances.animeTitleId} = ${animeTitles.id}
-    and ${appearanceActorHasAudioWork}
-)`;
-
-/**
  * 作品 1 件。出演者は全員を、主演 → 助演の順で返す。
  *
  * 出演者を音声作品のある人に絞らないのは、まだ 1 本も出していない人もここからフォローできる
- * ようにするため。ページを出す条件のほうは変わらず「音声作品を持つ出演者が 1 人以上」で、
- * 0 人なら undefined を返す。呼び出し側は notFound() を返す
- * (中身の無いページを 200 で返すと、検索エンジンから見て薄いページが並ぶため)
+ * ようにするため。声優ページの「出演アニメ」は出演者の音声作品の有無で絞らないので、
+ * ここで絞ると 404 へのリンクが並ぶ。
+ * 音声作品がある出演者が 0 人の作品は `actorCount` が 0 になり、呼び出し側が noindex にする
+ * (`docs/decisions/0012-follow-actors-without-works.md`)。
+ * 出演が 1 件も無い作品だけ undefined を返す (呼び出し側は notFound())
  */
 export async function getAnimeBySlug(db: AppDb, slug: string): Promise<AnimeDetail | undefined> {
   const rows = await db
@@ -429,7 +419,7 @@ export async function getAnimeBySlug(db: AppDb, slug: string): Promise<AnimeDeta
     .from(animeTitles)
     .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
     .innerJoin(voiceActors, eq(voiceActors.id, animeAppearances.voiceActorId))
-    .where(and(eq(animeTitles.slug, slug), animeHasAudioWorkActor));
+    .where(eq(animeTitles.slug, slug));
 
   const head = rows[0];
   if (head === undefined) return undefined;

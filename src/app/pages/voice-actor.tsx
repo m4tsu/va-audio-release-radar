@@ -76,23 +76,8 @@ export function VoiceActorPage({
   const t = useT();
   const locale = useLocale();
   const name = actorDisplayName(actor, locale);
-  const anyWork = hasAnyWork(works);
-  // 絞り込むのはルートが取ってきた範囲の中だけ。1 ストアの件数には上限があり
-  // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
-  // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
-
   // 取り切れていないストア。取り切れたストアと、走行の記録が無いストアは入らない
-  const partialStores = new Set(
-    coverage.filter((entry) => !entry.complete).map((entry) => entry.storeSlug),
-  );
-
-  const sections = works.map((section) => ({
-    storeSlug: section.storeSlug,
-    items: section.items.filter((item) => matchesAppearance(appearance, item.castSize)),
-    // 0 件の理由。絞り込みで消えたのか、そのストアに元から無いのかで言い方が変わる
-    emptiedByFilter: appearance !== "all" && section.items.length > 0,
-    partial: partialStores.has(section.storeSlug),
-  }));
+  const partialStores = coverage.filter((entry) => !entry.complete).map((entry) => entry.storeSlug);
 
   return (
     <div className="space-y-8">
@@ -112,32 +97,90 @@ export function VoiceActorPage({
         }
       />
 
-      {anyWork ? (
-        <>
-          <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
-
-          {sections.map((section) => (
-            <StoreSection
-              key={section.storeSlug}
-              storeSlug={section.storeSlug}
-              items={section.items}
-              emptiedByFilter={section.emptiedByFilter}
-              partial={section.partial}
-              actor={actor}
-            />
-          ))}
-        </>
-      ) : (
-        // ストアごとに「ありません」を 3 つ並べても、1 件も無いことは同じだけ伝わって
-        // 読む量だけ増える。出演形態の絞り込みも選べる中身が無いので出さない
-        <EmptyState
-          title={t("actor.noWorksYetTitle")}
-          description={t("actor.noWorksYetDescription")}
+      {hasAnyWork(works) ? (
+        <StoreSections
+          works={works}
+          appearance={appearance}
+          onAppearanceChange={onAppearanceChange}
+          partialStores={partialStores}
+          actor={actor}
         />
+      ) : (
+        <NoWorksYet actor={actor} partialStores={partialStores} />
       )}
 
       {anime.length > 0 ? <AnimeSection items={anime} /> : null}
     </div>
+  );
+}
+
+/** ストアごとのセクションと、その上に置く出演形態の絞り込み */
+function StoreSections({
+  works,
+  appearance,
+  onAppearanceChange,
+  partialStores,
+  actor,
+}: {
+  works: ActorStoreWorks[];
+  appearance: AppearanceFilter;
+  onAppearanceChange: (next: AppearanceFilter) => void;
+  /** 取り切れていないストア */
+  partialStores: StoreSlug[];
+  actor: ActorDetail;
+}) {
+  // 絞り込むのはルートが取ってきた範囲の中だけ。1 ストアの件数には上限があり
+  // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
+  // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
+  const sections = works.map((section) => ({
+    storeSlug: section.storeSlug,
+    items: section.items.filter((item) => matchesAppearance(appearance, item.castSize)),
+    // 0 件の理由。絞り込みで消えたのか、そのストアに元から無いのかで言い方が変わる
+    emptiedByFilter: appearance !== "all" && section.items.length > 0,
+    partial: partialStores.includes(section.storeSlug),
+  }));
+
+  return (
+    <>
+      <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
+
+      {sections.map((section) => (
+        <StoreSection
+          key={section.storeSlug}
+          storeSlug={section.storeSlug}
+          items={section.items}
+          emptiedByFilter={section.emptiedByFilter}
+          partial={section.partial}
+          actor={actor}
+        />
+      ))}
+    </>
+  );
+}
+
+/**
+ * どのストアにも作品が無いとき。ストアごとに「ありません」を 3 つ並べても伝わることは
+ * 同じで読む量だけ増えるので、1 つにまとめる。出演形態の絞り込みも選べる中身が無いので出さない。
+ *
+ * 取り切れていないストアがあれば、そのストアの検索へ送る。ここに出ていないことは
+ * 「そのストアに無い」ではない (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)
+ */
+function NoWorksYet({ actor, partialStores }: { actor: ActorDetail; partialStores: StoreSlug[] }) {
+  const t = useT();
+  return (
+    <EmptyState
+      title={t("actor.noWorksYetTitle")}
+      description={t("actor.noWorksYetDescription")}
+      action={
+        partialStores.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+            {partialStores.map((storeSlug) => (
+              <StoreSearchLink key={storeSlug} storeSlug={storeSlug} actor={actor} />
+            ))}
+          </div>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -228,30 +271,40 @@ function StoreSection({
  * (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。網羅を約束しないことを
  * ここで示し、全作品はストア側で見てもらう。
  *
- * 検索 URL を組み立てられないストアでは注記だけを出す。押せないリンクを出すより、
- * 一部しか載っていない事実だけでも伝わる方が良い。
- * `rel` に `sponsored` を付けないのは、報酬の発生しない検索結果へのリンクだから
+ * 検索 URL を組み立てられないストアでは注記だけを出す (`StoreSearchLink`)
  */
 function PartialCoverageNote({ storeSlug, actor }: { storeSlug: StoreSlug; actor: ActorDetail }) {
   const t = useT();
   const store = storeLabel(storeSlug);
-  const href = storeActorSearchUrl(storeSlug, actor);
 
   return (
     <p className="text-muted-foreground text-sm">
       {t("actor.partialCoverage", { store })}{" "}
-      {href ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener nofollow"
-          className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-foreground"
-        >
-          {t("actor.partialCoverageLink", { store })}
-          <ExternalLink className="size-3.5" aria-hidden="true" />
-        </a>
-      ) : null}
+      <StoreSearchLink storeSlug={storeSlug} actor={actor} />
     </p>
+  );
+}
+
+/**
+ * そのストアでこの声優の作品を探すリンク。検索 URL を組み立てられないストアでは何も出さない。
+ * 押せないリンクを出すより、注記だけでも伝わる方が良い。
+ * `rel` に `sponsored` を付けないのは、報酬の発生しない検索結果へのリンクだから
+ */
+function StoreSearchLink({ storeSlug, actor }: { storeSlug: StoreSlug; actor: ActorDetail }) {
+  const t = useT();
+  const href = storeActorSearchUrl(storeSlug, actor);
+  if (!href) return null;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener nofollow"
+      className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-foreground"
+    >
+      {t("actor.partialCoverageLink", { store: storeLabel(storeSlug) })}
+      <ExternalLink className="size-3.5" aria-hidden="true" />
+    </a>
   );
 }
 

@@ -12,8 +12,7 @@ export const Route = createFileRoute("/anime/$slug")({
       fetchAnimeBySlug({ data: { slug: params.slug } }),
       siteOriginForLoader(),
     ]);
-    // 音声作品を持つ出演者が 0 人なら null が返る。中身の無いページを 200 で返すと、
-    // 検索エンジンから見て薄いページが作品数ぶん並ぶため 404 にする (声優ページと同じ)
+    // 出演が 1 件も無い作品だけ null が返る。出せるものが題しか無いので 404 にする
     if (!anime) throw notFound();
 
     return { anime, origin };
@@ -41,6 +40,10 @@ export const Route = createFileRoute("/anime/$slug")({
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
         { property: "og:url", content: canonical },
+        // 音声作品がある出演者が 1 人も居ないページは、出せるのが役名と名前だけ。
+        // フォローの入口としては要るが、検索結果に並べても読む中身が無いので載せない。
+        // sitemap 側も同じ条件で外している (`animeSitemapEntries`)
+        ...(anime.actorCount > 0 ? [] : [{ name: "robots", content: "noindex" } as const]),
       ],
       links: [{ rel: "canonical", href: canonical }],
     };

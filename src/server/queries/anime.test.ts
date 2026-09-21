@@ -199,11 +199,23 @@ describe("getAnimeBySlug", () => {
     expect(detail?.actorCount).toBe(1);
   });
 
-  it("出演者が全員音声作品を持たなければ undefined", async () => {
+  /** 出演者を絞ると、声優ページの「出演アニメ」から 404 へのリンクが並ぶ */
+  it("出演者が全員音声作品を持たなくても返し、人数を 0 にする", async () => {
     const db = await setupDb();
     await upsertAnime(db, [anime()], NOW);
 
-    expect(await getAnimeBySlug(db, anime().slug)).toBeUndefined();
+    const detail = await getAnimeBySlug(db, anime().slug);
+
+    expect(detail?.cast.map((member) => member.actor.id)).toEqual([UEDA.id]);
+    // 呼び出し側はこれを見て noindex にする
+    expect(detail?.actorCount).toBe(0);
+  });
+
+  it("知らない slug では undefined", async () => {
+    const db = await setupDb();
+    await upsertAnime(db, [anime()], NOW);
+
+    expect(await getAnimeBySlug(db, "not-a-slug")).toBeUndefined();
   });
 
   it("主演を先に、同じ役の中は声優名順で並べる", async () => {

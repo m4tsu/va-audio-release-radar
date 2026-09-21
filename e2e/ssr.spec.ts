@@ -221,6 +221,35 @@ test("シーズンの一覧はサーバーが返す HTML の時点で人気順",
   expect(html).toContain('aria-label="並び替え: 人気順"');
 });
 
+/**
+ * 音声作品がある出演者が 1 人も居ないアニメ。声優ページの「出演アニメ」から入れる必要があるので
+ * 200 で返しつつ、検索エンジンには載せない
+ */
+test("音声作品がある出演者が居ないアニメは 200 と noindex で返り、sitemap に出ない", async ({
+  request,
+}) => {
+  const res = await request.get("/anime/e2e-anime-gamma");
+  expect(res.status()).toBe(200);
+
+  const html = await res.text();
+  expect(html).toContain('content="noindex"');
+  expect(html).toContain("テストキャラガンマ2");
+
+  const xml = await (await request.get("/sitemap.xml")).text();
+  expect(xml).toContain("/anime/e2e-anime-alpha");
+  expect(xml).not.toContain("/anime/e2e-anime-gamma");
+});
+
+/** 音声作品がある出演者が居るアニメのページの指定は変わらない */
+test("音声作品がある出演者が居るアニメは noindex にならない", async ({ request }) => {
+  const html = await (await request.get("/anime/e2e-anime-alpha")).text();
+
+  expect(html).not.toContain('content="noindex"');
+  // キャストには音声作品が無い出演者も並ぶ
+  expect(html).toContain("テスト声優ガンマ");
+  expect(html).toContain("音声作品はまだありません");
+});
+
 test("sitemap にアニメの索引とシーズンの一覧が並ぶ", async ({ request }) => {
   const xml = await (await request.get("/sitemap.xml")).text();
 

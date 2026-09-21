@@ -112,13 +112,15 @@ VALUES
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-4 hour'),
    0, 0, 'error', 'E2E 用の失敗記録', NULL, NULL);
 
--- アニメ 2 本 --------------------------------------------------------------
+-- アニメ 3 本 --------------------------------------------------------------
 -- アニメからの導線 (/anime → シーズンの一覧 → 作品ページ) の確認用。
 -- アルファの出演者はアルファ (音声作品あり) とガンマ (音声作品なし) の 2 人。
 -- 作品ページのキャストには両方出る。シーズンの一覧が数える人数は音声作品がある人だけ。
 -- ベータは一覧の既定の並び (人気順) を HTML で見るための 2 本目。
 -- 音声作品がある出演者はアルファもベータも 1 人ずつなので、人気度を見ずに人数で並べると
--- slug 順 (アルファが先) になる。並び順のテストが人気度を見ていると言えるのはこのため
+-- slug 順 (アルファが先) になる。並び順のテストが人気度を見ていると言えるのはこのため。
+-- ガンマは出演者がガンマ 1 人 (音声作品なし)。ページが 200 で返り noindex になること、
+-- 一覧・検索・sitemap には出ないことの確認用
 INSERT OR REPLACE INTO anime_titles
   (id, slug, title_native, title_romaji, title_english, season_year, season, cover_image_url,
    popularity, created_at, updated_at)
@@ -128,6 +130,9 @@ VALUES
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('anilist:9000002', 'e2e-anime-beta', 'テストアニメベータ', 'Test Anime Beta', 'Test Anime Beta',
    2026, 'FALL', NULL, 900,
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('anilist:9000003', 'e2e-anime-gamma', 'テストアニメガンマ', 'Test Anime Gamma', 'Test Anime Gamma',
+   2026, 'FALL', NULL, 500,
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO anime_appearances
@@ -136,4 +141,5 @@ INSERT OR REPLACE INTO anime_appearances
 VALUES
   (9000001, 'anilist:9000001', 'va_e2e-alpha', 'anilist:9100001', 'テストキャラアルファ', NULL, NULL, 'main'),
   (9000002, 'anilist:9000001', 'va_e2e-gamma', 'anilist:9100002', 'テストキャラガンマ', NULL, NULL, 'supporting'),
-  (9000003, 'anilist:9000002', 'va_e2e-delta', 'anilist:9100003', 'テストキャラデルタ', NULL, NULL, 'main');
+  (9000003, 'anilist:9000002', 'va_e2e-delta', 'anilist:9100003', 'テストキャラデルタ', NULL, NULL, 'main'),
+  (9000004, 'anilist:9000003', 'va_e2e-gamma', 'anilist:9100004', 'テストキャラガンマ2', NULL, NULL, 'main');
