@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { DEFAULT_LOCALE, isLocale, type Locale } from "@/app/i18n";
 import { PUSH_SUBSCRIPTION_MAX_ACTORS } from "@/domain/types";
 import { type FollowedActor, useFollowStore } from "./follow-store";
 
@@ -13,7 +12,7 @@ import { type FollowedActor, useFollowStore } from "./follow-store";
  * SSR では何も分からないので `status: "idle"` で描き、外枠がマウント後に `init()` を呼ぶ
  * (`components/app-shell.tsx`)。フォロー状態と同じ段取り。
  *
- * server function は使う場所で動的に import する。このモジュールは全テストの土台
+ * server function とその隣のモジュールは使う場所で動的に import する。このモジュールは全テストの土台
  * (`src/app/test-setup.ts`) からも読まれるので、静的に import すると server function の中の
  * `cloudflare:workers` を jsdom が解決しようとして落ちる
  */
@@ -48,8 +47,12 @@ type PushState = {
 
 let initPromise: Promise<void> | null = null;
 let unwatchFollows: (() => void) | null = null;
-/** サーバーへの送り直しを直列にする。フォローを連続で変えたとき古い内容が後から届かないように */
-let syncChain: Promise<void> = Promise.resolve();
+/**
+ * サーバーへの送り直し。飛んでいる間に届いた変更は 1 回にまとめ、終わってからもう 1 度だけ送る。
+ * 送るのは差分ではなく「今のフォロー全部」なので、途中の状態を送る意味が無い
+ */
+let syncInFlight: Promise<void> | null = null;
+let syncRequested = false;
 
 function supported(): boolean {
   return (
@@ -74,13 +77,9 @@ function iosWithoutHomeScreen(): boolean {
   return isIos && !standalone;
 }
 
-function currentLocale(): Locale {
-  const lang = document.documentElement.lang;
-  return isLocale(lang) ? lang : DEFAULT_LOCALE;
-}
-
+/** この画面を担当する登録。`register()` は scope "/" で行うので、引数なしで同じものが返る */
 async function currentSubscription(): Promise<PushSubscription | null> {
-  const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_URL);
+  const registration = await navigator.serviceWorker.getRegistration();
   return registration ? registration.pushManager.getSubscription() : null;
 }
 
@@ -92,6 +91,18 @@ function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(new ArrayBuffer(raw.length));
   for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
   return bytes;
+}
+
+/**
+ * 既にある購読が今の公開鍵で作られたものか。鍵を入れ替えた後に古い購読を使い続けると、
+ * サーバーは新しい秘密鍵で署名するので push service に弾かれ、届かないのに画面は購読中になる。
+ * ブラウザが鍵を返さない (null) ときは判定できないので、そのまま使う
+ */
+function boundToKey(subscription: PushSubscription, key: Uint8Array): boolean {
+  const bound = subscription.options?.applicationServerKey;
+  if (!bound) return true;
+  const current = new Uint8Array(bound);
+  return current.length === key.length && current.every((byte, index) => byte === key[index]);
 }
 
 function followIds(follows: FollowedActor[]): string[] {
@@ -109,34 +120,51 @@ function followKey(follows: FollowedActor[]): string {
 /** 購読の宛先と鍵、今のフォローをサーバーに送る。同じ endpoint なら置き換わる */
 async function sendToServer(subscription: PushSubscription): Promise<void> {
   const json = subscription.toJSON();
-  const { savePushSubscriptionFn } = await import("@/app/server-fns/push");
+  const [{ savePushSubscriptionFn }, { localeOnClient }] = await Promise.all([
+    import("@/app/server-fns/push"),
+    import("@/app/server-fns/locale"),
+  ]);
   await savePushSubscriptionFn({
     data: {
       endpoint: subscription.endpoint,
       p256dh: json.keys?.p256dh ?? "",
       auth: json.keys?.auth ?? "",
-      locale: currentLocale(),
+      locale: localeOnClient(),
       voiceActorIds: followIds(useFollowStore.getState().follows),
     },
   });
 }
 
 export const usePushStore = create<PushState>((set, get) => {
+  /** 今のフォローをサーバーへ送り直す。飛んでいる最中の要求は 1 回にまとめる */
+  const requestSync = () => {
+    syncRequested = true;
+    if (syncInFlight) return;
+    syncInFlight = (async () => {
+      while (syncRequested) {
+        syncRequested = false;
+        try {
+          const subscription = await currentSubscription();
+          if (subscription && get().status === "subscribed") await sendToServer(subscription);
+        } catch {
+          // 次のフォロー変更か、次に購読し直したときに追いつく。画面には失敗だけ伝える
+          set({ error: "failed" });
+        }
+      }
+    })().finally(() => {
+      syncInFlight = null;
+    });
+  };
+
   /** 購読中にフォローが変わったら送り直す。購読が成立したときに 1 回だけ張る */
   const watchFollows = () => {
     if (unwatchFollows) return;
     unwatchFollows = useFollowStore.subscribe((state, previous) => {
       if (get().status !== "subscribed") return;
+      // 読み込み (idle → ready) で 0 件から埋まるのは変更ではない。サーバーは既に同じ内容を持っている
+      if (previous.status !== "ready" || state.status !== "ready") return;
       if (followKey(state.follows) === followKey(previous.follows)) return;
-      syncChain = syncChain
-        .then(async () => {
-          const subscription = await currentSubscription();
-          if (subscription && get().status === "subscribed") await sendToServer(subscription);
-        })
-        .catch(() => {
-          // 次のフォロー変更か、次に購読し直したときに追いつく。画面には失敗だけ伝える
-          set({ error: "failed" });
-        });
+      requestSync();
     });
   };
 
@@ -182,12 +210,16 @@ export const usePushStore = create<PushState>((set, get) => {
         // 購読して初めて worker を登録する。見に来ただけの人のブラウザに worker を置かない
         await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: "/" });
         const registration = await navigator.serviceWorker.ready;
-        const subscription =
-          (await registration.pushManager.getSubscription()) ??
-          (await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: base64UrlToBytes(vapidPublicKey),
-          }));
+        const key = base64UrlToBytes(vapidPublicKey);
+        let subscription = await registration.pushManager.getSubscription();
+        if (subscription && !boundToKey(subscription, key)) {
+          await subscription.unsubscribe();
+          subscription = null;
+        }
+        subscription ??= await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
         try {
           await sendToServer(subscription);
         } catch {
@@ -209,10 +241,20 @@ export const usePushStore = create<PushState>((set, get) => {
       try {
         const subscription = await currentSubscription();
         if (subscription) {
-          // サーバー側を先に消す。ここで失敗したら購読中のまま残し、画面に失敗を出す
-          const { deletePushSubscriptionFn } = await import("@/app/server-fns/push");
-          await deletePushSubscriptionFn({ data: { endpoint: subscription.endpoint } });
+          // ブラウザ側を先に解除する。こちらが成立すれば、次に開いたときも「解除済み」と読める。
+          // サーバー側の行が残っても、送信で失効 (404 / 410) が返って消える
           await subscription.unsubscribe();
+          set({
+            busy: false,
+            status: Notification.permission === "denied" ? "denied" : "unsubscribed",
+          });
+          const { deletePushSubscriptionFn } = await import("@/app/server-fns/push");
+          await deletePushSubscriptionFn({ data: { endpoint: subscription.endpoint } }).catch(
+            () => {
+              // 行は送信時に消えるので、解除そのものは成立している。画面に失敗を出さない
+            },
+          );
+          return;
         }
         set({
           busy: false,
@@ -228,10 +270,11 @@ export const usePushStore = create<PushState>((set, get) => {
 /** テスト用。init の実行済み状態とフォローの監視を捨てる */
 export async function resetPushStoreForTest(): Promise<void> {
   await initPromise?.catch(() => {});
-  await syncChain.catch(() => {});
+  await syncInFlight?.catch(() => {});
   initPromise = null;
   unwatchFollows?.();
   unwatchFollows = null;
-  syncChain = Promise.resolve();
+  syncInFlight = null;
+  syncRequested = false;
   usePushStore.setState({ status: "idle", busy: false, error: null, guidance: null });
 }

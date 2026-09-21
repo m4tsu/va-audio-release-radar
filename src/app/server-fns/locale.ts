@@ -74,9 +74,10 @@ const resolveLocaleFn = createServerFn({ method: "GET" }).handler(async () => {
 
 /**
  * ブラウザ側は SSR が決めた結果をそのまま引き継ぐ。cookie は同じものが読め、
- * 無ければ `<html lang>` に解決済みの言語が入っている。RPC を投げる必要はない
+ * 無ければ `<html lang>` に解決済みの言語が入っている。RPC を投げる必要はない。
+ * 通知の購読 (`@/app/store/push-store`) もここで決めた言語を送る。画面と別の規則で決めない
  */
-function localeOnClient(): Locale {
+export function localeOnClient(): Locale {
   const fromCookie = localeFromCookieHeader(document.cookie);
   if (fromCookie) return fromCookie;
   const lang = document.documentElement.lang;

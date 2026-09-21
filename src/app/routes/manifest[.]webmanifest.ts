@@ -15,8 +15,9 @@ export const Route = createFileRoute("/manifest.webmanifest")({
         return new Response(body, {
           headers: {
             "content-type": "application/manifest+json; charset=utf-8",
-            // 言語 cookie で中身が変わるので、共有キャッシュには載せない
+            // 言語 cookie で中身が変わるので、共有キャッシュには載せず、cookie ごとに分ける
             "cache-control": "private, max-age=3600",
+            vary: "Cookie",
           },
         });
       },

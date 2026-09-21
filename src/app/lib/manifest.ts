@@ -19,7 +19,8 @@ export function webManifest(locale: Locale) {
     start_url: "/following",
     scope: "/",
     display: "standalone",
-    // __root.tsx の theme-color (ライト) と favicon.svg の地の色に揃える
+    // 地はライトの theme-color (__root.tsx) と同じ白。theme_color は favicon.svg の地の色で、
+    // __root.tsx のダーク側の theme-color と同じ値
     background_color: "#ffffff",
     theme_color: "#111111",
     // 生成は scripts/generate-icons.mjs

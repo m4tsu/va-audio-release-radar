@@ -4,8 +4,10 @@
  * ページの資産はキャッシュしない。オフラインで開けることは目的に無く、キャッシュを持つと
  * デプロイ後も古い画面が出続けて「更新されていない」と見える。fetch イベントも聞かない。
  *
- * 通知の本文は送信側 (Worker の cron) が JSON で組む。形は { title, body, url } で、
- * どれも無ければ既定の文言で出す。どの週に何を送ったかはサーバー側の記録が持つ
+ * 通知の本文は送信側 (Worker の cron) が JSON で組む。形は { title, body, url }。
+ * 題名は送信側が表示言語で組んで必ず入れる。ここに文言を持たないのは、辞書 (`src/app/i18n`) が
+ * worker からは読めず、同じ言葉を 2 箇所に置かないため。本文が壊れていたときだけサイトのホスト名で出す。
+ * どの週に何を送ったかはサーバー側の記録が持つ
  */
 
 const FOLLOWING_PATH = "/following";
@@ -23,7 +25,7 @@ self.addEventListener("push", (event) => {
   const payload = readPayload(event.data);
   const url = typeof payload.url === "string" ? payload.url : FOLLOWING_PATH;
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? "Koenect", {
+    self.registration.showNotification(payload.title ?? self.location.host, {
       body: payload.body ?? "",
       // 複数のタブから同じアイコンを参照する。マニフェストと同じファイル
       icon: "/icons/icon-192.png",

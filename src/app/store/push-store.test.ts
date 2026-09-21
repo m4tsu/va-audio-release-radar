@@ -25,13 +25,29 @@ const BETA = { voiceActorId: "va_beta", slug: "beta", canonicalName: "架空ベ�
 
 type FakeSubscription = {
   endpoint: string;
+  /** ブラウザが購読を作ったときの公開鍵。null は「返さないブラウザ」 */
+  options: { applicationServerKey: ArrayBuffer | null };
   toJSON: () => { endpoint: string; keys: { p256dh: string; auth: string } };
   unsubscribe: ReturnType<typeof vi.fn>;
 };
 
-function fakeSubscription(endpoint = "https://push.example/sub/1"): FakeSubscription {
+/** store と同じ変換。購読が今の鍵で作られたかの比較に使う */
+function keyBytes(base64Url: string): ArrayBuffer {
+  const padded =
+    base64Url.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (base64Url.length % 4)) % 4);
+  const raw = atob(padded);
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function fakeSubscription(
+  endpoint = "https://push.example/sub/1",
+  boundKey: string | null = VAPID_KEY,
+): FakeSubscription {
   return {
     endpoint,
+    options: { applicationServerKey: boundKey === null ? null : keyBytes(boundKey) },
     toJSON: () => ({ endpoint, keys: { p256dh: "p256dh-key", auth: "auth-secret" } }),
     unsubscribe: vi.fn(async () => true),
   };
@@ -207,6 +223,37 @@ describe("subscribe", () => {
     expect(usePushStore.getState().status).toBe("denied");
   });
 
+  test("既にある購読が今の公開鍵で作られていれば、そのまま使う", async () => {
+    const existing = fakeSubscription("https://push.example/sub/old", VAPID_KEY);
+    const { pushManager } = stubBrowser({ subscription: existing });
+    usePushStore.setState({ status: "unsubscribed" });
+
+    await usePushStore.getState().subscribe(VAPID_KEY);
+
+    expect(existing.unsubscribe).not.toHaveBeenCalled();
+    expect(pushManager.subscribe).not.toHaveBeenCalled();
+    expect(savePushSubscriptionFn).toHaveBeenCalledWith({
+      data: expect.objectContaining({ endpoint: "https://push.example/sub/old" }),
+    });
+  });
+
+  /** 鍵を入れ替えた後に古い購読を使い続けると、届かないのに画面は購読中になる */
+  test("既にある購読が別の公開鍵で作られていれば、解除して作り直す", async () => {
+    const stale = fakeSubscription("https://push.example/sub/old", "BOldKey");
+    const fresh = fakeSubscription("https://push.example/sub/new", VAPID_KEY);
+    const { pushManager } = stubBrowser({ subscription: stale, subscribeResult: fresh });
+    usePushStore.setState({ status: "unsubscribed" });
+
+    await usePushStore.getState().subscribe(VAPID_KEY);
+
+    expect(stale.unsubscribe).toHaveBeenCalled();
+    expect(pushManager.subscribe).toHaveBeenCalled();
+    expect(savePushSubscriptionFn).toHaveBeenCalledWith({
+      data: expect.objectContaining({ endpoint: "https://push.example/sub/new" }),
+    });
+    expect(usePushStore.getState().status).toBe("subscribed");
+  });
+
   /** サーバーが知らない購読は通知が届かない。画面だけ購読中にしない */
   test("サーバーへ送れなかったらブラウザ側の購読も戻し、失敗を出す", async () => {
     const subscription = fakeSubscription();
@@ -222,21 +269,22 @@ describe("subscribe", () => {
 });
 
 describe("unsubscribe", () => {
-  test("サーバーの購読を消してからブラウザ側を解除する", async () => {
+  test("ブラウザ側を解除し、サーバーの購読も消す", async () => {
     const subscription = fakeSubscription();
     stubBrowser({ subscription });
     await usePushStore.getState().init();
 
     await usePushStore.getState().unsubscribe();
 
+    expect(subscription.unsubscribe).toHaveBeenCalled();
     expect(deletePushSubscriptionFn).toHaveBeenCalledWith({
       data: { endpoint: subscription.endpoint },
     });
-    expect(subscription.unsubscribe).toHaveBeenCalled();
-    expect(usePushStore.getState().status).toBe("unsubscribed");
+    expect(usePushStore.getState()).toMatchObject({ status: "unsubscribed", error: null });
   });
 
-  test("サーバー側を消せなかったら購読中のまま失敗を出す", async () => {
+  /** サーバーに残った行は送信で失効が返って消える。解除そのものは成立している */
+  test("サーバー側を消せなくても解除は成立し、失敗を出さない", async () => {
     const subscription = fakeSubscription();
     stubBrowser({ subscription });
     deletePushSubscriptionFn.mockRejectedValueOnce(new Error("network"));
@@ -244,7 +292,20 @@ describe("unsubscribe", () => {
 
     await usePushStore.getState().unsubscribe();
 
-    expect(subscription.unsubscribe).not.toHaveBeenCalled();
+    expect(subscription.unsubscribe).toHaveBeenCalled();
+    expect(usePushStore.getState()).toMatchObject({ status: "unsubscribed", error: null });
+  });
+
+  /** ブラウザ側が残ると、次に開いたときに購読中と読める。先に解除できなければ何も変えない */
+  test("ブラウザ側を解除できなければ購読中のまま失敗を出し、サーバーには触らない", async () => {
+    const subscription = fakeSubscription();
+    subscription.unsubscribe.mockRejectedValueOnce(new Error("push service"));
+    stubBrowser({ subscription });
+    await usePushStore.getState().init();
+
+    await usePushStore.getState().unsubscribe();
+
+    expect(deletePushSubscriptionFn).not.toHaveBeenCalled();
     expect(usePushStore.getState()).toMatchObject({ status: "subscribed", error: "failed" });
   });
 });
@@ -266,6 +327,44 @@ describe("フォローの同期", () => {
     expect(savePushSubscriptionFn).toHaveBeenLastCalledWith({
       data: expect.objectContaining({ voiceActorIds: ["va_beta"] }),
     });
+  });
+
+  /** 外枠は購読とフォローを同時に調べ始める。購読の方が先に済むと、フォローの読み込みが変更に見える */
+  test("フォローの読み込み (idle → ready) では送り直さない", async () => {
+    stubBrowser({ subscription: fakeSubscription() });
+    useFollowStore.setState({ status: "idle", follows: [] });
+    await usePushStore.getState().init();
+
+    useFollowStore.setState({
+      status: "ready",
+      follows: [{ ...ALPHA, createdAt: "2026-09-18T00:00:00.000Z" }],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(savePushSubscriptionFn).not.toHaveBeenCalled();
+  });
+
+  /** 送るのは今のフォロー全部なので、飛んでいる間の変更は 1 回にまとめて後から送れば足りる */
+  test("送っている最中の変更はまとめて、終わってから 1 回だけ送り直す", async () => {
+    stubBrowser({ subscription: fakeSubscription() });
+    await usePushStore.getState().init();
+    let finishFirst: () => void = () => {};
+    savePushSubscriptionFn.mockImplementationOnce(
+      () => new Promise<unknown>((resolve) => (finishFirst = () => resolve({ voiceActorIds: [] }))),
+    );
+
+    await useFollowStore.getState().follow(ALPHA);
+    await vi.waitFor(() => expect(savePushSubscriptionFn).toHaveBeenCalledTimes(1));
+    await useFollowStore.getState().follow(BETA);
+    await useFollowStore.getState().unfollow(ALPHA.voiceActorId);
+    finishFirst();
+
+    await vi.waitFor(() => expect(savePushSubscriptionFn).toHaveBeenCalledTimes(2));
+    expect(savePushSubscriptionFn).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ voiceActorIds: ["va_beta"] }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(savePushSubscriptionFn).toHaveBeenCalledTimes(2);
   });
 
   test("購読していなければフォローが変わってもサーバーへ送らない", async () => {

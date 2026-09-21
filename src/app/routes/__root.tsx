@@ -45,8 +45,9 @@ export const Route = createRootRoute({
       ],
       links: [
         { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-        // ホーム画面に追加したときの名前とアイコン。iOS は Web Push をホーム画面のアプリにしか届けない
-        { rel: "manifest", href: "/manifest.webmanifest" },
+        // ホーム画面に追加したときの名前とアイコン。iOS は Web Push をホーム画面のアプリにしか届けない。
+        // マニフェストは言語 cookie で中身が変わる。既定の取得は cookie を付けないので、付けさせる
+        { rel: "manifest", href: "/manifest.webmanifest", crossOrigin: "use-credentials" },
         { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
         { rel: "stylesheet", href: appCss },
       ],
