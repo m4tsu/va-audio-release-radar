@@ -29,7 +29,6 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
   .validator(
     z.object({
       voiceActorId: z.string().min(1),
-      storeSlug: z.enum(STORE_SLUGS).optional(),
       limit: z.number().int().min(1).max(200).default(50),
     }),
   )
@@ -38,10 +37,23 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
       import("@/server/db/client"),
       import("@/server/queries/works"),
     ]);
-    return worksByActor(getDb(), data.voiceActorId, {
-      limit: data.limit,
-      ...(data.storeSlug ? { storeSlug: data.storeSlug } : {}),
-    });
+    return worksByActor(getDb(), data.voiceActorId, { limit: data.limit });
+  });
+
+/**
+ * 声優ごとの作品数と最新リリース。
+ *
+ * フォロー中の一覧が声優 ID をまとめて送るので、フィードと同じ理由で POST にしている
+ * (GET だと ID が URL に並んで長さの上限に当たりうる。読み取りだが副作用は無い)
+ */
+export const fetchWorkStatsForActors = createServerFn({ method: "POST" })
+  .validator(z.object({ voiceActorIds: z.array(z.string().min(1)).max(1000) }))
+  .handler(async ({ data }) => {
+    const [{ getDb }, { workStatsForActors }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/works"),
+    ]);
+    return workStatsForActors(getDb(), data.voiceActorIds);
   });
 
 export const fetchLatestWorks = createServerFn({ method: "GET" })

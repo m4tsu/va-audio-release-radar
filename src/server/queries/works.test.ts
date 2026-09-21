@@ -9,11 +9,13 @@ import {
   knownStoreProductIds,
   latestWorks,
   sitemapEntries,
+  workStatsForActors,
   worksByActor,
 } from "./works";
 
 describe("worksByActor", () => {
-  it("発売日の新しい順に並べ、発売日が無い作品を末尾に回す", async () => {
+  /** 発売日を持たない作品を末尾に回すと、そういう作品の多いストアだけ最後にまとまる */
+  it("発売日の新しい順に並べ、発売日が無い作品は初出の日付で同じ並びに入れる", async () => {
     const db = await setupDb();
     await ingest(
       db,
@@ -21,6 +23,7 @@ describe("worksByActor", () => {
         works: [
           rawWork({ storeProductId: "OLD", releaseDate: "2026-08-01" }),
           rawWork({ storeProductId: "NEW", releaseDate: "2026-09-10" }),
+          // 初出は NOW (2026-09-18) なので、発売日を持つ 2 件より新しい側に入る
           rawWork({ storeProductId: "NODATE" }),
         ],
       }),
@@ -30,15 +33,16 @@ describe("worksByActor", () => {
     const works = await worksByActor(db, UEDA.id);
 
     expect(works.map((item) => item.work.id)).toEqual([
+      "dlsite:NODATE",
       "dlsite:NEW",
       "dlsite:OLD",
-      "dlsite:NODATE",
     ]);
     expect(works[0]?.listings).toHaveLength(1);
     expect(works[0]?.listings[0]?.storeSlug).toBe("dlsite");
   });
 
-  it("ストアで絞り込める", async () => {
+  /** 声優ページはストアで節に割らないので、引くのも 1 本 (絞るのは画面側) */
+  it("ストアをまたいで 1 本の一覧で返す", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);
     await ingest(
@@ -60,16 +64,77 @@ describe("worksByActor", () => {
 
     // "上田 麗奈" は空白を除けば canonicalName と一致するので verified になる
     const all = await worksByActor(db, UEDA.id);
-    expect(all).toHaveLength(2);
 
-    const audibleOnly = await worksByActor(db, UEDA.id, { storeSlug: "audible" });
-    expect(audibleOnly.map((item) => item.work.id)).toEqual(["audible:B0ABC"]);
+    expect(all.map((item) => item.work.id).sort()).toEqual(["audible:B0ABC", "dlsite:RJ1"]);
   });
 
   it("credit が無い声優では空になる", async () => {
     const db = await setupDb([UEDA, HANAZAWA]);
     await ingest(db, payload(), NOW);
     expect(await worksByActor(db, HANAZAWA.id)).toEqual([]);
+  });
+});
+
+describe("workStatsForActors", () => {
+  it("作品数といちばん新しい発売日を返す", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "OLD", releaseDate: "2026-08-01" }),
+          rawWork({ storeProductId: "NEW", releaseDate: "2026-09-10" }),
+        ],
+      }),
+      NOW,
+    );
+
+    expect(await workStatsForActors(db, [UEDA.id])).toEqual([
+      { voiceActorId: UEDA.id, workCount: 2, latestReleaseDate: "2026-09-10" },
+    ]);
+  });
+
+  /** 見出しに出す最新リリースが、一覧の先頭の作品と食い違わないようにする */
+  it("発売日を持たない作品は初出の日付で数える", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "OLD", releaseDate: "2026-08-01" }),
+          rawWork({ storeProductId: "NODATE" }),
+        ],
+      }),
+      NOW,
+    );
+
+    expect(await workStatsForActors(db, [UEDA.id])).toEqual([
+      { voiceActorId: UEDA.id, workCount: 2, latestReleaseDate: NOW.slice(0, 10) },
+    ]);
+  });
+
+  it("声優をまとめて数える", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(
+      db,
+      payload({
+        works: [rawWork({ storeProductId: "RJ1", creditedNames: ["上田麗奈", "花澤香菜"] })],
+      }),
+      NOW,
+    );
+
+    const stats = await workStatsForActors(db, [UEDA.id, HANAZAWA.id]);
+
+    expect(stats.map((entry) => entry.voiceActorId).sort()).toEqual([UEDA.id, HANAZAWA.id].sort());
+    expect(stats.every((entry) => entry.workCount === 1)).toBe(true);
+  });
+
+  it("作品を 1 件も持たない声優は返さない", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(db, payload(), NOW);
+
+    expect(await workStatsForActors(db, [HANAZAWA.id])).toEqual([]);
+    expect(await workStatsForActors(db, [])).toEqual([]);
   });
 });
 
@@ -175,7 +240,8 @@ describe("latestWorks", () => {
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:NODATE"]);
   });
 
-  it("ストアで絞り込める", async () => {
+  /** 声優ページはストアで節に割らないので、引くのも 1 本 (絞るのは画面側) */
+  it("ストアをまたいで 1 本の一覧で返す", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);
     await ingest(
@@ -547,11 +613,11 @@ describe("latestWorks / worksByActor の段", () => {
 
     const works = await worksByActor(db, UEDA.id, { now: NOW });
 
-    // 発売日が無い作品は末尾のまま (声優ページは全作品を出すので段で並べ替えない)
+    // 日付の降順のまま (声優ページは段で並べ替えない)。NODATE の日付は初出の NOW
     expect(works.map((item) => item.work.id)).toEqual([
       "dlsite:FUTURE",
-      "dlsite:D3",
       "dlsite:NODATE",
+      "dlsite:D3",
     ]);
     expect(freshnessById(works)).toEqual({
       "dlsite:FUTURE": "upcoming",

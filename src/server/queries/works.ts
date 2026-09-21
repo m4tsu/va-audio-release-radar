@@ -86,6 +86,17 @@ export type WorkWithActors = WorkWithListings & { actors: WorkActor[] };
 
 export type FeedItem = WorkWithActors;
 
+/**
+ * 1 人の声優の実績。フォローを押す前に「何件出していて、最後はいつか」を見せるために出す。
+ * 作品が 1 件も無い声優は `workCount` が 0 で、`latestReleaseDate` を持たない
+ */
+export type ActorWorkStats = {
+  voiceActorId: string;
+  workCount: number;
+  /** いちばん新しい発売日 ("YYYY-MM-DD")。発売日を持たない作品は初出の日付で代える */
+  latestReleaseDate?: string;
+};
+
 export type SitemapEntries = {
   actors: Array<{ slug: string; updatedAt: string }>;
   works: Array<{ id: string; updatedAt: string }>;
@@ -148,26 +159,23 @@ export async function getWorkById(
   };
 }
 
-/** 声優ページの作品一覧。発売日の新しい順、発売日不明は初出の新しい順で後ろに回す */
+/**
+ * 声優ページの作品一覧。ストアで分けず、発売日の新しい順に 1 本で返す。
+ * 発売日を持たない作品は初出の日付を発売日の代わりに使い、同じ並びに入れる
+ */
 export async function worksByActor(
   db: AppDb,
   voiceActorId: string,
-  options: { limit?: number; storeSlug?: StoreSlug; now?: string } = {},
+  options: { limit?: number; now?: string } = {},
 ): Promise<WorkWithListings[]> {
-  const { limit = 50, storeSlug, now = new Date().toISOString() } = options;
+  const { limit = 50, now = new Date().toISOString() } = options;
 
   const rows = await db
     .select(workSelection)
     .from(audioWorks)
     .innerJoin(audioCredits, eq(audioCredits.audioWorkId, audioWorks.id))
     .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
-    .where(
-      and(
-        eq(audioCredits.voiceActorId, voiceActorId),
-        notAdultRated,
-        storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
-      ),
-    )
+    .where(and(eq(audioCredits.voiceActorId, voiceActorId), notAdultRated))
     .groupBy(audioWorks.id)
     .orderBy(...newestFirstOrder)
     .limit(limit);
@@ -190,6 +198,58 @@ export async function worksByActor(
       castSize: castSizes.get(row.id) ?? 0,
     };
   });
+}
+
+/**
+ * 声優ごとの作品数と最新リリース。声優ページの見出しの下と、フォロー中の一覧が出す。
+ *
+ * 一覧に並べる作品は上限で切るので、件数はここで数え直す。切った先にある作品も数に入る。
+ * 作品を 1 件も持たない声優は行が返らない (呼び出し側が 0 件として扱う)。
+ *
+ * 作品ごとの日付を決めてから声優ごとにまとめるのは、listing を複数持つ作品で
+ * 「最初に見つけた日」が最も遅い listing の日付になるのを避けるため。
+ * 一覧の並べ替えキー (`releaseSortKey`) と同じ値になっていないと、
+ * 見出しの最新リリースと一覧の先頭が食い違う
+ */
+export async function workStatsForActors(
+  db: AppDb,
+  voiceActorIds: string[],
+): Promise<ActorWorkStats[]> {
+  if (voiceActorIds.length === 0) return [];
+
+  const stats: ActorWorkStats[] = [];
+  for (const ids of chunked(voiceActorIds)) {
+    const perWork = db
+      .select({
+        voiceActorId: audioCredits.voiceActorId,
+        releaseKey: releaseSortKey.as("release_key"),
+      })
+      .from(audioCredits)
+      .innerJoin(audioWorks, eq(audioWorks.id, audioCredits.audioWorkId))
+      .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
+      .where(and(inArray(audioCredits.voiceActorId, ids), notAdultRated))
+      .groupBy(audioCredits.voiceActorId, audioWorks.id)
+      .as("per_work");
+
+    const rows = await db
+      .select({
+        voiceActorId: perWork.voiceActorId,
+        workCount: sql<number>`count(*)`,
+        latestReleaseDate: sql<string | null>`max(${perWork.releaseKey})`,
+      })
+      .from(perWork)
+      .groupBy(perWork.voiceActorId);
+
+    for (const row of rows) {
+      if (row.voiceActorId === null) continue;
+      stats.push({
+        voiceActorId: row.voiceActorId,
+        workCount: Number(row.workCount ?? 0),
+        ...(row.latestReleaseDate ? { latestReleaseDate: row.latestReleaseDate } : {}),
+      });
+    }
+  }
+  return stats;
 }
 
 /**
@@ -503,27 +563,26 @@ type WorkRow = {
 };
 
 /**
- * 発売日の降順。発売日が無い作品は末尾にまとめ、その中では初出の新しい順にする。
- * SQLite は NULL を最小値として扱うので DESC だけでも末尾に来るが、意図を残すため明示する
- */
-const newestFirstOrder = [
-  sql`case when ${audioWorks.releaseDate} is null then 1 else 0 end`,
-  desc(audioWorks.releaseDate),
-  desc(firstSeenAtExpression),
-];
-
-/**
- * フィードの並べ替えキー。発売日、無ければ初出の日付。
+ * 並べ替えキー。発売日、無ければ初出の日付。
  *
  * 発売日が無い作品を末尾に回さないのは、フィードでは「30 日以内の新作」の段に
- * 入りうるため。limit で切る前に段の中の位置が決まっている必要がある
+ * 入りうるため。limit で切る前に段の中の位置が決まっている必要がある。
+ * 声優ページも同じキーで並べる。ストアで節を分けないので、
+ * 発売日を持たない作品 (Audible とポケドラに多い) を末尾に回すと、
+ * そのストアの作品だけがまとまって最後に落ちる
  */
-const feedSortKey = sql<string>`
+const releaseSortKey = sql<string>`
   coalesce(${audioWorks.releaseDate}, substr(${firstSeenAtExpression}, 1, 10))
 `;
 
+/**
+ * 声優ページの並び。日付の降順で、同着は作品 ID で固定する。
+ * limit で切る位置が実行ごとに動くと、切り落とされる作品が読み込みのたびに入れ替わる
+ */
+const newestFirstOrder = [desc(releaseSortKey), asc(audioWorks.id)];
+
 /** SQL 側は発売日の降順まで。段 (freshness) は JS で付け直す */
-const feedOrder = [desc(feedSortKey)];
+const feedOrder = [desc(releaseSortKey)];
 
 function rowSortKey(row: WorkRow): string {
   return row.releaseDate ?? row.firstSeenAt.slice(0, 10);

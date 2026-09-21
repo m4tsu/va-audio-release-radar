@@ -15,6 +15,7 @@ import type {
   fetchFeed,
   fetchLatestWorks,
   fetchWork,
+  fetchWorkStatsForActors,
   fetchWorksByActor,
 } from "@/app/server-fns/works";
 
@@ -35,6 +36,8 @@ export type WorkListing = WorkWithListings["listings"][number];
 export type WorkDetail = NonNullable<Awaited<ReturnType<typeof fetchWork>>>;
 export type WorkCredit = WorkDetail["credits"][number];
 export type FeedItem = Awaited<ReturnType<typeof fetchFeed>>[number];
+/** 声優 1 人の作品数と最新リリース。作品が 1 件も無い声優のぶんは返ってこない */
+export type ActorWorkStats = Awaited<ReturnType<typeof fetchWorkStatsForActors>>[number];
 
 export type ActorSummary = Awaited<ReturnType<typeof fetchAllActors>>[number];
 export type ActorDetail = NonNullable<Awaited<ReturnType<typeof fetchActorBySlug>>>;
