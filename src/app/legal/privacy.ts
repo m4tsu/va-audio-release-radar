@@ -6,13 +6,15 @@ import type { LocalizedLegalDocument } from "./index";
  * 「何をどこに保存し、何をどこへ送るか」は実装に合わせてある。変えたらここも直すこと:
  * - ブラウザ内の保存: `src/app/store/follow-store.ts` (IndexedDB)、`src/app/server-fns/locale.ts` (cookie)、
  *   `src/app/hooks/use-theme.ts` (localStorage)
- * - サーバーへ送るもの: `src/app/server-fns/works.ts` の `fetchFeed` (フォロー中の声優 ID)
+ * - サーバーへ送るもの: `src/app/server-fns/works.ts` の `fetchFeed` (フォロー中の声優 ID)、
+ *   `src/app/server-fns/inquiries.ts` の `submitInquiryFn` (お問い合わせの内容。`inquiries` 表に保存する)
+ * - お問い合わせ画面が読み込む外部のもの: `src/app/hooks/use-turnstile.ts` (Cloudflare Turnstile)
  * - 外部サーバーから読むもの: `src/app/components/work-card.tsx` の表紙画像
  * - アクセスログ: `wrangler.jsonc` の `observability`
  */
 export const privacy: LocalizedLegalDocument = {
   ja: {
-    effectiveDate: "2026-09-19",
+    effectiveDate: "2026-09-21",
     sections: [
       {
         id: "overview",
@@ -24,7 +26,7 @@ export const privacy: LocalizedLegalDocument = {
           },
           {
             type: "paragraph",
-            text: "本サービスにはアカウントの登録がありません。氏名、メールアドレス、パスワードなど利用者を特定する情報を入力する機能は無く、運営者はそれらを取得しません。",
+            text: "本サービスにはアカウントの登録がありません。氏名やパスワードを入力する機能は無く、運営者はそれらを取得しません。メールアドレスなどの連絡先も、利用者がお問い合わせの連絡先欄に自ら記入した場合を除いて取得しません。",
           },
         ],
       },
@@ -59,6 +61,7 @@ export const privacy: LocalizedLegalDocument = {
             items: [
               "フォロー中の新着を表示するとき、フォローしている声優の ID がサーバーに送られます。サーバーはその場で新着を返すだけで、送られた ID を保存しません。",
               "表示言語の Cookie は、ページを取得するたびにサーバーへ送られ、その言語でページを作るために使われます。",
+              "お問い合わせを送信すると、選んだ種別、本文、記入した場合の連絡先がサーバーに送られ、運営者が読めるように保存されます。運営者はこれを、内容の確認と本サービスの改善、必要な場合の返信のためにのみ使います。フォローしている声優は添えられません。",
               "本サービスは Cloudflare, Inc. の Cloudflare Workers 上で動作しています。ページの取得に伴い、IP アドレス、ブラウザの種類 (User-Agent)、取得した URL、日時などが Cloudflare のアクセスログに一定期間記録されます。運営者はこれを、本サービスの安定した運用と障害の調査のためにのみ使い、それ以外の目的で利用者を特定することはありません。Cloudflare における取り扱いは Cloudflare のプライバシーポリシーに従います。",
             ],
           },
@@ -73,6 +76,7 @@ export const privacy: LocalizedLegalDocument = {
             items: [
               "作品の表紙画像は、各販売サイト (DLsite、Audible、ポケットドラマCD) のサーバーから直接読み込みます。そのため、ページを表示すると利用者のブラウザから各販売サイトのサーバーへ通信が発生し、IP アドレスなどが各販売サイトに送られます。各販売サイトにおける取り扱いは、それぞれのプライバシーポリシーに従います。",
               "作品ページからのリンクは各販売サイトへ移動します。リンクにはアフィリエイト用の識別子が含まれることがあり、その場合、移動先の販売サイトが本サービスから移動したことを記録します。",
+              "お問い合わせ画面は、自動化された送信を防ぐために Cloudflare, Inc. の bot 対策 (Cloudflare Turnstile) を利用者のブラウザに読み込みます。この画面を開くと利用者のブラウザから Cloudflare のサーバーへ通信が発生し、IP アドレスなどが Cloudflare に送られます。Cloudflare における取り扱いは Cloudflare のプライバシーポリシーに従います。この読み込みはお問い合わせ画面でのみ行われます。",
               "本サービスは、アクセス解析ツールや広告配信のためのタグ、SNS の埋め込みを使用していません。",
             ],
           },
@@ -108,8 +112,8 @@ export const privacy: LocalizedLegalDocument = {
         blocks: [
           {
             type: "contact",
-            withUrl: "本ポリシーに関するお問い合わせは、次の窓口で受け付けます。",
-            withoutUrl: "本ポリシーに関するお問い合わせ窓口は、本サービス上で案内します。",
+            text: "本ポリシーに関するお問い合わせは、本サービスの次の画面で受け付けます。",
+            withExternal: "次の窓口でも受け付けます。",
           },
         ],
       },
@@ -117,7 +121,7 @@ export const privacy: LocalizedLegalDocument = {
   },
 
   en: {
-    effectiveDate: "2026-09-19",
+    effectiveDate: "2026-09-21",
     sections: [
       {
         id: "overview",
@@ -129,7 +133,7 @@ export const privacy: LocalizedLegalDocument = {
           },
           {
             type: "paragraph",
-            text: "The Service has no user accounts. There is no feature for entering a name, email address, password or other information that identifies you, and the Operator does not collect such information.",
+            text: "The Service has no user accounts. There is no feature for entering a name or a password, and the Operator does not collect such information. Nor does the Operator collect an email address or other contact detail, unless you choose to enter one in the contact form.",
           },
         ],
       },
@@ -164,6 +168,7 @@ export const privacy: LocalizedLegalDocument = {
             items: [
               "When the feed of new releases is shown, the IDs of the voice actors you follow are sent to the server. The server only returns the matching releases and does not store the IDs it receives.",
               "The language cookie is sent to the server with each page request and used to render the page in that language.",
+              "When you send a message from the contact page, the type you chose, the message and any contact detail you entered are sent to the server and stored so that the Operator can read them. The Operator uses them only to review what you sent, to improve the Service and to reply where needed. The voice actors you follow are not attached.",
               "The Service runs on Cloudflare Workers, operated by Cloudflare, Inc. When pages are requested, your IP address, browser type (User-Agent), the requested URL, the time and similar details are recorded in Cloudflare's access logs for a limited period. The Operator uses these logs only to keep the Service running reliably and to investigate failures, and does not use them to identify Users for any other purpose. Cloudflare's handling of this data is governed by Cloudflare's privacy policy.",
             ],
           },
@@ -178,6 +183,7 @@ export const privacy: LocalizedLegalDocument = {
             items: [
               "Cover images are loaded directly from the servers of each store (DLsite, Audible, Pocket Drama CD). Displaying a page therefore causes your browser to connect to those servers, which receive your IP address and similar details. Each store's handling of this data is governed by its own privacy policy.",
               "Links on work pages lead to the stores. A link may include an affiliate identifier, in which case the store records that you arrived from the Service.",
+              "The contact page loads Cloudflare Turnstile, a bot protection service operated by Cloudflare, Inc., to prevent automated submissions. Opening that page therefore causes your browser to connect to Cloudflare's servers, which receive your IP address and similar details. Cloudflare's handling of this data is governed by Cloudflare's privacy policy. No other page loads it.",
               "The Service does not use analytics tools, advertising tags or social media embeds.",
             ],
           },
@@ -213,9 +219,8 @@ export const privacy: LocalizedLegalDocument = {
         blocks: [
           {
             type: "contact",
-            withUrl: "Questions about this policy can be sent to the following contact point.",
-            withoutUrl:
-              "A contact point for questions about this policy will be announced on the Service.",
+            text: "Questions about this policy can be sent from the following page on the Service.",
+            withExternal: "They are also accepted at the following contact point.",
           },
         ],
       },

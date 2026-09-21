@@ -91,6 +91,9 @@ crawler  →  src/domain
 
 ルートは `src/app/routes/` のファイル構成が正。画面データは server functions で取り、JSON を外に出すのは
 `/api/health`、`/api/admin/*`、`sitemap.xml`、`robots.txt` だけ。
+利用者が書いたものを受け取る経路はお問い合わせ (`/contact`) の 1 つで、認可の代わりに bot 対策
+(Cloudflare Turnstile) の検証を通す。ここが Worker から外へ出る唯一の通信で、検証の失敗と鍵の未設定を
+応答で分ける。フォロー情報は添えない。
 声優ページは検索エンジンのインデックス対象で、作品 0 件なら 404。フォロー一覧はブラウザごとに違うので noindex。
 
 画面は 3 層に分かれ、依存は ルート (`src/app/routes/`) → ページ (`src/app/pages/`) → 部品 (`src/app/components/`)
@@ -101,8 +104,10 @@ crawler  →  src/domain
 
 ## 秘匿値
 
-`INGEST_TOKEN` (クローラー → 管理 API) と `ADMIN_TOKEN` (管理画面) を wrangler secret で持つ。
-未設定なら該当機能は 503 を返し、トークン違いと区別できるようにする。ローカルは `.dev.vars`。
+`INGEST_TOKEN` (クローラー → 管理 API)、`ADMIN_TOKEN` (管理画面)、`TURNSTILE_SECRET_KEY`
+(お問い合わせの bot 対策の検証) を wrangler secret で持つ。未設定なら該当機能は 503 を返し、
+トークン違いや検証の失敗と区別できるようにする。ローカルは `.dev.vars`。
+公開してよい設定 (`SITE_URL`、`CONTACT_URL`、`TURNSTILE_SITE_KEY`) は `wrangler.jsonc` の `vars`。
 
 ## ローカル環境
 

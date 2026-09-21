@@ -13,7 +13,7 @@ function blockTexts(block: LegalBlock): string[] {
     case "list":
       return block.items;
     case "contact":
-      return [block.withUrl, block.withoutUrl];
+      return [block.text, block.withExternal];
   }
 }
 

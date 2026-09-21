@@ -7,7 +7,7 @@ import type { LocalizedLegalDocument } from "./index";
  */
 export const terms: LocalizedLegalDocument = {
   ja: {
-    effectiveDate: "2026-09-19",
+    effectiveDate: "2026-09-21",
     sections: [
       {
         id: "scope",
@@ -176,9 +176,8 @@ export const terms: LocalizedLegalDocument = {
         blocks: [
           {
             type: "contact",
-            withUrl: "本規約および本サービスに関するお問い合わせは、次の窓口で受け付けます。",
-            withoutUrl:
-              "本規約および本サービスに関するお問い合わせ窓口は、本サービス上で案内します。",
+            text: "本規約および本サービスに関するお問い合わせ、掲載内容の訂正・削除の申し出は、本サービスの次の画面で受け付けます。",
+            withExternal: "次の窓口でも受け付けます。",
           },
         ],
       },
@@ -186,7 +185,7 @@ export const terms: LocalizedLegalDocument = {
   },
 
   en: {
-    effectiveDate: "2026-09-19",
+    effectiveDate: "2026-09-21",
     sections: [
       {
         id: "scope",
@@ -355,10 +354,8 @@ export const terms: LocalizedLegalDocument = {
         blocks: [
           {
             type: "contact",
-            withUrl:
-              "Questions about these Terms or the Service can be sent to the following contact point.",
-            withoutUrl:
-              "A contact point for questions about these Terms or the Service will be announced on the Service.",
+            text: "Questions about these Terms or the Service, and requests to correct or remove listed content, can be sent from the following page on the Service.",
+            withExternal: "They are also accepted at the following contact point.",
           },
         ],
       },

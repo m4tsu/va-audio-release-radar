@@ -106,3 +106,11 @@ export function isUnreadSince(
 export function categoryLabel(category: WorkCategory, locale: Locale = DEFAULT_LOCALE): string {
   return translate(locale, `category.${category}`);
 }
+
+/**
+ * 問い合わせ窓口 (`CONTACT_URL`) をリンクの文字列にする。
+ * `mailto:` はアドレスだけを見せる。scheme を出しても読み手の役に立たない
+ */
+export function contactLinkLabel(url: string): string {
+  return url.startsWith("mailto:") ? url.slice("mailto:".length) : url;
+}

@@ -16,10 +16,10 @@ export type LegalBlock =
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] }
   /**
-   * 問い合わせ窓口。`CONTACT_URL` があれば `withUrl` の後ろにリンクを出し、
-   * 無ければ `withoutUrl` だけを出す
+   * 問い合わせ窓口。`text` の後ろに必ずお問い合わせ画面 (`/contact`) へのリンクを出す。
+   * `CONTACT_URL` が設定されていれば、続けて `withExternal` と外部の窓口へのリンクを出す
    */
-  | { type: "contact"; withUrl: string; withoutUrl: string };
+  | { type: "contact"; text: string; withExternal: string };
 
 export type LegalSection = {
   /** 見出しのアンカーと、言語間の対応付けに使う。言語が変わっても同じ値 */

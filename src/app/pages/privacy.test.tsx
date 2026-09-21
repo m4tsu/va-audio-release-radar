@@ -10,7 +10,7 @@ describe("PrivacyPage", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "プライバシーポリシー" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("制定日: 2026年9月19日")).toBeInTheDocument();
+    expect(screen.getByText("制定日: 2026年9月21日")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "1. 基本方針" })).toBeInTheDocument();
   });
 
@@ -28,5 +28,23 @@ describe("PrivacyPage", () => {
       "href",
       "https://example.com/contact",
     );
+  });
+
+  /** 外部の窓口が無くても、サイト内の窓口は必ず案内する */
+  test("外部の窓口が無くてもお問い合わせ画面へのリンクを出す", () => {
+    renderWithLocale(<PrivacyPage contactUrl={null} />);
+
+    expect(screen.getByRole("link", { name: "お問い合わせフォーム" })).toHaveAttribute(
+      "href",
+      "/contact",
+    );
+  });
+
+  /** 送った内容の行き先と、この画面が読み込む外部のものを本文に書いておく */
+  test("問い合わせの保存と bot 対策の読み込みに触れている", () => {
+    renderWithLocale(<PrivacyPage contactUrl={null} />);
+
+    expect(screen.getByText(/お問い合わせを送信すると/)).toBeInTheDocument();
+    expect(screen.getByText(/Cloudflare Turnstile/)).toBeInTheDocument();
   });
 });

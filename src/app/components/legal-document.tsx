@@ -1,7 +1,8 @@
+import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/app/components/page-header";
 import { useLocale, useT } from "@/app/i18n";
 import type { LegalBlock, LegalDocument } from "@/app/legal";
-import { formatReleaseDate } from "@/app/lib/format";
+import { contactLinkLabel, formatReleaseDate } from "@/app/lib/format";
 
 /**
  * 利用規約とプライバシーポリシーの共通の描画。
@@ -14,7 +15,7 @@ export function LegalDocumentView({
 }: {
   title: string;
   document: LegalDocument;
-  /** `CONTACT_URL`。無ければ窓口の案内を出さない */
+  /** `CONTACT_URL`。無ければお問い合わせ画面への案内だけを出す */
   contactUrl: string | null;
 }) {
   const t = useT();
@@ -44,6 +45,7 @@ export function LegalDocumentView({
 }
 
 function Block({ block, contactUrl }: { block: LegalBlock; contactUrl: string | null }) {
+  const t = useT();
   switch (block.type) {
     case "paragraph":
       return <p>{block.text}</p>;
@@ -56,19 +58,22 @@ function Block({ block, contactUrl }: { block: LegalBlock; contactUrl: string | 
         </ul>
       );
     case "contact":
-      if (!contactUrl) return <p>{block.withoutUrl}</p>;
       return (
         <p>
-          {block.withUrl}{" "}
-          <a href={contactUrl} className="break-all underline underline-offset-2">
-            {contactLabel(contactUrl)}
-          </a>
+          {block.text}{" "}
+          <Link to="/contact" className="underline underline-offset-2">
+            {t("legal.contactFormLink")}
+          </Link>
+          {contactUrl ? (
+            <>
+              {" "}
+              {block.withExternal}{" "}
+              <a href={contactUrl} className="break-all underline underline-offset-2">
+                {contactLinkLabel(contactUrl)}
+              </a>
+            </>
+          ) : null}
         </p>
       );
   }
-}
-
-/** `mailto:` はアドレスだけを見せる。URL はそのまま */
-function contactLabel(url: string): string {
-  return url.startsWith("mailto:") ? url.slice("mailto:".length) : url;
 }

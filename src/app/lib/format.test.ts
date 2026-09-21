@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   categoryLabel,
+  contactLinkLabel,
   formatDateTime,
   formatDuration,
   formatMonthDay,
@@ -109,5 +110,15 @@ describe("英語表示", () => {
   test("読めない日付はそのまま返す", () => {
     expect(formatReleaseDate("", "en")).toBe("");
     expect(formatMonthDay("not-a-date", "en")).toBe("not-a-date");
+  });
+});
+
+describe("contactLinkLabel", () => {
+  test("mailto はアドレスだけを見せる", () => {
+    expect(contactLinkLabel("mailto:hello@example.com")).toBe("hello@example.com");
+  });
+
+  test("https の URL はそのまま出す", () => {
+    expect(contactLinkLabel("https://example.com/contact")).toBe("https://example.com/contact");
   });
 });
