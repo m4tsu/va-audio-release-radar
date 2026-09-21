@@ -13,7 +13,7 @@
 
 ## 1. 条件
 
-- 2026-09-21 開始。`--no-snapshot`、取り込み先は手元の dev サーバー
+- 2026-09-21 09:50 UTC 開始。`--no-snapshot`、取り込み先は手元の dev サーバー
 - 引いたのは `crawler/adapters/audible.ts` の `AUDIBLE_FEED_URLS` の 8 本 (各 1 ページ 20 件)
 - 走行前の `store_listings` の Audible の行は 2,081 件 (声優起点で集めたもの)
 
@@ -45,9 +45,12 @@
 
 ## 4. 所要
 
-8 リクエスト。`crawler/lib/fetch.ts` の `rateLimitFor()` が Audible に与える間隔で決まり、
-作品ページを引かないので**取れた件数に関わらず一定**である。
-DLsite やポケドラと違い、一覧に出演者と配信日が載るため詳細取得が要らない。
+**43 秒** (`crawl_runs` の `started_at` 09:50:45 → `finished_at` 09:51:28)。
+
+8 リクエストで、`crawler/lib/fetch.ts` の `rateLimitFor()` が Audible に与える間隔で決まる。
+**作品ページを引かないので、取れた件数に関わらずこの 8 往復で一定**である。
+DLsite やポケドラは「一覧に出たが DB に無い作品」の詳細を毎日引き直すぶん往復が増えるが
+([`dlsite-daily-feed-2026-09-21.md`](./dlsite-daily-feed-2026-09-21.md))、Audible にはそれが無い。
 
 ## 5. (推測)
 
