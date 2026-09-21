@@ -288,8 +288,14 @@ test("Web アプリマニフェストが言語に応じて返り、HTML から�
   expect((await english.json()).lang).toBe("en");
 
   const html = await (await request.get("/following")).text();
-  expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest"/>');
-  expect(html).toContain('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>');
+  // 属性の並びは React が決める。要るのは 3 つの属性が同じ link に揃っていること。
+  // crossorigin が無いとブラウザは cookie を付けずに取りに行き、言語が既定に落ちる
+  expect(html).toMatch(
+    /<link(?=[^>]*rel="manifest")(?=[^>]*href="\/manifest\.webmanifest")(?=[^>]*crossorigin="use-credentials")[^>]*\/>/,
+  );
+  expect(html).toMatch(
+    /<link(?=[^>]*rel="apple-touch-icon")(?=[^>]*href="\/icons\/apple-touch-icon\.png")[^>]*\/>/,
+  );
 });
 
 test("service worker とアイコンが配信される", async ({ request }) => {
