@@ -347,6 +347,8 @@ export const ja = {
     inquiriesTitle: "問い合わせ",
     inquiriesSummary: "新しい順。このページに {{count}} 件。",
     inquiriesEmpty: "まだ問い合わせは届いていない。",
+    /** 続きを辿って行き過ぎたページ。1 件も届いていないのとは別の状態 */
+    inquiriesEmptyPage: "このページに問い合わせは無い。前のページへ戻ること。",
     inquiriesColumnReceivedAt: "受け取った日時",
     inquiriesColumnKind: "種別",
     inquiriesColumnBody: "本文",

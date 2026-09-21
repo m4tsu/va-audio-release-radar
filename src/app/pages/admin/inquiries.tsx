@@ -39,7 +39,11 @@ export function AdminInquiriesPage(props: AdminInquiriesPageProps) {
       />
 
       {inquiries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("admin.inquiriesEmpty")}</p>
+        // 2 ページ目より後ろで空なのは「まだ 1 件も届いていない」ではなく「行き過ぎた」。
+        // 同じ文言を出すと、1 ページ目で読んだばかりの内容と食い違って見える
+        <p className="text-muted-foreground text-sm">
+          {page === 1 ? t("admin.inquiriesEmpty") : t("admin.inquiriesEmptyPage")}
+        </p>
       ) : (
         <Table>
           <TableHeader>

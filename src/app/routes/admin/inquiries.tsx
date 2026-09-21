@@ -9,6 +9,12 @@ import { fetchAdminSession } from "@/app/server-fns/admin-session";
 /** 1 ページに出す問い合わせの件数。これより多ければ続きは次のページに回る */
 const INQUIRIES_PER_PAGE = 50;
 
+/**
+ * 受け付ける最大のページ番号。これを超えると飛ばす件数が安全な整数の範囲を出て、
+ * server function の検証が落ちる (URL に大きな数を書かれただけで画面がエラーになる)
+ */
+const MAX_PAGE = Math.floor(Number.MAX_SAFE_INTEGER / INQUIRIES_PER_PAGE);
+
 /** 届いた問い合わせの一覧。画面は `@/app/pages/admin/inquiries` */
 export const Route = createFileRoute("/admin/inquiries")({
   server: {
@@ -22,7 +28,7 @@ export const Route = createFileRoute("/admin/inquiries")({
    */
   validateSearch: (search: Record<string, unknown>): { page?: number } => {
     const page = Number(search.page);
-    if (!Number.isInteger(page) || page < 2) return {};
+    if (!Number.isInteger(page) || page < 2 || page > MAX_PAGE) return {};
     return { page };
   },
   loaderDeps: ({ search }) => ({ page: search.page ?? 1 }),

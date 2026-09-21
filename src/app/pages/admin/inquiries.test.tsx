@@ -97,6 +97,16 @@ describe("AdminInquiriesPage の表", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
+  /** 行き過ぎたページで「まだ 1 件も届いていない」と言うと、1 ページ目で読んだ内容と食い違う */
+  test("2 ページ目より後ろで空なら、届いていないのではなく行き過ぎたと出す", () => {
+    renderWithLocale(<AdminInquiriesPage authorized page={3} hasNext={false} inquiries={[]} />);
+
+    expect(
+      screen.getByText("このページに問い合わせは無い。前のページへ戻ること。"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("まだ問い合わせは届いていない。")).not.toBeInTheDocument();
+  });
+
   test("英語でも列の見出しが訳される", () => {
     renderWithLocale(
       <AdminInquiriesPage authorized page={1} hasNext={false} inquiries={[inquiry()]} />,

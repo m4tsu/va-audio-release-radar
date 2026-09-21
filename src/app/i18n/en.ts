@@ -312,6 +312,7 @@ export const en: Translations = {
       other: "Newest first. {{count}} inquiries on this page.",
     },
     inquiriesEmpty: "No inquiry has arrived yet.",
+    inquiriesEmptyPage: "No inquiries on this page. Go back to the previous page.",
     inquiriesColumnReceivedAt: "Received",
     inquiriesColumnKind: "Kind",
     inquiriesColumnBody: "Message",
