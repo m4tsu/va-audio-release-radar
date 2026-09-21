@@ -7,8 +7,11 @@ import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
   applyProductDetail,
   buildCoverImageUrl,
+  buildFeedUrl,
   buildProductUrl,
   buildTagPageUrl,
+  FEED_DISP_NUMBER,
+  POKEDORA_SECTIONS,
   parseActiveSection,
   parseProductDetail,
   parseSearchHtml,
@@ -31,6 +34,11 @@ const fetchTextMock = vi.mocked(fetchText);
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
 const fixture = (name: string) => readFileSync(path.join(FIXTURES_DIR, name), "utf8");
 
+/** 新着一覧 (order=1) の 1 ページ目。一般と BL で 15 件ずつ */
+const feedHtml = {
+  men: fixture("pokedora-list-order1-men-page1.html"),
+  bl: fixture("pokedora-list-order1-bl-page1.html"),
+};
 /** 一般 (men) 10 件のタグページ */
 const tagMenHtml = fixture("pokedora-tag-1920-men.html");
 /** BL 66 件のタグページ。1 ページに 100 件まで出るので 1 枚に収まっている */
@@ -370,5 +378,195 @@ describe("fetchByActor", () => {
     expect(result.status).toBe("ok");
     expect(result.works).toHaveLength(10);
     expect(result.warnings.join("\n")).toContain("詳細ページの取得に失敗");
+  });
+});
+
+describe("buildFeedUrl", () => {
+  it("order=1 (新着順) の 1 ページ目を指す", () => {
+    expect(buildFeedUrl("men")).toBe(
+      "https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0" +
+        "&order=1&store=men&disp_number=30&pageno=1",
+    );
+    expect(buildFeedUrl("bl")).toContain("store=bl");
+  });
+
+  it("robots.txt が禁じている経路を指さない", () => {
+    // 禁止は /cart/* と /mypage/* だけ (docs/stores/pokedora.md の「robots.txt」)
+    for (const section of POKEDORA_SECTIONS) {
+      expect(buildFeedUrl(section)).not.toContain("/cart/");
+      expect(buildFeedUrl(section)).not.toContain("/mypage/");
+    }
+  });
+
+  /**
+   * `list.php` は `/tags/` と受け付ける値が違い、`100` を渡すと 15 件に落ちる
+   * (`docs/research/pokedora-disp-number-2026-09-21.md`)。省いたときの既定が変わっても
+   * 窓の広さが動かないよう、受け付ける値を明示する
+   */
+  it("受け付けられる disp_number を明示する", () => {
+    expect(buildFeedUrl("men")).toContain(`disp_number=${FEED_DISP_NUMBER}`);
+    expect(buildFeedUrl("men")).not.toContain("disp_number=100");
+  });
+});
+
+describe("parseSearchHtml (新着一覧)", () => {
+  it("タグページと同じセレクタで読め、1 ページ 15 件が取れる", () => {
+    for (const section of POKEDORA_SECTIONS) {
+      const parsed = parseSearchHtml(feedHtml[section], FETCHED_AT);
+      expect(parsed.works).toHaveLength(15);
+      expect(parsed.invalidCount).toBe(0);
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.works.every((work) => work.storeSection === section)).toBe(true);
+    }
+  });
+
+  /**
+   * NEW / 割引 / 特典あり のバッジが商品カテゴリと同じ class で、しかもカテゴリより先に並ぶ。
+   * 除かないと storeCategory が "NEW" になる (docs/stores/pokedora.md の「新着一覧」)
+   */
+  it("NEW などのバッジを商品カテゴリに混ぜない", () => {
+    const parsed = parseSearchHtml(feedHtml.men, FETCHED_AT);
+    expect(parsed.works[0]).toMatchObject({
+      storeProductId: "151971",
+      storeCategory: "女性向けドラマCD",
+      genres: ["女性向けドラマCD"],
+    });
+    const badges = ["NEW", "割引", "特典あり"];
+    for (const work of parsed.works) {
+      expect(badges).not.toContain(work.storeCategory);
+      for (const genre of work.genres ?? []) expect(badges).not.toContain(genre);
+    }
+  });
+
+  // 新着一覧の総件数はストア全体の作品数で、新着数ではない
+  it("総件数を載せない", () => {
+    expect(parseSearchHtml(feedHtml.men, FETCHED_AT).totalCount).toBeUndefined();
+  });
+});
+
+describe("pokedoraAdapter.fetchNewReleases", () => {
+  const ok = (body: string): FetchResult => ({ ok: true, status: 200, url: "https://x", body });
+
+  /** 新着一覧の最小限の HTML。区分タブと商品カードだけを持つ */
+  function listPage(productIds: readonly string[], section: "men" | "bl" = "men"): string {
+    const items = productIds
+      .map(
+        (id) =>
+          `<li class="product_list_el">` +
+          `<p class="product_title"><a href="/products/detail.php?product_id=${id}" title="作品 ${id}">作品 ${id}</a></p>` +
+          `<span class="product_catgory_el product_catgory_el-new">NEW</span>` +
+          `<span class="product_catgory_el">一般ドラマCD</span>` +
+          "</li>",
+      )
+      .join("");
+    return (
+      "<html><body>" +
+      `<ul class="category_tab"><li><a class="category_tab_el_link active" data-store="${section}">x</a></li></ul>` +
+      `<ul>${items}</ul></body></html>`
+    );
+  }
+
+  beforeEach(() => {
+    fetchTextMock.mockReset();
+  });
+
+  /** 一覧は区分ごとに、詳細は product_id ごとに返す */
+  function respond(lists: Partial<Record<"men" | "bl", FetchResult>>, detail?: FetchResult) {
+    fetchTextMock.mockImplementation(async (url: string) => {
+      if (url.includes("list.php")) {
+        const section = url.includes("store=bl") ? "bl" : "men";
+        return lists[section] ?? ok(listPage([], section));
+      }
+      return detail ?? ok(detail126232);
+    });
+  }
+
+  it("一般と BL の新着を 1 つにまとめる", async () => {
+    respond({ men: ok(listPage(["1", "2"])), bl: ok(listPage(["3"], "bl")) });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("ok");
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["1", "2", "3"]);
+    expect(result?.listedCount).toBe(3);
+    expect(result?.pages).toBe(2);
+    expect(result?.complete).toBe(true);
+  });
+
+  it("区分ごとに 1 ページだけ引く", async () => {
+    respond({ men: ok(listPage(["1"])) });
+
+    await pokedoraAdapter.fetchNewReleases?.({ snapshot: false });
+
+    const listUrls = fetchTextMock.mock.calls
+      .map((call) => call[0])
+      .filter((url: string) => url.includes("list.php"));
+    expect(listUrls).toEqual([buildFeedUrl("men"), buildFeedUrl("bl")]);
+  });
+
+  it("既知の作品は詳細を取らず、送りもしない", async () => {
+    respond({ men: ok(listPage(["1", "2"])) });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({
+      knownIds: new Set(["1"]),
+      snapshot: false,
+    });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["2"]);
+    expect(result?.listedCount).toBe(2);
+    const urls: string[] = fetchTextMock.mock.calls.map((call) => call[0]);
+    expect(urls.some((url) => url.includes("product_id=1&"))).toBe(false);
+  });
+
+  it("新着が全部既知なら empty で返す", async () => {
+    respond({ men: ok(listPage(["1"])) });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({
+      knownIds: new Set(["1"]),
+      snapshot: false,
+    });
+
+    expect(result?.status).toBe("empty");
+    expect(result?.works).toEqual([]);
+  });
+
+  it("片方の区分が落ちても、取れた側で続行して警告に残す", async () => {
+    respond({
+      men: ok(listPage(["1"])),
+      bl: { ok: false, url: "https://pokedora.com/", reason: "timeout" },
+    });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("ok");
+    expect(result?.works).toHaveLength(1);
+    expect(result?.pages).toBe(1);
+    // daily.ts はこの値だけを見て coverageComplete: false を送る
+    expect(result?.complete).toBe(false);
+    expect(result?.warnings).toContain("bl の新着一覧を取れなかった (timeout)");
+  });
+
+  // 新着一覧は常に 15 件返るので、0 件はセレクタが壊れた合図
+  it("一覧は取れたのに作品が 0 件なら error にする", async () => {
+    respond({ men: ok(listPage([])), bl: ok(listPage([])) });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("error");
+    expect(result?.reason).toBe("新着一覧から作品を 1 件も読めなかった");
+  });
+
+  it("どの区分も引けなければ error で、理由を区分ごとに残す", async () => {
+    fetchTextMock.mockResolvedValue({
+      ok: false,
+      url: "https://pokedora.com/",
+      reason: "timeout",
+    });
+
+    const result = await pokedoraAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("error");
+    expect(result?.complete).toBe(false);
+    expect(result?.reason).toBe("新着一覧の取得に失敗 (men: timeout / bl: timeout)");
   });
 });

@@ -6,7 +6,9 @@ import { validateRawWorks } from "./raw-work.ts";
 import type {
   ActorQuery,
   AdapterResult,
+  FeedResult,
   FetchByActorOptions,
+  FetchNewReleasesOptions,
   ObservedActorRef,
   ParsedWorks,
   SourceAdapter,
@@ -66,6 +68,22 @@ export function buildTagPageUrl(tagId: number, section: PokedoraSection, pageno 
   return (
     `https://pokedora.com/tags/?tag_type=${VOICE_ACTOR_TAG_TYPE}&tag_id=${tagId}` +
     `&disp_number=${DISP_NUMBER}&store=${section}&pageno=${pageno}`
+  );
+}
+
+/** 新着一覧 1 ページの件数。`list.php` が受け付ける値 (100 を渡すと 15 に落ちる) */
+export const FEED_DISP_NUMBER = 30;
+
+/**
+ * ストア全体の新着一覧。`order=1` が新着順
+ * (`docs/stores/pokedora.md` の「ストア全体の新着一覧」)。
+ * 日次で引くのは 1 ページ目だけなので `pageno` は 1 に固定する。
+ * `disp_number` を明示するのは、省いたときの既定が変わっても窓の広さを動かさないため
+ */
+export function buildFeedUrl(section: PokedoraSection): string {
+  return (
+    "https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0" +
+    `&order=1&store=${section}&disp_number=${FEED_DISP_NUMBER}&pageno=1`
   );
 }
 
@@ -130,11 +148,7 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
     const titleAnchor = item.find("p.product_title a").first();
     // title 属性は省略記号の入らない完全なタイトル。無ければリンク文字列で代用する
     const titleRaw = normalizeSpace(titleAnchor.attr("title") ?? titleAnchor.text());
-    const categories = item
-      .find("span.product_catgory_el")
-      .toArray()
-      .map((el) => normalizeSpace($(el).text()))
-      .filter((value) => value !== "");
+    const categories = productCategories($, item);
 
     const candidate: RawWork = {
       storeSlug: STORE_SLUG,
@@ -157,6 +171,22 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
   const validated = validateRawWorks(candidates);
   const totalCount = parseTagTotalCount(html);
   return totalCount === undefined ? validated : { ...validated, totalCount };
+}
+
+/**
+ * 商品カードの商品カテゴリ。
+ *
+ * 同じ `span.product_catgory_el` に `NEW` / `割引` / `特典あり` のバッジが混ざる。
+ * バッジには `product_catgory_el-new` のような修飾クラスが付き、しかも**カテゴリより先に**
+ * 並ぶので、除かないと先頭がバッジの語になる (`docs/stores/pokedora.md` の「新着一覧」)
+ */
+function productCategories($: cheerio.CheerioAPI, item: ReturnType<cheerio.CheerioAPI>): string[] {
+  return item
+    .find("span.product_catgory_el")
+    .toArray()
+    .filter((el) => !($(el).attr("class") ?? "").includes("product_catgory_el-"))
+    .map((el) => normalizeSpace($(el).text()))
+    .filter((value) => value !== "");
 }
 
 /** `/products/detail.php?product_id=139137` から ID を取る。相対 URL で来る */
@@ -483,11 +513,39 @@ async function fetchByActor(
     warnings.push(`網羅率 ${coverage.fetched}/${coverage.total}`);
   }
 
-  const works: RawWork[] = [];
-  // 詳細ページで見えた (tag_id, 表記) の組。別名義の根拠として呼び出し側が貯める
   const observedActorRefs: ObservedActorRef[] = [];
+  const works = await applyDetails(listWorks.values(), options, warnings, observedActorRefs);
 
-  for (const listWork of listWorks.values()) {
+  return {
+    ...base,
+    works,
+    invalidCount,
+    warnings,
+    coverage,
+    observedActorRefs,
+    ...(queryUsed === undefined ? {} : { queryUsed }),
+    ...(coverage.total === undefined ? {} : { totalCount: coverage.total }),
+  };
+}
+
+/**
+ * 一覧から作った作品に詳細ページの情報を当てる。一覧には出演声優が 2 名までしか出ないので、
+ * 送る前に必ずここを通す。
+ *
+ * 詳細を取れなかった作品は一覧の情報だけで通す。詳細が取れなかったことを理由に、
+ * 一覧から分かっている事実まで捨てないため
+ *
+ * @param observedActorRefs 詳細ページで見えた (tag_id, 表記) の組。別名義の根拠として呼び出し側が貯める
+ */
+async function applyDetails(
+  listWorks: Iterable<RawWork>,
+  options: { skipKnownIds?: ReadonlySet<string>; snapshot?: boolean },
+  warnings: string[],
+  observedActorRefs: ObservedActorRef[],
+): Promise<RawWork[]> {
+  const works: RawWork[] = [];
+
+  for (const listWork of listWorks) {
     if (options.skipKnownIds?.has(listWork.storeProductId) === true) {
       // 既知の作品は詳細を取り直さない。1 往復 5 秒なのでここが全体の所要をほぼ決める
       works.push(listWork);
@@ -527,20 +585,88 @@ async function fetchByActor(
     works.push(detailed);
   }
 
-  return {
-    ...base,
-    works,
+  return works;
+}
+
+/**
+ * 新着一覧から、まだ知らない作品だけを取る (日次の走行)。声優を指定しないので、
+ * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
+ *
+ * 引くのは一般と BL の 1 ページ目だけ。1 ページが新作の十数日ぶんに当たるので
+ * 日次で引く限り足りる (新作の量は `docs/research/pokedora-new-releases-2026-09-21.md`)
+ */
+async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
+  const fetchedAt = new Date().toISOString();
+  const warnings: string[] = [];
+  const failures: string[] = [];
+  let invalidCount = 0;
+  let pages = 0;
+
+  // 区分をまたいで ID で畳む。同じ商品が一般と BL の両方に出ることはないが、
+  // 畳んでおけば出たときに二重にならない
+  const listed = new Map<string, RawWork>();
+
+  for (const section of POKEDORA_SECTIONS) {
+    const result = await fetchText(buildFeedUrl(section), {
+      store: STORE_SLUG,
+      requestKey: `feed-${section}`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+    if (!result.ok) {
+      // この区分だけ引けなかった。取れた側は使うので走行は続ける
+      failures.push(`${section}: ${result.reason}`);
+      warnings.push(`${section} の新着一覧を取れなかった (${result.reason})`);
+      continue;
+    }
+
+    pages += 1;
+    const parsed = parseSearchHtml(result.body, fetchedAt);
+    invalidCount += parsed.invalidCount;
+    warnings.push(...parsed.warnings);
+    // 新着一覧は常に埋まって返る。0 件は「新作が無い」ではなくセレクタが壊れた合図
+    if (parsed.works.length === 0) {
+      warnings.push(`${section} の新着一覧から作品を 1 件も読めなかった。表示が変わった可能性`);
+    }
+    for (const work of parsed.works) {
+      if (!listed.has(work.storeProductId)) listed.set(work.storeProductId, work);
+    }
+    // 総件数 (div.search_count) はカテゴリ全体の作品数であって新着数ではないので載せない
+  }
+
+  const base = {
+    storeSlug: STORE_SLUG,
+    works: [] as RawWork[],
     invalidCount,
     warnings,
-    coverage,
-    observedActorRefs,
-    ...(queryUsed === undefined ? {} : { queryUsed }),
-    ...(coverage.total === undefined ? {} : { totalCount: coverage.total }),
+    listedCount: listed.size,
+    // 引けなかった区分があれば false。どの作品を見逃したかは分からないが、
+    // 見に行けなかった入口があることは確か
+    complete: failures.length === 0,
+    pages,
   };
+
+  if (pages === 0) {
+    return { ...base, status: "error", reason: `新着一覧の取得に失敗 (${failures.join(" / ")})` };
+  }
+  if (listed.size === 0) {
+    return { ...base, status: "error", reason: "新着一覧から作品を 1 件も読めなかった" };
+  }
+
+  // 既知の作品は詳細も取らず、送りもしない。日次の目的は新作の検出で、
+  // 既知の作品の項目を直すのは月次の役目 (`decisions/0007`)
+  const known = options.knownIds;
+  const fresh = [...listed.values()].filter((work) => known?.has(work.storeProductId) !== true);
+
+  // 新着一覧の走行では別名義の根拠を貯める先が無いので捨てる (声優起点でだけ使う)
+  const works = await applyDetails(fresh, { snapshot: options.snapshot }, warnings, []);
+
+  return { ...base, works, status: works.length === 0 ? "empty" : "ok" };
 }
 
 export const pokedoraAdapter: SourceAdapter = {
   storeSlug: STORE_SLUG,
   fetchByActor,
+  fetchNewReleases,
   parseSearchHtml,
 };

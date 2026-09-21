@@ -57,16 +57,23 @@ robots.txt に指定が無いので、**こちらの判断**である。
 ### ストア全体の新着一覧
 
 ```
-https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0&order=1&store={men|bl}&pageno={n}
+https://pokedora.com/products/list.php?mode=search&name=&xfp=0&genre_tag_id=0&order=1&store={men|bl}&disp_number={件数}&pageno={ページ}
 ```
 
 - `order=1` が新着順 (2=古い順 / 3=人気順 / 4=価格が高い順 / 5=価格が安い順 /
   7=レビューが多い順 / 8=いいねが多い順)。ラベルは `select` の表示による。
   サイト自身が「新規配信順」として `order=2` を指しているリンクもあり、どちらが新着かは確定していない (§7)
-- **1 ページ 15 件で固定。`disp_number` は効かない** (§6)。総件数は `div.search_count` に出る
+- **`disp_number` は効く。ただし受け付ける値が `/tags/` と違う。** 指定なしと `30` はどちらも
+  30 件、`100` は 15 件に落ちる (2026-09-21 実測。
+  [`pokedora-disp-number-2026-09-21.md`](../research/pokedora-disp-number-2026-09-21.md))。
+  総件数は `div.search_count` に出る
 - `pageno` がページ送り。`pageno=2` が 16〜30 件目を返すことを確認済み
 - 許可の根拠: robots が禁じているのは `/cart/*` と `/mypage/*` だけで、`list.php` も
   `order` も `pageno` も禁じられていない
+- **日次の走行が使う。** 引くのは一般と BL の 1 ページ目だけで、ページ送りはしない。
+  1 ページが新作の十数日ぶんに当たる ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))
+- **`div.search_count` の総件数は載せない。** ストア全体の作品数であって新着数ではないので、
+  網羅率として記録すると意味を取り違える
 - 実測は [`research/pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md)
 
 ### 声優タグの作品一覧
@@ -140,8 +147,8 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 | **発売日 / 配信日** | **×** | §6 |
 
 商品カテゴリの `span.product_catgory_el` には `NEW` / `割引` / `特典あり` のバッジが
-同じクラスで混ざる。カテゴリ名を取るには `product_catgory_el-new` のような修飾クラスが
-付いたものを除く。
+同じクラスで混ざり、**カテゴリより先に並ぶ**。修飾クラス (`product_catgory_el-new` など) が
+付いたものを除かないと、先頭のカテゴリがバッジの語になる。
 
 ### タグページ (一覧)
 
@@ -192,9 +199,10 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
   sitemap の `lastmod` はページ更新日なので代理にできない。
   新着判定は「初回発見日」の機構に乗る (`docs/product.md` の「新着」) が、
   **1 ストアだけ日付の意味が違う**ことを UI とドキュメントで明示する
-- **`list.php` では `disp_number` が効かない。** 付けても 1 ページ 15 件で固定される
-  (`/tags/` は 30 / 50 / 100 を選べる)。総件数とページャの最終ページの関係でも確かめてある
-  (測定は [`pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md))
+- **`list.php` の `disp_number` は `/tags/` と受け付ける値が違う。** `100` を渡すと 100 件では
+  なく 15 件になる。`list.php` のフォームには `disp_number` の `select` が無い。
+  日次の走行が `30` を明示しているのはこのため
+  (測定は [`pokedora-disp-number-2026-09-21.md`](../research/pokedora-disp-number-2026-09-21.md))
 - **`sitemap_products_*.xml.gz` は毎日は再生成されない。** 2026-09-18 と 2026-09-21 で
   URL 数・`product_id` の範囲・`lastmod` の最大がすべて同じで、その時点の新着 3 件が
   入っていなかった。**sitemap の差分を新着検出に使えない**
@@ -295,5 +303,7 @@ robots の `Sitemap:` 行から辿れる index の子。`.xml.gz` なので `fet
 - [`docs/research/pokedora-new-releases-2026-09-21.md`](../research/pokedora-new-releases-2026-09-21.md) —
   新着一覧の実測。1 ページの件数、取れる項目、ページ送り、1 日あたりの新作数、
   sitemap が毎日は再生成されないこと
-- `crawler/fixtures/pokedora-list-order1-*.html` — 新着一覧の実 HTML (2026-09-21 取得)
+- [`research/pokedora-disp-number-2026-09-21.md`](../research/pokedora-disp-number-2026-09-21.md) —
+  `list.php` の `disp_number` が受け付ける値
+- `crawler/fixtures/pokedora-list-order1-*.html` — 新着一覧の実 HTML (2026-09-21 取得。`disp_number=100` で 15 件)
 - `crawler/adapters/pokedora.ts` のファイル冒頭コメント — 取得手順
