@@ -164,6 +164,26 @@ INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199 --only 
 npm run radar:crawl -- --dry-run --only 上田麗奈
 ```
 
+## 公開前の扱い
+
+**画面に認証を掛けていない。** デプロイした時点で、URL を知っていれば誰でも見られる。
+画面に出るのはストアと AniList の公開情報だけで、利用者の情報は持たない
+(フォローはブラウザ内にしか無い。[`docs/decisions/0005-follow-state-in-browser.md`](./docs/decisions/0005-follow-state-in-browser.md))。
+
+塞いでいるのは検索からの流入だけで、`robots.txt` が `Disallow: /` を返す。
+公開するときに `wrangler.jsonc` の `vars.ALLOW_INDEXING` を `"1"` にして入れ替える
+(判定は `src/server/robots.ts`)。
+
+```bash
+curl https://<本番の URL>/robots.txt
+# 公開前:  User-agent: * / Disallow: /
+# 公開後:  Disallow: /admin/ と /api/ だけ + Sitemap 行
+```
+
+> **Cloudflare Access (Zero Trust) を Worker の全体に掛けるとクローラーが通らない。**
+> クローラーは `POST /api/admin/ingest` に書き込む経路しか持たず、送るのは Bearer トークンだけで、
+> Access のログイン画面は解釈できない。外形監視 (`/api/crawler-freshness`) も同じ理由で通らなくなる。
+
 ## 外形監視
 
 クロールが止まったことに気づく経路は 2 つある。**両方が要る。**

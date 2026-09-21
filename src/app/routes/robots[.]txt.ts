@@ -1,29 +1,26 @@
+import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
+import { allowIndexing, robotsTxt } from "@/server/robots";
 import { siteOrigin } from "@/server/site";
 
 /**
- * robots.txt。声優ページと作品ページはインデックスさせたいので全体は許可し、
- * 管理画面と JSON API だけ弾く。sitemap の場所もここから示す。
+ * robots.txt。本文の組み立てと公開の判定は `@/server/robots`。
  * Sitemap 行のオリジンは canonical / sitemap.xml と同じ `siteOrigin()` から取る
  */
 export const Route = createFileRoute("/robots.txt")({
   server: {
     handlers: {
       GET: ({ request }) => {
-        const origin = siteOrigin(request);
-        const body = [
-          "User-agent: *",
-          "Disallow: /admin/",
-          "Disallow: /api/",
-          "",
-          `Sitemap: ${origin}/sitemap.xml`,
-          "",
-        ].join("\n");
+        const body = robotsTxt({
+          origin: siteOrigin(request),
+          allowIndexing: allowIndexing(env.ALLOW_INDEXING),
+        });
 
         return new Response(body, {
           headers: {
             "content-type": "text/plain; charset=utf-8",
-            "cache-control": "public, max-age=3600",
+            // 公開に切り替えたとき、古い「全部拒否」を長く掴まれないように短くする
+            "cache-control": "public, max-age=300",
           },
         });
       },

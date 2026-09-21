@@ -21,8 +21,11 @@
   // CONTACT_URL は利用規約・プライバシーポリシーに載せる外部の問い合わせ窓口 ("https://..." か "mailto:...")。
   // 空文字なら外部窓口の案内を出さない (サイト内の /contact への案内は常に出る)。
   // TURNSTILE_SITE_KEY はお問い合わせ画面の bot 対策の画面側の鍵。HTML に出る公開鍵なので vars に置く。
-  // 空文字か TURNSTILE_SECRET_KEY 未設定なら /contact から送信できない。公開前に両方入れること
-  "vars": { "SITE_URL": "", "CONTACT_URL": "", "TURNSTILE_SITE_KEY": "" },
+  // 空文字か TURNSTILE_SECRET_KEY 未設定なら /contact から送信できない。公開前に両方入れること。
+  // ALLOW_INDEXING は robots.txt を「全部拒否」から「公開」に切り替える印。"1" のときだけ載せる。
+  // 既定を空にしてあるのは、設定を忘れたまま公開されるより、公開したのに載らないほうが
+  // 気づきやすいため (README の「公開前の扱い」)
+  "vars": { "SITE_URL": "", "CONTACT_URL": "", "TURNSTILE_SITE_KEY": "", "ALLOW_INDEXING": "" },
   "d1_databases": [
     {
       "binding": "DB",

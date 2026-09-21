@@ -41,6 +41,12 @@ interface AppSecrets {
   TURNSTILE_SITE_KEY?: string;
   /** 同じく検証側の鍵。wrangler secret で持つ。未設定なら送信は 503 */
   TURNSTILE_SECRET_KEY?: string;
+  /**
+   * 検索エンジンに載せてよいか (`@/server/robots`)。`"1"` のときだけ許可する。
+   * 秘匿値ではなく wrangler.jsonc の `vars` に置く。
+   * **既定は載せない。** 公開前の URL が検索から拾われないようにするため
+   */
+  ALLOW_INDEXING?: string;
 }
 
 export {};

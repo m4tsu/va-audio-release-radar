@@ -262,3 +262,17 @@ test("/admin/* は noindex", async ({ request }) => {
   const res = await request.get("/admin/crawler-health");
   expect(await res.text()).toContain('content="noindex"');
 });
+
+/**
+ * E2E に置く理由: **SSR の応答** (本文)。公開前に検索へ載らないことは、
+ * 実際に Worker が返す robots.txt でしか確かめられない
+ */
+test("公開前の robots.txt は全部を拒否する", async ({ request }) => {
+  const res = await request.get("/robots.txt");
+
+  expect(res.status()).toBe(200);
+  const body = await res.text();
+  // ALLOW_INDEXING を立てていないので「載せない」側
+  expect(body).toContain("Disallow: /");
+  expect(body).not.toContain("Sitemap:");
+});
