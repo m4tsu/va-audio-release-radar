@@ -577,9 +577,9 @@ async function applyDetails(
  * 新着一覧から、まだ知らない作品だけを取る (日次の走行)。声優を指定しないので、
  * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
  *
- * 声優起点と違ってフロアごとに 1 ページだけ引く。並び順違いの補完はしない。
- * 1 ページ 30 件が新作 4 日ぶんに当たり、日次で引く限り足りるため
- * (`docs/stores/dlsite.md` の「新着一覧」)
+ * 声優起点と違ってフロアごとに 1 ページだけ引き、並び順違いの補完もしない。
+ * 1 ページ目が新作の数日ぶんを覆うので日次で引く限り足りる
+ * (件数と日数は `docs/research/new-release-feeds-2026-09-19.md`)
  */
 async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
   const fetchedAt = new Date().toISOString();
@@ -621,6 +621,9 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
     invalidCount,
     warnings,
     listedCount: listed.size,
+    // 引けなかったフロアがあれば false。どの作品を見逃したかは分からないが、
+    // 見に行けなかった入口があることは確か
+    complete: failures.length === 0,
     pages,
   };
 

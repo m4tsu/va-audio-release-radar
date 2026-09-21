@@ -7,8 +7,8 @@ name: 日次のクロール (新着一覧)
 # あちらは対象声優の人数に比例して数時間かかり、手動実行だけにしてある。
 on:
   schedule:
-    # 04:10 UTC = 13:10 JST。DLsite の新着は 1 ページ目で 4 日ぶんを覆うので時刻の精度は要らない。
-    # 正時を外すのは GitHub Actions の混雑を避けるため
+    # 04:10 UTC = 13:10 JST。新着一覧の 1 ページ目が数日ぶんを覆うので時刻の精度は要らない
+    # (docs/research/new-release-feeds-2026-09-19.md)。正時を外すのは GitHub Actions の混雑を避けるため
     - cron: "10 4 * * *"
   workflow_dispatch:
     inputs:
@@ -30,8 +30,8 @@ jobs:
   daily:
     name: 新着一覧から取り込む
     runs-on: ubuntu-latest
-    # 新着一覧 1 ページ × フロア数 + 新作の product.json。1 日あたりの新作は 1 桁件で、
-    # ホストごとの間隔を守っても数分で終わる (docs/stores/dlsite.md の「新着一覧」)。
+    # 新着一覧 1 ページ × フロア数 + 新作の product.json。新作の量は
+    # docs/research/new-release-feeds-2026-09-19.md にあり、ホストごとの間隔を守っても数分で終わる。
     # 上限はストアが増えたときの歯止めとして置いている
     timeout-minutes: 30
     steps:

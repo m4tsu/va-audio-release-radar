@@ -8,7 +8,13 @@ import {
 } from "../src/domain/index.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import type { FeedResult, SourceAdapter } from "./adapters/types.ts";
-import { AdminApiClient, AdminApiError, IngestProtocolMismatchError } from "./lib/ingest.ts";
+import {
+  AdminApiClient,
+  AdminApiError,
+  failureReport,
+  IngestProtocolMismatchError,
+  type IngestResponse,
+} from "./lib/ingest.ts";
 
 /**
  * 日次の走行。ストアの新着一覧を引き、まだ知らない作品だけを取り込みに送る
@@ -51,6 +57,15 @@ const OPTION_SPEC = {
   help: { type: "boolean", short: "h" },
 } as const;
 
+/**
+ * `runStore` が使う取り込み先。`AdminApiClient` がそのまま当てはまる。
+ * 型を絞ってあるのは、送る形をテストから確かめられるようにするため
+ */
+export type IngestTarget = {
+  knownIds(storeSlug: StoreSlug): Promise<Set<string>>;
+  ingest(payload: IngestPayload): Promise<IngestResponse>;
+};
+
 /** 1 ストアぶんの結果。標準出力の 1 行になる */
 export type FeedOutcome = {
   storeSlug: StoreSlug;
@@ -63,6 +78,8 @@ export type FeedOutcome = {
   saved?: number;
   /** 取り込みが「対象声優が居ない」として捨てた作品数 */
   dropped?: number;
+  /** 引くつもりだった一覧をすべて取れたか */
+  complete: boolean;
   reason?: string;
   warnings: string[];
 };
@@ -73,16 +90,18 @@ export type FeedOutcome = {
  */
 export function formatOutcome(outcome: FeedOutcome): string {
   const label = STORE_LABELS[outcome.storeSlug];
+  // 引けなかった入口があったことは件数からは読めないので、行の頭で言う
+  const status = outcome.complete ? outcome.status : `${outcome.status} (一覧の一部を引けず)`;
   const counts = [`一覧 ${outcome.listed} 件`, `新規 ${outcome.sent} 件`];
   if (outcome.saved !== undefined) counts.push(`保存 ${outcome.saved} 件`);
   if (outcome.dropped !== undefined) counts.push(`対象声優なしで破棄 ${outcome.dropped} 件`);
   const reason = outcome.reason === undefined ? "" : ` (${outcome.reason})`;
-  return `${label} ${outcome.status} ${counts.join(" / ")}${reason}`;
+  return `${label} ${status} ${counts.join(" / ")}${reason}`;
 }
 
-async function runStore(
+export async function runStore(
   adapter: SourceAdapter,
-  client: AdminApiClient | undefined,
+  client: IngestTarget | undefined,
   snapshot: boolean,
 ): Promise<FeedOutcome> {
   const storeSlug = adapter.storeSlug;
@@ -98,6 +117,7 @@ async function runStore(
       status: "error",
       listed: 0,
       sent: 0,
+      complete: false,
       reason: "新着一覧に対応していない",
       warnings: [],
     };
@@ -108,6 +128,7 @@ async function runStore(
     status: result.status,
     listed: result.listedCount,
     sent: result.works.length,
+    complete: result.complete,
     ...(result.reason === undefined ? {} : { reason: result.reason }),
     warnings: result.warnings,
   };
@@ -124,11 +145,31 @@ async function runStore(
     works: result.works,
     ...(result.status === "error" && result.reason !== undefined ? { error: result.reason } : {}),
     // 総件数は送らない。新着一覧の `pager.count` はカテゴリ全体の作品数であって
-    // 新着数ではなく、網羅率として記録すると意味を取り違える
+    // 新着数ではなく、網羅率として記録すると意味を取り違える。
+    // 引けなかった入口があったときだけ false を送る。true は送らない
+    // (一覧をすべて引けても、新作を取りこぼしていないことの証明にはならない)
+    ...(result.complete ? {} : { coverageComplete: false }),
   };
 
-  const response = await client.ingest(payload);
-  return { ...base, saved: response.upserted, dropped: response.skippedByNoTargetActor };
+  try {
+    const response = await client.ingest(payload);
+    return { ...base, saved: response.upserted, dropped: response.skippedByNoTargetActor };
+  } catch (error) {
+    // 版ずれは走行全体の問題なので、記録を試みず上へ投げる
+    if (error instanceof IngestProtocolMismatchError) throw error;
+    // 作品を外して error だけ送り直す。これを送らないと crawl_runs に行が残らず、
+    // 走行が動かなかったのか新作が無かったのかを後から区別できない
+    const reason = error instanceof AdminApiError ? error.message : String(error);
+    const recorded = await client
+      .ingest(failureReport({ runId, storeSlug, startedAt }, reason))
+      .then(() => true)
+      .catch(() => false);
+    return {
+      ...base,
+      status: "error",
+      reason: recorded ? reason : `${reason} (失敗の記録も送れなかった)`,
+    };
+  }
 }
 
 export async function main(argv: readonly string[]): Promise<number> {
@@ -189,6 +230,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         status: "error",
         listed: 0,
         sent: 0,
+        complete: false,
         reason,
         warnings: [],
       });

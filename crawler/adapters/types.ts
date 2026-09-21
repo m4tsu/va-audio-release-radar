@@ -43,6 +43,11 @@ export type FeedResult = ParsedWorks & {
   reason?: string;
   /** 新着一覧に出た作品の数。`works` との差が「既知として送らなかった数」になる */
   listedCount: number;
+  /**
+   * 引くつもりだった一覧をすべて取れたか。false なら見に行けなかった入口がある。
+   * 「新作を取りこぼしていないか」ではない (新着一覧は総件数を出さないので、それは分からない)
+   */
+  complete: boolean;
   /** 実際に取れた一覧ページ数。DLsite は引くフロアの数 (`Coverage.pages` と同じ数え方) */
   pages: number;
 };
