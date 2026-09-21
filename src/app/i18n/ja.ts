@@ -200,12 +200,20 @@ export const ja = {
     initialFilterLabel: "頭文字で絞り込む",
     /** ストアと頭文字のどちらでも使う「絞っていない」選択肢 */
     filterAll: "すべて",
+    /** 性別の絞り込み。誰がどの性別かは画面に出さず、絞り込みの軸としてだけ使う */
+    genderFilterLabel: "性別で絞り込む",
+    genderAll: "全員",
+    genderFemale: "女性",
+    genderMale: "男性",
+    /** 女性でも男性でもない声優と、性別が分かっていない声優が入る */
+    genderOther: "その他",
     shownCount: "{{count}} 人",
     /** 上限で切っているとき。絞り込みに当てはまる人数と、いま並んでいる人数の両方を出す */
     shownOfTotal: "{{total}} 人中 {{count}} 人",
     /** 上限で切った残りを出すボタン。ストア・頭文字の「すべて」と違い、押すと元に戻せない */
     showAll: "すべて表示",
-    filteredEmptyTitle: "{{store}} に作品がある声優はいません",
+    /** 絞り込みの軸が 3 つあるので、どれで 0 人になったかは文にしない */
+    filteredEmptyTitle: "この条件に当てはまる声優はいません",
   },
 
   actor: {

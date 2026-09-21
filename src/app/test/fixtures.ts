@@ -38,6 +38,7 @@ export function actorSummary(over: Partial<ActorSummary> = {}): ActorSummary {
     slug: "alpha",
     canonicalName: "架空アルファ",
     status: "active",
+    gender: "unknown",
     workCount: 3,
     storeSlugs: ["dlsite"],
     ...over,

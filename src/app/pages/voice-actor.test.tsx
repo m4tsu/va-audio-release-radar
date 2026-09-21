@@ -71,6 +71,16 @@ describe("VoiceActorPage の見出し", () => {
     expect(screen.getByText("かくうあるふぁ")).toBeInTheDocument();
   });
 
+  /**
+   * 性別は `ActorDetail` に載っているが、出どころが利用者の編集できる外部 DB なので、
+   * 誤りを人物の属性として掲示しない。絞り込みの軸としてだけ使う (`pages/voice-actor-directory`)
+   */
+  test("性別は画面に出さない", () => {
+    render({ actor: actorDetail({ ...ACTOR, gender: "female" }) });
+
+    expect(screen.queryByText(/女性|男性/)).not.toBeInTheDocument();
+  });
+
   test("英語表示ではローマ字の名前で出す", () => {
     render({}, "en");
 

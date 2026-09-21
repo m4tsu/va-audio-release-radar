@@ -85,6 +85,10 @@ function storeFilter(label = "ストアで絞り込む") {
   return screen.getByRole("group", { name: label });
 }
 
+function genderFilter(label = "性別で絞り込む") {
+  return screen.getByRole("group", { name: label });
+}
+
 function initialFilter() {
   return screen.getByRole("group", { name: "Filter by initial" });
 }
@@ -169,7 +173,7 @@ describe("VoiceActorDirectoryPage のストア絞り込み", () => {
 
     await user.click(within(storeFilter()).getByRole("button", { name: "ポケドラ" }));
 
-    expect(screen.getByText("ポケドラ に作品がある声優はいません")).toBeInTheDocument();
+    expect(screen.getByText("この条件に当てはまる声優はいません")).toBeInTheDocument();
     expect(screen.getByText("0 人")).toBeInTheDocument();
   });
 
@@ -183,6 +187,122 @@ describe("VoiceActorDirectoryPage のストア絞り込み", () => {
       .getAllByRole("button")
       .filter((button) => button.getAttribute("aria-pressed") === "true");
     expect(pressed.map((button) => button.textContent)).toEqual(["Audible"]);
+  });
+});
+
+describe("VoiceActorDirectoryPage の性別の絞り込み", () => {
+  /**
+   * どの声優がどの性別かは画面に出さないので、絞り込んだ結果の顔ぶれでしか確かめられない。
+   * 誰がどこに入るかの規則そのものは `lib/actor-directory` が持つ
+   */
+  // 選択肢の文言 (女性 / 男性 / その他) を名前に含めない。含めると下の「書かない」テストが素通りする
+  const FEMALE = actorSummary({
+    id: "va_f",
+    slug: "f",
+    canonicalName: "架空アヤ",
+    gender: "female",
+  });
+  const MALE = actorSummary({ id: "va_m", slug: "m", canonicalName: "架空イオ", gender: "male" });
+  const UNKNOWN = actorSummary({ id: "va_u", slug: "u", canonicalName: "架空ウミ" });
+  const MIXED = [FEMALE, MALE, UNKNOWN];
+
+  const names = () =>
+    rows().map((row) => within(row).getByRole("link").querySelector("span")?.textContent);
+
+  test("開いた直後は全員が並ぶ", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
+
+    expect(rows()).toHaveLength(3);
+    expect(
+      within(genderFilter()).getByRole("button", { name: "全員" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  test("女性を選ぶと女性だけになり、読み上げの人数も変わる", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
+
+    await user.click(within(genderFilter()).getByRole("button", { name: "女性" }));
+
+    expect(names()).toEqual(["架空アヤ"]);
+    expect(screen.getByText("1 人")).toBeInTheDocument();
+  });
+
+  test("その他には性別が分かっていない声優も入る", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
+
+    await user.click(within(genderFilter()).getByRole("button", { name: "その他" }));
+
+    expect(names()).toEqual(["架空ウミ"]);
+  });
+
+  test("ストアの絞り込みと同時に効く", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={[ALPHA, BETA, DELTA, FEMALE]} />);
+
+    await user.click(within(storeFilter()).getByRole("button", { name: "DLsite" }));
+    await user.click(within(genderFilter()).getByRole("button", { name: "男性" }));
+
+    expect(screen.getByText("この条件に当てはまる声優はいません")).toBeInTheDocument();
+    expect(screen.getByText("0 人")).toBeInTheDocument();
+  });
+
+  test("選んだものだけが aria-pressed を持つ", async () => {
+    const user = userEvent.setup();
+    renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
+
+    await user.click(within(genderFilter()).getByRole("button", { name: "男性" }));
+
+    const pressed = within(genderFilter())
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-pressed") === "true");
+    expect(pressed.map((button) => button.textContent)).toEqual(["男性"]);
+  });
+
+  /** 出どころが利用者の編集できる外部 DB なので、誤りを人物の属性として掲示しない */
+  test("誰がどの性別かは一覧に書かない", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
+
+    for (const row of rows()) {
+      expect(row.textContent).not.toMatch(/女性|男性|その他/);
+    }
+  });
+
+  test("性別で絞ると押せる頭文字もその顔ぶれから決まる", async () => {
+    const user = userEvent.setup();
+    const kaji = actorSummary({
+      id: "va_kaji",
+      slug: "kaji",
+      canonicalName: "架空梶",
+      nameEn: "Yuki Kaji",
+      gender: "male",
+    });
+    const ueda = actorSummary({
+      id: "va_ueda2",
+      slug: "ueda2",
+      canonicalName: "架空上田",
+      nameEn: "Reina Ueda",
+      gender: "female",
+    });
+    renderWithLocale(<VoiceActorDirectoryPage actors={[ueda, kaji]} />, "en");
+
+    await user.click(
+      within(genderFilter("Filter by gender")).getByRole("button", { name: "Women" }),
+    );
+
+    expect(buttonLabels(initialFilter())).toEqual(["All", "U"]);
+  });
+
+  test("英語表示では選択肢が英語で出る", () => {
+    renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />, "en");
+
+    expect(buttonLabels(genderFilter("Filter by gender"))).toEqual([
+      "Everyone",
+      "Women",
+      "Men",
+      "Other",
+    ]);
   });
 });
 

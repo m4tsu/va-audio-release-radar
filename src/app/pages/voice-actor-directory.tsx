@@ -9,10 +9,13 @@ import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { Button } from "@/app/components/ui/button";
 import { type PlainTKey, useLocale, useT } from "@/app/i18n";
 import {
+  ACTOR_GENDER_FILTERS,
   ACTOR_SORTS,
+  type ActorGenderFilter,
   type ActorSort,
   arrangeActors,
   availableInitials,
+  DEFAULT_ACTOR_GENDER_FILTER,
   DEFAULT_ACTOR_SORT,
   isActorSort,
 } from "@/app/lib/actor-directory";
@@ -27,7 +30,9 @@ import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
  * 並べ替えと絞り込みを全員に効かせるため全員ぶんを持つが、描くのは `INITIAL_VISIBLE` 人までで、
  * 残りは「すべて表示」を押したときに出す。
  *
- * 並べ替えと絞り込み (ストア・頭文字) は `lib/actor-directory` が持つ
+ * 並べ替えと絞り込み (ストア・性別・頭文字) は `lib/actor-directory` が持つ。
+ * 性別は絞り込みの軸にするだけで、誰がどの性別かは画面のどこにも書かない
+ * (出どころが利用者の編集できる外部 DB なので、誤りを人物の属性として掲示しない)
  */
 export function VoiceActorDirectoryPage({ actors }: { actors: ActorSummary[] }) {
   const t = useT();
@@ -59,22 +64,32 @@ const SORT_LABEL_KEYS = {
   workCount: "voiceActors.sortWorkCount",
 } as const satisfies Record<ActorSort, PlainTKey>;
 
+/** 性別の絞り込みの文言。`ACTOR_GENDER_FILTERS` の各値に 1 つずつ要る */
+const GENDER_LABEL_KEYS = {
+  // ストアの「すべて」と並ぶので同じ文言にしない。隣り合う 2 つの「すべて」は押す前に区別が付かない
+  all: "voiceActors.genderAll",
+  female: "voiceActors.genderFemale",
+  male: "voiceActors.genderMale",
+  other: "voiceActors.genderOther",
+} as const satisfies Record<ActorGenderFilter, PlainTKey>;
+
 function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
   const t = useT();
   const locale = useLocale();
   const [sort, setSort] = useState<ActorSort>(DEFAULT_ACTOR_SORT);
   const [store, setStore] = useState<StoreSlug | null>(null);
+  const [gender, setGender] = useState<ActorGenderFilter>(DEFAULT_ACTOR_GENDER_FILTER);
   const [initial, setInitial] = useState<string | null>(null);
   // 一度押したら以後は解かない。並べ替えや絞り込みのたびに畳み直すと、押した操作が無かったことになる
   const [expanded, setExpanded] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
   const initials = useMemo(
-    () => availableInitials(actors, { store, locale }),
-    [actors, store, locale],
+    () => availableInitials(actors, { store, gender, locale }),
+    [actors, store, gender, locale],
   );
   const shown = useMemo(
-    () => arrangeActors(actors, { sort, store, initial, locale }),
-    [actors, sort, store, initial, locale],
+    () => arrangeActors(actors, { sort, store, gender, initial, locale }),
+    [actors, sort, store, gender, initial, locale],
   );
   // 切るのは並べ替えと絞り込みを通した後。先に切ると、切り取った中だけを並べ替えることになる
   const visible = expanded ? shown : shown.slice(0, INITIAL_VISIBLE);
@@ -97,10 +112,20 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
    */
   const changeStore = (next: StoreSlug | null) => {
     setStore(next);
-    if (initial !== null && !availableInitials(actors, { store: next, locale }).includes(initial)) {
+    dropInitialIfGone({ store: next, gender });
+  };
+
+  /** 性別を変えたときも押せる頭文字が変わる。理由は `changeStore` と同じ */
+  const changeGender = (next: ActorGenderFilter) => {
+    setGender(next);
+    dropInitialIfGone({ store, gender: next });
+  };
+
+  function dropInitialIfGone(next: { store: StoreSlug | null; gender: ActorGenderFilter }) {
+    if (initial !== null && !availableInitials(actors, { ...next, locale }).includes(initial)) {
       setInitial(null);
     }
-  };
+  }
 
   return (
     <section className="space-y-4">
@@ -113,6 +138,7 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
           onChange={setSort}
         />
         <StoreFilter value={store} onChange={changeStore} />
+        <GenderFilter value={gender} onChange={changeGender} />
         {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる */}
         <p aria-live="polite" className="ms-auto text-muted-foreground text-sm">
           {truncated
@@ -125,9 +151,10 @@ function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
         <InitialFilter value={initial} initials={initials} onChange={setInitial} />
       ) : null}
 
-      {/* 絞り込んでいなければ 0 人にはならない (呼び出し側が全員 0 人のときを先に弾いている) */}
-      {shown.length === 0 && store !== null ? (
-        <EmptyState title={t("voiceActors.filteredEmptyTitle", { store: storeLabel(store) })} />
+      {/* 絞り込んでいなければ 0 人にはならない (呼び出し側が全員 0 人のときを先に弾いている)。
+          どの軸で 0 人になったかを文にしないのは、軸が 3 つあって 1 つだけを名指しすると嘘になるため */}
+      {shown.length === 0 ? (
+        <EmptyState title={t("voiceActors.filteredEmptyTitle")} />
       ) : (
         <>
           <ActorList ref={listRef} actors={visible} />
@@ -174,6 +201,33 @@ function StoreFilter({
           label={storeLabel(slug)}
           selected={value === slug}
           onClick={() => onChange(slug)}
+        />
+      ))}
+    </fieldset>
+  );
+}
+
+/**
+ * 性別の絞り込み。全員 / 女性 / 男性 / その他 の 4 つで、一覧の全員がどれか 1 つに必ず入る。
+ * 「その他」に性別が分かっていない声優が入ることは `lib/actor-directory` が決める
+ */
+function GenderFilter({
+  value,
+  onChange,
+}: {
+  value: ActorGenderFilter;
+  onChange: (next: ActorGenderFilter) => void;
+}) {
+  const t = useT();
+
+  return (
+    <fieldset aria-label={t("voiceActors.genderFilterLabel")} className="flex flex-wrap gap-1">
+      {ACTOR_GENDER_FILTERS.map((filter) => (
+        <FilterButton
+          key={filter}
+          label={t(GENDER_LABEL_KEYS[filter])}
+          selected={value === filter}
+          onClick={() => onChange(filter)}
         />
       ))}
     </fieldset>

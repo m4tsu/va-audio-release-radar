@@ -1,6 +1,6 @@
 import type { Locale } from "@/app/i18n";
 import type { ActorSummary } from "@/app/lib/view-types";
-import type { StoreSlug } from "@/domain/types";
+import type { StoreSlug, VoiceActorGender } from "@/domain/types";
 
 /**
  * 声優一覧の並べ替えと絞り込み。
@@ -25,13 +25,26 @@ export function isActorSort(value: string): value is ActorSort {
   return (ACTOR_SORTS as readonly string[]).includes(value);
 }
 
+/**
+ * 性別の絞り込みの選択肢。DB の列挙 (`VoiceActorGender`) とは別物で、
+ * "other" は「女性でも男性でもない」と「分かっていない」の両方を指す。
+ *
+ * 分けないのは、一覧の全員がどれか 1 つに必ず入るようにするため。
+ * 「不明」を独立した選択肢にすると、利用者は空欄を選ばされることになる
+ */
+export const ACTOR_GENDER_FILTERS = ["all", "female", "male", "other"] as const;
+export type ActorGenderFilter = (typeof ACTOR_GENDER_FILTERS)[number];
+export const DEFAULT_ACTOR_GENDER_FILTER: ActorGenderFilter = "all";
+
 /** 並べ替えと絞り込みに要る列だけ。テストから丸ごとの行を組み立てずに済ませる */
-type DirectoryActor = Pick<ActorSummary, "workCount" | "storeSlugs" | "nameEn">;
+type DirectoryActor = Pick<ActorSummary, "workCount" | "storeSlugs" | "nameEn" | "gender">;
 
 export type ActorArrangement = {
   sort: ActorSort;
   /** null はストアで絞っていない状態 */
   store: StoreSlug | null;
+  /** "all" は性別で絞っていない状態 */
+  gender: ActorGenderFilter;
   /** 頭文字 (A-Z の 1 文字)。null は頭文字で絞っていない状態。日本語表示では見ない */
   initial: string | null;
   /** 名前順の並びと頭文字の絞り込みは表示言語で変わる */
@@ -41,25 +54,25 @@ export type ActorArrangement = {
 /** 絞り込んでから並べ替える。元の配列は書き換えない */
 export function arrangeActors<T extends DirectoryActor>(
   actors: readonly T[],
-  { sort, store, initial, locale }: ActorArrangement,
+  { sort, store, gender, initial, locale }: ActorArrangement,
 ): T[] {
-  const inStore = filterByStore(actors, store);
+  const narrowed = narrow(actors, store, gender);
   const filtered =
-    initial === null ? inStore : inStore.filter((a) => actorInitial(a, locale) === initial);
+    initial === null ? narrowed : narrowed.filter((a) => actorInitial(a, locale) === initial);
   return sortActors(filtered, sort, locale);
 }
 
 /**
  * 選べる頭文字。
  *
- * ストアで絞った後の顔ぶれから作る。押した結果が 0 人になる文字を出さないため
+ * ストアと性別で絞った後の顔ぶれから作る。押した結果が 0 人になる文字を出さないため
  */
 export function availableInitials<T extends DirectoryActor>(
   actors: readonly T[],
-  { store, locale }: Pick<ActorArrangement, "store" | "locale">,
+  { store, gender, locale }: Pick<ActorArrangement, "store" | "gender" | "locale">,
 ): string[] {
   const initials = new Set<string>();
-  for (const actor of filterByStore(actors, store)) {
+  for (const actor of narrow(actors, store, gender)) {
     const initial = actorInitial(actor, locale);
     if (initial !== null) initials.add(initial);
   }
@@ -72,17 +85,38 @@ export function availableInitials<T extends DirectoryActor>(
  *
  * 持たない声優は頭文字での絞り込みに出てこない。絞っていない一覧には出る
  */
-export function actorInitial(actor: DirectoryActor, locale: Locale): string | null {
+export function actorInitial(actor: Pick<DirectoryActor, "nameEn">, locale: Locale): string | null {
   if (locale !== "en" || actor.nameEn === undefined) return null;
   const head = nameSortKeyEn(actor.nameEn).slice(0, 1).toUpperCase();
   return /^[A-Z]$/.test(head) ? head : null;
 }
 
-function filterByStore<T extends DirectoryActor>(
+/**
+ * 頭文字より前に効く絞り込み (ストアと性別)。
+ *
+ * 押せる頭文字を数えるときと、一覧を絞るときの両方から呼ぶ。
+ * 片方だけを直すと「押した結果が 0 人になる頭文字」が出る
+ */
+function narrow<T extends DirectoryActor>(
   actors: readonly T[],
   store: StoreSlug | null,
+  gender: ActorGenderFilter,
 ): T[] {
-  return store === null ? [...actors] : actors.filter((a) => a.storeSlugs.includes(store));
+  const inStore = store === null ? [...actors] : actors.filter((a) => a.storeSlugs.includes(store));
+  return gender === "all" ? inStore : inStore.filter((a) => matchesGender(a.gender, gender));
+}
+
+/**
+ * 「その他」は女性でも男性でもない声優すべて。出どころ (AniList) が性別を持たない声優もここに入る。
+ *
+ * 4 つの選択肢のどれを選んでも、一覧の全員がいずれか 1 つに必ず入る
+ */
+function matchesGender(
+  gender: VoiceActorGender,
+  filter: Exclude<ActorGenderFilter, "all">,
+): boolean {
+  if (filter === "other") return gender !== "female" && gender !== "male";
+  return gender === filter;
 }
 
 /**

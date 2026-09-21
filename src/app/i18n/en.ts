@@ -170,10 +170,15 @@ export const en: Translations = {
     storeFilterLabel: "Filter by store",
     initialFilterLabel: "Filter by initial",
     filterAll: "All",
+    genderFilterLabel: "Filter by gender",
+    genderAll: "Everyone",
+    genderFemale: "Women",
+    genderMale: "Men",
+    genderOther: "Other",
     shownCount: { one: "{{count}} voice actor", other: "{{count}} voice actors" },
     shownOfTotal: "{{count}} of {{total}} voice actors",
     showAll: "Show all",
-    filteredEmptyTitle: "No voice actors have works on {{store}}",
+    filteredEmptyTitle: "No voice actors match these filters",
   },
 
   actor: {

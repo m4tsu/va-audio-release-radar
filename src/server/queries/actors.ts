@@ -43,6 +43,8 @@ export type ActorSummary = {
   nameEn?: string;
   imageUrl?: string;
   status: VoiceActor["status"];
+  /** 一覧の絞り込みだけが見る。画面には文字として出さない (`pages/voice-actor-directory`) */
+  gender: VoiceActor["gender"];
   workCount: number;
   /** この声優の作品が載っているストア。`STORE_SLUGS` の順。一覧のストア絞り込みが見る */
   storeSlugs: StoreSlug[];
@@ -376,6 +378,7 @@ function summaryQuery(db: AppDb, extra?: SQL) {
         nameEn: voiceActors.nameEn,
         imageUrl: voiceActors.imageUrl,
         status: voiceActors.status,
+        gender: voiceActors.gender,
         workCount: workCountExpression,
         storeSlugs: storeSlugsExpression,
       })
@@ -398,6 +401,7 @@ type ActorSummaryRow = {
   nameEn: string | null;
   imageUrl: string | null;
   status: VoiceActor["status"];
+  gender: VoiceActor["gender"];
   workCount: number;
   storeSlugs: string | null;
 };
@@ -411,6 +415,7 @@ function toActorSummary(row: ActorSummaryRow): ActorSummary {
     ...(row.nameEn ? { nameEn: row.nameEn } : {}),
     ...(row.imageUrl ? { imageUrl: row.imageUrl } : {}),
     status: row.status,
+    gender: row.gender,
     workCount: Number(row.workCount ?? 0),
     storeSlugs: toStoreSlugs(row.storeSlugs),
   };
