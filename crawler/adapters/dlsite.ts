@@ -7,7 +7,9 @@ import type {
   ActorQuery,
   AdapterResult,
   Coverage,
+  FeedResult,
   FetchByActorOptions,
+  FetchNewReleasesOptions,
   ParsedWorks,
   SourceAdapter,
 } from "./types.ts";
@@ -72,6 +74,18 @@ export function buildSearchUrl(
   return (
     `https://www.dlsite.com/${floor}/fsr/=/language/jp/keyword_creater/` +
     `${keyword}/work_type_category[0]/audio/order/${order}/page/1`
+  );
+}
+
+/**
+ * 新着一覧の URL。検索 URL から `keyword_creater` を外しただけの形で、発売日の新しい順に
+ * 30 件返る (`docs/stores/dlsite.md` の「新着一覧」)。
+ * `per_page` を含まないので robots.txt の `Disallow` に一致しない
+ */
+export function buildFeedUrl(floor: DlsiteFloor = "home"): string {
+  return (
+    `https://www.dlsite.com/${floor}/fsr/=/language/jp` +
+    "/work_type_category[0]/audio/order/release_d/page/1"
   );
 }
 
@@ -486,9 +500,34 @@ async function fetchByActor(
     warnings.push(`網羅率 ${coverage.fetched}/${totalCount} (全フロアの合計)`);
   }
 
+  const works = await applyDetails(listWorks.values(), options, warnings);
+
+  return {
+    ...base,
+    works,
+    invalidCount,
+    warnings,
+    coverage,
+    ...(coverage.total === undefined ? {} : { totalCount: coverage.total }),
+  };
+}
+
+/**
+ * 一覧から作った作品に `product.json` を当てる。一覧には発売日も出演者全員も無いので、
+ * 送る前に必ずここを通す。
+ *
+ * 詳細を取れなかった作品は一覧の情報だけで通す。詳細が取れなかったことを理由に、
+ * 一覧から分かっている事実まで捨てないため。落とすのは年齢区分が許可集合の外だと
+ * **分かった** 作品だけ
+ */
+async function applyDetails(
+  listWorks: Iterable<RawWork>,
+  options: { skipKnownIds?: ReadonlySet<string>; snapshot?: boolean },
+  warnings: string[],
+): Promise<RawWork[]> {
   const works: RawWork[] = [];
 
-  for (const listWork of listWorks.values()) {
+  for (const listWork of listWorks) {
     if (options.skipKnownIds?.has(listWork.storeProductId) === true) {
       // 既知の作品は詳細を取り直さない。DLsite への往復を減らすため
       works.push(listWork);
@@ -531,18 +570,77 @@ async function fetchByActor(
     works.push(detailed);
   }
 
-  return {
-    ...base,
-    works,
+  return works;
+}
+
+/**
+ * 新着一覧から、まだ知らない作品だけを取る (日次の走行)。声優を指定しないので、
+ * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
+ *
+ * 声優起点と違ってフロアごとに 1 ページだけ引く。並び順違いの補完はしない。
+ * 1 ページ 30 件が新作 4 日ぶんに当たり、日次で引く限り足りるため
+ * (`docs/stores/dlsite.md` の「新着一覧」)
+ */
+async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
+  const fetchedAt = new Date().toISOString();
+  const warnings: string[] = [];
+  const failures: string[] = [];
+  let invalidCount = 0;
+  let pages = 0;
+
+  // フロアをまたいで ID で畳む。作品 ID は DLsite 全体で 1 つの体系
+  const listed = new Map<string, RawWork>();
+
+  for (const floor of DLSITE_FLOORS) {
+    const result = await fetchText(buildFeedUrl(floor), {
+      store: STORE_SLUG,
+      requestKey: `feed-${floor}`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+    if (!result.ok) {
+      // このフロアだけ引けなかった。取れた側は使うので走行は続ける
+      failures.push(`${floor}: ${result.reason}`);
+      warnings.push(`${floor} の新着一覧を取れなかった (${result.reason})`);
+      continue;
+    }
+
+    pages += 1;
+    const parsed = parseSearchHtml(result.body, fetchedAt, floor);
+    invalidCount += parsed.invalidCount;
+    warnings.push(...parsed.warnings);
+    for (const work of parsed.works) {
+      if (!listed.has(work.storeProductId)) listed.set(work.storeProductId, work);
+    }
+    // `pager.count` はカテゴリ全体の作品数であって新着数ではないので totalCount に載せない
+  }
+
+  const base = {
+    storeSlug: STORE_SLUG,
+    works: [] as RawWork[],
     invalidCount,
     warnings,
-    coverage,
-    ...(coverage.total === undefined ? {} : { totalCount: coverage.total }),
+    listedCount: listed.size,
+    pages,
   };
+
+  if (pages === 0) {
+    return { ...base, status: "error", reason: `新着一覧の取得に失敗 (${failures.join(" / ")})` };
+  }
+
+  // 既知の作品は詳細も取らず、送りもしない。日次の目的は新作の検出で、
+  // 既知の作品の項目を直すのは月次の役目 (`decisions/0007`)
+  const known = options.knownIds;
+  const fresh = [...listed.values()].filter((work) => known?.has(work.storeProductId) !== true);
+
+  const works = await applyDetails(fresh, { snapshot: options.snapshot }, warnings);
+
+  return { ...base, works, status: works.length === 0 ? "empty" : "ok" };
 }
 
 export const dlsiteAdapter: SourceAdapter = {
   storeSlug: STORE_SLUG,
   fetchByActor,
+  fetchNewReleases,
   parseSearchHtml,
 };

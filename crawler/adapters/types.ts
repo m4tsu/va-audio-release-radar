@@ -15,7 +15,37 @@ export interface SourceAdapter {
    * @param fetchedAt RawWork.fetchedAt に入れる ISO 8601 文字列 (呼び出し側が決める)
    */
   parseSearchHtml(html: string, fetchedAt: string): ParsedWorks;
+  /**
+   * ストアの新着一覧から、まだ知らない作品だけを取る (日次の走行。`decisions/0007`)。
+   * 声優を指定しないので、誰の作品かは取り込み側が出演者名で照合する。
+   *
+   * 任意にしてあるのは、新着一覧を使えるかがストアごとに違うため。
+   * 持たないストアは日次の対象から外れ、月次の声優起点だけで拾う
+   */
+  fetchNewReleases?(options?: FetchNewReleasesOptions): Promise<FeedResult>;
 }
+
+export type FetchNewReleasesOptions = {
+  /**
+   * 既に DB にある storeProductId。**新着一覧の走行では詳細を取らないだけでなく、
+   * 送りもしない。** 日次の目的は新作の検出で、既知の作品の項目を直すのは月次の役目
+   */
+  knownIds?: ReadonlySet<string>;
+  /** false で .cache/snapshots への保存を止める (--no-snapshot) */
+  snapshot?: boolean;
+};
+
+/** 新着一覧 1 回ぶんの結果。声優を指定しないので `AdapterResult` と違って actorName を持たない */
+export type FeedResult = ParsedWorks & {
+  storeSlug: StoreSlug;
+  status: AdapterStatus;
+  /** `empty` / `error` の理由。人が読む 1 行 */
+  reason?: string;
+  /** 新着一覧に出た作品の数。`works` との差が「既知として送らなかった数」になる */
+  listedCount: number;
+  /** 実際に取れた一覧ページ数。DLsite は引くフロアの数 (`Coverage.pages` と同じ数え方) */
+  pages: number;
+};
 
 /**
  * `fetchByActor` に渡す検索対象。

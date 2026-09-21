@@ -5,6 +5,7 @@ import type { FetchResult } from "../lib/fetch.ts";
 import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
   applyProductDetail,
+  buildFeedUrl,
   buildProductJsonUrl,
   buildProductUrl,
   buildSearchUrl,
@@ -30,6 +31,11 @@ const fetchTextMock = vi.mocked(fetchText);
 
 const FETCHED_AT = "2026-09-18T00:00:00.000Z";
 const searchHtml = readFileSync(path.join(FIXTURES_DIR, "dlsite-search-ueda-reina.html"), "utf8");
+/** 新着一覧 (キーワード無し)。声優検索と同じセレクタで読めることを確かめる */
+const feedHtml = {
+  home: readFileSync(path.join(FIXTURES_DIR, "dlsite-feed-home.html"), "utf8"),
+  garumani: readFileSync(path.join(FIXTURES_DIR, "dlsite-feed-garumani.html"), "utf8"),
+};
 /** `/garumani/` の一覧。`/home/` と同じセレクタで読めることを確かめるためのもの */
 const garumaniSearchHtml = readFileSync(
   path.join(FIXTURES_DIR, "dlsite-search-garumani-saito-souma.html"),
@@ -66,6 +72,51 @@ describe("buildSearchUrl", () => {
         "%22%E4%B8%8A%E7%94%B0%E9%BA%97%E5%A5%88%22" +
         "/work_type_category[0]/audio/order/release_d/page/1",
     );
+  });
+});
+
+describe("buildFeedUrl", () => {
+  it("検索 URL から keyword_creater を外しただけの形にする", () => {
+    expect(buildFeedUrl()).toBe(
+      "https://www.dlsite.com/home/fsr/=/language/jp" +
+        "/work_type_category[0]/audio/order/release_d/page/1",
+    );
+    expect(buildFeedUrl("garumani")).toBe(
+      "https://www.dlsite.com/garumani/fsr/=/language/jp" +
+        "/work_type_category[0]/audio/order/release_d/page/1",
+    );
+  });
+
+  it("robots.txt の Disallow に一致しない形になっている", () => {
+    // `Disallow: /*/fsr/=/*/per_page/*/page/` は per_page を必須にしている
+    // (docs/stores/dlsite.md の「robots.txt」)
+    for (const floor of DLSITE_FLOORS) {
+      expect(buildFeedUrl(floor)).not.toContain("per_page");
+      expect(buildFeedUrl(floor)).not.toContain("search/result");
+    }
+  });
+});
+
+describe("parseSearchHtml (新着一覧)", () => {
+  it("キーワード無しの一覧も声優検索と同じセレクタで読める", () => {
+    for (const floor of DLSITE_FLOORS) {
+      const parsed = parseSearchHtml(feedHtml[floor], FETCHED_AT, floor);
+      // フィクスチャは 1 ページ目 30 件のうち先頭 5 件を残したもの
+      expect(parsed.works).toHaveLength(5);
+      expect(parsed.invalidCount).toBe(0);
+      expect(parsed.warnings).toEqual([]);
+      for (const work of parsed.works) {
+        expect(work.titleRaw.length).toBeGreaterThan(0);
+        expect(work.productUrl).toContain(work.storeProductId);
+      }
+    }
+  });
+
+  it("出演者が一覧から取れない作品がある", () => {
+    // 代表 1 名すら出ない作品があるので、新着一覧では全件 product.json が要る
+    // (docs/stores/dlsite.md の「新着一覧」)
+    const parsed = parseSearchHtml(feedHtml.home, FETCHED_AT);
+    expect(parsed.works.some((work) => work.creditedNames.length === 0)).toBe(true);
   });
 });
 
@@ -566,5 +617,136 @@ describe("dlsiteAdapter.fetchByActor の年齢区分", () => {
 
     expect(result.works.map((work) => work.storeProductId)).toEqual(["BJ1"]);
     expect(result.warnings).toContain("BJ2: 対象外の年齢区分 (age_category=3) のため除外");
+  });
+});
+
+describe("dlsiteAdapter.fetchNewReleases", () => {
+  beforeEach(() => {
+    fetchTextMock.mockReset();
+  });
+
+  /** `product.json` 1 件ぶんの最小限の応答 */
+  function productJsonFor(workno: string, ageCategory = 1): FetchResult {
+    return ok(
+      JSON.stringify([
+        {
+          workno,
+          work_name: `作品 ${workno}`,
+          age_category: ageCategory,
+          site_id: "home",
+          creaters: { voice_by: [{ name: `声優 ${workno}` }] },
+        },
+      ]),
+    );
+  }
+
+  /** フロアごとに一覧を返し、`product.json` は workno から機械的に組み立てる */
+  function respond(
+    lists: Partial<Record<DlsiteFloor, FetchResult>>,
+    ageByWorkno: Record<string, number> = {},
+  ) {
+    fetchTextMock.mockImplementation(async (url: string) => {
+      const floor = DLSITE_FLOORS.find((name) => url.includes(`/${name}/fsr/`));
+      if (floor !== undefined) return lists[floor] ?? ok(searchPage([]));
+      const workno = /workno=([^&]+)/.exec(url)?.[1];
+      if (workno === undefined) throw new Error(`想定外の URL: ${url}`);
+      return productJsonFor(workno, ageByWorkno[workno] ?? 1);
+    });
+  }
+
+  it("両方のフロアの新着を 1 つにまとめ、作品 ID で畳む", async () => {
+    respond({ home: ok(searchPage(["RJ1", "RJ2"])), garumani: ok(searchPage(["RJ2", "BJ1"])) });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("ok");
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["RJ1", "RJ2", "BJ1"]);
+    expect(result?.listedCount).toBe(3);
+    expect(result?.pages).toBe(2);
+  });
+
+  it("並び順違いの補完はせず、フロアごとに 1 ページだけ引く", async () => {
+    respond({ home: ok(searchPage(["RJ1"], 8985)) });
+
+    await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    const listUrls = fetchTextMock.mock.calls
+      .map((call) => call[0])
+      .filter((url: string) => url.includes("/fsr/"));
+    expect(listUrls).toEqual([buildFeedUrl("home"), buildFeedUrl("garumani")]);
+  });
+
+  it("総件数は載せない。pager.count はカテゴリ全体の作品数で新着数ではない", async () => {
+    respond({ home: ok(searchPage(["RJ1"], 8985)) });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.totalCount).toBeUndefined();
+  });
+
+  it("既知の作品は詳細を取らず、送りもしない", async () => {
+    respond({ home: ok(searchPage(["RJ1", "RJ2"])) });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({
+      knownIds: new Set(["RJ1"]),
+      snapshot: false,
+    });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["RJ2"]);
+    // 一覧に出た数は既知を含めて数える。差が「送らなかった数」になる
+    expect(result?.listedCount).toBe(2);
+    const urls: string[] = fetchTextMock.mock.calls.map((call) => call[0]);
+    expect(urls.some((url) => url.includes("workno=RJ1"))).toBe(false);
+    expect(urls.some((url) => url.includes("workno=RJ2"))).toBe(true);
+  });
+
+  it("新着が全部既知なら empty で返す", async () => {
+    respond({ home: ok(searchPage(["RJ1"])) });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({
+      knownIds: new Set(["RJ1"]),
+      snapshot: false,
+    });
+
+    expect(result?.status).toBe("empty");
+    expect(result?.works).toEqual([]);
+    expect(result?.listedCount).toBe(1);
+  });
+
+  it("許可していない年齢区分の作品は送らない", async () => {
+    respond({ home: ok(searchPage(["RJ1", "RJ2"])) }, { RJ2: 3 });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["RJ1"]);
+    expect(result?.warnings).toContain("RJ2: 対象外の年齢区分 (age_category=3) のため除外");
+  });
+
+  it("片方のフロアが落ちても、取れた側で続行して警告に残す", async () => {
+    respond({
+      home: ok(searchPage(["RJ1"])),
+      garumani: { ok: false, url: "https://www.dlsite.com/", reason: "timeout" },
+    });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("ok");
+    expect(result?.works).toHaveLength(1);
+    expect(result?.pages).toBe(1);
+    expect(result?.warnings).toContain("garumani の新着一覧を取れなかった (timeout)");
+  });
+
+  it("どのフロアも引けなければ error で、理由をフロアごとに残す", async () => {
+    fetchTextMock.mockResolvedValue({
+      ok: false,
+      url: "https://www.dlsite.com/",
+      reason: "timeout",
+    });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("error");
+    expect(result?.works).toEqual([]);
+    expect(result?.reason).toBe("新着一覧の取得に失敗 (home: timeout / garumani: timeout)");
   });
 });

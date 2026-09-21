@@ -135,7 +135,25 @@ https://www.dlsite.com/{floor}/fsr/=/language/jp/keyword_creater/"{名前}"/work
 - 許可の根拠: `per_page` を含まないので `Disallow: /*/fsr/=/*/per_page/*/page/` に一致しない。
   また `page/1` は `Allow: /*/fsr/=/*/per_page/*/page/1/` の意図とも矛盾しない。
   フロアを名指しで禁じている行に `/home/` も `/garumani/` も無い (§1)
-- キーワードを外せば新着一覧になるのはどちらのフロアも同じ
+
+### 新着一覧 (キーワード無し)
+
+```
+https://www.dlsite.com/{floor}/fsr/=/language/jp/work_type_category[0]/audio/order/release_d/page/1
+```
+
+上の声優検索から `keyword_creater` を外しただけの形。日次の走行が使う
+([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
+
+- **許可の根拠は声優検索と同じ。** `per_page` を含まないので `Disallow` に一致せず、
+  フロアを名指しで禁じている行にも当たらない
+- 1 ページ 30 件。**引くのは 1 ページ目だけ**で、並び順違いの補完もしない。
+  1 ページ目が新作の数日ぶんを覆うので、日次で引く限り足りる
+  (件数と日数は [`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md))
+- **埋め込み JSON の `pager.count` は使わない。** カテゴリ全体の作品数であって新着数ではないので、
+  網羅率として記録すると意味を取り違える
+- **出演者は一覧から取れない。** 代表 1 名すら空の作品があるので、一覧に出た新規 ID は全件
+  `product.json` を引く。誰の作品かを決めるのは取り込み側
 
 ### 作品詳細 API
 

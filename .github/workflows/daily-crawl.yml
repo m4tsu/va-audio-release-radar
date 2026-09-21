@@ -1,0 +1,63 @@
+name: 日次のクロール (新着一覧)
+
+# ストアの新着一覧を引き、まだ知らない作品だけを本番の POST /api/admin/ingest に投げる
+# (docs/decisions/0007-daily-crawl-from-store-feeds.md)。必要な Secrets は INGEST_URL と INGEST_TOKEN。
+#
+# 声優起点の巡回 (crawl.yml) と分けてあるのは、走る周期も所要も違うため。
+# あちらは対象声優の人数に比例して数時間かかり、手動実行だけにしてある。
+on:
+  schedule:
+    # 04:10 UTC = 13:10 JST。DLsite の新着は 1 ページ目で 4 日ぶんを覆うので時刻の精度は要らない。
+    # 正時を外すのは GitHub Actions の混雑を避けるため
+    - cron: "10 4 * * *"
+  workflow_dispatch:
+    inputs:
+      store:
+        description: "対象ストア (空なら新着一覧を持つストアすべて)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - dlsite
+
+# 声優起点の巡回と同じグループにする。レートリミッタはプロセス内にあるので、
+# 2 つの走行が重なると同じホストへの実効間隔が半分になる (crawler/lib/fetch.ts)
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    name: 新着一覧から取り込む
+    runs-on: ubuntu-latest
+    # 新着一覧 1 ページ × フロア数 + 新作の product.json。1 日あたりの新作は 1 桁件で、
+    # ホストごとの間隔を守っても数分で終わる (docs/stores/dlsite.md の「新着一覧」)。
+    # 上限はストアが増えたときの歯止めとして置いている
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: 新着一覧のクロールと取り込み
+        # 入力と秘匿値は env 経由で渡す。run 本文に ${{ }} で埋め込むと、入力の中身が
+        # シェルとして解釈されてしまうため
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          STORE: ${{ inputs.store }}
+        run: |
+          args=()
+          if [ -n "$STORE" ]; then args+=(--store "$STORE"); fi
+          node crawler/daily.ts --base-url "$INGEST_URL" "${args[@]}"
+      - name: 取得した生データを残す
+        # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: snapshots
+          path: crawler/.cache/snapshots
+          retention-days: 7
+          if-no-files-found: ignore

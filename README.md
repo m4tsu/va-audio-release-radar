@@ -50,7 +50,8 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 | `npm run db:import:remote -- <file>` | 書き出した SQL を本番 D1 に流し込む。人が実行する |
 | `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す (「本番 D1」)。中身はすべて入れ替わる |
 | `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
-| `npm run radar:crawl` | クローラー本体。オプションは `node crawler/run.ts --help` |
+| `npm run radar:crawl` | 声優起点のクローラー。オプションは `node crawler/run.ts --help` |
+| `npm run radar:daily` | 新着一覧から日次で取り込む。オプションは `node crawler/daily.ts --help` |
 | `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
 | `npm run radar:test` / `radar:typecheck` | crawler だけのテスト / 型検査 |
 | `npm run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
@@ -138,11 +139,18 @@ node crawler/discovery/build-pokedora-tags.ts
 `node crawler/discovery/pokedora-tags.ts --resume` で、所要は
 [`docs/stores/pokedora.md`](./docs/stores/pokedora.md) の「全件クロールのコスト」。
 
-GitHub Actions からは `.github/workflows/crawl.yml` を手動で実行する。定期実行は止めてある
+走行は 2 つある。**日次**はストアの新着一覧を引いて新作だけを取り込み、**声優起点**は初期構築と
+月次の補完に使う (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
+
+GitHub Actions では日次が `.github/workflows/daily-crawl.yml` の cron で動く。声優起点の
+`.github/workflows/crawl.yml` は手動実行だけで、定期実行は止めてある
 (理由と戻す条件はワークフロー先頭のコメント)。
 
 ```bash
-# 取り込みまで通す (dev サーバーを起動しておく)
+# 日次: 新着一覧から取り込む (dev サーバーを起動しておく)
+INGEST_TOKEN=dev npm run radar:daily -- --base-url http://localhost:5199
+
+# 声優起点: 取り込みまで通す
 INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199
 
 # 一部の声優・1 つのストアだけ
