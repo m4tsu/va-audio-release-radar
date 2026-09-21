@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ExternalLink, ListFilter } from "lucide-react";
+import { ExternalLink, Store, Tag, Users } from "lucide-react";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
@@ -15,14 +16,9 @@ import { WorkCard } from "@/app/components/work-card";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
 import { animeDisplayTitle } from "@/app/lib/anime-title";
-import {
-  APPEARANCE_FILTERS,
-  type AppearanceFilter,
-  appearanceLabel,
-  isAppearanceFilter,
-  matchesAppearance,
-} from "@/app/lib/appearance";
+import { APPEARANCE_FILTERS, appearanceLabel, isAppearanceFilter } from "@/app/lib/appearance";
 import { characterDisplayName } from "@/app/lib/character-name";
+import { categoryLabel, formatYearMonth } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { seasonLabel } from "@/app/lib/season";
 import { storeActorSearchUrl } from "@/app/lib/store-search";
@@ -30,48 +26,64 @@ import type {
   ActorAnimeAppearance,
   ActorDetail,
   ActorStoreCoverage,
+  ActorWorkStats,
   WorkWithListings,
 } from "@/app/lib/view-types";
+import {
+  CATEGORY_FILTERS,
+  filterWorks,
+  isCategoryFilter,
+  isStoreFilter,
+  STORE_FILTERS,
+  type WorkFilters,
+} from "@/app/lib/work-filters";
 import type { StoreSlug } from "@/domain/types";
 
-export type ActorStoreWorks = { storeSlug: StoreSlug; items: WorkWithListings[] };
-
 /**
- * どのストアにも作品が無いか。ルートはこれを見て `robots` の指定を決めるので、
+ * 音声作品が 1 件でもあるか。ルートはこれを見て `robots` の指定を決めるので、
  * 画面とルートで判定がずれないようここから出す
  */
-export function hasAnyWork(works: readonly ActorStoreWorks[]): boolean {
-  return works.some((section) => section.items.length > 0);
+export function hasAnyWork(works: readonly WorkWithListings[]): boolean {
+  return works.length > 0;
 }
 
 /**
  * 声優ページ。「{声優名} ASMR」「{声優名} Audible」のような
  * 実体検索での流入を受ける想定なので、中身は全部 SSR で出しインデックスさせる。
  *
+ * 作品はストアごとに割らず、発売日の新しい順の 1 本に並べる。同じ人の作品が 3 つに割れると、
+ * どのストアを見ても数件ずつになり「この人は何を出しているか」が読めない
+ * (`docs/decisions/0013-actor-page-one-timeline.md`)。ストア・区分・出演形態は
+ * その 1 本を絞る軸として上に置く。
+ *
  * 音声作品がまだ 1 件も無い声優のページも出す。「初めての 1 本」を待つ人のフォローを
- * 受けるためで、そのときはストアごとのセクションではなく、まだ見つかっていないことを 1 つ出す
+ * 受けるためで、そのときは一覧も絞り込みも実績も出さず、まだ見つかっていないことを 1 つ出す
  * (`docs/decisions/0012-follow-actors-without-works.md`)。
  *
- * クライアントでしか決まらないのはフォローボタンの状態だけ。出演形態の絞り込みは
- * URL の検索文字列に置く (ルートが読む)。ページ内の状態にすると、絞った画面を
- * 共有も再読み込みもできず、SSR が返す HTML と食い違う
+ * クライアントでしか決まらないのはフォローボタンの状態だけ。絞り込みは URL の検索文字列に
+ * 置く (ルートが読む)。ページ内の状態にすると、絞った画面を共有も再読み込みもできず、
+ * SSR が返す HTML と食い違う
  */
 export function VoiceActorPage({
   actor,
   works,
+  stats,
   anime,
   coverage,
-  appearance,
-  onAppearanceChange,
+  filters,
+  onFiltersChange,
 }: {
   actor: ActorDetail;
-  works: ActorStoreWorks[];
+  /** 発売日の新しい順。上限で切ってあるので、件数は `stats` の方が正しい */
+  works: WorkWithListings[];
+  /** この声優の作品数と最新リリース。作品が 1 件も無ければ `workCount` が 0 */
+  stats: ActorWorkStats;
   anime: ActorAnimeAppearance[];
   /** ストアごとの網羅の状態。走行の記録が無いストアは入っていない */
   coverage: ActorStoreCoverage[];
-  /** 出演形態の絞り込み。URL から来る */
-  appearance: AppearanceFilter;
-  onAppearanceChange: (next: AppearanceFilter) => void;
+  /** 絞り込み。URL から来る */
+  filters: WorkFilters;
+  onFiltersChange: (next: WorkFilters) => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -83,7 +95,12 @@ export function VoiceActorPage({
     <div className="space-y-8">
       <PageHeader
         title={t("actor.title", { name })}
-        description={actor.nameKana ?? undefined}
+        // 読み仮名も実績も無ければ副題そのものを出さない (空の行が見出しの下に開く)
+        description={
+          actor.nameKana || stats.workCount > 0 ? (
+            <ActorSubtitle actor={actor} stats={stats} />
+          ) : undefined
+        }
         actions={
           <FollowButton
             size="default"
@@ -98,10 +115,11 @@ export function VoiceActorPage({
       />
 
       {hasAnyWork(works) ? (
-        <StoreSections
+        <WorkSection
           works={works}
-          appearance={appearance}
-          onAppearanceChange={onAppearanceChange}
+          total={stats.workCount}
+          filters={filters}
+          onFiltersChange={onFiltersChange}
           partialStores={partialStores}
           actor={actor}
         />
@@ -114,53 +132,178 @@ export function VoiceActorPage({
   );
 }
 
-/** ストアごとのセクションと、その上に置く出演形態の絞り込み */
-function StoreSections({
-  works,
-  appearance,
-  onAppearanceChange,
-  partialStores,
-  actor,
-}: {
-  works: ActorStoreWorks[];
-  appearance: AppearanceFilter;
-  onAppearanceChange: (next: AppearanceFilter) => void;
-  /** 取り切れていないストア */
-  partialStores: StoreSlug[];
-  actor: ActorDetail;
-}) {
-  // 絞り込むのはルートが取ってきた範囲の中だけ。1 ストアの件数には上限があり
-  // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
-  // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
-  const sections = works.map((section) => ({
-    storeSlug: section.storeSlug,
-    items: section.items.filter((item) => matchesAppearance(appearance, item.castSize)),
-    // 0 件の理由。絞り込みで消えたのか、そのストアに元から無いのかで言い方が変わる
-    emptiedByFilter: appearance !== "all" && section.items.length > 0,
-    partial: partialStores.includes(section.storeSlug),
-  }));
+/**
+ * 見出しの下。読み仮名と、フォローを押す前に知りたい実績 (作品数と最新リリース) を出す。
+ *
+ * 作品が 1 件も無い声優には実績を出さない。「0 作品」は数えた結果ではなく、
+ * まだ見つかっていないという状態で、それは一覧の側が 1 枚の案内として言う
+ */
+function ActorSubtitle({ actor, stats }: { actor: ActorDetail; stats: ActorWorkStats }) {
+  const t = useT();
+  const locale = useLocale();
+  if (stats.workCount === 0) return actor.nameKana ?? null;
+
+  const facts = [
+    t("common.worksCount", { count: stats.workCount }),
+    ...(stats.latestReleaseDate
+      ? [t("actor.latestRelease", { date: formatYearMonth(stats.latestReleaseDate, locale) })]
+      : []),
+  ];
 
   return (
     <>
-      <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
-
-      {sections.map((section) => (
-        <StoreSection
-          key={section.storeSlug}
-          storeSlug={section.storeSlug}
-          items={section.items}
-          emptiedByFilter={section.emptiedByFilter}
-          partial={section.partial}
-          actor={actor}
-        />
-      ))}
+      {actor.nameKana ? <span className="block">{actor.nameKana}</span> : null}
+      <span className="block">{facts.join(t("common.slashSeparator"))}</span>
     </>
   );
 }
 
+/** 作品の一覧と、その上の絞り込み。作品が 1 件でもあるときだけ出る */
+function WorkSection({
+  works,
+  total,
+  filters,
+  onFiltersChange,
+  partialStores,
+  actor,
+}: {
+  works: WorkWithListings[];
+  /** 上限で切る前の作品数 */
+  total: number;
+  filters: WorkFilters;
+  onFiltersChange: (next: WorkFilters) => void;
+  /** 取り切れていないストア */
+  partialStores: StoreSlug[];
+  actor: ActorDetail;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  // 絞るのはルートが取ってきた範囲の中だけ。件数には上限があり
+  // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
+  // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
+  const shown = filterWorks(works, filters);
+  const truncated = works.length < total;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <FilterSelect
+          axis={t("actor.storeFilterName")}
+          icon={<Store aria-hidden="true" />}
+          value={filters.store}
+          options={STORE_FILTERS}
+          optionLabel={(option) => (option === "all" ? t("common.filterAll") : storeLabel(option))}
+          isOption={isStoreFilter}
+          onChange={(store) => onFiltersChange({ ...filters, store })}
+        />
+        <FilterSelect
+          axis={t("actor.categoryFilterName")}
+          icon={<Tag aria-hidden="true" />}
+          value={filters.category}
+          options={CATEGORY_FILTERS}
+          optionLabel={(option) =>
+            option === "all" ? t("common.filterAll") : categoryLabel(option, locale)
+          }
+          isOption={isCategoryFilter}
+          onChange={(category) => onFiltersChange({ ...filters, category })}
+        />
+        <FilterSelect
+          axis={t("appearance.filterName")}
+          icon={<Users aria-hidden="true" />}
+          value={filters.appearance}
+          options={APPEARANCE_FILTERS}
+          optionLabel={(option) =>
+            option === "all" ? t("common.filterAll") : appearanceLabel(option, locale)
+          }
+          isOption={isAppearanceFilter}
+          onChange={(appearance) => onFiltersChange({ ...filters, appearance })}
+        />
+        {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる */}
+        <p aria-live="polite" className="ms-auto text-muted-foreground text-sm">
+          {truncated
+            ? t("actor.shownOfTotal", { count: shown.length, total })
+            : t("common.worksCount", { count: shown.length })}
+        </p>
+      </div>
+
+      {/* 節が無くなっても、取り切れていないストアの注記は一覧の手前に残す
+          (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`) */}
+      {partialStores.length > 0 ? (
+        <div className="space-y-1">
+          {partialStores.map((storeSlug) => (
+            <PartialCoverageNote key={storeSlug} storeSlug={storeSlug} actor={actor} />
+          ))}
+        </div>
+      ) : null}
+
+      {/* 絞り込みの軸が 3 つあって、どれで 0 件になったかを 1 つ名指しすると嘘になる */}
+      {shown.length === 0 ? (
+        <EmptyState title={t("actor.filteredEmptyTitle")} />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {shown.map((item) => (
+            <WorkCard key={item.work.id} item={item} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /**
- * どのストアにも作品が無いとき。ストアごとに「ありません」を 3 つ並べても伝わることは
- * 同じで読む量だけ増えるので、1 つにまとめる。出演形態の絞り込みも選べる中身が無いので出さない。
+ * 一覧を絞る欄。ストア・区分・出演形態が横に並ぶので、選ばれている値だけでなく
+ * 軸の名前も欄に出す。どれも「すべて」を選べるため、値だけでは押す前に見分けが付かない。
+ *
+ * ネイティブの `<select>` を使わない理由は `locale-select.tsx` と同じ
+ */
+function FilterSelect<T extends string>({
+  axis,
+  icon,
+  value,
+  options,
+  optionLabel,
+  isOption,
+  onChange,
+}: {
+  /** 軸の名前 ("ストア" など) */
+  axis: string;
+  icon: ReactNode;
+  value: T;
+  options: readonly T[];
+  optionLabel: (option: T) => string;
+  /** Radix は文字列で返すので、受け取ってよい値かを呼び出し側の型で確かめる */
+  isOption: (candidate: string) => candidate is T;
+  onChange: (next: T) => void;
+}) {
+  const t = useT();
+  const label = t("common.filterLabel", { axis, name: optionLabel(value) });
+
+  return (
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (isOption(next)) onChange(next);
+      }}
+    >
+      <SelectTrigger size="sm" aria-label={label}>
+        {icon}
+        {/* Radix は選ばれた項目の文言を SelectItem から流し込む。開くまで項目が描かれず
+            SSR では空のまま返るので、文言をここで直接渡す */}
+        <SelectValue>{label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {optionLabel(option)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * 音声作品が 1 件も無いとき。並べるものが無いので、絞り込みも作品数も出さず案内を 1 つだけ出す。
  *
  * 取り切れていないストアがあれば、そのストアの検索へ送る。ここに出ていないことは
  * 「そのストアに無い」ではない (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)
@@ -181,86 +324,6 @@ function NoWorksYet({ actor, partialStores }: { actor: ActorDetail; partialStore
         ) : undefined
       }
     />
-  );
-}
-
-/**
- * 出演形態の絞り込み。選べるのは人数から確実に決まる区分だけで、「不明」は選べない
- * (`@/app/lib/appearance`)。ネイティブの `<select>` を使わない理由は `locale-select.tsx` と同じ
- */
-function AppearanceFilterSelect({
-  value,
-  onChange,
-}: {
-  value: AppearanceFilter;
-  onChange: (next: AppearanceFilter) => void;
-}) {
-  const t = useT();
-  const locale = useLocale();
-  const label = (option: AppearanceFilter) =>
-    option === "all" ? t("appearance.filterAll") : appearanceLabel(option, locale);
-
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => {
-        if (isAppearanceFilter(next)) onChange(next);
-      }}
-    >
-      <SelectTrigger size="sm" aria-label={t("appearance.filterLabel", { name: label(value) })}>
-        <ListFilter aria-hidden="true" />
-        {/* Radix は選ばれた項目の文言を SelectItem から流し込む。開くまで項目が描かれず
-            SSR では空のまま返るので、文言をここで直接渡す */}
-        <SelectValue>{label(value)}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {APPEARANCE_FILTERS.map((option) => (
-          <SelectItem key={option} value={option}>
-            {label(option)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-function StoreSection({
-  storeSlug,
-  items,
-  emptiedByFilter,
-  partial,
-  actor,
-}: {
-  storeSlug: StoreSlug;
-  items: WorkWithListings[];
-  /** 0 件なのが絞り込みのせいか。そのストアに元から作品が無いときと言い方を変える */
-  emptiedByFilter: boolean;
-  /** このストアの作品を取り切れていないか */
-  partial: boolean;
-  /** ストアの検索に渡す声優。名前の選び方はストアで違う (`@/app/lib/store-search`) */
-  actor: ActorDetail;
-}) {
-  const t = useT();
-  return (
-    <section className="space-y-3">
-      <h2 className="font-semibold text-xl tracking-tight">{storeLabel(storeSlug)}</h2>
-      {partial ? <PartialCoverageNote storeSlug={storeSlug} actor={actor} /> : null}
-      {items.length === 0 ? (
-        <EmptyState
-          title={
-            emptiedByFilter
-              ? t("actor.filteredEmptyTitle", { store: storeLabel(storeSlug) })
-              : t("actor.storeEmptyTitle", { store: storeLabel(storeSlug) })
-          }
-        />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((item) => (
-            <WorkCard key={item.work.id} item={item} />
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 

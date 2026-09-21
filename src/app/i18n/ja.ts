@@ -89,6 +89,13 @@ export const ja = {
     loading: "読み込み中…",
     /** 並べ替えの読み上げ名。今の値を畳み込む (`components/sort-select.tsx`) */
     sortLabel: "並び替え: {{name}}",
+    /**
+     * 絞り込みの欄に出す文言。絞り込みが横に並ぶ画面では、選ばれている値しか出ないと
+     * どの軸の欄なのか押す前に分からないので、軸の名前と今の値の両方を出す
+     */
+    filterLabel: "{{axis}}: {{name}}",
+    /** どの軸でも使う「絞っていない」選択肢 */
+    filterAll: "すべて",
     unknown: "不明",
     /** 「A・B」のような並びの区切り。英語では読点にする */
     listSeparator: "・",
@@ -192,6 +199,11 @@ export const ja = {
     /** 作品一覧の上に置く、フォロー中の声優と解除ボタンの見出し */
     manageTitle: "フォロー中の声優 {{count}} 人",
     listLabel: "フォロー中の声優",
+    /**
+     * 名前の隣に出す最新リリースの年月の読み上げ名。年月だけでは何の日付か分からないので、
+     * 画面には出さずに読み上げにだけ入れる (`components/follow-manager.tsx`)
+     */
+    latestReleaseLabel: "最新リリース",
     emptyTitle: "まだ誰もフォローしていません",
     emptyAction: "声優を探す",
     errorTitle: "新着を読み込めませんでした",
@@ -245,13 +257,20 @@ export const ja = {
     metaTitle: "{{name}}の音声作品 (ASMR・朗読・ボイスドラマ) | DLsite・Audible・ポケットドラマCD",
     metaDescription:
       "{{name}}が出演する ASMR・朗読・ボイスドラマを、DLsite・Audible・ポケットドラマCD から新着順にまとめています。",
-    storeEmptyTitle: "{{store}} で見つかった作品はありません",
-    /** どのストアにも 1 件も無いとき。ストアごとの「ありません」の代わりに 1 つだけ出す */
+    /** 作品が 1 件も無いとき。1 枚の案内だけを出し、実績も絞り込みも出さない */
     noWorksYetTitle: "音声作品はまだ見つかっていません",
     noWorksYetDescription:
       "フォローしておくと、この声優の音声作品が見つかったときに一覧に出てきます。",
-    /** 出演形態で絞り込んだ結果、そのストアに残る作品が無いとき。作品自体はある */
-    filteredEmptyTitle: "{{store}} にこの出演形態の作品はありません",
+    /** 見出しの下の実績。フォローを押す前に、何件出していて最後がいつかを見せる */
+    latestRelease: "最新リリース {{date}}",
+    /** ストアの絞り込みの軸の名前 (`common.filterLabel` に渡す) */
+    storeFilterName: "ストア",
+    /** 作品の区分 (ASMR・朗読など) の絞り込みの軸の名前 */
+    categoryFilterName: "区分",
+    /** 上限で切っているとき。この声優の作品数と、いま並んでいる件数の両方を出す */
+    shownOfTotal: "{{total}} 作品中 {{count}} 作品",
+    /** 絞り込みの軸が 3 つあるので、どれで 0 件になったかは文にしない */
+    filteredEmptyTitle: "この条件に当てはまる作品はありません",
     /** 直近の取得がそのストアの全作品に届かなかったとき。網羅を約束しないことを画面で示す */
     partialCoverage: "{{store}} の作品は一部だけを載せています。",
     partialCoverageLink: "{{store}} で全作品を見る",
@@ -308,9 +327,8 @@ export const ja = {
     large: "大人数",
     /** クレジットが 1 件も取れていない作品。人数が分からないことをそのまま言う */
     unknown: "出演形態不明",
-    /** 絞り込みの読み上げ名。画面には選ばれている方しか出ないので今の値を畳み込む */
-    filterLabel: "出演形態: {{name}}",
-    filterAll: "すべて",
+    /** 絞り込みの軸の名前 (`common.filterLabel` に渡す) */
+    filterName: "出演形態",
   },
 
   /**

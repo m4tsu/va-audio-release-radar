@@ -67,6 +67,21 @@ export function formatDateTime(iso: string, locale: Locale = DEFAULT_LOCALE): st
   }).format(parsed);
 }
 
+/**
+ * 年月。"2026-09-18" → "2026年9月" / "September 2026"。
+ * 声優の最新リリースのように、日まで出す必要のない「いつごろか」に使う
+ */
+export function formatYearMonth(date: string, locale: Locale = DEFAULT_LOCALE): string {
+  const parsed = utcDateFromIsoDate(date);
+  if (parsed === undefined) return date;
+  if (locale === "ja") return `${parsed.getUTCFullYear()}年${parsed.getUTCMonth() + 1}月`;
+  return new Intl.DateTimeFormat(INTL_LOCALES[locale], {
+    year: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
 /** 発売予定日。"2026-10-01" → "10月1日" / "Oct 1"。年は出さない (先の予定でも数か月先までしか無い) */
 export function formatMonthDay(date: string, locale: Locale = DEFAULT_LOCALE): string {
   const parsed = utcDateFromIsoDate(date);

@@ -1,10 +1,12 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
-import { type ActorStoreWorks, VoiceActorPage } from "@/app/pages/voice-actor";
+import { DEFAULT_WORK_FILTERS } from "@/app/lib/work-filters";
+import { VoiceActorPage } from "@/app/pages/voice-actor";
 import {
   actorAnimeAppearance,
   actorDetail,
+  workListing,
   workSummary,
   workWithListings,
 } from "@/app/test/fixtures";
@@ -19,52 +21,59 @@ const ACTOR = actorDetail({
 });
 
 /**
- * ストアごとの作品。出演形態の絞り込みを見るため、人数の違う 3 件をストアに分けて置く。
- * ポケドラは 1 件も無い (空のストアもセクションを出す)
+ * 発売日の新しい順に並んだ 1 本の一覧。3 つの軸 (ストア・区分・出演形態) を
+ * 別々に確かめられるよう、どの 2 件も 3 つのうち 1 つだけが揃うようにしてある
  */
-const WORKS: ActorStoreWorks[] = [
-  {
-    storeSlug: "dlsite",
-    items: [
-      workWithListings({
-        work: workSummary({ id: "dlsite:RJ1", title: "架空のASMR作品" }),
-        castSize: 1,
-      }),
-      workWithListings({
-        work: workSummary({ id: "dlsite:RJ2", title: "架空の少人数作品" }),
-        castSize: 3,
-      }),
-    ],
-  },
-  {
-    storeSlug: "audible",
-    items: [
-      workWithListings({
-        work: workSummary({ id: "audible:B01", title: "架空の大人数作品" }),
-        castSize: 6,
-      }),
-    ],
-  },
-  { storeSlug: "pokedora", items: [] },
+const WORKS = [
+  workWithListings({
+    work: workSummary({ id: "dlsite:RJ1", title: "架空のASMR作品", category: "asmr" }),
+    listings: [workListing({ storeSlug: "dlsite", storeProductId: "RJ1" })],
+    castSize: 1,
+  }),
+  workWithListings({
+    work: workSummary({ id: "audible:B01", title: "架空の朗読作品", category: "audiobook" }),
+    listings: [workListing({ storeSlug: "audible", storeProductId: "B01" })],
+    castSize: 6,
+  }),
+  workWithListings({
+    work: workSummary({
+      id: "pokedora:P1",
+      title: "架空のボイスドラマ作品",
+      category: "audio_drama",
+    }),
+    listings: [workListing({ storeSlug: "pokedora", storeProductId: "P1" })],
+    castSize: 3,
+  }),
 ];
+
+const STATS = { voiceActorId: ACTOR.id, workCount: WORKS.length, latestReleaseDate: "2026-09-18" };
 
 function render(over: Partial<Parameters<typeof VoiceActorPage>[0]> = {}, locale?: "ja" | "en") {
   return renderWithLocale(
     <VoiceActorPage
       actor={ACTOR}
       works={WORKS}
+      stats={STATS}
       anime={[]}
       coverage={[]}
-      appearance="all"
-      onAppearanceChange={() => {}}
+      filters={DEFAULT_WORK_FILTERS}
+      onFiltersChange={() => {}}
       {...over}
     />,
     locale,
   );
 }
 
+/** 一覧に並んでいる作品名を、描かれている順のまま取る */
+function shownTitles(): string[] {
+  return screen
+    .queryAllByRole("link")
+    .map((link) => link.textContent ?? "")
+    .filter((text) => text.startsWith("架空の"));
+}
+
 describe("VoiceActorPage の見出し", () => {
-  test("h1 は声優名で、副題は読み仮名だけ", () => {
+  test("h1 は声優名で、副題に読み仮名が出る", () => {
     render();
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("架空アルファの音声作品");
@@ -90,89 +99,40 @@ describe("VoiceActorPage の見出し", () => {
   });
 });
 
-describe("VoiceActorPage のストアごとのセクション", () => {
-  test("作品があるストアもないストアも見出しを出す", () => {
+/** フォローを押す前に「何件出していて、最後はいつ出たか」が読めること */
+describe("VoiceActorPage の実績", () => {
+  test("見出しの下に作品数と最新リリースの年月を出す", () => {
     render();
 
-    for (const store of ["DLsite", "Audible", "ポケドラ"]) {
-      expect(screen.getByRole("heading", { level: 2, name: store })).toBeInTheDocument();
-    }
+    expect(screen.getByText("3 作品 ／ 最新リリース 2026年9月")).toBeInTheDocument();
   });
 
-  test("作品が無いストアはそのストア名を入れた空表示を出す", () => {
-    render();
+  /** 一覧は上限で切るので、数えた結果は一覧の長さではなく声優の作品数 */
+  test("一覧を上限で切っていても、作品数は切る前の数を出す", () => {
+    render({ stats: { ...STATS, workCount: 42 } });
 
-    expect(screen.getByText("ポケドラ で見つかった作品はありません")).toBeInTheDocument();
+    expect(screen.getByText("42 作品 ／ 最新リリース 2026年9月")).toBeInTheDocument();
+    expect(screen.getByText("42 作品中 3 作品")).toBeInTheDocument();
   });
 
-  test("作品があるストアは作品を並べる", () => {
-    render();
+  test("英語表示では年月も英語で出す", () => {
+    render({}, "en");
 
-    expect(screen.getByRole("link", { name: "架空のASMR作品" })).toBeInTheDocument();
+    expect(screen.getByText("3 works / Latest release September 2026")).toBeInTheDocument();
   });
 });
 
-/**
- * 音声作品がまだ 1 件も無い声優。ページは 200 で返り、フォローと出演アニメだけが残る
- * (`docs/decisions/0012-follow-actors-without-works.md`)
- */
-describe("VoiceActorPage の作品が 1 件も無いとき", () => {
-  const EMPTY: ActorStoreWorks[] = [
-    { storeSlug: "dlsite", items: [] },
-    { storeSlug: "audible", items: [] },
-    { storeSlug: "pokedora", items: [] },
-  ];
+describe("VoiceActorPage の作品一覧", () => {
+  /** ストアで節に割ると、どの節も数件ずつになって「この人は何を出しているか」が読めない */
+  test("ストアごとの節を作らず、渡された順のまま 1 本に並べる", () => {
+    render();
 
-  test("まだ見つかっていないことを 1 つだけ出し、ストアごとの節は出さない", () => {
-    render({ works: EMPTY });
-
-    expect(screen.getByText("音声作品はまだ見つかっていません")).toBeInTheDocument();
     for (const store of ["DLsite", "Audible", "ポケドラ"]) {
       expect(screen.queryByRole("heading", { level: 2, name: store })).not.toBeInTheDocument();
     }
+    expect(shownTitles()).toEqual(["架空のASMR作品", "架空の朗読作品", "架空のボイスドラマ作品"]);
   });
 
-  /** 選んでも結果の変わらない絞り込みを出すと、押した人が壊れていると思う */
-  test("出演形態の絞り込みを出さない", () => {
-    render({ works: EMPTY });
-
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-  });
-
-  /**
-   * 0 件なのは「そのストアに無い」ではない
-   * (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。ストアで探す導線を残す
-   */
-  test("取り切れていないストアがあれば、そのストアの検索へのリンクを出す", () => {
-    render({ works: EMPTY, coverage: [{ storeSlug: "audible", complete: false }] });
-
-    expect(screen.getByText("音声作品はまだ見つかっていません")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Audible で全作品を見る" })).toHaveAttribute(
-      "href",
-      "https://www.audible.co.jp/search?searchNarrator=%E6%9E%B6%E7%A9%BA%E3%82%A2%E3%83%AB%E3%83%95%E3%82%A1",
-    );
-  });
-
-  test("取り切れたストアしか無ければリンクを出さない", () => {
-    render({ works: EMPTY, coverage: [{ storeSlug: "audible", complete: true }] });
-
-    expect(screen.queryByRole("link", { name: /全作品を見る/ })).not.toBeInTheDocument();
-  });
-
-  test("フォローと出演アニメは出る", async () => {
-    const user = userEvent.setup();
-    await readyFollowStore();
-    render({ works: EMPTY, anime: [actorAnimeAppearance({ slug: "kakuu-no-anime" })] });
-
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("架空アルファの音声作品");
-    expect(screen.getByRole("link", { name: /架空のアニメ/ })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "フォロー" }));
-    expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
-  });
-});
-
-describe("VoiceActorPage の出演形態", () => {
   test("作品ごとに出演形態を出す", () => {
     render();
 
@@ -183,54 +143,87 @@ describe("VoiceActorPage の出演形態", () => {
 
   /** クレジットが 1 件も取れていない作品を「単独」と読ませない */
   test("クレジットが 0 件の作品は不明として出す", () => {
-    render({
-      works: [
-        {
-          storeSlug: "dlsite",
-          items: [
-            workWithListings({ work: workSummary({ title: "架空の不明作品" }), castSize: 0 }),
-          ],
-        },
-      ],
-    });
+    render({ works: [workWithListings({ castSize: 0 })] });
 
     expect(screen.getByText("出演形態不明")).toBeInTheDocument();
   });
+});
+
+describe("VoiceActorPage の絞り込み", () => {
+  test("URL から来たストアで絞った状態を描く", () => {
+    render({ filters: { ...DEFAULT_WORK_FILTERS, store: "audible" } });
+
+    expect(shownTitles()).toEqual(["架空の朗読作品"]);
+  });
 
   test("URL から来た区分で絞った状態を描く", () => {
-    render({ appearance: "solo" });
+    render({ filters: { ...DEFAULT_WORK_FILTERS, category: "audio_drama" } });
 
-    expect(screen.getByRole("link", { name: "架空のASMR作品" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "架空の少人数作品" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "架空の大人数作品" })).not.toBeInTheDocument();
+    expect(shownTitles()).toEqual(["架空のボイスドラマ作品"]);
   });
 
-  test("絞り込んで 0 件になったストアは、絞り込みで消えたことが分かる空表示を出す", () => {
-    render({ appearance: "solo" });
+  test("URL から来た出演形態で絞った状態を描く", () => {
+    render({ filters: { ...DEFAULT_WORK_FILTERS, appearance: "solo" } });
 
-    expect(screen.getByText("Audible にこの出演形態の作品はありません")).toBeInTheDocument();
+    expect(shownTitles()).toEqual(["架空のASMR作品"]);
   });
 
-  /** 元から 0 件のストアで「この出演形態の作品はありません」と言うと、他の形態ならあると読める */
-  test("元から作品が無いストアは、絞り込み中でも作品が無いことを言う", () => {
-    render({ appearance: "solo" });
+  test("3 つの軸は重ねて効く", () => {
+    render({
+      filters: { store: "dlsite", category: "asmr", appearance: "large" },
+    });
 
-    expect(screen.getByText("ポケドラ で見つかった作品はありません")).toBeInTheDocument();
+    expect(shownTitles()).toEqual([]);
+  });
+
+  /** 軸が 3 つあるので、どの軸で 0 件になったかを 1 つ名指しすると嘘になる */
+  test("0 件になったら、どの軸とも言わずに条件に合わないことを出す", () => {
+    render({ filters: { ...DEFAULT_WORK_FILTERS, appearance: "solo", store: "audible" } });
+
+    expect(screen.getByText("この条件に当てはまる作品はありません")).toBeInTheDocument();
   });
 
   /** 選択は URL に置くので、ページは変更を伝えるだけで自分では絞りを持たない */
-  test("選ぶと選ばれた区分を呼び出し側へ渡す", async () => {
+  test("選ぶと 3 つの軸をまとめて呼び出し側へ渡す", async () => {
     const user = userEvent.setup();
-    const onAppearanceChange = vi.fn();
-    render({ onAppearanceChange });
+    const onFiltersChange = vi.fn();
+    render({ filters: { ...DEFAULT_WORK_FILTERS, appearance: "solo" }, onFiltersChange });
 
-    await user.click(screen.getByRole("combobox", { name: "出演形態: すべて" }));
-    await user.click(screen.getByRole("option", { name: "大人数" }));
+    await user.click(screen.getByRole("combobox", { name: "ストア: すべて" }));
+    await user.click(screen.getByRole("option", { name: "Audible" }));
 
-    expect(onAppearanceChange).toHaveBeenCalledWith("large");
+    expect(onFiltersChange).toHaveBeenCalledWith({
+      store: "audible",
+      category: "all",
+      appearance: "solo",
+    });
   });
 
-  test("判定しない区分は選択肢に出さない", async () => {
+  /** 3 つの欄が横に並ぶので、値だけでは押す前にどの軸か分からない */
+  test("欄には軸の名前と今の値の両方を出す", () => {
+    render({ filters: { store: "dlsite", category: "asmr", appearance: "small" } });
+
+    expect(screen.getByRole("combobox", { name: "ストア: DLsite" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "区分: ASMR" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "出演形態: 少人数" })).toBeInTheDocument();
+  });
+
+  /** 選択肢を手元の作品から作ると、上限で切った先にしか無いストアを選べなくなる */
+  test("ストアの選択肢はこの声優の作品の有無で変えない", async () => {
+    const user = userEvent.setup();
+    render({ works: WORKS.slice(0, 1) });
+
+    await user.click(screen.getByRole("combobox", { name: "ストア: すべて" }));
+
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "すべて",
+      "DLsite",
+      "Audible",
+      "ポケドラ",
+    ]);
+  });
+
+  test("判定しない出演形態は選択肢に出さない", async () => {
     const user = userEvent.setup();
     render();
 
@@ -243,15 +236,71 @@ describe("VoiceActorPage の出演形態", () => {
       "大人数",
     ]);
   });
+});
 
-  test("絞り込み中は今の区分を読み上げ名に出す", () => {
-    render({ appearance: "small" });
+/**
+ * 音声作品がまだ 1 件も無い声優。ページは 200 で返り、フォローと出演アニメだけが残る
+ * (`docs/decisions/0012-follow-actors-without-works.md`)
+ */
+describe("VoiceActorPage の作品が 1 件も無いとき", () => {
+  const EMPTY = { works: [], stats: { voiceActorId: ACTOR.id, workCount: 0 } };
 
-    expect(screen.getByRole("combobox", { name: "出演形態: 少人数" })).toBeInTheDocument();
+  test("まだ見つかっていないことを 1 つだけ出す", () => {
+    render(EMPTY);
+
+    expect(screen.getByText("音声作品はまだ見つかっていません")).toBeInTheDocument();
+  });
+
+  /** 「0 作品」は数えた結果ではなく、まだ見つかっていないという状態 */
+  test("作品数も最新リリースも出さない", () => {
+    render(EMPTY);
+
+    expect(screen.queryByText(/^\d+ 作品/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/最新リリース/)).not.toBeInTheDocument();
+  });
+
+  /** 選んでも結果の変わらない絞り込みを出すと、押した人が壊れていると思う */
+  test("絞り込みを出さない", () => {
+    render(EMPTY);
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  /**
+   * 0 件なのは「そのストアに無い」ではない
+   * (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。ストアで探す導線を残す
+   */
+  test("取り切れていないストアがあれば、そのストアの検索へのリンクを出す", () => {
+    render({ ...EMPTY, coverage: [{ storeSlug: "audible", complete: false }] });
+
+    expect(screen.getByText("音声作品はまだ見つかっていません")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Audible で全作品を見る" })).toHaveAttribute(
+      "href",
+      "https://www.audible.co.jp/search?searchNarrator=%E6%9E%B6%E7%A9%BA%E3%82%A2%E3%83%AB%E3%83%95%E3%82%A1",
+    );
+  });
+
+  test("取り切れたストアしか無ければリンクを出さない", () => {
+    render({ ...EMPTY, coverage: [{ storeSlug: "audible", complete: true }] });
+
+    expect(screen.queryByRole("link", { name: /全作品を見る/ })).not.toBeInTheDocument();
+  });
+
+  test("フォローと出演アニメは出る", async () => {
+    const user = userEvent.setup();
+    await readyFollowStore();
+    render({ ...EMPTY, anime: [actorAnimeAppearance({ slug: "kakuu-no-anime" })] });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("架空アルファの音声作品");
+    expect(screen.getByRole("link", { name: /架空のアニメ/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
   });
 });
 
 describe("VoiceActorPage の網羅の注記", () => {
+  /** 節が無くなっても、取り切れていないことは一覧の手前で読めなければならない */
   test("取り切れていないストアには注記とストアの検索へのリンクを出す", () => {
     render({ coverage: [{ storeSlug: "audible", complete: false }] });
 

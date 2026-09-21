@@ -79,6 +79,8 @@ export const en: Translations = {
     loading: "Loading…",
     /** 並べ替えの読み上げ名。今の値を畳み込む (`components/sort-select.tsx`) */
     sortLabel: "Sort by: {{name}}",
+    filterLabel: "{{axis}}: {{name}}",
+    filterAll: "All",
     unknown: "Unknown",
     listSeparator: ", ",
     slashSeparator: " / ",
@@ -165,6 +167,7 @@ export const en: Translations = {
       other: "{{count}} voice actors followed",
     },
     listLabel: "Voice actors you follow",
+    latestReleaseLabel: "Latest release",
     emptyTitle: "You are not following anyone yet",
     emptyAction: "Find voice actors",
     errorTitle: "Could not load new releases",
@@ -207,11 +210,14 @@ export const en: Translations = {
       "Audio works by {{name}} (ASMR, audiobooks, audio drama) | DLsite, Audible, Pocket Drama CD",
     metaDescription:
       "ASMR, audiobooks and audio dramas featuring {{name}} on DLsite, Audible and Pocket Drama CD, newest first.",
-    storeEmptyTitle: "No works found on {{store}}",
     noWorksYetTitle: "No audio works found yet",
     noWorksYetDescription:
       "Follow this voice actor and their audio works will show up here once we find them.",
-    filteredEmptyTitle: "No works with this cast size on {{store}}",
+    latestRelease: "Latest release {{date}}",
+    storeFilterName: "Store",
+    categoryFilterName: "Category",
+    shownOfTotal: "{{count}} of {{total}} works",
+    filteredEmptyTitle: "No works match these filters",
     partialCoverage: "Only part of this actor's works on {{store}} are listed here.",
     partialCoverageLink: "See all works on {{store}}",
     animeTitle: "Anime appearances",
@@ -255,8 +261,7 @@ export const en: Translations = {
     small: "Small cast",
     large: "Large cast",
     unknown: "Cast unknown",
-    filterLabel: "Cast size: {{name}}",
-    filterAll: "All",
+    filterName: "Cast size",
   },
 
   format: {

@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatMonthDay,
   formatReleaseDate,
+  formatYearMonth,
   isUnreadSince,
 } from "./format";
 
@@ -28,6 +29,12 @@ describe("formatDuration", () => {
 describe("formatReleaseDate", () => {
   test("ゼロ埋めを落とした和風の表記にする", () => {
     expect(formatReleaseDate("2026-09-01")).toBe("2026年9月1日");
+  });
+});
+
+describe("formatYearMonth", () => {
+  test("日を落として年月だけにする", () => {
+    expect(formatYearMonth("2026-09-18")).toBe("2026年9月");
   });
 });
 
@@ -90,6 +97,7 @@ describe("英語表示", () => {
 
   test("発売日は英語の書式になる", () => {
     expect(formatReleaseDate("2026-09-01", "en")).toBe("September 1, 2026");
+    expect(formatYearMonth("2026-09-18", "en")).toBe("September 2026");
     expect(formatMonthDay("2026-10-01", "en")).toBe("Oct 1");
   });
 
@@ -98,6 +106,7 @@ describe("英語表示", () => {
     expect(formatReleaseDate("2026-01-01", "en")).toBe("January 1, 2026");
     expect(formatReleaseDate("2026-01-01")).toBe("2026年1月1日");
     expect(formatMonthDay("2026-01-01")).toBe("1月1日");
+    expect(formatYearMonth("2026-01-01")).toBe("2026年1月");
   });
 
   /** 日時は言語を問わず JST で読ませる */
@@ -110,6 +119,7 @@ describe("英語表示", () => {
   test("読めない日付はそのまま返す", () => {
     expect(formatReleaseDate("", "en")).toBe("");
     expect(formatMonthDay("not-a-date", "en")).toBe("not-a-date");
+    expect(formatYearMonth("not-a-date")).toBe("not-a-date");
   });
 });
 

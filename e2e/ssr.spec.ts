@@ -36,8 +36,11 @@ test("声優ページは title と本文と canonical を SSR で返す", async 
   expect(html).toContain(`${ACTOR_NAME}が出演する ASMR・朗読・ボイスドラマを`);
   // 作品名が生 HTML に含まれる = 検索エンジンが中身を読める
   expect(html).toMatch(new RegExp(`<h1[^>]*>${ACTOR_NAME}の音声作品</h1>`));
-  expect(html).toMatch(/<h2[^>]*>DLsite<\/h2>/);
+  // ストアごとの節に割らず 1 本に並べるので、別ストアの作品が同じ一覧に入る
   expect(html).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+  expect(html).toMatch(/<a[^>]*>テスト用朗読作品アルファ<\/a>/);
+  // 作品数と最新リリースは、フォローを押す前に読める場所 = SSR の HTML に入っている
+  expect(html).toContain("3 作品");
   // canonical と og:url は絶対 URL (SITE_URL 未設定ならリクエストのオリジン)。
   // オリジンは baseURL から取る。ポートを直書きすると playwright.config.ts を変えた途端に落ちる
   expect(html).toContain(`<link rel="canonical" href="${baseURL}/voice-actors/${ACTOR_SLUG}"/>`);
@@ -48,26 +51,34 @@ test("声優ページは title と本文と canonical を SSR で返す", async 
 });
 
 /**
- * 出演形態の絞り込みは URL の検索文字列に置いてある。絞った画面を共有・再読み込みできるかは
- * 「その URL に GET した応答が絞り込み済みか」なので、ここでしか確かめられない。
+ * 絞り込み (ストア・区分・出演形態) は URL の検索文字列に置いてある。絞った画面を
+ * 共有・再読み込みできるかは「その URL に GET した応答が絞り込み済みか」なので、
+ * ここでしか確かめられない。
  * 固定データのアルファの作品は 2〜3 人で、単独の作品は 1 件も無い
  */
-test("出演形態の絞り込みは URL から復元され、SSR の HTML に反映される", async ({ request }) => {
+test("絞り込みは URL から復元され、SSR の HTML に反映される", async ({ request }) => {
   const all = await (await request.get(`/voice-actors/${ACTOR_SLUG}`)).text();
   expect(all).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
 
-  const small = await (await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=small`)).text();
-  expect(small).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+  const audible = await (await request.get(`/voice-actors/${ACTOR_SLUG}?store=audible`)).text();
+  expect(audible).toMatch(/<a[^>]*>テスト用朗読作品アルファ<\/a>/);
+  expect(audible).not.toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+
+  const asmr = await (await request.get(`/voice-actors/${ACTOR_SLUG}?category=asmr`)).text();
+  expect(asmr).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+  expect(asmr).not.toMatch(/<a[^>]*>テスト用朗読作品アルファ<\/a>/);
 
   const solo = await (await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=solo`)).text();
   expect(solo).not.toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
-  // 0 件になったことが画面に出る (ストアに作品が無いときとは別の文言)
-  expect(solo).toContain("DLsite にこの出演形態の作品はありません");
+  // 0 件になったことが画面に出る
+  expect(solo).toContain("この条件に当てはまる作品はありません");
 });
 
 /** 知らない値で 0 件にすると、共有された URL が壊れて見える */
-test("読めない出演形態の値は絞り込み無しとして扱う", async ({ request }) => {
-  const html = await (await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=zzz`)).text();
+test("読めない絞り込みの値は絞り込み無しとして扱う", async ({ request }) => {
+  const html = await (
+    await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=zzz&store=zzz&category=zzz`)
+  ).text();
 
   expect(html).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
 });
