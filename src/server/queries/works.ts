@@ -87,13 +87,17 @@ export type WorkWithActors = WorkWithListings & { actors: WorkActor[] };
 export type FeedItem = WorkWithActors;
 
 /**
- * 1 人の声優の実績。フォローを押す前に「何件出していて、最後はいつか」を見せるために出す。
- * 作品が 1 件も無い声優は `workCount` が 0 で、`latestReleaseDate` を持たない
+ * 1 人の声優の実績。フォローを押す前に「何件出していて、いちばん新しいのはいつか」を
+ * 見せるために出す。作品が 1 件も無い声優は行が返らない
  */
 export type ActorWorkStats = {
   voiceActorId: string;
   workCount: number;
-  /** いちばん新しい発売日 ("YYYY-MM-DD")。発売日を持たない作品は初出の日付で代える */
+  /**
+   * いちばん新しい発売日 ("YYYY-MM-DD")。発売日を持たない作品は初出の日付で代える。
+   * 発売予定 (未来の発売日) の作品もここに出る。一覧の先頭に来る作品と同じ日付にするため、
+   * 今日で切らない
+   */
   latestReleaseDate?: string;
 };
 

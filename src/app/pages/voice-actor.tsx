@@ -182,6 +182,8 @@ function WorkSection({
   // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
   // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
   const shown = filterWorks(works, filters);
+  // 上限で切ったかどうか。切ったことは注記で言う。絞り込みの件数と混ぜると、
+  // 「200 作品中 2 作品」が「このストアに 2 作品しか無い」と読めてしまう
   const truncated = works.length < total;
 
   return (
@@ -218,18 +220,26 @@ function WorkSection({
           isOption={isAppearanceFilter}
           onChange={(appearance) => onFiltersChange({ ...filters, appearance })}
         />
-        {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる */}
+        {/* 絞り込みの結果は並びを見ても数えられない。aria-live で操作のたびに読み上げる。
+            分母は一覧に並べた件数で、この声優の作品数 (見出しの下) ではない */}
         <p aria-live="polite" className="ms-auto text-muted-foreground text-sm">
-          {truncated
-            ? t("actor.shownOfTotal", { count: shown.length, total })
-            : t("common.worksCount", { count: shown.length })}
+          {shown.length === works.length
+            ? t("common.worksCount", { count: shown.length })
+            : t("actor.shownOfListed", { count: shown.length, total: works.length })}
         </p>
       </div>
 
       {/* 区画が無くなっても、取り切れていないストアの注記は一覧の手前に残す
-          (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`) */}
-      {partialStores.length > 0 ? (
+          (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。
+          上限で切ったことも同じ場所で言う。切った先の作品は絞り込みにも当たらないので、
+          これが無いと「このストアには無い」と読める 0 件が出る */}
+      {partialStores.length > 0 || truncated ? (
         <div className="space-y-1">
+          {truncated ? (
+            <p className="text-muted-foreground text-sm">
+              {t("actor.listLimited", { count: works.length })}
+            </p>
+          ) : null}
           {partialStores.map((storeSlug) => (
             <PartialCoverageNote key={storeSlug} storeSlug={storeSlug} actor={actor} />
           ))}

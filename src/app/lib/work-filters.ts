@@ -14,7 +14,10 @@ import { STORE_SLUGS, type StoreSlug, WORK_CATEGORIES, type WorkCategory } from 
  * 選択肢は声優ごとに変えず、どの声優のページでも同じ並びで同じ数だけ出す。
  * 手元にある作品から選択肢を作ると、一覧を上限で切った先にしか無いストアや区分が
  * 選べなくなり、同じ軸が声優によって現れたり消えたりする。
- * 0 件になる値を選べることは、その条件の作品が無いという答えとして画面に出す
+ *
+ * 絞るのは一覧に並んでいる作品だけなので、0 件は「この声優にその条件の作品が無い」
+ * ではなく「並べた範囲に無い」。一覧を上限で切ったことは画面が注記で言う
+ * (`pages/voice-actor.tsx` の `listLimited`)
  */
 
 export const STORE_FILTERS = ["all", ...STORE_SLUGS] as const;

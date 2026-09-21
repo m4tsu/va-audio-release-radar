@@ -112,7 +112,6 @@ describe("VoiceActorPage の実績", () => {
     render({ stats: { ...STATS, workCount: 42 } });
 
     expect(screen.getByText("42 作品 ／ 最新リリース 2026年9月")).toBeInTheDocument();
-    expect(screen.getByText("42 作品中 3 作品")).toBeInTheDocument();
   });
 
   test("英語表示では年月も英語で出す", () => {
@@ -146,6 +145,40 @@ describe("VoiceActorPage の作品一覧", () => {
     render({ works: [workWithListings({ castSize: 0 })] });
 
     expect(screen.getByText("出演形態不明")).toBeInTheDocument();
+  });
+});
+
+/**
+ * 一覧は上限で切る。切った先の作品は絞り込みにも当たらないので、
+ * 「このストアには無い」と読める 0 件が出うる。切ったことを画面が言う
+ */
+describe("VoiceActorPage の打ち切り", () => {
+  test("上限で切っているときは、並べた件数を注記で出す", () => {
+    render({ stats: { ...STATS, workCount: 42 } });
+
+    expect(screen.getByText("新しい順に 3 作品まで載せています。")).toBeInTheDocument();
+  });
+
+  test("全件が並んでいるなら注記を出さない", () => {
+    render();
+
+    expect(screen.queryByText(/載せています/)).not.toBeInTheDocument();
+  });
+
+  /** 分母を声優の作品数にすると、「42 作品中 1 作品」が「このストアに 1 作品」と読める */
+  test("絞り込みの件数の分母は、並べた件数にする", () => {
+    render({
+      stats: { ...STATS, workCount: 42 },
+      filters: { ...DEFAULT_WORK_FILTERS, store: "audible" },
+    });
+
+    expect(screen.getByText("3 作品中 1 作品")).toBeInTheDocument();
+  });
+
+  test("絞り込んでいなければ件数だけを出す", () => {
+    render();
+
+    expect(screen.getByText("3 作品", { selector: "p" })).toBeInTheDocument();
   });
 });
 

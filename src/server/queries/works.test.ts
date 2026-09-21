@@ -240,8 +240,7 @@ describe("latestWorks", () => {
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:NODATE"]);
   });
 
-  /** 声優ページはストアで節に割らないので、引くのも 1 本 (絞るのは画面側) */
-  it("ストアをまたいで 1 本の一覧で返す", async () => {
+  it("ストアで絞り込める", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);
     await ingest(
