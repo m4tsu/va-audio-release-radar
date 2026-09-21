@@ -75,17 +75,31 @@ describe("createPushSender", () => {
     }
   });
 
-  it("それ以外の失敗は一時的な失敗として返す", async () => {
-    const send = createPushSender(vapid, fetchReturning(500) as unknown as typeof fetch);
-    expect(await send(target, MESSAGE)).toEqual({ kind: "failed", status: 500 });
+  it("5xx と 429 は一時的な失敗 (送り直す)", async () => {
+    for (const status of [500, 503, 429]) {
+      const send = createPushSender(vapid, fetchReturning(status) as unknown as typeof fetch);
+      expect(await send(target, MESSAGE)).toEqual({ kind: "failed", permanent: false, status });
+    }
   });
 
-  it("通信そのものが失敗しても投げずに失敗として返す", async () => {
+  /** 鍵の不一致や本文の拒否は、同じ内容を送り直しても通らない */
+  it("404 / 410 / 429 以外の 4xx は恒久的な失敗 (この週は送り直さない)", async () => {
+    for (const status of [400, 401, 403, 413]) {
+      const send = createPushSender(vapid, fetchReturning(status) as unknown as typeof fetch);
+      expect(await send(target, MESSAGE)).toEqual({ kind: "failed", permanent: true, status });
+    }
+  });
+
+  it("通信そのものが失敗しても投げずに、一時的な失敗として返す", async () => {
     const fetchFn = vi.fn(async () => {
       throw new Error("network down");
     });
     const send = createPushSender(vapid, fetchFn as unknown as typeof fetch);
-    expect(await send(target, MESSAGE)).toEqual({ kind: "failed", error: "network down" });
+    expect(await send(target, MESSAGE)).toEqual({
+      kind: "failed",
+      permanent: false,
+      error: "network down",
+    });
   });
 
   /** 鍵の欠けは送る前に分かる。fetch に出ない */

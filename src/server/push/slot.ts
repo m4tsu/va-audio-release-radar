@@ -7,6 +7,8 @@
  * (`src/server/db/schema.ts` の `push_subscriptions`)
  */
 
+import { RECENT_DAYS } from "../queries/works";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 /** 金曜。`Date.getUTCDay()` の値 */
@@ -22,6 +24,12 @@ export type DigestWindow = {
   /** 発売日の範囲 (JST の日付、両端を含む)。前の予定時刻の翌日からこの予定時刻の日まで */
   releaseDateFrom: string;
   releaseDateTo: string;
+  /**
+   * 発売日がこの日以降 `releaseDateFrom` より前で、この週に初めて見つかった作品も数える。
+   * ストアに載るのが発売日より遅い、日次の取り込みが週の締めの後になる、のどちらでも
+   * その作品は「発売日の週」を過ぎてから DB に入る。遡る幅はフィードの「最近の新作」と同じ
+   */
+  releaseDateLookbackFrom: string;
   /** 発売日の無い作品を見つけた日時の範囲。前の予定時刻より後、この予定時刻まで */
   discoveredAfter: string;
   discoveredUntil: string;
@@ -52,6 +60,7 @@ export function digestWindow(scheduledAt: string): DigestWindow {
     // 前の予定時刻の日 (金曜) は前の週に数えたので、その翌日から
     releaseDateFrom: jstDate(start + DAY_MS),
     releaseDateTo: jstDate(end),
+    releaseDateLookbackFrom: jstDate(end - RECENT_DAYS * DAY_MS),
     discoveredAfter: new Date(start).toISOString(),
     discoveredUntil: scheduledAt,
   };

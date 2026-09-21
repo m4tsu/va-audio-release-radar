@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or } from "drizzle-orm";
 import type { Locale } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import {
@@ -12,7 +12,13 @@ import {
 } from "../db/schema";
 import type { AppDb } from "../db/types";
 import type { DigestWindow } from "../push/slot";
-import { discoveredAfterBaseline, loadCrawlBaselines, loadListings, notAdultRated } from "./works";
+import {
+  type CrawlBaselines,
+  discoveredAfterBaseline,
+  loadCrawlBaselines,
+  loadListings,
+  notAdultRated,
+} from "./works";
 
 /**
  * ダイジェスト送信のための読み書き。段取りそのものは `src/server/push/digest.ts`。
@@ -94,27 +100,40 @@ export type DigestWork = {
 /**
  * 渡した声優のいずれかが出ていて、その週に出た作品。R18 は含めない。
  *
+ * 数えるのは 3 通り。発売日がこの週の作品、発売日は少し前 (`releaseDateLookbackFrom` 以降) だが
+ * この週に初めて見つかった作品、発売日が無くこの週に初めて見つかった作品。
+ * 2 つ目が要るのは、ストアに載るのも日次の取り込みも発売日より遅れることがあり、その作品は
+ * 「発売日の週」の締めの後で DB に入るため。別のストアで同じ作品が後から見つかった場合もここに当たる。
+ *
  * 発売日の無い作品は、その声優の初回クロールより後に見つかったものだけ。初回クロールは
- * 既存の全作品を一度に見つけるので、そこを起点にしないと声優を追加した週に過去作が全部届く
+ * 既存の全作品を一度に見つけるので、そこを起点にしないと声優を追加した週に過去作が全部届く。
+ * `baselines` は 1 回の起動で何ページも引くときに使い回す (毎回集計し直さない)
  */
 export async function digestWorks(
   db: AppDb,
   actorIds: string[],
   window: DigestWindow,
+  baselines?: CrawlBaselines,
 ): Promise<DigestWork[]> {
   if (actorIds.length === 0) return [];
   const actorSet = new Set(actorIds);
 
+  const discoveredThisWeek = and(
+    gt(storeListings.firstSeenAt, window.discoveredAfter),
+    lte(storeListings.firstSeenAt, window.discoveredUntil),
+  );
   const inWindow = or(
     and(
       gte(audioWorks.releaseDate, window.releaseDateFrom),
       lte(audioWorks.releaseDate, window.releaseDateTo),
     ),
     and(
-      isNull(audioWorks.releaseDate),
-      gt(storeListings.firstSeenAt, window.discoveredAfter),
-      lte(storeListings.firstSeenAt, window.discoveredUntil),
+      isNotNull(audioWorks.releaseDate),
+      gte(audioWorks.releaseDate, window.releaseDateLookbackFrom),
+      lt(audioWorks.releaseDate, window.releaseDateFrom),
+      discoveredThisWeek,
     ),
+    and(isNull(audioWorks.releaseDate), discoveredThisWeek),
   );
 
   const works = new Map<string, DigestWork>();
@@ -145,15 +164,19 @@ export async function digestWorks(
   // 発売日の無い作品だけ、初回クロールの基準に照らす
   const undated = [...works.values()].filter((work) => work.releaseDate === null);
   if (undated.length > 0) {
-    const [listings, baselines] = await Promise.all([
+    const [listings, crawlBaselines] = await Promise.all([
       loadListings(
         db,
         undated.map((work) => work.id),
       ),
-      loadCrawlBaselines(db),
+      baselines ?? loadCrawlBaselines(db),
     ]);
     for (const work of undated) {
-      const found = discoveredAfterBaseline(listings.get(work.id) ?? [], work.actorIds, baselines);
+      const found = discoveredAfterBaseline(
+        listings.get(work.id) ?? [],
+        work.actorIds,
+        crawlBaselines,
+      );
       const inRange =
         found !== undefined && found > window.discoveredAfter && found <= window.discoveredUntil;
       if (!inRange) works.delete(work.id);

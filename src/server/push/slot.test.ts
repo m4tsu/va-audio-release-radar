@@ -31,6 +31,7 @@ describe("digestWindow", () => {
       scheduledAt: FRIDAY_SLOT,
       releaseDateFrom: "2026-09-19",
       releaseDateTo: "2026-09-25",
+      releaseDateLookbackFrom: "2026-08-26",
       discoveredAfter: "2026-09-18T09:00:00.000Z",
       discoveredUntil: FRIDAY_SLOT,
     });

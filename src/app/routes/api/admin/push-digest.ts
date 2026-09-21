@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireBearer } from "@/server/auth";
 import { getDb } from "@/server/db/client";
-import { planDigest } from "@/server/push/digest";
+import { DIGEST_PAGE_SIZE, planDigest } from "@/server/push/digest";
 import { vapidFromEnv } from "@/server/push/vapid";
 
 /**
@@ -10,7 +10,7 @@ import { vapidFromEnv } from "@/server/push/vapid";
  *
  * cron の起動は手元で再現しにくいので、送る内容だけをここで確かめる。
  * `?at=` に時刻 (ISO 8601) を渡すと、その時刻に起動したものとして予定時刻を決める。
- * `?after=` と `?limit=` は購読の続きを読むためのもの (`planDigest` と同じ意味)。
+ * `?after=` と `?limit=` は購読の続きを読むためのもの (`planDigest` と同じ意味。上限も同じ)。
  * 宛先の URL は送信の権限そのものなので返さず、ホスト名だけにする
  */
 export const Route = createFileRoute("/api/admin/push-digest")({
@@ -34,7 +34,11 @@ export const Route = createFileRoute("/api/admin/push-digest")({
           );
         }
 
-        const plan = await planDigest(getDb(), { now: at, afterId, limit });
+        const plan = await planDigest(getDb(), {
+          now: at,
+          afterId,
+          limit: Math.min(limit, DIGEST_PAGE_SIZE),
+        });
         return Response.json({
           configured: vapidFromEnv(env) !== null,
           window: plan.window,

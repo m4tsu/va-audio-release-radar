@@ -19,8 +19,12 @@ export type SendOutcome =
   | { kind: "sent" }
   /** 購読が無効。push service が 404 か 410 を返した。購読は消してよい */
   | { kind: "expired"; status: number }
-  /** 一時的な失敗。購読は残し、次の起動で送り直す */
-  | { kind: "failed"; status?: number; error?: string };
+  /**
+   * 送れなかった。`permanent` が true なら、この購読にこの週は何度送っても通らない
+   * (鍵の不一致や本文の拒否など push service が 4xx で答えたもの)。false なら一時的な失敗で、
+   * 次の起動で送り直す (5xx、429、通信の失敗)
+   */
+  | { kind: "failed"; permanent: boolean; status?: number; error?: string };
 
 /**
  * 通知が届くまでに push service が預かる時間。ブラウザが閉じていても 1 週間以内に開けば届く。
@@ -49,9 +53,15 @@ export function createPushSender(vapid: VapidKeys, fetchFn: typeof fetch = fetch
       if (response.status === 404 || response.status === 410) {
         return { kind: "expired", status: response.status };
       }
-      return { kind: "failed", status: response.status };
+      // 429 は混雑。それ以外の 4xx は要求そのものが拒まれたので、送り直しても通らない
+      const permanent = response.status >= 400 && response.status < 500 && response.status !== 429;
+      return { kind: "failed", permanent, status: response.status };
     } catch (error) {
-      return { kind: "failed", error: error instanceof Error ? error.message : String(error) };
+      return {
+        kind: "failed",
+        permanent: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   };
 }

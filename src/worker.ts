@@ -13,10 +13,10 @@ const start = handler as unknown as {
 
 export default {
   fetch: (request, env, ctx) => start.fetch(request, env, ctx),
-  scheduled: (_controller, _env, ctx) => {
-    // 起動の中で D1 と push service に出る。応答を返す相手が居ないので waitUntil で終わりまで待たせる
-    ctx.waitUntil(
-      import("@/server/push/scheduled").then(({ runScheduledDigest }) => runScheduledDigest()),
-    );
+  scheduled: async () => {
+    // 返した Promise が終わるまで起動は続く。途中の例外はそのまま起動の失敗として記録される
+    // (waitUntil に渡すと、失敗してもこの起動は成功と数えられる)
+    const { runScheduledDigest } = await import("@/server/push/scheduled");
+    await runScheduledDigest();
   },
 } satisfies ExportedHandler<Env>;

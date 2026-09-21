@@ -105,6 +105,33 @@ describe("planDigest", () => {
     ]);
   });
 
+  /** ストアに載るのも日次の取り込みも発売日より遅れることがある。締めの後に入った作品を次の週で拾う */
+  it("発売日が前の週でも、この週に初めて見つかった作品は数える", async () => {
+    const db = await setupDb([UEDA]);
+    // 初回クロールは前の週。その後、発売日 09-18 (前の週の金曜) の作品が今週見つかった
+    await ingestWork(db, UEDA, "RJ-old", { releaseDate: "2026-08-01" }, LAST_WEEK);
+    await ingestWork(
+      db,
+      UEDA,
+      "RJ-late",
+      { releaseDate: "2026-09-18" },
+      "2026-09-22T00:00:00.000Z",
+    );
+    // 発売日が遡りの幅より前なら、今週見つかっても数えない
+    await ingestWork(
+      db,
+      UEDA,
+      "RJ-ancient",
+      { releaseDate: "2026-08-01" },
+      "2026-09-22T00:00:00.000Z",
+    );
+    await subscribe(db, "https://push.example/ueda", [UEDA.id]);
+
+    const plan = await planDigest(db, { now: FRIDAY });
+
+    expect(plan.targets[0]?.works.map((work) => work.id)).toEqual(["dlsite:RJ-late"]);
+  });
+
   /** 発売日の無い作品は、その声優の初回クロールより後に見つかった分だけ */
   it("発売日の無い作品は、初回クロールより後にその週に見つかったものだけ数える", async () => {
     const db = await setupDb([UEDA]);
@@ -225,7 +252,9 @@ describe("runDigest", () => {
     const db = await setupDb([UEDA]);
     await ingestWork(db, UEDA, "RJ1", { releaseDate: "2026-09-20" });
     const flaky = await subscribe(db, "https://push.example/flaky", [UEDA.id]);
-    const failing = fakeSender({ "https://push.example/flaky": { kind: "failed", status: 500 } });
+    const failing = fakeSender({
+      "https://push.example/flaky": { kind: "failed", permanent: false, status: 500 },
+    });
 
     const first = await runDigest(db, { now: FRIDAY, send: failing.send, log: () => {} });
 
@@ -244,6 +273,43 @@ describe("runDigest", () => {
 
     expect(second).toMatchObject({ sentCount: 1 });
     expect(await subscriptionRow(db, flaky.id)).toMatchObject({ lastDigestScheduledAt: FRIDAY });
+  });
+
+  /** 送っても通らない購読が毎回の起動で送信枠を先に食うと、後ろの購読に届かない */
+  it("恒久的な失敗はこの週は済みにし、同じ週の次の起動では送り直さない", async () => {
+    const db = await setupDb([UEDA]);
+    await ingestWork(db, UEDA, "RJ1", { releaseDate: "2026-09-20" });
+    const rejected = await subscribe(db, "https://push.example/rejected", [UEDA.id]);
+    const { send } = fakeSender({
+      "https://push.example/rejected": { kind: "failed", permanent: true, status: 403 },
+    });
+
+    const first = await runDigest(db, { now: FRIDAY, send, log: () => {} });
+    expect(first).toMatchObject({ failedCount: 1, sentCount: 0 });
+    expect(await subscriptionRow(db, rejected.id)).toMatchObject({
+      lastDigestScheduledAt: FRIDAY,
+      lastAttemptedAt: FRIDAY,
+    });
+
+    await runDigest(db, { now: "2026-09-25T09:10:00.000Z", send, log: () => {} });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("途中で例外が出ても、そこまでの件数と終了日時を走行の記録に書いてから投げる", async () => {
+    const db = await setupDb([UEDA]);
+    await ingestWork(db, UEDA, "RJ1", { releaseDate: "2026-09-20" });
+    await subscribe(db, "https://push.example/ueda", [UEDA.id]);
+    const send = vi.fn(async () => {
+      throw new Error("D1 が落ちた");
+    });
+
+    await expect(
+      runDigest(db, { now: FRIDAY, send, log: () => {}, clock: () => FRIDAY }),
+    ).rejects.toThrow("D1 が落ちた");
+
+    const runs = await db.select().from(pushDigestRuns);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ finishedAt: FRIDAY, subscriptionCount: 1, sentCount: 0 });
   });
 
   /** 1 回の起動で送る数を切り、残りは次の起動に持ち越す */
@@ -281,7 +347,8 @@ describe("runDigest", () => {
     await subscribe(db, "https://push.example/hanazawa", [HANAZAWA.id]);
     const { send } = fakeSender({ "https://push.example/gone": { kind: "expired", status: 404 } });
 
-    const result = await runDigest(db, { now: FRIDAY, send, log: () => {} });
+    const finished = "2026-09-25T09:00:03.000Z";
+    const result = await runDigest(db, { now: FRIDAY, send, log: () => {}, clock: () => finished });
 
     const runs = await db.select().from(pushDigestRuns);
     expect(runs).toHaveLength(1);
@@ -289,12 +356,12 @@ describe("runDigest", () => {
       id: result.runId,
       digestScheduledAt: FRIDAY,
       startedAt: FRIDAY,
+      finishedAt: finished,
       subscriptionCount: 2,
       sentCount: 1,
       expiredCount: 1,
       failedCount: 0,
     });
-    expect(runs[0]?.finishedAt).not.toBeNull();
   });
 
   it("鍵が無ければ何も送らず、記録も残さず、ログに出す", async () => {
