@@ -2,7 +2,7 @@
 //
 // 手元の D1 の中身を、本番 D1 に流し込める SQL に書き出す。
 //
-//   npm run db:export:local                      # work/d1-export/local-<日時>.sql に書く
+//   npm run db:export:local                      # work/d1-export/local.sql に書く (毎回上書き)
 //   npm run db:export:local -- --output x.sql
 //   npm run db:export:local -- --include-store audible
 //   npm run db:export:local -- --table voice_actors --table audio_works   # 表を絞る (日を分けて流すとき)
@@ -65,8 +65,9 @@ export function main(argv, deps = {}) {
 
   const included = values["include-store"] ?? [];
   const excludeStores = DEFAULT_EXCLUDED_STORES.filter((store) => !included.includes(store));
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const output = values.output ?? path.join("work", "d1-export", `local-${stamp}.sql`);
+  // 既定は固定名にして上書きする。同じ D1 から何度でも作り直せるものを日時付きで積むと、
+  // git 管理外のまま数 MB の書き出しが残り続ける。複数を残したいときだけ --output を使う
+  const output = values.output ?? path.join("work", "d1-export", "local.sql");
 
   const db = new DatabaseSync(sqliteFile, { readOnly: true });
   try {
