@@ -29,6 +29,8 @@ describe("readContactSearch", () => {
     ["円記号で始まる経路", "/\\example.com"],
     ["相対パス", "works/1"],
     ["文字列でない値", 1],
+    ["改行を含む経路", "/works/1\n\n本文に見せかけた行"],
+    ["本文の上限を超える長さの経路", `/works/${"a".repeat(2001)}`],
   ])("%s は対象のページとして読まない", (_name, about) => {
     expect(readContactSearch({ about }).about).toBeNull();
   });

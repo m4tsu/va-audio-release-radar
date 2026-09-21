@@ -14,6 +14,13 @@ import { INQUIRY_KINDS, type InquiryKind } from "@/domain/types";
 /** 欄が無い / 読めないときの種別。`/contact` を直接開いたときはこれが選ばれている */
 export const DEFAULT_INQUIRY_KIND: InquiryKind = "request";
 
+/**
+ * 対象の経路として受ける長さの上限。作品 ID を符号化した経路でも 40 文字ほどで収まる。
+ * 上限が無いと本文の上限 (`INQUIRY_BODY_MAX_LENGTH`) を超える初期値を作れてしまい、
+ * 1 文字も書いていないのに長すぎて送れない入力欄ができる
+ */
+const ABOUT_MAX_LENGTH = 200;
+
 /** URL に載せる欄。読めなかった欄と既定の種別は落とす */
 export type ContactSearch = { kind?: InquiryKind; about?: string };
 
@@ -28,15 +35,26 @@ export function isInquiryKind(value: unknown): value is InquiryKind {
  * このサイトの中のパスか。
  *
  * 先頭が `/` でも `//example.com` は別オリジンの URL として解釈される。
- * `\` を混ぜた `/\example.com` も同じなので、2 文字目で弾く
+ * `\` を混ぜた `/\example.com` も同じなので、2 文字目で弾く。
+ * 改行や制御文字を許すと、対象の URL の後ろに好きな行を継ぎ足して
+ * 本文の先頭に仕込めてしまうので、1 行に収まるものだけを受ける
  */
 function isInternalPath(value: unknown): value is string {
   return (
     typeof value === "string" &&
+    value.length <= ABOUT_MAX_LENGTH &&
     value.startsWith("/") &&
     !value.startsWith("//") &&
-    !value.startsWith("/\\")
+    !value.startsWith("/\\") &&
+    !hasControlCharacter(value)
   );
+}
+
+function hasControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 0x20 || code === 0x7f;
+  });
 }
 
 /**

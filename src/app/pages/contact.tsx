@@ -49,7 +49,11 @@ export function ContactPage({
         </p>
       ) : null}
 
+      {/* 欄が変わったら入力欄を作り直す。フッターの「お問い合わせ」は `/contact` 自身にも
+          出るので、訂正の申し出の画面から押すと欄だけが変わる。初期値は作り直さないと
+          残り続け、URL は素の `/contact` なのに種別と本文が訂正のままになる */}
       <InquiryForm
+        key={`${defaultKind}:${targetUrl ?? ""}`}
         turnstileSiteKey={turnstileSiteKey}
         defaultKind={defaultKind}
         targetUrl={targetUrl}

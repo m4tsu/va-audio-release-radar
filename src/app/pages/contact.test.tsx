@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
+import { LocaleContext } from "@/app/i18n";
 import { ContactPage } from "@/app/pages/contact";
 import { renderWithLocale } from "@/app/test/render";
 
@@ -66,6 +67,30 @@ describe("ContactPage", () => {
       "https://example.test/voice-actors/alpha\n\n",
     );
     expect(screen.getByText(/別名義の申し出には根拠を書いてください/)).toBeInTheDocument();
+  });
+
+  /**
+   * フッターの「お問い合わせ」は `/contact` 自身にも出る。訂正の申し出の画面から押すと
+   * 画面は留まったまま欄だけが消えるので、入力欄も素の状態に戻る必要がある
+   */
+  test("対象の指定が外れたら、種別と本文も既定に戻る", () => {
+    const { rerender } = renderWithLocale(
+      <ContactPage
+        turnstileSiteKey="test-site-key"
+        contactUrl={null}
+        defaultKind="correction"
+        targetUrl="https://example.test/voice-actors/alpha"
+      />,
+    );
+
+    rerender(
+      <LocaleContext value="ja">
+        <ContactPage turnstileSiteKey="test-site-key" contactUrl={null} />
+      </LocaleContext>,
+    );
+
+    expect(screen.getByLabelText("種別")).toHaveValue("request");
+    expect(screen.getByLabelText("本文")).toHaveValue("");
   });
 
   test("送信できるときは外部の窓口の案内を出さない", () => {
