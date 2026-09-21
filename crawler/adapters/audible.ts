@@ -7,7 +7,9 @@ import type {
   ActorQuery,
   AdapterResult,
   Coverage,
+  FeedResult,
   FetchByActorOptions,
+  FetchNewReleasesOptions,
   ParsedWorks,
   SourceAdapter,
 } from "./types.ts";
@@ -119,6 +121,30 @@ export function buildSearchUrl(narratorName: string, page: number = FIRST_PAGE):
   // page=1 は page なしと同じ結果 (ASIN まで一致) なので、1 ページ目は素の URL にする
   return page <= FIRST_PAGE ? base : `${base}&page=${page}`;
 }
+
+/**
+ * 新着一覧の URL。**文字列をそのまま持ち、組み立て直さない。**
+ *
+ * robots.txt は `/newreleases` を一度 `Disallow` したうえで、許可する形を 1 本ずつ
+ * `$` 終端で列挙している (`docs/stores/audible.md` の「新着一覧」)。`$` 終端なので
+ * パラメータの順序も末尾も 1 文字違えば禁止側に落ちる。組み立てる関数にすると、
+ * 引数の組み合わせ次第で列挙に無い URL を作ってしまう。
+ *
+ * `page=` は `0` と `2` だけが列挙されていて `1` が無く、`sort=` との併用も禁止。
+ * そのため網羅は**並び順違いの 1 ページ目の和集合**で稼ぐ。どの並びがどれだけ取り分を
+ * 増やしたかは `docs/research/new-release-feeds-2026-09-19.md`。
+ * 取り分 0 だった `price-asc-rank` は入れていない
+ */
+export const AUDIBLE_FEED_URLS = [
+  "https://www.audible.co.jp/newreleases",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=pubdate-desc-rank&submitted=1",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=pubdate-asc-rank&submitted=1",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=title-asc-rank&submitted=1",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=title-desc-rank&submitted=1",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=review-rank&submitted=1",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=runtime-asc-rank&submitted=1",
+  "https://www.audible.co.jp/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&submitted=1&page=2",
+] as const;
 
 /**
  * 商品 URL は正規形 (`/pd/{ASIN}`) を組み立てる。一覧の href は `/pd/{slug}/{ASIN}` の形で
@@ -525,8 +551,93 @@ function pickFallback(base: AdapterResult, attempts: readonly AdapterResult[]): 
   return attempts[attempts.length - 1] ?? { ...base, status: "error", reason: "検索候補が 0 件" };
 }
 
+/**
+ * 新着一覧から、まだ知らない作品だけを取る (日次の走行)。声優を指定しないので、
+ * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
+ *
+ * 一覧にナレーターと配信日が載るので、作品ページは引かない。
+ * 逆にナレーター欄が空の作品は照合のしようがないので送らない。
+ * その作品は月次の声優起点で拾う (`decisions/0007` の「帰結」)
+ */
+async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
+  const fetchedAt = new Date().toISOString();
+  const warnings: string[] = [];
+  const failures: string[] = [];
+  let invalidCount = 0;
+  let pages = 0;
+  /** 新着枠の総件数。並び順が違っても同じプールを見ているので、最初に読めた値を使う */
+  let windowTotal: number | undefined;
+
+  // 並び順をまたいで ASIN で畳む。同じ作品が別の並びに出ても 1 件になる
+  const listed = new Map<string, RawWork>();
+
+  for (const url of AUDIBLE_FEED_URLS) {
+    const result = await fetchText(url, {
+      store: STORE_SLUG,
+      requestKey: `newreleases-${pages + failures.length}`,
+      kind: "html",
+      snapshot: options.snapshot,
+    });
+    if (!result.ok) {
+      // この並びだけ引けなかった。他の並びは使うので走行は続ける
+      failures.push(result.reason);
+      warnings.push(`新着一覧を 1 本取れなかった (${result.reason})`);
+      continue;
+    }
+
+    pages += 1;
+    const parsed = parseSearchHtml(result.body, fetchedAt);
+    invalidCount += parsed.invalidCount;
+    warnings.push(...parsed.warnings);
+    windowTotal ??= parsed.totalCount;
+    for (const work of parsed.works) {
+      if (!listed.has(work.storeProductId)) listed.set(work.storeProductId, work);
+    }
+  }
+
+  const base = {
+    storeSlug: STORE_SLUG,
+    works: [] as RawWork[],
+    invalidCount,
+    warnings,
+    listedCount: listed.size,
+    // 引けなかった並びがあれば false。見に行けなかった入口があることは確か
+    complete: failures.length === 0,
+    pages,
+  };
+
+  if (pages === 0) {
+    return { ...base, status: "error", reason: `新着一覧の取得に失敗 (${failures[0] ?? "不明"})` };
+  }
+  if (listed.size === 0) {
+    return { ...base, status: "error", reason: "新着一覧から作品を 1 件も読めなかった" };
+  }
+
+  // 新着枠の何割を覆えたか。1 ページ 20 件 × 並び順の数では枠を覆い切れないことがあり、
+  // 取りこぼしは翌日以降の別の並びで拾い直す。総件数は crawl_runs には送らない
+  // (枠の大半は対象声優と関係ない作品なので、保存件数と並べると読み違える)
+  if (windowTotal !== undefined && listed.size < windowTotal) {
+    warnings.push(`新着枠 ${windowTotal} 件のうち ${listed.size} 件を取得`);
+  }
+
+  // 既知の作品は送らない。日次の目的は新作の検出で、既知の項目を直すのは月次の役目
+  const known = options.knownIds;
+  const fresh = [...listed.values()].filter((work) => known?.has(work.storeProductId) !== true);
+
+  // ナレーター欄が空の作品は誰の作品か決められない。取り込み側に送っても捨てられるだけなので、
+  // ここで落として件数を残す (月次の声優起点なら、その声優の名前で引くので拾える)
+  const withNarrator = fresh.filter((work) => work.creditedNames.length > 0);
+  const missing = fresh.length - withNarrator.length;
+  if (missing > 0) {
+    warnings.push(`ナレーター欄が空の新着 ${missing} 件を送らなかった (月次の補完で拾う)`);
+  }
+
+  return { ...base, works: withNarrator, status: withNarrator.length === 0 ? "empty" : "ok" };
+}
+
 export const audibleAdapter: SourceAdapter = {
   storeSlug: STORE_SLUG,
   fetchByActor,
+  fetchNewReleases,
   parseSearchHtml,
 };

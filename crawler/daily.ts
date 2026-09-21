@@ -6,6 +6,7 @@ import {
   STORE_SLUGS,
   type StoreSlug,
 } from "../src/domain/index.ts";
+import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { FeedResult, SourceAdapter } from "./adapters/types.ts";
@@ -32,7 +33,7 @@ import { STORE_LABELS } from "./lib/labels.ts";
  */
 
 /** 新着一覧を実装した adapter。他のストアは後続の issue で足す */
-const FEED_ADAPTERS: readonly SourceAdapter[] = [dlsiteAdapter, pokedoraAdapter];
+const FEED_ADAPTERS: readonly SourceAdapter[] = [dlsiteAdapter, audibleAdapter, pokedoraAdapter];
 
 const USAGE = `使い方:
   INGEST_TOKEN=... node crawler/daily.ts --base-url https://example.workers.dev [オプション]

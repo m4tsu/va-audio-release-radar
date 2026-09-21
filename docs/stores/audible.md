@@ -13,8 +13,8 @@
 
 ## 1. robots.txt
 
-**最終確認日: 2026-09-19** (`https://www.audible.co.jp/robots.txt`、377 行。
-2026-09-18 保存分とバイト単位で同一)
+**最終確認日: 2026-09-21** (`https://www.audible.co.jp/robots.txt`、378 行。
+`/newreleases` の `Allow` は 52 行で、2026-09-19 の記述から変化なし)
 
 グループは `User-agent: *` の 1 つだけ。**`Crawl-delay` の指定は無い。**
 `/search` に関係する行をそのまま引く。
@@ -127,10 +127,13 @@ https://www.audible.co.jp/pd/{ASIN}
 
 一覧の href は `/pd/{slug}/{ASIN}` の形で、slug 部分はタイトル変更で変わりうるので使わない。
 
-### まだ使っていないが、許可が確認できている形
+### 新着一覧 (日次の走行が使う)
 
-日次クロールを「声優 1 人ずつ検索」から「ストアの新着一覧」に変える案の入力
-(`docs/research/new-release-feeds-2026-09-19.md` の Audible の節)。**採否は未決。**
+**引く URL の一覧は `crawler/adapters/audible.ts` の `AUDIBLE_FEED_URLS` が持つ。**
+この節はなぜその形なのかを書く場所であって、URL を複製する場所ではない。
+
+robots.txt は `/newreleases` を一度 `Disallow` したうえで、許可する形を 1 本ずつ
+`$` 終端で列挙している。関係する行の形:
 
 ```
 Disallow: /newreleases
@@ -139,18 +142,30 @@ Allow: /newreleases?submitted=1$
 Allow: /newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort={並び順}&submitted=1$
 Allow: /newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&submitted=1&page=0$
 Allow: /newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&submitted=1&page=2$
+```
 
+- `/newreleases` の `Allow` は全部で **52 行**あり、**すべて `$` 終端**。
+  パラメータの順序も末尾も 1 文字違えば `Disallow` 側に落ちる。
+  **文字列を定数でそのまま持ち、URL を組み立て直さない**
+- ページ送りは **`page=0` と `page=2` だけ**が列挙されている。`page=1` も `page=3` 以降も無い。
+  `sort=` と `page=` の併用も `Disallow: /*&sort*&page=` で禁止
+- そのため網羅は**並び順違いの 1 ページ目の和集合**で稼ぐ。どの並びがどれだけ取り分を
+  増やしたかは [`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md)
+- ここでの `{並び順}` 9 種類は `/newreleases` の列挙にあるから許可されるのであって、
+  `/search` では依然として禁止である。混同しない
+- **一覧にナレーターと配信日が載るので、作品ページは引かない。**
+  ナレーター欄が空の作品は誰の作品か決められないので送らず、月次の声優起点で拾う
+
+### まだ使っていないが、許可が確認できている形
+
+配信予定 (`docs/research/upcoming-releases-2026-09-18.md` の入力)。**採否は未決。**
+
+```
 Disallow: /coming-soon
 Allow: /coming-soon$
 Allow: /coming-soon?page=
 ```
 
-- `/newreleases` の `Allow` は全部で **52 行**あり、**すべて `$` 終端**。
-  パラメータの順序も末尾も 1 文字違えば `Disallow` 側に落ちる。
-  **実装するなら文字列を定数でそのまま持ち、URL を組み立て直してはいけない**
-- ページ送りは **`page=0` と `page=2` だけ**が列挙されている。`page=1` も `page=3` 以降も無い
-- ここでの `{並び順}` 9 種類は `/newreleases` の列挙にあるから許可されるのであって、
-  `/search` では依然として禁止である。混同しない
 - `/coming-soon` は `$` が無いので `page=` が無制限に許可されている。`/newreleases` より緩い
 
 ---

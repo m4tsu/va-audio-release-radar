@@ -19,6 +19,7 @@ on:
         options:
           - ""
           - dlsite
+          - audible
           - pokedora
 
 # 声優起点の巡回と同じグループにする。レートリミッタはプロセス内にあるので、

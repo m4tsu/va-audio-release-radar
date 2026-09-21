@@ -5,6 +5,7 @@ import type { FetchResult } from "../lib/fetch.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { FIXTURES_DIR } from "../lib/paths.ts";
 import {
+  AUDIBLE_FEED_URLS,
   audibleAdapter,
   buildProductUrl,
   buildSearchUrl,
@@ -34,6 +35,13 @@ const singleHitHtml = readFileSync(
 // searchNarrator= が姓だけでも一致する実 HTML。総件数 355 に対し本人名義は 0 件
 const looseMatchHtml = readFileSync(
   path.join(FIXTURES_DIR, "audible-search-sato-hajime.html"),
+  "utf8",
+);
+/** 新着一覧の実 HTML (2026-09-21 取得)。素の /newreleases と、配信日の新しい順 */
+const newReleasesHtml = readFileSync(path.join(FIXTURES_DIR, "audible-newreleases.html"), "utf8");
+/** 同じ日の配信日の新しい順。フィクスチャの 6 件すべてナレーター欄が空 */
+const newReleasesPubdateDescHtml = readFileSync(
+  path.join(FIXTURES_DIR, "audible-newreleases-pubdate-desc.html"),
   "utf8",
 );
 // ページングの実 HTML。斉藤壮馬 (総件数 164) の 1 ページ目と最終ページ。
@@ -794,5 +802,212 @@ describe("fetchByActor", () => {
 
     expect(result.status).toBe("empty");
     expect(result.coverage).toEqual({ fetched: 0, total: 0, complete: true, pages: 1, matched: 0 });
+  });
+});
+
+describe("AUDIBLE_FEED_URLS", () => {
+  /**
+   * robots.txt は `/newreleases` を Disallow したうえで、許可する形を 1 本ずつ `$` 終端で
+   * 列挙している (docs/stores/audible.md の「新着一覧」)。組み立て直すと字面から外れるので、
+   * 定数がその列挙の形と一致していることをここで固定する
+   */
+  it("robots.txt が列挙している形と一致する", () => {
+    const allowed = new Set([
+      "/newreleases",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=pubdate-desc-rank&submitted=1",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=pubdate-asc-rank&submitted=1",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=title-asc-rank&submitted=1",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=title-desc-rank&submitted=1",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=review-rank&submitted=1",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&sort=runtime-asc-rank&submitted=1",
+      "/newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=8199774051&submitted=1&page=2",
+    ]);
+    for (const url of AUDIBLE_FEED_URLS) {
+      expect(url.startsWith("https://www.audible.co.jp")).toBe(true);
+      expect(allowed).toContain(url.slice("https://www.audible.co.jp".length));
+    }
+  });
+
+  it("列挙に無い page=1 と sort+page の併用を含まない", () => {
+    for (const url of AUDIBLE_FEED_URLS) {
+      expect(url).not.toContain("page=1");
+      expect(url.includes("sort=") && url.includes("page=")).toBe(false);
+    }
+  });
+
+  it("同じ URL を 2 度引かない", () => {
+    expect(new Set(AUDIBLE_FEED_URLS).size).toBe(AUDIBLE_FEED_URLS.length);
+  });
+});
+
+describe("parseSearchHtml (新着一覧)", () => {
+  it("検索結果と同じセレクタで読め、配信日とナレーターが取れる", () => {
+    const parsed = parseSearchHtml(newReleasesHtml, FETCHED_AT);
+    // フィクスチャは 1 ページ 20 件のうち先頭 6 件を残したもの
+    expect(parsed.works).toHaveLength(6);
+    expect(parsed.invalidCount).toBe(0);
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.works[0]).toMatchObject({
+      storeSlug: "audible",
+      storeProductId: "B0HJFGC6W1",
+      titleRaw: "ハミングバードのいるところ",
+      productUrl: "https://www.audible.co.jp/pd/B0HJFGC6W1",
+      releaseDate: "2026-09-18",
+      creditedNames: ["黒葛原 真奈"],
+      storeCategory: "audiobook",
+      // Audible は年齢区分を公開していない
+      ageRating: "unknown",
+    });
+  });
+
+  // 一覧に載らない作品があるので、照合できない作品がここで出る
+  it("ナレーター欄が空の作品も一覧としては読める", () => {
+    const parsed = parseSearchHtml(newReleasesPubdateDescHtml, FETCHED_AT);
+    expect(parsed.works).toHaveLength(6);
+    expect(parsed.works.every((work) => work.creditedNames.length === 0)).toBe(true);
+  });
+
+  it("新着枠の総件数を読める", () => {
+    expect(parseTotalCount(newReleasesHtml)).toBe(112);
+  });
+});
+
+describe("audibleAdapter.fetchNewReleases", () => {
+  const fetchTextMock = vi.mocked(fetchText);
+
+  /** 1 件の productListItem。ナレーターを空にもできる */
+  function item(asin: string, narrator?: string): string {
+    const narratorHtml =
+      narrator === undefined ? "" : `<li class="narratorLabel"><a>${narrator}</a></li>`;
+    return (
+      `<li class="productListItem" id="product-list-item-${asin}">` +
+      `<h3><a href="/pd/x/${asin}">Title ${asin}</a></h3>` +
+      `<ul>${narratorHtml}</ul></li>`
+    );
+  }
+
+  const feedPage = (html: string, total?: number): FetchResult => ({
+    ok: true,
+    status: 200,
+    url: "https://www.audible.co.jp/newreleases",
+    body:
+      total === undefined
+        ? html
+        : `<span class="resultsSummarySubheading">検索結果 ${total}  のうち 1 - 20 件</span>${html}`,
+  });
+
+  afterEach(() => {
+    fetchTextMock.mockReset();
+  });
+
+  it("列挙した URL だけを、定数のまま引く", async () => {
+    fetchTextMock.mockResolvedValue(feedPage(item("B000000001", "上田 麗奈")));
+
+    await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(fetchTextMock.mock.calls.map((call) => call[0])).toEqual([...AUDIBLE_FEED_URLS]);
+  });
+
+  it("並び順違いの結果を ASIN で畳む", async () => {
+    fetchTextMock.mockImplementation(async (url: string) =>
+      feedPage(
+        url.includes("title-asc")
+          ? item("B000000002", "上田 麗奈")
+          : item("B000000001", "上田 麗奈"),
+      ),
+    );
+
+    const result = await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["B000000001", "B000000002"]);
+    expect(result?.listedCount).toBe(2);
+    expect(result?.pages).toBe(AUDIBLE_FEED_URLS.length);
+    expect(result?.complete).toBe(true);
+  });
+
+  /**
+   * 誰の作品か決められないので送らない。取り込み側に送っても捨てられるだけで、
+   * 「対象声優が居ない」と混ざって理由が読めなくなる
+   */
+  it("ナレーター欄が空の作品は送らず、件数を警告に出す", async () => {
+    fetchTextMock.mockResolvedValue(
+      feedPage(`${item("B000000001", "上田 麗奈")}${item("B000000002")}`),
+    );
+
+    const result = await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["B000000001"]);
+    // 一覧に出た数は落とす前の数
+    expect(result?.listedCount).toBe(2);
+    expect(result?.warnings).toContain(
+      "ナレーター欄が空の新着 1 件を送らなかった (月次の補完で拾う)",
+    );
+  });
+
+  it("既知の作品は送らない", async () => {
+    fetchTextMock.mockResolvedValue(
+      feedPage(`${item("B000000001", "上田 麗奈")}${item("B000000002", "上田 麗奈")}`),
+    );
+
+    const result = await audibleAdapter.fetchNewReleases?.({
+      knownIds: new Set(["B000000001"]),
+      snapshot: false,
+    });
+
+    expect(result?.works.map((work) => work.storeProductId)).toEqual(["B000000002"]);
+    expect(result?.listedCount).toBe(2);
+  });
+
+  it("送るものが無ければ empty で返す", async () => {
+    fetchTextMock.mockResolvedValue(feedPage(item("B000000001")));
+
+    const result = await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("empty");
+    expect(result?.works).toEqual([]);
+  });
+
+  // 新着枠を 1 日で覆い切れないことがある。取りこぼしは翌日以降の別の並びで拾い直す
+  it("新着枠を覆い切れなければ、取れた件数を警告に出す", async () => {
+    fetchTextMock.mockResolvedValue(feedPage(item("B000000001", "上田 麗奈"), 112));
+
+    const result = await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.warnings).toContain("新着枠 112 件のうち 1 件を取得");
+    // 総件数は送らない。枠の大半は対象声優と関係ない作品で、保存件数と並べると読み違える
+    expect(result?.totalCount).toBeUndefined();
+  });
+
+  it("一部の並びが落ちても、取れた側で続行して警告に残す", async () => {
+    let first = true;
+    fetchTextMock.mockImplementation(async () => {
+      if (first) {
+        first = false;
+        return { ok: false, url: "https://www.audible.co.jp/newreleases", reason: "timeout" };
+      }
+      return feedPage(item("B000000001", "上田 麗奈"));
+    });
+
+    const result = await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("ok");
+    expect(result?.works).toHaveLength(1);
+    expect(result?.pages).toBe(AUDIBLE_FEED_URLS.length - 1);
+    expect(result?.complete).toBe(false);
+    expect(result?.warnings).toContain("新着一覧を 1 本取れなかった (timeout)");
+  });
+
+  it("どれも引けなければ error にする", async () => {
+    fetchTextMock.mockResolvedValue({
+      ok: false,
+      url: "https://www.audible.co.jp/newreleases",
+      reason: "timeout",
+    });
+
+    const result = await audibleAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.status).toBe("error");
+    expect(result?.complete).toBe(false);
+    expect(result?.reason).toBe("新着一覧の取得に失敗 (timeout)");
   });
 });
