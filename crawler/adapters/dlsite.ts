@@ -578,8 +578,9 @@ async function applyDetails(
  * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
  *
  * 声優起点と違ってフロアごとに 1 ページだけ引き、並び順違いの補完もしない。
- * 1 ページ目が新作の数日ぶんを覆うので日次で引く限り足りる
- * (件数と日数は `docs/research/new-release-feeds-2026-09-19.md`)
+ * 1 ページ目が新作の数日ぶんを覆うので日次で引く限り足りる。窓の広さはフロアで違い、
+ * `/home/` は `docs/research/new-release-feeds-2026-09-19.md`、
+ * `/garumani/` は `docs/research/dlsite-female-floors-2026-09-20.md` で測っている
  */
 async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
   const fetchedAt = new Date().toISOString();
@@ -609,6 +610,11 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
     const parsed = parseSearchHtml(result.body, fetchedAt, floor);
     invalidCount += parsed.invalidCount;
     warnings.push(...parsed.warnings);
+    // 新着一覧は常に 30 件返る。0 件は「新作が無い」ではなくセレクタが壊れた合図なので、
+    // 静かに通さない (声優検索と違い、ここに正当な 0 件は無い)
+    if (parsed.works.length === 0) {
+      warnings.push(`${floor} の新着一覧から作品を 1 件も読めなかった。表示が変わった可能性`);
+    }
     for (const work of parsed.works) {
       if (!listed.has(work.storeProductId)) listed.set(work.storeProductId, work);
     }

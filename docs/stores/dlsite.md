@@ -154,6 +154,12 @@ https://www.dlsite.com/{floor}/fsr/=/language/jp/work_type_category[0]/audio/ord
   網羅率として記録すると意味を取り違える
 - **出演者は一覧から取れない。** 代表 1 名すら空の作品があるので、一覧に出た新規 ID は全件
   `product.json` を引く。誰の作品かを決めるのは取り込み側
+- **同じ作品を毎日引き直す。** 詳細を省けるのは DB にある作品だけで、対象声優が居ない作品は
+  保存されない ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
+  一覧から消えるまで毎日 `product.json` を引くので、1 回の走行は一覧 30 件に近い往復になる。
+  一覧に留まる日数はフロアで違う (`/home/` は
+  [`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md)、`/garumani/` は
+  [`dlsite-female-floors-2026-09-20.md`](../research/dlsite-female-floors-2026-09-20.md))
 
 ### 作品詳細 API
 

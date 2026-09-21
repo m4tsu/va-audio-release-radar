@@ -45,7 +45,7 @@ const USAGE = `使い方:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
   --store <slug>            1 つのストアだけを対象にする (新着一覧を持つストアのみ)
   --dry-run                 取得はするが DB へは送らない。既知の作品も分からなくなるので
-                            一覧に出た全件の詳細を取る (ふだんの走行よりずっと時間がかかる)
+                            一覧に出た全件の詳細を取る
   --no-snapshot             取得した生データを .cache/snapshots に保存しない
 `;
 
@@ -85,13 +85,17 @@ export type FeedOutcome = {
 };
 
 /**
- * 結果の 1 行。件数の関係は 一覧 = 既知 + 送った、送った = 保存 + 捨てた。
- * 送っていない走行 (--dry-run) では保存と捨てたが出ない
+ * 結果の 1 行。件数は減っていく順に並ぶが、差が 1 つの理由に対応するとは限らない。
+ * 一覧 → 新規 では既知のぶんと許可外の年齢区分のぶんが、
+ * 新規 → 保存 では対象声優が居ないぶんが落ちる。
+ * 送っていない走行 (--dry-run) では保存と破棄が出ない
  */
 export function formatOutcome(outcome: FeedOutcome): string {
   const label = STORE_LABELS[outcome.storeSlug];
-  // 引けなかった入口があったことは件数からは読めないので、行の頭で言う
-  const status = outcome.complete ? outcome.status : `${outcome.status} (一覧の一部を引けず)`;
+  // 引けなかった入口があったことは件数からは読めないので、行の頭で言う。
+  // 1 ページも取れなかった走行は status が error になるので、ここでは部分失敗だけを言う
+  const partial = !outcome.complete && outcome.status !== "error";
+  const status = partial ? `${outcome.status} (一覧の一部を引けず)` : outcome.status;
   const counts = [`一覧 ${outcome.listed} 件`, `新規 ${outcome.sent} 件`];
   if (outcome.saved !== undefined) counts.push(`保存 ${outcome.saved} 件`);
   if (outcome.dropped !== undefined) counts.push(`対象声優なしで破棄 ${outcome.dropped} 件`);
@@ -218,12 +222,16 @@ export async function main(argv: readonly string[]): Promise<number> {
   const snapshot = values["no-snapshot"] !== true;
 
   const outcomes: FeedOutcome[] = [];
+  let aborted: string | undefined;
   for (const adapter of adapters) {
     try {
       outcomes.push(await runStore(adapter, client, snapshot));
     } catch (error) {
-      // 版ずれは 1 ストアの失敗ではなく走行全体の問題。ここで握り潰さず上へ投げる
-      if (error instanceof IngestProtocolMismatchError) throw error;
+      // 版ずれは 1 ストアの失敗ではなく走行全体の問題。残りを回さず打ち切る
+      if (error instanceof IngestProtocolMismatchError) {
+        aborted = error.message;
+        break;
+      }
       const reason = error instanceof AdminApiError ? error.message : String(error);
       outcomes.push({
         storeSlug: adapter.storeSlug,
@@ -242,6 +250,16 @@ export async function main(argv: readonly string[]): Promise<number> {
     for (const warning of outcome.warnings) {
       process.stderr.write(`[警告] ${STORE_LABELS[outcome.storeSlug]}: ${warning}\n`);
     }
+  }
+
+  if (aborted !== undefined) {
+    // 打ち切りでも、そこまでの結果は出す。何が取り込まれたかの手がかりになる
+    process.stderr.write(
+      `\n[中断] サーバーが payload の版の違いを理由に受け取りを拒否した。\n` +
+        `  ${aborted}\n` +
+        `  クローラーのプロセスが古いコードのまま動いている。止めて起動し直すこと。\n`,
+    );
+    return 1;
   }
 
   return outcomes.some((outcome) => outcome.status === "error") ? 1 : 0;

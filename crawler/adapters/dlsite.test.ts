@@ -663,6 +663,7 @@ describe("dlsiteAdapter.fetchNewReleases", () => {
     expect(result?.works.map((work) => work.storeProductId)).toEqual(["RJ1", "RJ2", "BJ1"]);
     expect(result?.listedCount).toBe(3);
     expect(result?.pages).toBe(2);
+    expect(result?.complete).toBe(true);
   });
 
   it("並び順違いの補完はせず、フロアごとに 1 ページだけ引く", async () => {
@@ -722,6 +723,20 @@ describe("dlsiteAdapter.fetchNewReleases", () => {
     expect(result?.warnings).toContain("RJ2: 対象外の年齢区分 (age_category=3) のため除外");
   });
 
+  // 新着一覧は常に 30 件返るので、0 件はセレクタが壊れた合図
+  it("一覧は取れたのに作品が 0 件なら警告に残す", async () => {
+    respond({ home: ok(searchPage([])), garumani: ok(searchPage([])) });
+
+    const result = await dlsiteAdapter.fetchNewReleases?.({ snapshot: false });
+
+    expect(result?.warnings).toContain(
+      "home の新着一覧から作品を 1 件も読めなかった。表示が変わった可能性",
+    );
+    expect(result?.warnings).toContain(
+      "garumani の新着一覧から作品を 1 件も読めなかった。表示が変わった可能性",
+    );
+  });
+
   it("片方のフロアが落ちても、取れた側で続行して警告に残す", async () => {
     respond({
       home: ok(searchPage(["RJ1"])),
@@ -733,6 +748,8 @@ describe("dlsiteAdapter.fetchNewReleases", () => {
     expect(result?.status).toBe("ok");
     expect(result?.works).toHaveLength(1);
     expect(result?.pages).toBe(1);
+    // daily.ts はこの値だけを見て coverageComplete: false を送る
+    expect(result?.complete).toBe(false);
     expect(result?.warnings).toContain("garumani の新着一覧を取れなかった (timeout)");
   });
 
@@ -747,6 +764,7 @@ describe("dlsiteAdapter.fetchNewReleases", () => {
 
     expect(result?.status).toBe("error");
     expect(result?.works).toEqual([]);
+    expect(result?.complete).toBe(false);
     expect(result?.reason).toBe("新着一覧の取得に失敗 (home: timeout / garumani: timeout)");
   });
 });

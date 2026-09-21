@@ -41,7 +41,10 @@ export type FeedResult = ParsedWorks & {
   status: AdapterStatus;
   /** `empty` / `error` の理由。人が読む 1 行 */
   reason?: string;
-  /** 新着一覧に出た作品の数。`works` との差が「既知として送らなかった数」になる */
+  /**
+   * 新着一覧に出た作品の数。`works` との差は「既知なので送らなかった数」と
+   * 「許可していない年齢区分なので落とした数」の合計で、内訳は警告にしか出ない
+   */
   listedCount: number;
   /**
    * 引くつもりだった一覧をすべて取れたか。false なら見に行けなかった入口がある。

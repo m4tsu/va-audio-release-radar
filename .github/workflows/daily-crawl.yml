@@ -30,9 +30,10 @@ jobs:
   daily:
     name: 新着一覧から取り込む
     runs-on: ubuntu-latest
-    # 新着一覧 1 ページ × フロア数 + 新作の product.json。新作の量は
-    # docs/research/new-release-feeds-2026-09-19.md にあり、ホストごとの間隔を守っても数分で終わる。
-    # 上限はストアが増えたときの歯止めとして置いている
+    # 新着一覧 1 ページ × フロア数 + 「一覧に出たが DB に無い作品」の product.json。
+    # 後者は新作の数とは違う。対象声優が居ない作品は保存されないので DB に入らず、
+    # 一覧から消えるまで毎日引き直す (docs/stores/dlsite.md の「新着一覧」)。
+    # 実測では 1 回 10 分ほど。上限はストアが増えたときの歯止めとして置いている
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
