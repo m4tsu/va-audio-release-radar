@@ -157,7 +157,7 @@ https://www.dlsite.com/{floor}/fsr/=/language/jp/work_type_category[0]/audio/ord
 - **`product.json` を引くのは、一覧に出た作品のうち初めて見たものだけ。** 対象声優が居なくて
   保存しなかった作品も商品 ID を覚えているので、2 日目以降は引き直さない
   ([`decisions/0007`](../decisions/0007-daily-crawl-from-store-feeds.md))。
-  声優の辞書が増えた翌日だけ、一覧のぶんを引き直す。
+  声優の辞書に名前が増えた翌日だけ、「一覧に出た作品 − 保存済み」を引き直す。
   **初日は違う。** 一覧に出た全件を引く。前後の往復の差は
   [`daily-feed-screened-2026-09-21.md`](../research/daily-feed-screened-2026-09-21.md)。
   一覧に留まる日数はフロアで違う (`/home/` は

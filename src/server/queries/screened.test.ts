@@ -43,8 +43,11 @@ describe("recordScreened", () => {
     expect(await screenedStoreProductIds(db, "dlsite")).toEqual([]);
   });
 
-  // D1 の bound parameter 上限を超えないことを、件数で踏んでおく
-  it("上限を超える件数でも入る", async () => {
+  /**
+   * 分割のループが回ることを踏んでおく。D1 の bound parameter 上限そのものは
+   * ここでは検知できない (単体テストは libsql で走る。`src/server/db/chunked.ts`)
+   */
+  it("1 回の INSERT に収まらない件数でも入る", async () => {
     const db = await createMigratedTestDb();
     const ids = Array.from({ length: 200 }, (_value, index) => `RJ${index}`);
 

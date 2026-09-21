@@ -657,7 +657,10 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   // ナレーター名がリンクで出ない作品。実測ではどれも AI 読み上げ (Virtual Voice /
   // デジタルボイス) で、人のナレーターが居ないので月次の声優検索でも出てこない。
   // 取り込み側に送っても捨てられるだけなので、ここで落として件数を残す
-  const withNarrator = fresh.filter((work) => work.creditedNames.length > 0);
+  const withNarrator = fresh
+    .filter((work) => work.creditedNames.length > 0)
+    // 一覧にナレーターが全員載る (作品ページを引かない) ので、この時点で全員そろっている
+    .map((work) => ({ ...work, creditedNamesComplete: true }));
   const missing = fresh.length - withNarrator.length;
   if (missing > 0) {
     warnings.push(`ナレーター名を取れない新着 ${missing} 件を送らなかった (AI 読み上げ)`);

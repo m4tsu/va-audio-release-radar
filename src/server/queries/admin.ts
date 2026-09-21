@@ -155,6 +155,9 @@ export async function assignCredit(
     .where(target);
 
   if (input.addAlias) {
+    // 増えたかどうかを入れる前に数える。同じ割り当てを二度押しただけで
+    // 全ストアの判断を捨てると、翌日の日次が無駄に引き直す
+    const [before] = await db.select({ count: sql<number>`count(*)` }).from(voiceActorAliases);
     await db
       .insert(voiceActorAliases)
       .values({
@@ -167,10 +170,11 @@ export async function assignCredit(
         target: [voiceActorAliases.voiceActorId, voiceActorAliases.name],
         set: { source: "manual", verified: true },
       });
-    // 辞書が増えたので、過去の「対象声優が居ない」の判断を捨てる。
+    const [after] = await db.select({ count: sql<number>`count(*)` }).from(voiceActorAliases);
+    // 辞書に名前が増えたので、過去の「対象声優が居ない」の判断を捨てる。
     // 捨てないと、足したばかりの別名で落ちていた作品が日次で拾い直されない
     // (`src/server/queries/screened.ts`)
-    await clearScreened(db);
+    if ((after?.count ?? 0) > (before?.count ?? 0)) await clearScreened(db);
   }
 
   return { updated: Number(counted?.count ?? 0), aliasAdded: input.addAlias };

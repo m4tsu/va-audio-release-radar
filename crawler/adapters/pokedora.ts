@@ -351,6 +351,8 @@ export function applyProductDetail(work: RawWork, detail: PokedoraProductDetail)
     ...work,
     creditedNames:
       detail.credits.length > 0 ? detail.credits.map((credit) => credit.name) : work.creditedNames,
+    // 詳細を当てられたので、出演者は全員そろっている。一覧は 2 名までしか出さない
+    creditedNamesComplete: true,
     titleRaw: detail.title ?? work.titleRaw,
     makerName: detail.makerName ?? work.makerName,
     storeCategory: detail.storeCategory ?? work.storeCategory,

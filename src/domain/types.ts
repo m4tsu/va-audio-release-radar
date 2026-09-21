@@ -176,7 +176,20 @@ export type RawWork = {
   releaseDate?: string; // "YYYY-MM-DD"
   durationSeconds?: number;
   makerName?: string;
-  creditedNames: string[]; // 声優 / ナレーターとして表記されている名前 (全員)
+  creditedNames: string[]; // 声優 / ナレーターとして表記されている名前
+  /**
+   * `creditedNames` がその作品の出演者全員か。
+   *
+   * ストアの一覧は出演者を省くことがある (DLsite は代表 1 名、ポケドラは 2 名まで)。
+   * 詳細を取れなかった作品はその省かれた名前のまま送られてくるので、
+   * 「対象声優が 1 人も居ない」と見えても、全員を見ればそうではないことがある。
+   * 取り込み側はこれが true の作品だけを「見た」ものとして扱う
+   * (`src/server/queries/screened.ts`)。
+   *
+   * 省いても壊れない。付いていなければ「全員かどうか分からない」として、
+   * 見たことにしない側へ倒す
+   */
+  creditedNamesComplete?: boolean;
   storeCategory?: string; // "SOU" / "audiobook" などストア固有の分類
   genres?: string[];
   ageRating: AgeRating;
@@ -403,6 +416,7 @@ export const rawWorkSchema = z.object({
   durationSeconds: z.number().optional(),
   makerName: z.string().optional(),
   creditedNames: z.array(z.string()),
+  creditedNamesComplete: z.boolean().optional(),
   storeCategory: z.string().optional(),
   genres: z.array(z.string()).optional(),
   ageRating: z.enum(AGE_RATINGS),

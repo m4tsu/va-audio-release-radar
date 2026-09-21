@@ -299,6 +299,9 @@ export function applyProductDetail(work: RawWork, detail: DlsiteProductDetail): 
     ...work,
     // voice_by には出演者全員が入る。一覧の span.author は代表者しか出ないことがある
     creditedNames: detail.voiceNames.length > 0 ? detail.voiceNames : work.creditedNames,
+    // 詳細を当てられたので、出演者は全員そろっている。
+    // voice_by が空で一覧の代表者が残った場合も、ストアがそれ以上を持っていない
+    creditedNamesComplete: true,
     titleRaw: detail.workName ?? work.titleRaw,
     releaseDate: detail.releaseDate ?? work.releaseDate,
     makerName: detail.makerName ?? work.makerName,

@@ -380,7 +380,11 @@ describe("ingest", () => {
         ...base,
         works: [
           rawWork({ storeProductId: "KEEP", creditedNames: ["上田麗奈"] }),
-          rawWork({ storeProductId: "DROP", creditedNames: ["知らない人"] }),
+          rawWork({
+            storeProductId: "DROP",
+            creditedNames: ["知らない人"],
+            creditedNamesComplete: true,
+          }),
         ],
       },
       NOW,
@@ -391,10 +395,11 @@ describe("ingest", () => {
   });
 
   /**
-   * クローラーは詳細の取得に失敗しても一覧の情報だけで送ってくる。DLsite の一覧は
-   * 出演者欄が空のことがあるので、覚えると取り直せば分かったはずの作品を二度と引かなくなる
+   * クローラーは詳細の取得に失敗しても一覧の情報だけで送ってくる。一覧の出演者は
+   * 省かれていることがある (DLsite は代表 1 名) ので、そのまま覚えると、全員を見れば
+   * 対象声優が居たはずの作品を二度と引かなくなる
    */
-  it("出演者が 1 人も付いていない作品は覚えない", async () => {
+  it("出演者が全員そろっていない作品は覚えない", async () => {
     const db = await setupDb();
     const { voiceActorId: _omitted, ...base } = payload();
 
@@ -403,15 +408,23 @@ describe("ingest", () => {
       {
         ...base,
         works: [
+          // 詳細を取れず、一覧の代表 1 名だけが乗っている作品
+          rawWork({ storeProductId: "PARTIAL", creditedNames: ["知らない人"] }),
+          // 出演者欄が空だった作品
           rawWork({ storeProductId: "NO-CREDITS", creditedNames: [] }),
-          rawWork({ storeProductId: "DROP", creditedNames: ["知らない人"] }),
+          // 詳細まで取れた作品
+          rawWork({
+            storeProductId: "SCREENED",
+            creditedNames: ["知らない人"],
+            creditedNamesComplete: true,
+          }),
         ],
       },
       NOW,
     );
 
-    // どちらも保存はされないが、覚えるのは「見て居なかった」ほうだけ
-    expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["DROP"]);
+    // どれも保存はされないが、覚えるのは全員を見たものだけ
+    expect(await screenedStoreProductIds(db, "dlsite")).toEqual(["SCREENED"]);
   });
 
   it("声優起点の走行では覚えない", async () => {
