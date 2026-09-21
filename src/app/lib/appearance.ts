@@ -43,8 +43,9 @@ export const APPEARANCE_FILTERS = ["all", "solo", "small", "large"] as const;
 export type AppearanceFilter = (typeof APPEARANCE_FILTERS)[number];
 export const DEFAULT_APPEARANCE_FILTER: AppearanceFilter = "all";
 
-export function isAppearanceFilter(value: string): value is AppearanceFilter {
-  return (APPEARANCE_FILTERS as readonly string[]).includes(value);
+/** URL から来た値を受けるので、文字列でないものも弾けるようにしてある */
+export function isAppearanceFilter(value: unknown): value is AppearanceFilter {
+  return typeof value === "string" && (APPEARANCE_FILTERS as readonly string[]).includes(value);
 }
 
 /** この作品が絞り込みに残るか */

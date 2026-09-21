@@ -28,16 +28,17 @@ const ANIME_PER_ACTOR = 8;
 export const Route = createFileRoute("/voice-actors/$slug")({
   /**
    * 出演形態の絞り込み。URL に置くので、絞った画面を再読み込みしても共有しても同じ結果になる。
-   * 読めない値は絞り込み無しに倒す (知らない区分で 0 件になるより全件を出すほうが近い)。
    *
-   * 読めないときも欄を落とさず既定値を返す。親のルートは検索文字列を素通しするので、
-   * 欄ごと落とすと素通しされた元の値がそのまま画面に届く。
-   * 型の上で任意にしてあるのは、この画面へのリンクに検索文字列を書かせないため
+   * 既定と読めない値では欄を返さない。ここで返した欄はルーターがハイドレーション時に
+   * URL へ書き戻すので、既定値を返すと素の URL が `?appearance=all` に化け、
+   * head() が出す canonical (欄なし) と食い違う。
+   * 親のルートは検索文字列を素通しするため、読めない値は欄を返さないだけでは消えない。
+   * 画面に渡す前に `RouteComponent` が弾く
    */
   validateSearch: (search: Record<string, unknown>): { appearance?: AppearanceFilter } => {
     const value = search.appearance;
-    const valid = typeof value === "string" && isAppearanceFilter(value);
-    return { appearance: valid ? value : DEFAULT_APPEARANCE_FILTER };
+    if (!isAppearanceFilter(value) || value === DEFAULT_APPEARANCE_FILTER) return {};
+    return { appearance: value };
   },
   // 作品一覧は絞り込みに関わらず全件を引き、絞るのは画面側。loader が検索文字列に依存しないので
   // 絞り込みを変えても取り直しが起きない
@@ -144,13 +145,15 @@ function RouteComponent() {
   const { actor, works, anime } = Route.useLoaderData();
   const { appearance } = Route.useSearch();
   const navigate = Route.useNavigate();
+  // 親のルートが素通しした値がここまで来る。型は絞り込みの値でも、中身は URL の文字列そのもの
+  const filter = isAppearanceFilter(appearance) ? appearance : DEFAULT_APPEARANCE_FILTER;
 
   return (
     <VoiceActorPage
       actor={actor}
       works={works}
       anime={anime}
-      appearance={appearance ?? DEFAULT_APPEARANCE_FILTER}
+      appearance={filter}
       onAppearanceChange={(next) => {
         // 絞り込みの変更で履歴を積むと、戻るボタンが選び直した回数だけ必要になる。
         // 共有できる URL は replace でも同じものが残る。

@@ -94,3 +94,25 @@ test("シーズンの一覧の印と絞り込みはフォローしてから出�
   ).toBeVisible();
   await expect(page.getByText("フォロー中の声優が出演")).toBeVisible();
 });
+
+/**
+ * ハイドレーション: ルーターはマウント時に検索文字列を組み直し、今の URL と違えば書き戻す。
+ * 絞り込みの既定値を検索文字列に載せると、素の URL が `?appearance=all` に化け、
+ * SSR が出す canonical (欄なし) と食い違う
+ */
+test("出演形態の絞り込みは選んだときだけ URL に入る", async ({ page }) => {
+  await page.goto("/voice-actors/e2e-alpha");
+  await waitForHydration(page);
+
+  await expect(page).toHaveURL(/\/voice-actors\/e2e-alpha$/);
+
+  await page.getByRole("combobox", { name: "出演形態: すべて" }).click();
+  await page.getByRole("option", { name: "少人数" }).click();
+
+  await expect(page).toHaveURL(/\/voice-actors\/e2e-alpha\?appearance=small$/);
+
+  await page.getByRole("combobox", { name: "出演形態: 少人数" }).click();
+  await page.getByRole("option", { name: "すべて" }).click();
+
+  await expect(page).toHaveURL(/\/voice-actors\/e2e-alpha$/);
+});

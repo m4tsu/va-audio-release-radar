@@ -55,9 +55,14 @@ export function VoiceActorPage({
   const t = useT();
   const locale = useLocale();
   const name = actorDisplayName(actor, locale);
-  const filtered = works.map((section) => ({
-    ...section,
+  // 絞り込むのはルートが取ってきた範囲の中だけ。1 ストアの件数には上限があり
+  // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
+  // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
+  const sections = works.map((section) => ({
+    storeSlug: section.storeSlug,
     items: section.items.filter((item) => matchesAppearance(appearance, item.castSize)),
+    // 0 件の理由。絞り込みで消えたのか、そのストアに元から無いのかで言い方が変わる
+    emptiedByFilter: appearance !== "all" && section.items.length > 0,
   }));
 
   return (
@@ -80,12 +85,12 @@ export function VoiceActorPage({
 
       <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
 
-      {filtered.map((section) => (
+      {sections.map((section) => (
         <StoreSection
           key={section.storeSlug}
           storeSlug={section.storeSlug}
           items={section.items}
-          filtered={appearance !== "all"}
+          emptiedByFilter={section.emptiedByFilter}
         />
       ))}
 
@@ -137,12 +142,12 @@ function AppearanceFilterSelect({
 function StoreSection({
   storeSlug,
   items,
-  filtered,
+  emptiedByFilter,
 }: {
   storeSlug: StoreSlug;
   items: WorkWithListings[];
-  /** 出演形態で絞り込んでいるか。0 件の理由が「作品が無い」と違うので言い方を変える */
-  filtered: boolean;
+  /** 0 件なのが絞り込みのせいか。そのストアに元から作品が無いときと言い方を変える */
+  emptiedByFilter: boolean;
 }) {
   const t = useT();
   return (
@@ -151,7 +156,7 @@ function StoreSection({
       {items.length === 0 ? (
         <EmptyState
           title={
-            filtered
+            emptiedByFilter
               ? t("actor.filteredEmptyTitle", { store: storeLabel(storeSlug) })
               : t("actor.storeEmptyTitle", { store: storeLabel(storeSlug) })
           }

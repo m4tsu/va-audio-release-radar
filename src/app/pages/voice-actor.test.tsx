@@ -140,6 +140,13 @@ describe("VoiceActorPage の出演形態", () => {
     expect(screen.getByText("Audible にこの出演形態の作品はありません")).toBeInTheDocument();
   });
 
+  /** 元から 0 件のストアで「この出演形態の作品はありません」と言うと、他の形態ならあると読める */
+  test("元から作品が無いストアは、絞り込み中でも作品が無いことを言う", () => {
+    render({ appearance: "solo" });
+
+    expect(screen.getByText("ポケドラ で見つかった作品はありません")).toBeInTheDocument();
+  });
+
   /** 選択は URL に置くので、ページは変更を伝えるだけで自分では絞りを持たない */
   test("選ぶと選ばれた区分を呼び出し側へ渡す", async () => {
     const user = userEvent.setup();
