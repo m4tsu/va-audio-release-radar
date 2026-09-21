@@ -76,8 +76,7 @@ export function AppShell() {
 
       <footer className="border-t bg-card">
         <div className="mx-auto max-w-6xl space-y-1 px-4 py-6 text-muted-foreground text-xs">
-          <p>{t("footer.unofficial")}</p>
-          <p>{t("footer.noPrice")}</p>
+          <p>{t("footer.disclaimer")}</p>
           <nav className="flex gap-4 pt-2">
             <Link to="/terms" className="underline-offset-2 hover:underline">
               {t("footer.terms")}

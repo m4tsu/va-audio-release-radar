@@ -21,11 +21,23 @@ describe("AppShell の導線", () => {
     ).toEqual(["/", "/voice-actors", "/anime", "/following"]);
   });
 
-  test("フッターに非公式である旨と法務ページへの導線を置く", () => {
+  test("フッターの注記は 1 つで、非公式・正確性・各ストアでの確認だけを言う", () => {
     renderWithLocale(<AppShell />);
 
     const footer = screen.getByRole("contentinfo");
-    expect(footer).toHaveTextContent("各ストアとは関係のない非公式サービスです");
+    expect(
+      screen.getByText(
+        "各ストアとは関係のない非公式サービスです。掲載している情報の正確性・最新性は保証しません。詳しくは各ストアでご確認ください。",
+      ),
+    ).toBeInTheDocument();
+    // 価格の案内は作品ページだけが持つ。フッターからは消す
+    expect(footer).not.toHaveTextContent("価格");
+  });
+
+  test("フッターに法務ページへの導線を置く", () => {
+    renderWithLocale(<AppShell />);
+
+    const footer = screen.getByRole("contentinfo");
     expect(within(footer).getByRole("link", { name: "利用規約" })).toHaveAttribute(
       "href",
       "/terms",

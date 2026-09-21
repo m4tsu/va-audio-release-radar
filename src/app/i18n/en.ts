@@ -23,10 +23,8 @@ export const en: Translations = {
   },
 
   footer: {
-    unofficial:
-      "This is an unofficial service with no affiliation to any store. Work information is based on each store's public pages.",
-    noPrice:
-      "This site does not list prices. Please see each store for the price and availability.",
+    disclaimer:
+      "This is an unofficial service with no affiliation to any store. We do not guarantee that the information listed here is accurate or up to date. Please see each store for the details.",
     terms: "Terms of Service",
     privacy: "Privacy Policy",
     contact: "Contact",
@@ -274,7 +272,6 @@ export const en: Translations = {
     indexTitle: "Browse by anime",
     searchLabel: "Search by anime title",
     searchNoResults: "No anime matched “{{query}}”.",
-    indexDescription: "You can also search by title or pick another season.",
     seeWholeSeason: "See every title in this season",
     indexMetaTitle: "Browse voice actors' audio works by anime | {{app}}",
     indexMetaDescription:

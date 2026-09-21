@@ -36,7 +36,7 @@ export function AnimeIndexPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t("anime.indexTitle")} description={t("anime.indexDescription")} />
+      <PageHeader title={t("anime.indexTitle")} />
 
       {featured ? <FeaturedSeasonSection featured={featured} /> : null}
 

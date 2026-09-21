@@ -73,6 +73,15 @@ describe("AnimeIndexPage", () => {
     ).toBeInTheDocument();
   });
 
+  /** 見出しの下に説明文は置かない。開いた人が見るのは一覧と検索欄 */
+  test("見出しの下に説明文を出さない", () => {
+    renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={FEATURED} />);
+
+    const heading = screen.getByRole("heading", { level: 1, name: "アニメから探す" });
+    // 見出しの区画に、見出し以外の文が無い
+    expect(heading.parentElement).toHaveTextContent(/^アニメから探す$/);
+  });
+
   test("アニメ名の検索を置く", () => {
     renderWithLocale(<AnimeIndexPage seasons={SEASONS} featured={FEATURED} />);
 
