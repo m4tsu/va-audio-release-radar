@@ -73,6 +73,77 @@ describe("worksByActor", () => {
   });
 });
 
+describe("出演者数", () => {
+  it("クレジットの人数を数える", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({
+            storeProductId: "RJ1",
+            creditedNames: ["上田麗奈", "花澤香菜", "名寄せできない表記"],
+          }),
+        ],
+      }),
+      NOW,
+    );
+
+    const [work] = await worksByActor(db, UEDA.id);
+
+    // 名寄せできなかった表記もその作品に出ている 1 人として数える
+    expect(work?.castSize).toBe(3);
+    expect((await getWorkById(db, "dlsite:RJ1", NOW))?.castSize).toBe(3);
+  });
+
+  /** 表記違いで同じ声優に解決された credit は別行として残る (画面の重複排除と同じ数え方にする) */
+  it("表記違いで同じ声優に解決された分は 1 人として数える", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [rawWork({ storeProductId: "RJ1", creditedNames: ["上田麗奈", "上田 麗奈"] })],
+      }),
+      NOW,
+    );
+
+    const [work] = await worksByActor(db, UEDA.id);
+
+    expect(work?.castSize).toBe(1);
+  });
+
+  it("クレジットが 1 件も無い作品は 0 になる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({ works: [rawWork({ storeProductId: "RJ1", creditedNames: [] })] }),
+      NOW,
+    );
+
+    expect((await getWorkById(db, "dlsite:RJ1", NOW))?.castSize).toBe(0);
+  });
+
+  it("新着とフィードにも付く", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({
+            storeProductId: "RJ1",
+            releaseDate: "2026-09-10",
+            creditedNames: ["上田麗奈", "花澤香菜"],
+          }),
+        ],
+      }),
+      NOW,
+    );
+
+    expect((await latestWorks(db, { now: NOW }))[0]?.castSize).toBe(2);
+    expect((await feedForActors(db, [UEDA.id], { now: NOW }))[0]?.castSize).toBe(2);
+  });
+});
+
 describe("latestWorks", () => {
   it("期間外の作品を除く", async () => {
     const db = await setupDb();

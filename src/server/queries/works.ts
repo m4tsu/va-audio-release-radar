@@ -55,6 +55,11 @@ export type WorkWithListings = {
   freshness: Freshness;
   /** NEW バッジ。発売日が 7 日以内、または発売日が無く 7 日以内に新しく見つかった作品 */
   isNew: boolean;
+  /**
+   * 出演者の数。画面はこの数だけで出演形態 (単独 / 少人数 / 大人数) を決める
+   * (`@/app/lib/appearance`)。クレジットが 1 件も取れていない作品は 0
+   */
+  castSize: number;
 };
 
 export type WorkCredit = {
@@ -101,7 +106,7 @@ export async function getWorkById(
     .limit(1);
   if (!row) return undefined;
 
-  const [listings, creditRows, baselines] = await Promise.all([
+  const [listings, creditRows, baselines, castSizes] = await Promise.all([
     loadListings(db, [id]),
     db
       .select({
@@ -118,6 +123,7 @@ export async function getWorkById(
       .where(eq(audioCredits.audioWorkId, id))
       .orderBy(asc(audioCredits.creditedName)),
     loadCrawlBaselines(db),
+    loadCastSizes(db, [id]),
   ]);
 
   const workListings = listings.get(id) ?? [];
@@ -129,6 +135,7 @@ export async function getWorkById(
     work: toWorkSummary(row),
     listings: workListings,
     ...classifyWork(row.releaseDate, workListings, actorIds, baselines, now),
+    castSize: castSizes.get(id) ?? 0,
     credits: creditRows.map((credit) => ({
       creditedName: credit.creditedName,
       ...(credit.role ? { role: credit.role } : {}),
@@ -165,13 +172,13 @@ export async function worksByActor(
     .orderBy(...newestFirstOrder)
     .limit(limit);
 
-  // この一覧はこの声優のページなので、発売日が無い作品のベースラインもこの声優のものだけ見る
-  const [listings, baselines] = await Promise.all([
-    loadListings(
-      db,
-      rows.map((row) => row.id),
-    ),
+  // この一覧はこの声優のページなので、発売日が無い作品のベースラインもこの声優のものだけ見る。
+  // 出演者数は作品ごとに引かず、並べる作品ぶんをまとめて 1 回で数える
+  const workIds = rows.map((row) => row.id);
+  const [listings, baselines, castSizes] = await Promise.all([
+    loadListings(db, workIds),
     loadCrawlBaselines(db),
+    loadCastSizes(db, workIds),
   ]);
 
   return rows.map((row) => {
@@ -180,6 +187,7 @@ export async function worksByActor(
       work: toWorkSummary(row),
       listings: workListings,
       ...classifyWork(row.releaseDate, workListings, [voiceActorId], baselines, now),
+      castSize: castSizes.get(row.id) ?? 0,
     };
   });
 }
@@ -217,10 +225,11 @@ export async function latestWorks(
     .limit(limit);
 
   const workIds = rows.map((row) => row.id);
-  const [listings, actorsByWork, baselines] = await Promise.all([
+  const [listings, actorsByWork, baselines, castSizes] = await Promise.all([
     loadListings(db, workIds),
     loadWorkActors(db, workIds),
     loadCrawlBaselines(db),
+    loadCastSizes(db, workIds),
   ]);
 
   const classified = rows.map((row) => {
@@ -230,6 +239,7 @@ export async function latestWorks(
       row,
       listings: workListings,
       actors,
+      castSize: castSizes.get(row.id) ?? 0,
       ...classifyWork(
         row.releaseDate,
         workListings,
@@ -281,10 +291,11 @@ export async function feedForActors(
   // 引く行数も limit のままで、それ以上フォローしたときだけ一時的に増える
   const rows = [...collected.values()];
   const workIds = rows.map((row) => row.id);
-  const [listings, actorsByWork, baselines] = await Promise.all([
+  const [listings, actorsByWork, baselines, castSizes] = await Promise.all([
     loadListings(db, workIds),
     loadWorkActors(db, workIds, voiceActorIds),
     loadCrawlBaselines(db),
+    loadCastSizes(db, workIds),
   ]);
 
   const classified = rows.map((row) => {
@@ -294,6 +305,7 @@ export async function feedForActors(
       row,
       listings: workListings,
       actors,
+      castSize: castSizes.get(row.id) ?? 0,
       ...classifyWork(
         row.releaseDate,
         workListings,
@@ -524,6 +536,7 @@ type ClassifiedRow = {
   listings: WorkListing[];
   freshness: Freshness;
   isNew: boolean;
+  castSize: number;
 };
 
 /**
@@ -549,6 +562,7 @@ function toWorkWithListings(item: ClassifiedRow): WorkWithListings {
     listings: item.listings,
     freshness: item.freshness,
     isNew: item.isNew,
+    castSize: item.castSize,
   };
 }
 
@@ -577,6 +591,38 @@ async function loadListings(db: AppDb, workIds: string[]): Promise<Map<string, W
       if (list) list.push(listing);
       else byWork.set(row.audioWorkId, [listing]);
     }
+  }
+  return byWork;
+}
+
+/**
+ * 作品ごとの出演者数。画面はこの数だけで出演形態を決める (`@/app/lib/appearance`)。
+ *
+ * 数え方は画面の重複排除 (`@/app/lib/dedupe-credits`) と同じにする。`audio_credits` は
+ * (作品, 表記, ストア) で一意なので、同じ人が 2 ストアに載っていれば行が 2 つできる。
+ * 名寄せ済みは声優 ID、未解決の表記はその表記そのものを「誰か」とみなして数える。
+ * 前置きを付けて数えるのは、声優 ID と表記が同じ文字列でも別物として扱うため。
+ *
+ * 作品 1 件ごとに引くと一覧で作品数ぶんのクエリになるので、まとめて数える
+ */
+async function loadCastSizes(db: AppDb, workIds: string[]): Promise<Map<string, number>> {
+  const byWork = new Map<string, number>();
+  if (workIds.length === 0) return byWork;
+
+  for (const ids of chunked(workIds)) {
+    const rows = await db
+      .select({
+        audioWorkId: audioCredits.audioWorkId,
+        castSize: sql<number>`count(distinct coalesce(
+          'actor:' || ${audioCredits.voiceActorId},
+          'name:' || ${audioCredits.creditedName}
+        ))`,
+      })
+      .from(audioCredits)
+      .where(inArray(audioCredits.audioWorkId, ids))
+      .groupBy(audioCredits.audioWorkId);
+
+    for (const row of rows) byWork.set(row.audioWorkId, row.castSize);
   }
   return byWork;
 }
