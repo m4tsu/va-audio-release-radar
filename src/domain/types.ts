@@ -321,6 +321,13 @@ export const CREDIT_CONFIDENCES = [
 export const INQUIRY_KINDS = ["request", "bug", "other"] as const satisfies readonly InquiryKind[];
 
 /**
+ * 表示言語。i18n の辞書 (`src/app/i18n`) と、通知の本文を組む言語を持つ DB の列が同じ値配列を見る。
+ * 辞書は src/app にあるが、DB スキーマ (src/server) は src/app を import できないので値はここに置く
+ */
+export type Locale = "ja" | "en";
+export const LOCALES = ["ja", "en"] as const satisfies readonly Locale[];
+
+/**
  * 値配列が型の全メンバーを過不足なく含むことをコンパイル時に確認する補助型。
  * 一致していれば `true` 型になり、ずれていれば決して `true` にならないタプル型になるため、
  * 下の `const _check: ... = true` がコンパイルエラーで気づかせてくれる

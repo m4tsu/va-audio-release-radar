@@ -6,6 +6,7 @@ import {
   ANIME_SEASONS,
   CREDIT_CONFIDENCES,
   INQUIRY_KINDS,
+  LOCALES,
   STORE_SLUGS,
   VOICE_ACTOR_GENDERS,
   WORK_CATEGORIES,
@@ -18,7 +19,8 @@ import {
  *   DB 側だけ選択肢が増減してドメインとずれるのを防ぐため、ここで再定義しない
  * - 日時はすべて ISO 8601 文字列 (UTC)。SQLite の日付型は使わない (D1 に型が無く比較も文字列で足りる)
  * - 真偽値は integer の 0/1。boolean モードで TS 側だけ boolean に見せる
- * - フォロー状態はブラウザ内 (Dexie) に持つのでテーブルが無い
+ * - フォロー状態はブラウザ内 (Dexie) に持つのでテーブルが無い。サーバーが知るのは、通知を購読した
+ *   ブラウザが追う声優 (`push_subscription_actors`) だけ
  */
 
 /** 声優に紐づかない列挙。ドメイン型の union と同じ並びを手で維持する */
@@ -383,4 +385,93 @@ export const animeAppearances = sqliteTable(
     index("anime_appearances_anime_title_id_idx").on(t.animeTitleId),
     index("anime_appearances_voice_actor_id_idx").on(t.voiceActorId),
   ],
+);
+
+/**
+ * Web Push の購読 1 件。ブラウザの通知許可だけで作られ、アカウントは無い。
+ *
+ * **endpoint は宛先であって利用者の識別子ではない。** push service がブラウザごとに払い出す
+ * URL で、同じ人が別のブラウザで購読すれば別の行になり、ブラウザが購読を作り直せば別の値になる。
+ * これを使って利用者を追跡しない。メールアドレスや名前のような個人を特定する項目は持たない。
+ *
+ * 送信で失効 (push service が 404 / 410) が分かった購読はこの行ごと消す。追う声優の対は
+ * 外部キーの cascade で一緒に消える
+ */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** push service の URL。購読を作り直すと変わるので、同じブラウザの再登録は別の行として入る */
+    endpoint: text("endpoint").notNull(),
+    /** ブラウザが払い出した鍵 (`PushSubscription.getKey()` の base64url)。本文の暗号化に使う */
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    /** 通知の本文を組む言語。購読したときの画面の表示言語をそのまま入れる */
+    locale: text("locale", { enum: LOCALES }).notNull(),
+    createdAt: text("created_at").notNull(),
+    /** 追う声優や鍵など、購読の内容を最後に更新した日時。送信の記録はここに書かない */
+    updatedAt: text("updated_at").notNull(),
+    /** 最後に送信を試みた日時。成功・失敗を問わず更新する。一度も試していなければ NULL */
+    lastAttemptedAt: text("last_attempted_at"),
+    /**
+     * 最後に送ったダイジェストの予定時刻 (cron の起動時刻。実際に送った時刻ではない)。
+     * 送信は上限で区切って複数回の起動に持ち越すので、同じ週の起動が同じ購読へ 2 通送らない
+     * 判定はこの値と起動の予定時刻の一致で行う。一度も送っていなければ NULL
+     */
+    lastDigestScheduledAt: text("last_digest_scheduled_at"),
+  },
+  // 同じ購読を 2 回登録しても 1 行にする (endpoint は push service が購読ごとに一意に払い出す)
+  (t) => [uniqueIndex("push_subscriptions_endpoint_unique").on(t.endpoint)],
+);
+
+/**
+ * 購読が追う声優。ブラウザのフォローのうち、通知を購読したブラウザの分だけがここに写る。
+ * 購読していないブラウザのフォローは従来どおりブラウザにだけある
+ */
+export const pushSubscriptionActors = sqliteTable(
+  "push_subscription_actors",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    subscriptionId: integer("subscription_id")
+      .notNull()
+      .references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+    voiceActorId: text("voice_actor_id")
+      .notNull()
+      .references(() => voiceActors.id),
+  },
+  (t) => [
+    // 購読 → 追う声優 の一覧はこの索引で引ける。同じ組を 2 行入れない
+    uniqueIndex("push_subscription_actors_subscription_actor_unique").on(
+      t.subscriptionId,
+      t.voiceActorId,
+    ),
+    // 送信は「新作が出た声優 → その声優を追う購読」の向きにも引く
+    index("push_subscription_actors_voice_actor_id_idx").on(t.voiceActorId),
+  ],
+);
+
+/**
+ * ダイジェスト送信の走行 1 回分。`crawl_runs` と同じく、終わった時点で 1 行書く。
+ *
+ * 同じ予定時刻の走行が複数行になるのは、1 回の起動で送る件数を上限で区切り、残りを次の起動に
+ * 持ち越すため。週ごとの合計はこの列で束ねて出す
+ */
+export const pushDigestRuns = sqliteTable(
+  "push_digest_runs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** この走行が処理したダイジェストの予定時刻。`push_subscriptions.last_digest_scheduled_at` と同じ値 */
+    digestScheduledAt: text("digest_scheduled_at").notNull(),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at"),
+    /** 新作があって送る対象になった購読の数。新作の無い購読は含めない */
+    subscriptionCount: integer("subscription_count").notNull().default(0),
+    sentCount: integer("sent_count").notNull().default(0),
+    /** push service が失効を返して消した購読の数 */
+    expiredCount: integer("expired_count").notNull().default(0),
+    /** 失効以外の理由で送れなかった数。購読は残り、次の起動で送り直す */
+    failedCount: integer("failed_count").notNull().default(0),
+  },
+  // 新しい順の一覧と、同じ予定時刻の走行を束ねる読み取りのための索引
+  (t) => [index("push_digest_runs_scheduled_started_idx").on(t.digestScheduledAt, t.startedAt)],
 );

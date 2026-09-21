@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo } from "react";
+import { LOCALES, type Locale } from "@/domain/types";
 import { en } from "./en";
 import { type Dictionary, ja } from "./ja";
 
@@ -12,8 +13,8 @@ import { type Dictionary, ja } from "./ja";
  * ja にキーを足して en を直し忘れるとコンパイルが落ちる
  */
 
-export const LOCALES = ["ja", "en"] as const;
-export type Locale = (typeof LOCALES)[number];
+// 値の正は domain。DB の列 (購読の表示言語) と同じ配列を見るため、ここでは再定義しない
+export { LOCALES, type Locale } from "@/domain/types";
 /** cookie が無く Accept-Language も読めないときの言語。SEO の対象が日本語クエリなので日本語 */
 export const DEFAULT_LOCALE: Locale = "ja";
 
