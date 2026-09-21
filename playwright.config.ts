@@ -25,7 +25,9 @@ export default defineConfig({
     // TanStack Start は SSR なので dev サーバー経由で E2E する (静的 preview では API が動かない)。
     // 先に e2e:prepare で E2E 専用 D1 を作り直し、マイグレーションと固定データの投入を済ませる
     // (.wrangler-e2e/ は git 管理外なので、CI では何もない状態から始まる)
-    command: `npm run e2e:prepare && npx vite dev --port ${port} --strictPort`,
+    // exec で sh を vite に置き換える。npx や sh を挟むと Playwright が送る停止信号が
+    // ラッパー止まりになり、vite と子の workerd が親を失って居座る
+    command: `npm run e2e:prepare && exec ./node_modules/.bin/vite dev --port ${port} --strictPort`,
     url: `http://localhost:${port}`,
     // 既に上がっているサーバーには相乗りしない。他のセッションが同じポートで
     // 開発用 D1 を見ている dev サーバーを乗っ取ると、そちらに固定データが流れ込む

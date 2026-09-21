@@ -54,7 +54,8 @@ issue 本文 (または引数の文章) を `work/task.md` に保存する。
   ルートは loader と head だけを持つ (`.claude/rules/frontend.md`)
 - スキーマを変えるなら、preflight が出した「スキーマ変更中の worktree ブランチ」が「なし」であること。
   あれば止めて報告する (`migrations/` の連番と `meta/_journal.json` が両立しない)
-- 動作確認の dev サーバーは `npx vite dev --port $(cat work/dev-port) --strictPort`。終わったら止める
+- 動作確認の dev サーバーは `./node_modules/.bin/vite dev --port $(cat work/dev-port) --strictPort`。終わったら止める。
+  `npx` を挟むと SIGTERM がラッパー止まりになり、vite と workerd が親を失って居座る
 - 区切りごとにコミットする。issue 番号があれば最後のコミット本文に `Closes #<N>` を入れる
 
 ## 5. 検査
@@ -63,7 +64,7 @@ issue 本文 (または引数の文章) を `work/task.md` に保存する。
 npm run check
 ```
 
-E2E はここでは実行しない。7 の `merge.sh` が差分を見て必要なときだけ走らせる。
+E2E はここでは実行しない。`scripts/needs-e2e.sh` が判定するが、今は常に省略される (#43 で戻す)。
 
 ## 6. レビュー
 
@@ -97,8 +98,8 @@ bash .claude/skills/issue-task/scripts/merge.sh
 ```
 
 - main を rebase する。コンフリクトはこの worktree で解消し、`git rebase --continue` してから再実行する
-- rebase 後に `npm run check` を再実行する。E2E は差分が E2E の範囲に触れていれば自動で走る
-  (`scripts/needs-e2e.sh`。ポート 5399 は E2E 専用で固定。他の worktree が使っていれば空くまで待つ)
+- rebase 後に `npm run check` を再実行する。E2E を走らせるかは `scripts/needs-e2e.sh` が決める。
+  今は常に省略される (#43 で戻す。ポート 5399 は E2E 専用で固定)
 - main の作業ツリーの未コミット変更と、このブランチの変更ファイルが重なれば止まる。
   main 側のコミットか stash をユーザーに依頼する
 - `git merge --ff-only` で main を進める。新しいマイグレーションは main のローカル D1 にも当てる

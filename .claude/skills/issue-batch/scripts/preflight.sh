@@ -12,3 +12,5 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 gh auth status >/dev/null 2>&1 || { echo "issue-batch: gh が認証されていない" >&2; exit 1; }
 echo "一括実行の前提: 問題なし"
+
+bash "$(git rev-parse --show-toplevel)/scripts/kill-stale-workerd.sh"

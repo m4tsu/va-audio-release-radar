@@ -31,3 +31,6 @@ if [ -n "$locks" ]; then
 else
   echo "スキーマ変更中の worktree ブランチ: なし"
 fi
+
+# 前の作業が残した vite / workerd を落とす。1 プロセスで数百 MB 保持したまま居座る
+bash "$root/scripts/kill-stale-workerd.sh"

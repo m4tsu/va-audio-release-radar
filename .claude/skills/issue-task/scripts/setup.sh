@@ -49,3 +49,6 @@ while ss -ltn 2>/dev/null | grep -q ":$port " || echo "$reserved" | grep -qx "$p
 done
 echo "$port" > work/dev-port
 echo "dev ポート: $port (work/dev-port)"
+
+# 前の作業が残した vite / workerd を落とす。worktree が増えるほど溜まりやすい
+bash "$main/scripts/kill-stale-workerd.sh"
