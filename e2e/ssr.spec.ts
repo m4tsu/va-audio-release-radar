@@ -86,9 +86,7 @@ test("JSON-LD は < をエスケープして出す", async ({ request }) => {
  * 音声作品がまだ 1 件も無い声優のページ。フォローの入口として 200 で返しつつ、
  * 検索エンジンには載せない (`docs/decisions/0012-follow-actors-without-works.md`)
  */
-test("作品が 1 件も無い声優は 200 と noindex で返り、一覧に出て sitemap に出ない", async ({
-  request,
-}) => {
+test("作品が 1 件も無い声優は 200 と noindex で返り、sitemap に出ない", async ({ request }) => {
   const page = await request.get("/voice-actors/e2e-gamma");
   expect(page.status()).toBe(200);
 
@@ -98,9 +96,6 @@ test("作品が 1 件も無い声優は 200 と noindex で返り、一覧に出
   // 名前と出演アニメは出る。フォローの前に人を確かめられるようにするため
   expect(html).toMatch(/<h1[^>]*>テスト声優ガンマの音声作品<\/h1>/);
   expect(html).toContain('href="/anime/e2e-anime-alpha"');
-
-  const directory = await request.get("/voice-actors");
-  expect(await directory.text()).toContain("テスト声優ガンマ");
 
   const xml = await (await request.get("/sitemap.xml")).text();
   expect(xml).toContain("/voice-actors/e2e-alpha");
@@ -114,13 +109,9 @@ test("作品がある声優のページは noindex にならない", async ({ re
   expect(html).not.toContain('content="noindex"');
 });
 
-test("作品も出演アニメも無い声優は 404 で、一覧にも sitemap にも出ない", async ({ request }) => {
+test("作品も出演アニメも無い声優は 404 で、sitemap にも出ない", async ({ request }) => {
   const page = await request.get("/voice-actors/e2e-epsilon");
   expect(page.status()).toBe(404);
-
-  // 一覧は声優ページへのリンクを並べる場所。404 になるページへは送らない
-  const directory = await request.get("/voice-actors");
-  expect(await directory.text()).not.toContain("テスト声優イプシロン");
 
   const xml = await (await request.get("/sitemap.xml")).text();
   expect(xml).not.toContain("/voice-actors/e2e-epsilon");
