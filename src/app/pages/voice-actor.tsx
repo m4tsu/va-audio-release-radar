@@ -53,7 +53,7 @@ export function hasAnyWork(works: readonly WorkWithListings[]): boolean {
  *
  * 作品はストアごとに割らず、発売日の新しい順の 1 本に並べる。同じ人の作品が 3 つに割れると、
  * どのストアを見ても数件ずつになり「この人は何を出しているか」が読めない
- * (`docs/decisions/0013-actor-page-one-timeline.md`)。ストア・区分・出演形態は
+ * (`docs/decisions/0014-actor-page-one-timeline.md`)。ストア・区分・出演形態は
  * その 1 本を絞る軸として上に置く。
  *
  * 音声作品がまだ 1 件も無い声優のページも出す。「初めての 1 本」を待つ人のフォローを
@@ -226,7 +226,7 @@ function WorkSection({
         </p>
       </div>
 
-      {/* 節が無くなっても、取り切れていないストアの注記は一覧の手前に残す
+      {/* 区画が無くなっても、取り切れていないストアの注記は一覧の手前に残す
           (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`) */}
       {partialStores.length > 0 ? (
         <div className="space-y-1">
