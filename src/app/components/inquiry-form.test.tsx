@@ -48,6 +48,14 @@ async function renderReady(siteKey: string | null = SITE_KEY) {
   }
 }
 
+/** 作品ページ・声優ページのリンクから開いた状態。種別と対象のページが URL から来ている */
+async function renderCorrection(targetUrl = "https://example.test/works/dlsite%3ARJ1") {
+  renderWithLocale(
+    <InquiryForm turnstileSiteKey={SITE_KEY} defaultKind="correction" targetUrl={targetUrl} />,
+  );
+  await waitFor(() => expect(turnstile.render).toHaveBeenCalled());
+}
+
 function body(): HTMLTextAreaElement {
   return screen.getByLabelText("本文");
 }
@@ -60,6 +68,23 @@ describe("InquiryForm の入力欄", () => {
     expect(body()).toBeInTheDocument();
     expect(screen.getByLabelText("連絡先 (任意)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "送信する" })).toBeEnabled();
+  });
+
+  /**
+   * 根拠が要るのは訂正の申し出だけ。どの種別でも出すと、要望や不具合の報告でも
+   * 何かを証明しないと送れないように読める
+   */
+  test("訂正を選んだときだけ、根拠が要ることを本文の説明に足す", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const hint = "別名義の申し出には根拠を書いてください。";
+
+    expect(screen.queryByText(new RegExp(hint))).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("種別"), "correction");
+
+    const evidence = screen.getByText(new RegExp(hint));
+    expect(body().getAttribute("aria-describedby")).toContain(evidence.id);
   });
 
   test("英語表示では入力欄の名前も英語になる", async () => {
@@ -99,6 +124,31 @@ describe("InquiryForm の送信", () => {
     expect(screen.getByLabelText("種別")).toHaveValue("request");
     // トークンは 1 回しか使えないので widget を引き直す
     expect(turnstile.reset).toHaveBeenCalled();
+  });
+
+  /**
+   * 対象のページは本文の先頭に置いてある。書き足された文ごとそのまま送り、
+   * 送った後は同じ状態に戻す (同じページについてもう 1 通書ける)
+   */
+  test("訂正の申し出は対象の URL を先頭に付けたまま送り、送信後も先頭に残す", async () => {
+    const user = userEvent.setup();
+    await renderCorrection();
+
+    await user.type(body(), "架空アルファの別名義が結び付いていない");
+    await user.click(screen.getByRole("button", { name: "送信する" }));
+
+    await waitFor(() =>
+      expect(submitInquiryFn).toHaveBeenCalledWith({
+        data: {
+          kind: "correction",
+          body: "https://example.test/works/dlsite%3ARJ1\n\n架空アルファの別名義が結び付いていない",
+          turnstileToken: "test-token",
+        },
+      }),
+    );
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(body()).toHaveValue("https://example.test/works/dlsite%3ARJ1\n\n");
+    expect(screen.getByLabelText("種別")).toHaveValue("correction");
   });
 
   /** 未記入の連絡先は空文字ではなく「無い」として送る */

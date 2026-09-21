@@ -49,13 +49,17 @@ export const en: Translations = {
     metaDescription:
       "Send {{app}} a request, report a problem, or ask for listed content to be corrected or removed.",
     intro:
-      "Send a request, report a problem, or get in touch about anything else. Individual replies are not guaranteed.",
+      "Send a request, report a problem, ask for listed content to be corrected, or get in touch about anything else. Individual replies are not guaranteed.",
     kindLabel: "Type",
     kindRequest: "Request",
     kindBug: "Problem",
+    kindCorrection: "Correction to listed content",
     kindOther: "Other",
     bodyLabel: "Message",
     bodyHint: "Up to {{max}} characters",
+    correctionLink: "Report incorrect information",
+    correctionEvidenceHint:
+      "Requests about alternate names need evidence: an announcement by the voice actor or their agency, or a store treating the names as the same person. Guesses from voice or activity period are not enough to link them.",
     contactLabel: "How to reach you (optional)",
     contactHint: "Leave an email address or social account only if you need a reply.",
     submit: "Send",
@@ -390,6 +394,7 @@ export const en: Translations = {
     inquiryKind: {
       request: "Request",
       bug: "Bug",
+      correction: "Correction",
       other: "Other",
     },
     inquiriesPagination: "Inquiry pages",

@@ -7,6 +7,7 @@ import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { useTurnstile } from "@/app/hooks/use-turnstile";
 import { type PlainTKey, type TranslateFn, useT } from "@/app/i18n";
+import { DEFAULT_INQUIRY_KIND } from "@/app/lib/contact-search";
 import type { InquiryRejection } from "@/app/server-fns/inquiries";
 import { submitInquiryFn } from "@/app/server-fns/inquiries";
 import {
@@ -26,28 +27,50 @@ import {
  * 入力の可否は `inquirySubmissionSchema` が決める。画面は結果を訳すだけで、
  * 独自の条件を足さない (足すと画面では書けるのに送れない状態が生まれる)。
  * `turnstileSiteKey` が null のときも入力欄は描く。送信できないことは伝えつつ、
- * 何を書く場所なのかは設定の有無に関わらず見えている方がよい
+ * 何を書く場所なのかは設定の有無に関わらず見えている方がよい。
+ *
+ * 種別と本文の初期値は外から受ける。作品ページ・声優ページの「掲載内容の誤りを知らせる」から
+ * 開いたときに、対象のページを申し出る人が書き写さずに済ませるため
  */
 
 const KIND_LABELS: Record<InquiryKind, PlainTKey> = {
   request: "contact.kindRequest",
   bug: "contact.kindBug",
+  correction: "contact.kindCorrection",
   other: "contact.kindOther",
 };
 
 type SubmitState = { phase: "idle" | "sending" | "accepted" } | { phase: "error"; message: string };
 
-export function InquiryForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
+export function InquiryForm({
+  turnstileSiteKey,
+  defaultKind = DEFAULT_INQUIRY_KIND,
+  targetUrl = null,
+}: {
+  turnstileSiteKey: string | null;
+  /** 最初に選ばれている種別 */
+  defaultKind?: InquiryKind;
+  /** 申し出の対象のページ。本文の先頭に置く。無ければ本文は空で始まる */
+  targetUrl?: string | null;
+}) {
   const t = useT();
   const kindId = useId();
   const bodyId = useId();
+  const bodyHintId = useId();
+  const evidenceHintId = useId();
   const contactId = useId();
   const contactHintId = useId();
 
-  const [kind, setKind] = useState<InquiryKind>("request");
-  const [body, setBody] = useState("");
+  // 対象の URL は本文の「先頭」に入れる。書き足す場所を空けたいので後ろに空行を 1 つ置く
+  const initialBody = targetUrl === null ? "" : `${targetUrl}\n\n`;
+
+  const [kind, setKind] = useState<InquiryKind>(defaultKind);
+  const [body, setBody] = useState(initialBody);
   const [contact, setContact] = useState("");
   const [state, setState] = useState<SubmitState>({ phase: "idle" });
+  // 根拠が要るのは訂正の申し出だけ。どの種別でも出すと、要望や不具合の報告でも
+  // 何かを証明しないと送れないように読める
+  const needsEvidence = kind === "correction";
 
   const turnstile = useTurnstile(turnstileSiteKey);
   const sendable = turnstileSiteKey !== null;
@@ -74,8 +97,9 @@ export function InquiryForm({ turnstileSiteKey }: { turnstileSiteKey: string | n
         setState({ phase: "error", message: rejectionMessage(result.reason, t) });
         return;
       }
-      setKind("request");
-      setBody("");
+      // 同じページについてもう 1 通送れるよう、開いたときの状態に戻す
+      setKind(defaultKind);
+      setBody(initialBody);
       setContact("");
       setState({ phase: "accepted" });
     } catch (error) {
@@ -117,10 +141,16 @@ export function InquiryForm({ turnstileSiteKey }: { turnstileSiteKey: string | n
           value={body}
           rows={8}
           onChange={(event) => setBody(event.target.value)}
+          aria-describedby={needsEvidence ? `${bodyHintId} ${evidenceHintId}` : bodyHintId}
         />
-        <p className="text-muted-foreground text-xs">
+        <p id={bodyHintId} className="text-muted-foreground text-xs">
           {t("contact.bodyHint", { max: INQUIRY_BODY_MAX_LENGTH })}
         </p>
+        {needsEvidence ? (
+          <p id={evidenceHintId} className="text-muted-foreground text-xs">
+            {t("contact.correctionEvidenceHint")}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1">

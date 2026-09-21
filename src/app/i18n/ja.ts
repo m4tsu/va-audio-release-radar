@@ -53,13 +53,23 @@ export const ja = {
     title: "お問い合わせ",
     metaTitle: "お問い合わせ | {{app}}",
     metaDescription: "{{app}} への要望、不具合の報告、掲載内容の訂正・削除の申し出を受け付けます。",
-    intro: "要望・不具合の報告・その他のご連絡を受け付けます。個別の返信はお約束できません。",
+    intro:
+      "要望・不具合の報告・掲載内容の訂正の申し出・その他のご連絡を受け付けます。個別の返信はお約束できません。",
     kindLabel: "種別",
     kindRequest: "要望",
     kindBug: "不具合",
+    kindCorrection: "掲載内容の訂正",
     kindOther: "その他",
     bodyLabel: "本文",
     bodyHint: "{{max}} 文字まで",
+    /** 作品ページ・声優ページから訂正を申し出るリンクの文字列 (`components/correction-link.tsx`) */
+    correctionLink: "掲載内容の誤りを知らせる",
+    /**
+     * 訂正の種別を選んだときだけ本文の近くに出す注記。
+     * 根拠として認めるものは docs/product.md の「別名義」と揃える
+     */
+    correctionEvidenceHint:
+      "別名義の申し出には根拠を書いてください。本人・事務所の公表、ストアが同一人物として扱っている事実など、確かめられるものに限ります。声質や活動時期からの推測では紐付けられません。",
     contactLabel: "連絡先 (任意)",
     contactHint: "返信が必要なときだけ、メールアドレスや SNS のアカウントを書いてください。",
     submit: "送信する",
@@ -467,6 +477,7 @@ export const ja = {
     inquiryKind: {
       request: "要望",
       bug: "不具合",
+      correction: "掲載内容の訂正",
       other: "その他",
     },
     inquiriesPagination: "問い合わせのページ送り",

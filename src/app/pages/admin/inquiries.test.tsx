@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { AdminInquiriesPage } from "@/app/pages/admin/inquiries";
 import { inquiry } from "@/app/test/fixtures";
 import { renderWithLocale } from "@/app/test/render";
+import { INQUIRY_KINDS } from "@/domain/types";
 
 function table() {
   return screen.getByRole("table");
@@ -50,6 +51,27 @@ describe("AdminInquiriesPage の表", () => {
     expect(within(row as HTMLElement).getByText("user@example.com")).toBeInTheDocument();
     // 日本のストアを扱うので、表示は言語を問わず JST
     expect(within(row as HTMLElement).getByText(/13:30/)).toBeInTheDocument();
+  });
+
+  /**
+   * 種別は後から増える。増やした種別も、それより前に届いた種別も同じ表で読めること
+   * (種別は DB 側に制約を持たないので、読み出しは既存の行をそのまま返す)
+   */
+  test("どの種別の行も種別の名前を出す", () => {
+    renderWithLocale(
+      <AdminInquiriesPage
+        authorized
+        page={1}
+        hasNext={false}
+        inquiries={INQUIRY_KINDS.map((kind, index) => inquiry({ id: index + 1, kind }))}
+      />,
+    );
+
+    const kinds = within(table())
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).getAllByRole("cell")[1]?.textContent);
+    expect(kinds).toEqual(["要望", "不具合", "掲載内容の訂正", "その他"]);
   });
 
   /** 渡された順をそのまま描いていることを確かめる。並べ替えは読み出し側の仕事 */

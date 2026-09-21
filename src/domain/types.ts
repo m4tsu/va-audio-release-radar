@@ -39,9 +39,13 @@ export type AnimeFormat = "TV" | "TV_SHORT" | "MOVIE" | "SPECIAL" | "OVA" | "ONA
  *
  * 分け方を送信者に委ねるのは、受け取る側が本文を読む前に「直せるもの (bug)」と
  * 「作るかどうかを決めるもの (request)」を見分けられるようにするため。
- * どちらでもない送信を書けなくしないために `other` を置く
+ * どちらでもない送信を書けなくしないために `other` を置く。
+ *
+ * `correction` は掲載内容の訂正の申し出。他の 3 つと違って、受け取る側が次に行うのは
+ * データの書き換えで、根拠を確かめてからでないと実在の人物に誤った出演作を結び付ける
+ * (docs/product.md の「別名義」)。区別できないと本文を全部読むまで選り分けられない
  */
-export type InquiryKind = "request" | "bug" | "other";
+export type InquiryKind = "request" | "bug" | "correction" | "other";
 
 /**
  * 表示言語。i18n の辞書 (`src/app/i18n`) と、通知の本文を組む言語を持つ DB の列が同じ値を見る。
@@ -323,8 +327,13 @@ export const CREDIT_CONFIDENCES = [
   "unmatched",
 ] as const satisfies readonly CreditConfidence[];
 
-/** 並びはそのまま画面の選択肢の並びになる。よく来るものから置く */
-export const INQUIRY_KINDS = ["request", "bug", "other"] as const satisfies readonly InquiryKind[];
+/** 並びはそのまま画面の選択肢の並びになる。よく来るものから置き、どれでもない `other` を最後にする */
+export const INQUIRY_KINDS = [
+  "request",
+  "bug",
+  "correction",
+  "other",
+] as const satisfies readonly InquiryKind[];
 
 export const LOCALES = ["ja", "en"] as const satisfies readonly Locale[];
 
