@@ -1,12 +1,27 @@
 import { Link } from "@tanstack/react-router";
+import { ListFilter } from "lucide-react";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
 import { storeLabel } from "@/app/components/store-badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select";
 import { WorkCard } from "@/app/components/work-card";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
 import { animeDisplayTitle } from "@/app/lib/anime-title";
+import {
+  APPEARANCE_FILTERS,
+  type AppearanceFilter,
+  appearanceLabel,
+  isAppearanceFilter,
+  matchesAppearance,
+} from "@/app/lib/appearance";
 import { characterDisplayName } from "@/app/lib/character-name";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { seasonLabel } from "@/app/lib/season";
@@ -19,20 +34,31 @@ export type ActorStoreWorks = { storeSlug: StoreSlug; items: WorkWithListings[] 
  * 声優ページ。「{声優名} ASMR」「{声優名} Audible」のような
  * 実体検索での流入を受ける想定なので、中身は全部 SSR で出しインデックスさせる。
  *
- * クライアントでしか決まらないのはフォローボタンの状態だけ
+ * クライアントでしか決まらないのはフォローボタンの状態だけ。出演形態の絞り込みは
+ * URL の検索文字列に置く (ルートが読む)。ページ内の状態にすると、絞った画面を
+ * 共有も再読み込みもできず、SSR が返す HTML と食い違う
  */
 export function VoiceActorPage({
   actor,
   works,
   anime,
+  appearance,
+  onAppearanceChange,
 }: {
   actor: ActorDetail;
   works: ActorStoreWorks[];
   anime: ActorAnimeAppearance[];
+  /** 出演形態の絞り込み。URL から来る */
+  appearance: AppearanceFilter;
+  onAppearanceChange: (next: AppearanceFilter) => void;
 }) {
   const t = useT();
   const locale = useLocale();
   const name = actorDisplayName(actor, locale);
+  const filtered = works.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => matchesAppearance(appearance, item.castSize)),
+  }));
 
   return (
     <div className="space-y-8">
@@ -52,8 +78,15 @@ export function VoiceActorPage({
         }
       />
 
-      {works.map((section) => (
-        <StoreSection key={section.storeSlug} storeSlug={section.storeSlug} items={section.items} />
+      <AppearanceFilterSelect value={appearance} onChange={onAppearanceChange} />
+
+      {filtered.map((section) => (
+        <StoreSection
+          key={section.storeSlug}
+          storeSlug={section.storeSlug}
+          items={section.items}
+          filtered={appearance !== "all"}
+        />
       ))}
 
       {anime.length > 0 ? <AnimeSection items={anime} /> : null}
@@ -61,13 +94,68 @@ export function VoiceActorPage({
   );
 }
 
-function StoreSection({ storeSlug, items }: { storeSlug: StoreSlug; items: WorkWithListings[] }) {
+/**
+ * 出演形態の絞り込み。選べるのは人数から確実に決まる区分だけで、「不明」は選べない
+ * (`@/app/lib/appearance`)。ネイティブの `<select>` を使わない理由は `locale-select.tsx` と同じ
+ */
+function AppearanceFilterSelect({
+  value,
+  onChange,
+}: {
+  value: AppearanceFilter;
+  onChange: (next: AppearanceFilter) => void;
+}) {
+  const t = useT();
+  const locale = useLocale();
+  const label = (option: AppearanceFilter) =>
+    option === "all" ? t("appearance.filterAll") : appearanceLabel(option, locale);
+
+  return (
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (isAppearanceFilter(next)) onChange(next);
+      }}
+    >
+      <SelectTrigger size="sm" aria-label={t("appearance.filterLabel", { name: label(value) })}>
+        <ListFilter aria-hidden="true" />
+        {/* Radix は選ばれた項目の文言を SelectItem から流し込む。開くまで項目が描かれず
+            SSR では空のまま返るので、文言をここで直接渡す */}
+        <SelectValue>{label(value)}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {APPEARANCE_FILTERS.map((option) => (
+          <SelectItem key={option} value={option}>
+            {label(option)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function StoreSection({
+  storeSlug,
+  items,
+  filtered,
+}: {
+  storeSlug: StoreSlug;
+  items: WorkWithListings[];
+  /** 出演形態で絞り込んでいるか。0 件の理由が「作品が無い」と違うので言い方を変える */
+  filtered: boolean;
+}) {
   const t = useT();
   return (
     <section className="space-y-3">
       <h2 className="font-semibold text-xl tracking-tight">{storeLabel(storeSlug)}</h2>
       {items.length === 0 ? (
-        <EmptyState title={t("actor.storeEmptyTitle", { store: storeLabel(storeSlug) })} />
+        <EmptyState
+          title={
+            filtered
+              ? t("actor.filteredEmptyTitle", { store: storeLabel(storeSlug) })
+              : t("actor.storeEmptyTitle", { store: storeLabel(storeSlug) })
+          }
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {items.map((item) => (

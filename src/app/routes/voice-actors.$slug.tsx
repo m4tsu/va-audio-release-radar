@@ -1,6 +1,11 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createTranslator } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
+import {
+  type AppearanceFilter,
+  DEFAULT_APPEARANCE_FILTER,
+  isAppearanceFilter,
+} from "@/app/lib/appearance";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import type { ActorDetail } from "@/app/lib/view-types";
 import { VoiceActorPage } from "@/app/pages/voice-actor";
@@ -21,6 +26,21 @@ const ANIME_PER_ACTOR = 8;
 
 /** 声優ページ。画面は `@/app/pages/voice-actor` */
 export const Route = createFileRoute("/voice-actors/$slug")({
+  /**
+   * 出演形態の絞り込み。URL に置くので、絞った画面を再読み込みしても共有しても同じ結果になる。
+   * 読めない値は絞り込み無しに倒す (知らない区分で 0 件になるより全件を出すほうが近い)。
+   *
+   * 読めないときも欄を落とさず既定値を返す。親のルートは検索文字列を素通しするので、
+   * 欄ごと落とすと素通しされた元の値がそのまま画面に届く。
+   * 型の上で任意にしてあるのは、この画面へのリンクに検索文字列を書かせないため
+   */
+  validateSearch: (search: Record<string, unknown>): { appearance?: AppearanceFilter } => {
+    const value = search.appearance;
+    const valid = typeof value === "string" && isAppearanceFilter(value);
+    return { appearance: valid ? value : DEFAULT_APPEARANCE_FILTER };
+  },
+  // 作品一覧は絞り込みに関わらず全件を引き、絞るのは画面側。loader が検索文字列に依存しないので
+  // 絞り込みを変えても取り直しが起きない
   loader: async ({ params }) => {
     // canonical を絶対 URL にするためのオリジン。head() からは読めないのでここで解決する
     const [actor, origin] = await Promise.all([
@@ -122,5 +142,24 @@ function absoluteUrl(origin: string | undefined, path: string): string {
 
 function RouteComponent() {
   const { actor, works, anime } = Route.useLoaderData();
-  return <VoiceActorPage actor={actor} works={works} anime={anime} />;
+  const { appearance } = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  return (
+    <VoiceActorPage
+      actor={actor}
+      works={works}
+      anime={anime}
+      appearance={appearance ?? DEFAULT_APPEARANCE_FILTER}
+      onAppearanceChange={(next) => {
+        // 絞り込みの変更で履歴を積むと、戻るボタンが選び直した回数だけ必要になる。
+        // 共有できる URL は replace でも同じものが残る。
+        // 既定に戻したときは欄ごと消し、絞っていない画面の URL を 1 つに保つ
+        void navigate({
+          search: next === DEFAULT_APPEARANCE_FILTER ? {} : { appearance: next },
+          replace: true,
+        });
+      }}
+    />
+  );
 }

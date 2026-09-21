@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { type ActorStoreWorks, VoiceActorPage } from "@/app/pages/voice-actor";
 import {
   actorAnimeAppearance,
@@ -18,19 +18,46 @@ const ACTOR = actorDetail({
   nameEn: "Kakuu Alpha",
 });
 
-/** ベータは DLsite にしか作品が無い。空のストアもセクションを出す */
+/**
+ * ストアごとの作品。出演形態の絞り込みを見るため、人数の違う 3 件をストアに分けて置く。
+ * ポケドラは 1 件も無い (空のストアもセクションを出す)
+ */
 const WORKS: ActorStoreWorks[] = [
   {
     storeSlug: "dlsite",
-    items: [workWithListings({ work: workSummary({ title: "架空のASMR作品" }) })],
+    items: [
+      workWithListings({
+        work: workSummary({ id: "dlsite:RJ1", title: "架空のASMR作品" }),
+        castSize: 1,
+      }),
+      workWithListings({
+        work: workSummary({ id: "dlsite:RJ2", title: "架空の少人数作品" }),
+        castSize: 3,
+      }),
+    ],
   },
-  { storeSlug: "audible", items: [] },
+  {
+    storeSlug: "audible",
+    items: [
+      workWithListings({
+        work: workSummary({ id: "audible:B01", title: "架空の大人数作品" }),
+        castSize: 6,
+      }),
+    ],
+  },
   { storeSlug: "pokedora", items: [] },
 ];
 
 function render(over: Partial<Parameters<typeof VoiceActorPage>[0]> = {}, locale?: "ja" | "en") {
   return renderWithLocale(
-    <VoiceActorPage actor={ACTOR} works={WORKS} anime={[]} {...over} />,
+    <VoiceActorPage
+      actor={ACTOR}
+      works={WORKS}
+      anime={[]}
+      appearance="all"
+      onAppearanceChange={() => {}}
+      {...over}
+    />,
     locale,
   );
 }
@@ -64,7 +91,6 @@ describe("VoiceActorPage のストアごとのセクション", () => {
   test("作品が無いストアはそのストア名を入れた空表示を出す", () => {
     render();
 
-    expect(screen.getByText("Audible で見つかった作品はありません")).toBeInTheDocument();
     expect(screen.getByText("ポケドラ で見つかった作品はありません")).toBeInTheDocument();
   });
 
@@ -72,6 +98,78 @@ describe("VoiceActorPage のストアごとのセクション", () => {
     render();
 
     expect(screen.getByRole("link", { name: "架空のASMR作品" })).toBeInTheDocument();
+  });
+});
+
+describe("VoiceActorPage の出演形態", () => {
+  test("作品ごとに出演形態を出す", () => {
+    render();
+
+    expect(screen.getByText("単独")).toBeInTheDocument();
+    expect(screen.getByText("少人数")).toBeInTheDocument();
+    expect(screen.getByText("大人数")).toBeInTheDocument();
+  });
+
+  /** クレジットが 1 件も取れていない作品を「単独」と読ませない */
+  test("クレジットが 0 件の作品は不明として出す", () => {
+    render({
+      works: [
+        {
+          storeSlug: "dlsite",
+          items: [
+            workWithListings({ work: workSummary({ title: "架空の不明作品" }), castSize: 0 }),
+          ],
+        },
+      ],
+    });
+
+    expect(screen.getByText("出演形態不明")).toBeInTheDocument();
+  });
+
+  test("URL から来た区分で絞った状態を描く", () => {
+    render({ appearance: "solo" });
+
+    expect(screen.getByRole("link", { name: "架空のASMR作品" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "架空の少人数作品" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "架空の大人数作品" })).not.toBeInTheDocument();
+  });
+
+  test("絞り込んで 0 件になったストアは、絞り込みで消えたことが分かる空表示を出す", () => {
+    render({ appearance: "solo" });
+
+    expect(screen.getByText("Audible にこの出演形態の作品はありません")).toBeInTheDocument();
+  });
+
+  /** 選択は URL に置くので、ページは変更を伝えるだけで自分では絞りを持たない */
+  test("選ぶと選ばれた区分を呼び出し側へ渡す", async () => {
+    const user = userEvent.setup();
+    const onAppearanceChange = vi.fn();
+    render({ onAppearanceChange });
+
+    await user.click(screen.getByRole("combobox", { name: "出演形態: すべて" }));
+    await user.click(screen.getByRole("option", { name: "大人数" }));
+
+    expect(onAppearanceChange).toHaveBeenCalledWith("large");
+  });
+
+  test("判定しない区分は選択肢に出さない", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.click(screen.getByRole("combobox", { name: "出演形態: すべて" }));
+
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "すべて",
+      "単独",
+      "少人数",
+      "大人数",
+    ]);
+  });
+
+  test("絞り込み中は今の区分を読み上げ名に出す", () => {
+    render({ appearance: "small" });
+
+    expect(screen.getByRole("combobox", { name: "出演形態: 少人数" })).toBeInTheDocument();
   });
 });
 

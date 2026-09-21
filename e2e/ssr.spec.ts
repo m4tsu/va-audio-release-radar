@@ -47,6 +47,31 @@ test("声優ページは title と本文と canonical を SSR で返す", async 
   expect(html).toContain('"@type":"Person"');
 });
 
+/**
+ * 出演形態の絞り込みは URL の検索文字列に置いてある。絞った画面を共有・再読み込みできるかは
+ * 「その URL に GET した応答が絞り込み済みか」なので、ここでしか確かめられない。
+ * 固定データのアルファの作品は 2〜3 人で、単独の作品は 1 件も無い
+ */
+test("出演形態の絞り込みは URL から復元され、SSR の HTML に反映される", async ({ request }) => {
+  const all = await (await request.get(`/voice-actors/${ACTOR_SLUG}`)).text();
+  expect(all).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+
+  const small = await (await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=small`)).text();
+  expect(small).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+
+  const solo = await (await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=solo`)).text();
+  expect(solo).not.toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+  // 0 件になったことが画面に出る (ストアに作品が無いときとは別の文言)
+  expect(solo).toContain("DLsite にこの出演形態の作品はありません");
+});
+
+/** 知らない値で 0 件にすると、共有された URL が壊れて見える */
+test("読めない出演形態の値は絞り込み無しとして扱う", async ({ request }) => {
+  const html = await (await request.get(`/voice-actors/${ACTOR_SLUG}?appearance=zzz`)).text();
+
+  expect(html).toMatch(/<a[^>]*>テスト用ASMR作品アルファ<\/a>/);
+});
+
 test("JSON-LD は < をエスケープして出す", async ({ request }) => {
   const html = await (await request.get(`/voice-actors/${ACTOR_SLUG}`)).text();
 
