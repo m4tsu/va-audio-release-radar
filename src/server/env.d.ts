@@ -53,6 +53,11 @@ interface AppSecrets {
    */
   VAPID_PRIVATE_KEY?: string;
   /**
+   * 送信時に push service へ名乗る連絡先 (`mailto:` か `https:` の URL)。秘匿値ではなく
+   * wrangler.jsonc の `vars` に置く。秘密鍵と合わせて揃っていなければ送らない (`@/server/push/vapid`)
+   */
+  VAPID_SUBJECT?: string;
+  /**
    * 検索エンジンに載せてよいか (`@/server/robots`)。`"1"` のときだけ許可する。
    * 秘匿値ではなく wrangler.jsonc の `vars` に置く。
    * **既定は載せない。** 公開前の URL が検索から拾われないようにするため

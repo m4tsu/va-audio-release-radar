@@ -14,3 +14,5 @@ TURNSTILE_SECRET_KEY=
 # どちらも空なら通知の案内は画面に出ない
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
+# 送信時に push service へ名乗る連絡先 ("mailto:you@example.com" か "https://...")。本番は wrangler.jsonc の vars.VAPID_SUBJECT
+VAPID_SUBJECT=

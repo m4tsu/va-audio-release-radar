@@ -37,6 +37,7 @@
     "e2e:prepare": "node e2e/fixtures/prepare.mjs"
   },
   "dependencies": {
+    "@block65/webcrypto-web-push": "^2.0.0",
     "@tanstack/react-router": "^1.170.36",
     "@tanstack/react-start": "^1.168.56",
     "cheerio": "^1.2.0",

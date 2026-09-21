@@ -42,7 +42,11 @@ canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場
 
 フォロー一覧 (`/following`) のブラウザ通知には VAPID の鍵の組が要る。公開鍵は `vars.VAPID_PUBLIC_KEY`
 (ローカルでは `.dev.vars` に書いて上書きしてよい)、秘密鍵は秘匿値の `VAPID_PRIVATE_KEY`。
-公開鍵が空なら通知の区画は画面に出ない。鍵の組は Node で作れる (base64url の 2 行が出る):
+送信時に push service へ名乗る連絡先は `vars.VAPID_SUBJECT` (`mailto:...` か `https://...`)。
+公開鍵が空なら通知の区画は画面に出ない。秘密鍵か subject が空なら cron は送らずログに残す。
+送信は `wrangler.jsonc` の `triggers` の cron で動き、送る内容は `GET /api/admin/push-digest`
+(Bearer は `ADMIN_TOKEN`。`?at=` で起動時刻を指定できる) で送らずに下見できる。
+鍵の組は Node で作れる (base64url の 2 行が出る):
 
 ```
 node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});const pub=publicKey.export({format:'jwk'});const b=s=>Buffer.from(s,'base64url');console.log('VAPID_PUBLIC_KEY='+Buffer.concat([Buffer.from([4]),b(pub.x),b(pub.y)]).toString('base64url'));console.log('VAPID_PRIVATE_KEY='+privateKey.export({format:'jwk'}).d)"

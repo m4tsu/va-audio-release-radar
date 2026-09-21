@@ -376,7 +376,7 @@ function withinPeriod(now: string, sinceDays: number) {
 }
 
 /** 声優 × ストアごとの初回成功クロール。キーは `baselineKey()` */
-type CrawlBaselines = Map<string, string>;
+export type CrawlBaselines = Map<string, string>;
 
 function baselineKey(voiceActorId: string, storeSlug: StoreSlug): string {
   return `${voiceActorId} ${storeSlug}`;
@@ -394,7 +394,7 @@ function baselineKey(voiceActorId: string, storeSlug: StoreSlug): string {
  * 声優に紐付かない走行 (新着一覧) は基準にならないので外す。
  * 行数は 声優数 × ストア数 なので、まとめて 1 回で読む
  */
-async function loadCrawlBaselines(db: AppDb): Promise<CrawlBaselines> {
+export async function loadCrawlBaselines(db: AppDb): Promise<CrawlBaselines> {
   const rows = await db
     .select({
       voiceActorId: crawlRuns.voiceActorId,
@@ -423,7 +423,7 @@ async function loadCrawlBaselines(db: AppDb): Promise<CrawlBaselines> {
  * 発売日が無い作品を「いつ見つけたか」。初回クロールより後に現れた listing だけを見る。
  * 該当が無ければ undefined = 初回クロールで既にあった (= 新着ではない)
  */
-function discoveredAfterBaseline(
+export function discoveredAfterBaseline(
   listings: WorkListing[],
   actorIds: string[],
   baselines: CrawlBaselines,
@@ -567,7 +567,10 @@ function toWorkWithListings(item: ClassifiedRow): WorkWithListings {
   };
 }
 
-async function loadListings(db: AppDb, workIds: string[]): Promise<Map<string, WorkListing[]>> {
+export async function loadListings(
+  db: AppDb,
+  workIds: string[],
+): Promise<Map<string, WorkListing[]>> {
   const byWork = new Map<string, WorkListing[]>();
   if (workIds.length === 0) return byWork;
 

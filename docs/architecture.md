@@ -12,8 +12,9 @@
 |---|---|---|
 | Worker | Cloudflare Workers + TanStack Start (SSR) + D1 | 画面、server functions、管理 API。**D1 に触るのはここだけ** |
 | クローラー | Node.js (`crawler/`)。GitHub Actions か手元で動く | ストアを取得して正規化し、Worker の管理 API に HTTP で送る。周期は下の「取得の周期」 |
-| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は新作の通知 (Web Push) を購読したブラウザで、購読の宛先とその追う声優をサーバーに送り、フォローが変わるたびに送り直す (`src/app/store/push-store.ts` → `src/server/db/schema.ts` の `push_subscriptions` / `push_subscription_actors`)。送信は未実装 |
+| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は新作の通知 (Web Push) を購読したブラウザで、購読の宛先とその追う声優をサーバーに送り、フォローが変わるたびに送り直す (`src/app/store/push-store.ts` → `src/server/db/schema.ts` の `push_subscriptions` / `push_subscription_actors`)。決定は [`decisions/0013`](./decisions/0013-push-subscription-holds-follows-on-server.md) |
 | 外部 | DLsite / Audible / ポケットドラマ CD / AniList | 制約は [`stores/`](./stores/) |
+| push service | ブラウザの提供元が運営する通知の配信サーバー | Worker が週 1 回の cron でダイジェストを送る相手。宛先は購読時にブラウザが告げる。Worker から外へ出る通信はこれとお問い合わせの bot 対策の 2 つ |
 
 クローラーを Worker の中で動かさないのは、Workers からの外向き通信とサブリクエスト数の上限を避けるため。
 クローラーが D1 に直接書かないのは、DB を触るコードを Worker 側 1 箇所に集約するため。
@@ -33,6 +34,16 @@
 走行主体が複数になるので、同じホストの実行権は Worker が 1 つだけ貸し出し、取れなければ走らない。
 日次の走行は件数が日ごとに揺れるため、健全性は前回比ではなく「直近に成功した取り込みがあるか」で見る。
 その判定は Worker が公開 API で答え、外部の監視がそれを見る。cron が起動しなかったことは Worker 側でしか分からないため。
+
+## 通知の送信
+
+決定は [`decisions/0013`](./decisions/0013-push-subscription-holds-follows-on-server.md)。
+Worker の cron が週 1 回、購読ごとに「追う声優のその週の新作」を集め、あれば 1 通だけ Web Push で送る。
+新作の判定はフィードの「最近の新作」と同じ規則で、範囲だけが前の予定時刻からこの予定時刻までになる。
+1 回の起動で送る数に上限を置き、残りは同じ日の次の起動に持ち越す (Workers の外向き通信の上限のため)。
+どの起動も同じ予定時刻に丸め、送り済みの購読には予定時刻を印として付けるので 2 通は出ない。
+push service が失効を返した購読はその場で消す。走行ごとの結果は D1 に 1 行残す。
+送る内容は管理 API で送らずに下見できる。段取りは `src/server/push/`、cron の時刻は `wrangler.jsonc` の `triggers`。
 
 ## 依存方向
 
@@ -95,8 +106,7 @@ crawler  →  src/domain
 service worker で、ページの資産をキャッシュしない) だけ。
 このうち認証が要るのは `/api/admin/*` だけで、鮮度の判定は外形監視から見えるように開けてある。
 利用者から受け取る経路は 2 つ。お問い合わせ (`/contact`) は認可の代わりに bot 対策 (Cloudflare Turnstile)
-の検証を通す。ここが Worker から外へ出る唯一の通信で、検証の失敗と鍵の未設定を応答で分ける。
-フォロー情報は添えない。もう 1 つは通知の購読 (`/following` の server functions) で、ブラウザが push service
+の検証を通す。検証の失敗と鍵の未設定を応答で分ける。フォロー情報は添えない。もう 1 つは通知の購読 (`/following` の server functions) で、ブラウザが push service
 から受け取った宛先とフォロー中の声優 ID を保存する。認可は無く、Zod で形と件数を絞り、偽の宛先は送信時の
 失効で消える。宛先は利用者の識別に使わない (`src/server/db/schema.ts` の `push_subscriptions`)。
 声優ページとアニメのページは、音声作品があればインデックス対象、無ければ noindex で
@@ -115,8 +125,9 @@ sitemap にも出さない。声優は音声作品も出演アニメも無けれ
 (お問い合わせの bot 対策の検証)、`VAPID_PRIVATE_KEY` (Web Push の署名。送信側だけが使う) を
 wrangler secret で持つ。未設定なら該当機能は 503 を返し、トークン違いや検証の失敗と区別できるようにする。
 ローカルは `.dev.vars`。
-公開してよい設定 (`SITE_URL`、`CONTACT_URL`、`TURNSTILE_SITE_KEY`、`VAPID_PUBLIC_KEY`) は `wrangler.jsonc` の `vars`。
-`VAPID_PUBLIC_KEY` が空なら通知の区画を画面に出さない。
+公開してよい設定 (`SITE_URL`、`CONTACT_URL`、`TURNSTILE_SITE_KEY`、`VAPID_PUBLIC_KEY`、`VAPID_SUBJECT`) は
+`wrangler.jsonc` の `vars`。`VAPID_PUBLIC_KEY` が空なら通知の区画を画面に出さない。秘密鍵か `VAPID_SUBJECT`
+が空なら cron は送らずログに残す。
 
 ## ローカル環境
 
@@ -127,8 +138,7 @@ wrangler secret で持つ。未設定なら該当機能は 503 を返し、ト�
 
 ## 未実装
 
-- 通知の送信 (週次の cron と Web Push の署名。購読の登録と、購読したブラウザのフォローの写しまでは入っている)、
-  ログイン時のフォロー同期。Worker の本番デプロイ (本番 D1 へのデータの移行手順は README にある)
+- ログイン時のフォロー同期。Worker の本番デプロイ (本番 D1 へのデータの移行手順は README にある)
 - 「取得の周期」の月次・シーズンごとの走行と、実行権の貸し出し。日次は 3 ストアとも動いている
 - 対象外の印を人が付ける経路。印を持つ表と、キューや解決し直しから外す側は入っているが、管理画面の操作がまだ無い
 - 販売終了の取り下げを観測して送る処理。listing は取り下げの日時を持てるが、書き込む経路がまだ無い

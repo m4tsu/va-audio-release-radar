@@ -10,7 +10,11 @@
   //   npx wrangler secret put TURNSTILE_SECRET_KEY  お問い合わせの bot 対策の検証用 (Cloudflare Turnstile)
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "voice-actor-audio-release-radar",
-  "main": "@tanstack/react-start/server-entry",
+  // TanStack Start の既定の入口に cron (scheduled) を足したもの。中身は src/worker.ts
+  "main": "src/worker.ts",
+  // 週 1 通のダイジェスト。金曜 18:00 JST = 09:00 UTC。1 回の起動で送る数に上限があり残りを
+  // 次の起動に持ち越すので、3 時間のあいだ 10 分おきに起動する。予定時刻の丸め方は src/server/push/slot.ts
+  "triggers": { "crons": ["*/10 9-11 * * 5"] },
   "compatibility_date": "2026-09-01",
   // TanStack Start のサーバーランタイムが Node 互換 API を使う
   "compatibility_flags": ["nodejs_compat"],
@@ -27,13 +31,16 @@
   // 気づきやすいため (README の「公開前の扱い」)
   // VAPID_PUBLIC_KEY は Web Push の公開鍵 (base64url)。ブラウザが購読を作るときに使う公開鍵なので vars に置く。
   // 対の秘密鍵は `npx wrangler secret put VAPID_PRIVATE_KEY`。鍵の組の作り方は README の「Web Push」。
-  // 空文字なら通知の案内を画面に出さない
+  // 空文字なら通知の案内を画面に出さない。
+  // VAPID_SUBJECT は送信時に push service へ名乗る連絡先 ("mailto:..." か "https://...")。
+  // 秘密鍵と subject のどちらかが欠けていれば送信は行わずログに残す
   "vars": {
     "SITE_URL": "",
     "CONTACT_URL": "",
     "TURNSTILE_SITE_KEY": "",
     "ALLOW_INDEXING": "",
-    "VAPID_PUBLIC_KEY": ""
+    "VAPID_PUBLIC_KEY": "",
+    "VAPID_SUBJECT": ""
   },
   "d1_databases": [
     {
