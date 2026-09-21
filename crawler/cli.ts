@@ -34,7 +34,6 @@ const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
   pokedora: pokedoraAdapter,
 };
 
-/** 見出しに出すストア名 */
 const USAGE = `使い方:
   node crawler/cli.ts actor "<声優名>" [オプション]
   node crawler/cli.ts diff  "<声優名>" [オプション]

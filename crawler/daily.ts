@@ -75,6 +75,8 @@ export type FeedOutcome = {
   dropped?: number;
   /** 引くつもりだった一覧をすべて取れたか */
   complete: boolean;
+  /** 実際に取れた一覧ページ数。DLsite は引くフロアの数 */
+  pages: number;
   reason?: string;
   warnings: string[];
 };
@@ -88,10 +90,10 @@ export type FeedOutcome = {
 export function formatOutcome(outcome: FeedOutcome): string {
   const label = STORE_LABELS[outcome.storeSlug];
   // 引けなかった入口があったことは件数からは読めないので、行の頭で言う。
-  // 1 ページも取れなかった走行は status が error になるので、ここでは部分失敗だけを言う
-  const partial = !outcome.complete && outcome.status !== "error";
-  const status = partial ? `${outcome.status} (一覧の一部を引けず)` : outcome.status;
-  const counts = [`一覧 ${outcome.listed} 件`, `新規 ${outcome.sent} 件`];
+  // status が error でも起こる (片方のフロアが落ち、もう片方が 0 件だった場合)
+  const status = outcome.complete ? outcome.status : `${outcome.status} (一覧の一部を引けず)`;
+  // ページ数も出すのは、相手サイトへの往復が増えていないことを後からログで確かめるため
+  const counts = [`一覧 ${outcome.listed} 件 (${outcome.pages} ページ)`, `新規 ${outcome.sent} 件`];
   if (outcome.saved !== undefined) counts.push(`保存 ${outcome.saved} 件`);
   if (outcome.dropped !== undefined) counts.push(`対象声優なしで破棄 ${outcome.dropped} 件`);
   const reason = outcome.reason === undefined ? "" : ` (${outcome.reason})`;
@@ -138,6 +140,7 @@ export async function runStore(
       listed: 0,
       sent: 0,
       complete: false,
+      pages: 0,
       reason: "新着一覧に対応していない",
       warnings,
     };
@@ -149,6 +152,7 @@ export async function runStore(
     listed: result.listedCount,
     sent: result.works.length,
     complete: result.complete,
+    pages: result.pages,
     ...(result.reason === undefined ? {} : { reason: result.reason }),
     warnings: [...warnings, ...result.warnings],
   };
@@ -255,6 +259,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         listed: 0,
         sent: 0,
         complete: false,
+        pages: 0,
         reason,
         warnings: [],
       });

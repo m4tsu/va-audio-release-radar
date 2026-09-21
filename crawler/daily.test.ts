@@ -11,6 +11,7 @@ function outcome(partial: Partial<FeedOutcome>): FeedOutcome {
     listed: 0,
     sent: 0,
     complete: true,
+    pages: 2,
     warnings: [],
     ...partial,
   };
@@ -19,34 +20,38 @@ function outcome(partial: Partial<FeedOutcome>): FeedOutcome {
 describe("formatOutcome", () => {
   it("一覧・新規・保存・破棄の件数を 1 行に出す", () => {
     expect(formatOutcome(outcome({ listed: 30, sent: 7, saved: 2, dropped: 5 }))).toBe(
-      "DLsite ok 一覧 30 件 / 新規 7 件 / 保存 2 件 / 対象声優なしで破棄 5 件",
+      "DLsite ok 一覧 30 件 (2 ページ) / 新規 7 件 / 保存 2 件 / 対象声優なしで破棄 5 件",
     );
   });
 
   // --dry-run では送らないので、取り込み側にしか分からない件数は出せない
   it("送っていない走行では保存と破棄を出さない", () => {
     expect(formatOutcome(outcome({ listed: 30, sent: 7 }))).toBe(
-      "DLsite ok 一覧 30 件 / 新規 7 件",
+      "DLsite ok 一覧 30 件 (2 ページ) / 新規 7 件",
     );
   });
 
   it("失敗した走行は理由まで出す", () => {
-    expect(formatOutcome(outcome({ status: "error", reason: "新着一覧の取得に失敗" }))).toBe(
-      "DLsite error 一覧 0 件 / 新規 0 件 (新着一覧の取得に失敗)",
+    expect(
+      formatOutcome(
+        outcome({ status: "error", pages: 0, complete: false, reason: "新着一覧の取得に失敗" }),
+      ),
+    ).toBe(
+      "DLsite error (一覧の一部を引けず) 一覧 0 件 (0 ページ) / 新規 0 件 (新着一覧の取得に失敗)",
     );
   });
 
   it("新着が全部既知なら empty として出す", () => {
     expect(formatOutcome(outcome({ status: "empty", listed: 30, saved: 0, dropped: 0 }))).toBe(
-      "DLsite empty 一覧 30 件 / 新規 0 件 / 保存 0 件 / 対象声優なしで破棄 0 件",
+      "DLsite empty 一覧 30 件 (2 ページ) / 新規 0 件 / 保存 0 件 / 対象声優なしで破棄 0 件",
     );
   });
 
   // 引けなかった入口があったことは件数からは読めない
   it("一覧の一部を引けなかった走行はそう書く", () => {
-    expect(formatOutcome(outcome({ complete: false, listed: 30, sent: 3, saved: 1 }))).toBe(
-      "DLsite ok (一覧の一部を引けず) 一覧 30 件 / 新規 3 件 / 保存 1 件",
-    );
+    expect(
+      formatOutcome(outcome({ complete: false, listed: 30, sent: 3, saved: 1, pages: 1 })),
+    ).toBe("DLsite ok (一覧の一部を引けず) 一覧 30 件 (1 ページ) / 新規 3 件 / 保存 1 件");
   });
 });
 
@@ -99,16 +104,17 @@ const OK_RESPONSE: IngestResponse = {
   skippedByNoTargetActor: 0,
 };
 
-/** 送られた payload を溜めるだけの取り込み先 */
+/** 送られた payload を溜めるだけの取り込み先。`known` に Error を渡すと known-ids が失敗する */
 function stubTarget(
-  known: readonly string[] = [],
+  known: readonly string[] | Error = [],
   respond: (payload: IngestPayload) => Promise<IngestResponse> = () => Promise.resolve(OK_RESPONSE),
 ): { target: IngestTarget; sent: IngestPayload[] } {
   const sent: IngestPayload[] = [];
   return {
     sent,
     target: {
-      knownIds: (_storeSlug: StoreSlug) => Promise.resolve(new Set(known)),
+      knownIds: (_storeSlug: StoreSlug) =>
+        known instanceof Error ? Promise.reject(known) : Promise.resolve(new Set(known)),
       ingest: (payload) => {
         sent.push(payload);
         return respond(payload);
@@ -161,6 +167,25 @@ describe("runStore", () => {
     await runStore(stubAdapter(feedResult(), seen), target, false);
 
     expect([...(seen.knownIds ?? [])]).toEqual(["RJ9"]);
+  });
+
+  /**
+   * known-ids が取れなくても走行は止めない。止めると `crawl_runs` に行が残らず、
+   * 走行が動かなかったのか新作が無かったのかを後から区別できなくなる
+   */
+  it("known-ids を取れなくても、警告を残して送信まで進む", async () => {
+    const seen: { knownIds?: ReadonlySet<string> } = {};
+    const { target, sent } = stubTarget(new AdminApiError("known-ids が HTTP 500"));
+
+    const result = await runStore(stubAdapter(feedResult(), seen), target, false);
+
+    expect(result.status).toBe("ok");
+    expect(result.warnings).toContain(
+      "known-ids を取れなかった (known-ids が HTTP 500)。既知の作品も取り直す",
+    );
+    // 既知が分からないので adapter には渡さない (全件の詳細を取り直すだけで済む)
+    expect(seen.knownIds).toBeUndefined();
+    expect(sent).toHaveLength(1);
   });
 
   it("取り込みの結果を保存件数と破棄件数として返す", async () => {
