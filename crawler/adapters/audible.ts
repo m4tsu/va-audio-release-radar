@@ -555,6 +555,18 @@ function pickFallback(base: AdapterResult, attempts: readonly AdapterResult[]): 
 }
 
 /**
+ * 新着一覧 1 本を人が見分けるための短い名前。URL をそのまま出すと長すぎて
+ * ログでも警告でも読めないので、並び順かページ番号だけを出す。
+ * `AUDIBLE_FEED_URLS` の中で重ならないことは同じファイルのテストで固定している
+ */
+export function feedLabel(url: string): string {
+  const sort = /[?&]sort=([^&]+)/.exec(url)?.[1];
+  if (sort !== undefined) return sort;
+  const page = /[?&]page=([^&]+)/.exec(url)?.[1];
+  return page === undefined ? "既定" : `page=${page}`;
+}
+
+/**
  * 新着一覧から、まだ知らない作品だけを取る (日次の走行)。声優を指定しないので、
  * 誰の作品かは取り込み側が出演者名で照合する (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
  *
@@ -562,14 +574,6 @@ function pickFallback(base: AdapterResult, attempts: readonly AdapterResult[]): 
  * ナレーター名がリンクにならない作品 (AI 読み上げ) は人のナレーターが居ないので送らない。
  * 詳しくは `docs/stores/audible.md` の「既知の落とし穴」
  */
-/**
- * 新着一覧 1 本を人が見分けるための短い名前。URL をそのまま出すと長すぎて
- * ログでも警告でも読めないので、並び順の部分だけを出す
- */
-function feedLabel(url: string): string {
-  return /[?&]sort=([^&]+)/.exec(url)?.[1] ?? (url.includes("page=") ? "page=2" : "既定");
-}
-
 async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<FeedResult> {
   const fetchedAt = new Date().toISOString();
   const warnings: string[] = [];
@@ -581,8 +585,10 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   // 並び順をまたいで ASIN で畳む。同じ作品が別の並びに出ても 1 件になる
   const listed = new Map<string, RawWork>();
 
-  // 8 本は同じプールの並び替えなので、検証落ちと警告は ASIN と文面で畳んでから数える。
-  // 単純に足すと同じ作品の検証落ちが最大 8 回、同じ警告が 8 回出る
+  // 8 本は同じプールの並び替えなので、同じ作品が複数の並びに出る。
+  // 警告は文面に作品 ID が入るので Set で畳める。検証落ちは件数しか返らないので畳めず、
+  // 1 本ぶんの最大値で代用する (和にすると最大 8 倍に膨れる。別々の作品が別々の並びで
+  // 落ちたときは実数より少なく出るが、多く見せるより取り違えにくい)
   const invalidPerPage: number[] = [];
   const parseWarnings = new Set<string>();
 
@@ -616,7 +622,6 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
     }
   }
 
-  // 同じ作品が複数の並びで落ちるので、最大値を取る (和にすると重複して数える)
   const invalidCount = Math.max(0, ...invalidPerPage);
   warnings.push(...parseWarnings);
 

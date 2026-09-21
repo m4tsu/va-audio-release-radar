@@ -16,7 +16,8 @@
 ## 1. robots.txt
 
 **最終確認日: 2026-09-21** (`https://www.audible.co.jp/robots.txt`、378 行。
-`/newreleases` の `Allow` は 52 行で、2026-09-19 の記述から変化なし)
+2026-09-19 の 377 行から 1 行増えているが、どの行が増えたかは見ていない。
+下に引く行と `/newreleases` の `Allow` 52 行は、字面を突き合わせて変化なしを確かめた)
 
 グループは `User-agent: *` の 1 つだけ。**`Crawl-delay` の指定は無い。**
 `/search` に関係する行をそのまま引く。
@@ -156,11 +157,13 @@ Allow: /newreleases?feature_six_browse-bin=8199814051&feature_twelve_browse-bin=
 - ここでの `{並び順}` 9 種類は `/newreleases` の列挙にあるから許可されるのであって、
   `/search` では依然として禁止である。混同しない
 - **一覧にナレーターと配信日が載るので、作品ページは引かない。**
-  ナレーター欄が空の作品は誰の作品か決められないので送らず、月次の声優起点で拾う
+  ナレーター名を取れない作品 (AI 読み上げ) は送らない。理由は「既知の落とし穴」
 
 ### まだ使っていないが、許可が確認できている形
 
-配信予定 (`docs/research/upcoming-releases-2026-09-18.md` の入力)。**採否は未決。**
+配信予定。**採否は未決。**実測は
+[`new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) の
+「予約・配信予定は `/coming-soon`」。
 
 ```
 Disallow: /coming-soon
@@ -278,7 +281,7 @@ Allow: /coming-soon?page=
 ## 8. 出典
 
 - [`docs/research/new-release-feeds-2026-09-19.md`](../research/new-release-feeds-2026-09-19.md) —
+  robots の再確認、`sort=` 違反の発見、`/newreleases` と `/coming-soon` の許可される形、実測
 - [`docs/research/audible-daily-feed-2026-09-21.md`](../research/audible-daily-feed-2026-09-21.md) —
   日次の走行 1 回目の件数と、ナレーター名を取れない作品が AI 読み上げであること
-  robots の再確認、`sort=` 違反の発見、`/newreleases` と `/coming-soon` の許可される形、実測
 - `crawler/adapters/audible.ts` のファイル冒頭コメント — robots の引用と、`page` が 1 始まりであることの実測

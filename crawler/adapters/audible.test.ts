@@ -9,6 +9,7 @@ import {
   audibleAdapter,
   buildProductUrl,
   buildSearchUrl,
+  feedLabel,
   isNoSearchResultsLocation,
   parseRuntimeSeconds,
   parseSearchHtml,
@@ -837,6 +838,15 @@ describe("AUDIBLE_FEED_URLS", () => {
 
   it("同じ URL を 2 度引かない", () => {
     expect(new Set(AUDIBLE_FEED_URLS).size).toBe(AUDIBLE_FEED_URLS.length);
+  });
+
+  /**
+   * 警告とスナップショットの名前に使うので、8 本で重ならないことが要る。
+   * 重なると、どの並びが落ちたのかが読めなくなる
+   */
+  it("入口の名前が重ならない", () => {
+    const labels = AUDIBLE_FEED_URLS.map(feedLabel);
+    expect(new Set(labels).size).toBe(labels.length);
   });
 });
 
