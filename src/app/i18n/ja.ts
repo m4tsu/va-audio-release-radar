@@ -149,7 +149,7 @@ export const ja = {
 
   home: {
     /** トップの h1 */
-    heroTitle: "好きな声優の音声作品を、ストアをまたいで追う",
+    heroTitle: "好きな声優の声が聴ける作品を見つける",
     latestTitle: "新着の音声作品",
     /** ストアのタブ。値はストア名 (`STORE_LABELS`) なので辞書には持たない */
     latestStoreTabsLabel: "ストアで絞り込む",

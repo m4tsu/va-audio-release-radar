@@ -109,7 +109,7 @@ describe("HomePage の中身", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "好きな声優の音声作品を、ストアをまたいで追う",
+        name: "好きな声優の声が聴ける作品を見つける",
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "声優から探す" })).toHaveAttribute(

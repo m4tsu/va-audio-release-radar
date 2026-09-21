@@ -126,7 +126,7 @@ export const en: Translations = {
   },
 
   home: {
-    heroTitle: "Your favorite voice actors' audio works, across every store",
+    heroTitle: "Find the audio works your favorite voice actors are in",
     latestTitle: "New audio works",
     latestStoreTabsLabel: "Filter by store",
     latestStoreEmptyTitle: "No new releases on {{store}}",
