@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { INGEST_PROTOCOL_VERSION, type IngestPayload, type RawWork } from "@/domain/types";
+import { voiceActors } from "../db/schema";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { writeActorAttributes } from "./actor-attributes";
@@ -9,7 +11,13 @@ import { ingest } from "./ingest";
 /** テストで使う基準時刻。相対日数の計算をこの時点からにして結果を固定する */
 export const NOW = "2026-09-18T00:00:00.000Z";
 
-export const UEDA: ActorSeed = {
+/**
+ * テストで使う声優。かなと表示用ローマ字はシードでは渡せないので (読み取り側が見るのは
+ * 付加情報の表と供給元の写しの列)、ここで受け取って `setupDb` が台帳の形で入れる
+ */
+export type ActorFixture = ActorSeed & { nameKana?: string; nameEn?: string };
+
+export const UEDA: ActorFixture = {
   id: "va_ueda-reina",
   slug: "ueda-reina",
   canonicalName: "上田麗奈",
@@ -19,7 +27,7 @@ export const UEDA: ActorSeed = {
   gender: "female",
 };
 
-export const HANAZAWA: ActorSeed = {
+export const HANAZAWA: ActorFixture = {
   id: "va_hanazawa-kana",
   slug: "hanazawa-kana",
   canonicalName: "花澤香菜",
@@ -34,11 +42,17 @@ export const HANAZAWA: ActorSeed = {
  * シードのかなは付加情報の行としても入れる。台帳でかなを持つとはそういうことで、
  * 読み取り側は旧列を見ない (`actor-attributes.ts` の優先順位)
  */
-export async function setupDb(actors: ActorSeed[] = [UEDA], now: string = NOW): Promise<AppDb> {
+export async function setupDb(actors: ActorFixture[] = [UEDA], now: string = NOW): Promise<AppDb> {
   const db = await createMigratedTestDb();
   if (actors.length === 0) return db;
 
   await upsertActors(db, actors, now);
+
+  // 表示用ローマ字は供給元の写しの列。本番では AniList の取り込みが入れる
+  for (const actor of actors) {
+    if (actor.nameEn === undefined) continue;
+    await db.update(voiceActors).set({ nameEn: actor.nameEn }).where(eq(voiceActors.id, actor.id));
+  }
   const kana = actors.flatMap((actor) =>
     actor.nameKana === undefined
       ? []
@@ -61,7 +75,7 @@ export async function setupDb(actors: ActorSeed[] = [UEDA], now: string = NOW): 
  * sitemap は作品が 1 件以上ある声優しか返さない。作品数やストアが絡む一覧のテストも、
  * まずここで作品を持たせる
  */
-export async function giveEachActorAWork(db: AppDb, actors: ActorSeed[], now: string = NOW) {
+export async function giveEachActorAWork(db: AppDb, actors: ActorFixture[], now: string = NOW) {
   for (const [index, actor] of actors.entries()) {
     await ingest(
       db,
@@ -117,7 +131,7 @@ export function daysAgo(days: number): string {
  * 一覧・検索・声優ページは、音声作品が無い声優でも出演アニメがあれば出す。
  * 「音声作品が無くても表に出ること」を確かめたいテストはここで出演を持たせる
  */
-export async function giveEachActorAnAnime(db: AppDb, actors: ActorSeed[], now: string = NOW) {
+export async function giveEachActorAnAnime(db: AppDb, actors: ActorFixture[], now: string = NOW) {
   if (actors.length === 0) return;
   await upsertAnime(
     db,

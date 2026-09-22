@@ -69,13 +69,16 @@ export type ActorDictionaryEntry = {
 
 const aliasSourceSchema = z.enum(["manual", "anilist", "store"]);
 
-/** `POST /api/admin/actors` が受け取るシードの 1 件 */
-export const actorSeedSchema = z.object({
+/**
+ * `POST /api/admin/actors` が受け取るシードの 1 件。
+ *
+ * 知らない欄は黙って落とさずに断る (`strict`)。かなと表示用ローマ字はここでは受け取らず、
+ * 付加情報の表に入れるので、落とすだけにすると「送ったのに入らない値」ができる
+ */
+export const actorSeedSchema = z.strictObject({
   id: z.string().min(1),
   slug: z.string().min(1),
   canonicalName: z.string().min(1),
-  nameKana: z.string().optional(),
-  nameEn: z.string().optional(),
   // 声優を一意に指す鍵 (同一性)。DB の制約と合わせて必須
   anilistStaffId: z.number().int(),
   imageUrl: z.string().optional(),
@@ -97,6 +100,9 @@ export type ActorSeed = z.infer<typeof actorSeedSchema>;
 
 /**
  * シードからの投入。slug / id は入力をそのまま使う (URL に出るので自動採番にしない)。
+ *
+ * かなと表示用ローマ字は受け取らない。読み取り側は付加情報の表しか見ないので、
+ * ここで受け取ると黙って捨てることになる。入れるのは `POST /api/admin/actor-attributes`。
  * 既に居る声優は上書きするが、同一性の列 (`slug` / `anilist_staff_id` / `first_seen_at`) と
  * `created_at` は初回の値を残す。シードの slug や staff id が保存済みの値と違っても更新しない
  * (slug は URL に出ていて、staff id は声優を指す鍵なので、どちらも後から動かさない)
@@ -117,8 +123,6 @@ export async function upsertActors(
         id: actor.id,
         slug: actor.slug,
         canonicalName: actor.canonicalName,
-        nameKana: actor.nameKana ?? null,
-        nameEn: actor.nameEn ?? null,
         anilistStaffId: actor.anilistStaffId,
         imageUrl: actor.imageUrl ?? null,
         status: actor.status,
@@ -131,8 +135,6 @@ export async function upsertActors(
         target: voiceActors.id,
         set: {
           canonicalName: actor.canonicalName,
-          nameKana: actor.nameKana ?? null,
-          nameEn: actor.nameEn ?? null,
           imageUrl: actor.imageUrl ?? null,
           status: actor.status,
           gender: actor.gender,
@@ -360,12 +362,29 @@ export async function searchActors(db: AppDb, q: string, limit = 20): Promise<Ac
     .map(toActorSummary);
 }
 
-/** ingest と管理画面の候補提示で共有する。名寄せに要る材料をまとめて読む */
+/**
+ * ingest と管理画面の候補提示で共有する。名寄せに要る材料をまとめて読む。
+ *
+ * 表示用ローマ字は引かない。名寄せが見るのは日本語表記とかなだけで、
+ * 全声優ぶんに副問い合わせを 1 つ足すと検索のたびに効いてくる
+ */
 export async function loadActorIndex(
   db: AppDb,
 ): Promise<{ actors: VoiceActor[]; aliases: VoiceActorAlias[] }> {
   const [actorRows, aliasRows] = await Promise.all([
-    actorSelect(db),
+    db
+      .select({
+        id: voiceActors.id,
+        slug: voiceActors.slug,
+        canonicalName: voiceActors.canonicalName,
+        nameKana: resolvedNameKana,
+        nameEn: sql<string | null>`null`,
+        anilistStaffId: voiceActors.anilistStaffId,
+        imageUrl: voiceActors.imageUrl,
+        status: voiceActors.status,
+        gender: voiceActors.gender,
+      })
+      .from(voiceActors),
     db.select().from(voiceActorAliases),
   ]);
 

@@ -113,7 +113,9 @@ export const NAME_EN_SOURCES = ["editorial"] as const;
  *
  * 列オブジェクトをそのまま埋めると、外側の問い合わせが 1 つの表しか持たないときに
  * 表名の付かない `"id"` になる。副問い合わせの中では内側の表の `id` が先に見つかるので、
- * 別の列と突き合わせる問い合わせに化けて、値が 1 件も返らなくなる
+ * 別の列と突き合わせる問い合わせに化けて、値が 1 件も返らなくなる。
+ *
+ * 表名を直書きしているので、`voice_actors` に別名を付けた問い合わせからは使えない
  */
 const OUTER_ACTOR_ID = sql`${sql.identifier(getTableName(voiceActors))}.${sql.identifier("id")}`;
 
@@ -121,18 +123,23 @@ const OUTER_ACTOR_ID = sql`${sql.identifier(getTableName(voiceActors))}.${sql.id
  * 1 つの属性から、出どころの優先順位で値を 1 つ選ぶ相関副問い合わせ。
  *
  * 外側の問い合わせが `voice_actors` を含んでいることが前提。並べ替えを `case` で書くのは、
- * 優先順位をこの配列 1 か所に持たせるため。知らない出どころは最後に回す
+ * 優先順位をこの配列 1 か所に持たせるため。
+ *
+ * **並べた出どころ以外は選ばない。** 最後に回すだけにすると、順位を決めていない出どころの行が
+ * 表に出る。1 つの属性に同じ出どころは 1 行しか無い (表の一意制約) ので、絞った後の順位は必ず 1 つに決まる
  */
 function pickAttribute(
   attribute: VoiceActorAttribute,
   sources: readonly AttributeSource[],
 ): SQL<string | null> {
   const ranks = sources.map((source, rank) => sql`when ${source} then ${rank}`);
+  const listed = sources.map((source) => sql`${source}`);
   return sql<string | null>`(
     select ${voiceActorAttributes.value} from ${voiceActorAttributes}
     where ${voiceActorAttributes.voiceActorId} = ${OUTER_ACTOR_ID}
       and ${voiceActorAttributes.attribute} = ${attribute}
-    order by case ${voiceActorAttributes.source} ${sql.join(ranks, sql` `)} else ${sources.length} end
+      and ${voiceActorAttributes.source} in (${sql.join(listed, sql`, `)})
+    order by case ${voiceActorAttributes.source} ${sql.join(ranks, sql` `)} end
     limit 1
   )`;
 }

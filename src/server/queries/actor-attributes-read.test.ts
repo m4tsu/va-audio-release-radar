@@ -4,7 +4,7 @@ import type { AttributeSource } from "@/domain/types";
 import { voiceActorAttributes, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
 import { writeActorAttributes } from "./actor-attributes";
-import { getActorBySlug, listActors, searchActors } from "./actors";
+import { actorSeedSchema, getActorBySlug, listActors, searchActors } from "./actors";
 import { giveEachActorAWork, NOW, setupDb, UEDA } from "./test-fixtures";
 
 /**
@@ -51,14 +51,14 @@ describe("かなの優先順位", () => {
 
   it("付加情報の行が無ければ、旧列に値があっても表に出ない", async () => {
     const db = await dbWithUeda();
-
-    // 投入で旧列にはかなが入ったまま。それでも読み取り側は見ない
-    const [row] = await db
-      .select({ nameKana: voiceActors.nameKana })
-      .from(voiceActors)
+    // 旧列は移し替え前のデータが残っている状態を作る。読み取り側はここを見ない
+    await db
+      .update(voiceActors)
+      .set({ nameKana: "きゅうれつのよみ" })
       .where(eq(voiceActors.id, UEDA.id));
-    expect(row?.nameKana).toBe("うえだれいな");
+
     expect((await getActorBySlug(db, UEDA.slug))?.nameKana).toBeUndefined();
+    expect(await searchActors(db, "きゅうれつのよみ")).toEqual([]);
   });
 
   it("一覧にも同じ値が出る", async () => {
@@ -84,6 +84,21 @@ describe("かなの優先順位", () => {
 
     expect(await searchActors(db, "まちがったよみ")).toEqual([]);
     expect((await searchActors(db, "うえだれいな")).map((actor) => actor.id)).toEqual([UEDA.id]);
+  });
+});
+
+describe("シードが受け取らない欄", () => {
+  it("かなと表示用ローマ字を載せたシードは断る (黙って落とすと、送ったのに入らない値ができる)", () => {
+    const seed = {
+      id: "va_sato-rina",
+      slug: "sato-rina",
+      canonicalName: "佐藤利奈",
+      anilistStaffId: 100010,
+    };
+
+    expect(actorSeedSchema.safeParse({ ...seed, nameKana: "さとうりな" }).success).toBe(false);
+    expect(actorSeedSchema.safeParse({ ...seed, nameEn: "Rina Satou" }).success).toBe(false);
+    expect(actorSeedSchema.safeParse(seed).success).toBe(true);
   });
 });
 

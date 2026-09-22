@@ -136,10 +136,13 @@ export type CrawlActor = {
   aliases?: Array<{ name: string; source: string; verified: boolean }>;
 };
 
-/** シード投入 (`POST /api/admin/actors`) の 1 件。検証そのものはサーバー側の zod に任せる */
+/**
+ * シード投入 (`POST /api/admin/actors`) の 1 件。検証そのものはサーバー側の zod に任せる。
+ *
+ * かなと表示用ローマ字は持たない。読み取り側が見るのは付加情報の表なので、
+ * 入れるのは `POST /api/admin/actor-attributes`
+ */
 export type ActorSeed = CrawlActor & {
-  nameKana?: string;
-  nameEn?: string;
   /** 声優を指す鍵。サーバー側の zod も必須にしている */
   anilistStaffId: number;
   /** 省くとサーバー側の zod が "unknown" を入れる */
