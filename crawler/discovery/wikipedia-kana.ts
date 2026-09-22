@@ -31,10 +31,9 @@ import {
  *
  * サイトの制約 (robots.txt・UA・使ってよい URL) は `docs/stores/wikimedia.md`、
  * 取ってよい記事の条件は `docs/research/actor-kana-sources-2026-09-20.md`。
- * 対象は台帳 (`GET /api/admin/actors`) から引く。結果は
- * `crawler/.cache/discovery/wikipedia-kana.json` に置くだけで、台帳には入れない。
- * 入れるのは `write-actor-kana.ts` (取得と送信を分けるのは、数時間の取得が途中で止まっても
- * 取れたぶんを送れるようにするため)
+ * **台帳には入れない。**結果は `crawler/.cache/discovery/wikipedia-kana.json` に置くだけで、
+ * 取得率や落ちた理由を数えるための道具 (測定は `docs/research/`)。
+ * 台帳へ入れる定常の経路は `crawler/kana.ts` で、こちらは同じ `fetchActorKana` を呼ぶ
  */
 
 const STORE = "wikimedia";

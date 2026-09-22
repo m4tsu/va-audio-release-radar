@@ -28,6 +28,7 @@ import { type StopReason, stopReasonFor } from "./wikipedia-kana.ts";
  * 声優のカテゴリを持つ) を通っており、**記事が本人のものであることが確認済み**で、
  * 足りないのは読みだけ。他の理由で落ちた人は、記事が本人のものかを機械で確かめられないので引かない。
  *
+ * **台帳には入れない** (台帳へ入れるのは `crawler/kana.ts`。こちらは同じ `refillActorKana` を呼ぶ)。
  * 結果は `wikipedia-kana.ts` と同じ `crawler/.cache/discovery/wikipedia-kana.json` の
  * 同じ人の行を書き換える。読みが取れなかった人の理由は「読みが書かれていない」と別の文字列にするので、
  * もう一度実行しても同じ人を引き直さない。引けなかった人の行は書き換えないので、

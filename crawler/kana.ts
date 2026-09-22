@@ -23,6 +23,13 @@ import { type ActorKanaResult, AdminApiClient, type KanaTarget } from "./lib/ing
 const DEFAULT_LIMIT = 100;
 /** 何人ごとに進捗を出すか */
 const PROGRESS_EVERY = 10;
+/**
+ * 何人ぶんたまったら台帳へ送るか。
+ *
+ * 全員引き終えてから送ると、走行が打ち切られたときに取った結果が丸ごと消え、
+ * 次の週に同じ相手を引き直すことになる。相手サイトへの往復が二重になる
+ */
+const FLUSH_EVERY = 25;
 
 const USAGE = `使い方:
   INGEST_TOKEN=... node crawler/kana.ts --base-url <URL> [オプション]
@@ -57,6 +64,17 @@ export function toKanaResult(target: KanaTarget, record: ActorKanaRecord): Actor
     kana: record.kana,
     source: record.source === "wikidata" ? "wikidata" : "wikipedia",
   };
+}
+
+/**
+ * 引いた結果を台帳に残してよいか。
+ *
+ * 記事が無い (`not-found`) と、記事はあるが条件を満たさない (`rejected`) は、
+ * 何度引いても同じなので印を付けてよい。**取得そのものの失敗 (`failed`) は残さない。**
+ * 相手の一時的な不調でも印が付き、その声優のかなを二度と引き直せなくなるため
+ */
+export function shouldRecordAttempt(record: ActorKanaRecord): boolean {
+  return record.status !== "failed";
 }
 
 /** 引けなかった理由を人が読む 1 行にする */
@@ -121,9 +139,21 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   const snapshot = values.snapshot === true;
-  const results: ActorKanaResult[] = [];
+  const pending: ActorKanaResult[] = [];
   const misses: string[] = [];
+  const saved = { written: 0, withoutKana: 0, skipped: 0 };
   let consecutiveFailures = 0;
+  let stopped = false;
+
+  /** たまったぶんを送る。送れた時点までは次の週に引き直さずに済む */
+  const flush = async () => {
+    if (pending.length === 0) return;
+    const result = await client.writeActorKana(pending);
+    saved.written += result.written;
+    saved.withoutKana += result.withoutKana;
+    saved.skipped += result.skipped;
+    pending.length = 0;
+  };
 
   for (const [index, target] of targets.entries()) {
     const record = await fetchOne(target.canonicalName, snapshot).catch(
@@ -134,24 +164,25 @@ export async function main(argv: readonly string[]): Promise<number> {
         fetchedAt: new Date().toISOString(),
       }),
     );
-    results.push(toKanaResult(target, record));
     if (record.status !== "ok") misses.push(describeMiss(target, record));
+    if (shouldRecordAttempt(record)) pending.push(toKanaResult(target, record));
 
     // 相手の状態が変わったとき (締め出し、レート制限) は引き続けない
     consecutiveFailures = record.status === "failed" ? consecutiveFailures + 1 : 0;
     const stop = stopReasonFor(record, consecutiveFailures);
     if (stop !== undefined) {
       process.stderr.write(`[中断] ${stop.detail}\n`);
+      stopped = true;
       break;
     }
 
+    if (pending.length >= FLUSH_EVERY) await flush();
     if ((index + 1) % PROGRESS_EVERY === 0) {
       process.stdout.write(`  ${index + 1}/${targets.length} 人\n`);
     }
   }
 
-  // 引いた人はすべて送る。取れなかった人も送らないと、次の週に同じ人を引き直す
-  const saved = await client.writeActorKana(results);
+  await flush();
   process.stdout.write(
     `かなを書いた: ${saved.written} 人 / 取れなかった: ${saved.withoutKana} 人\n`,
   );
@@ -161,7 +192,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   for (const miss of misses.slice(0, 20)) process.stdout.write(`  引けず: ${miss}\n`);
   if (misses.length > 20) process.stdout.write(`  ほか ${misses.length - 20} 人\n`);
 
-  return 0;
+  // 中断は失敗として返す。0 を返すと、締め出されたことに誰も気づかない
+  return stopped ? 1 : 0;
 }
 
 function asString(value: string | boolean | undefined): string | undefined {

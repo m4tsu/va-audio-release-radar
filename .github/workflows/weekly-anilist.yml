@@ -84,11 +84,13 @@ jobs:
         run: |
           node crawler/kana.ts --base-url "$INGEST_URL" --limit "$LIMIT"
       - name: まだ引いていない声優を 3 ストアから引く
+        # かなの取得が落ちても動かす。別のサイトを引く別の仕事なので、巻き添えで
+        # 飛ばすと引き残しが次の週まで動かない (打ち切られた走行は cancelled で止める)。
         # 「今回増えた人」ではなく「一度も引いていない人」を古い順に消化する。
         # 増えた人だけを見ると、1 回に収まらなかったぶんが次の週には新規でなくなって
         # 永久に引かれない。ここで打ち切っても残りは次の週に出てくる
         # (docs/decisions/0007-daily-crawl-from-store-feeds.md の「シーズンごと」)
-        if: ${{ !inputs.skip-store-crawl }}
+        if: ${{ !cancelled() && !inputs.skip-store-crawl }}
         env:
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           INGEST_URL: ${{ secrets.INGEST_URL }}

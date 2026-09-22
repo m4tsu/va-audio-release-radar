@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActorKanaRecord } from "./discovery/actor-kana.ts";
-import { describeMiss, toKanaResult } from "./kana.ts";
+import { describeMiss, shouldRecordAttempt, toKanaResult } from "./kana.ts";
 
 /**
  * 取得結果を台帳に送る形にするところ。
@@ -49,6 +49,23 @@ describe("toKanaResult", () => {
     expect(toKanaResult(TARGET, record({ kana: undefined }))).toEqual({
       voiceActorId: TARGET.id,
     });
+  });
+});
+
+describe("shouldRecordAttempt", () => {
+  it("記事が無い人と、記事が条件を満たさない人は印を付けてよい", () => {
+    // 何度引いても同じ結果になるので、毎週引き直す値打ちが無い
+    expect(shouldRecordAttempt(record({ status: "not-found", kana: undefined }))).toBe(true);
+    expect(shouldRecordAttempt(record({ status: "rejected", kana: undefined }))).toBe(true);
+  });
+
+  it("かなが取れた人も印を付ける", () => {
+    expect(shouldRecordAttempt(record())).toBe(true);
+  });
+
+  it("取得そのものに失敗した人には印を付けない", () => {
+    // 相手の一時的な不調でも印が付くと、その声優のかなを二度と引き直せなくなる
+    expect(shouldRecordAttempt(record({ status: "failed", kana: undefined }))).toBe(false);
   });
 });
 

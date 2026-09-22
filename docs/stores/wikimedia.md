@@ -4,7 +4,7 @@
 更新: robots.txt・利用規約・User-Agent ポリシーを取り直したら (差分が無くても最終確認日を更新する)
 削除: Wikimedia を声優のかなの入手元から外したら
 
-実装: かなの取得は `crawler/discovery/wikipedia-kana.ts`、読みの無かった人の引き直しは
+実装: 台帳へ入れる定常の経路は `crawler/kana.ts`。引き方そのものは `crawler/discovery/wikipedia-kana.ts`、読みの無かった人の引き直しは
 `crawler/discovery/wikipedia-kana-refill.ts`、記事 HTML の解析は
 `crawler/discovery/wikipedia-article.ts`、Wikidata の項目 HTML の解析は
 `crawler/discovery/wikidata-entity.ts`。外部アクセスは `crawler/lib/fetch.ts` を通り、
