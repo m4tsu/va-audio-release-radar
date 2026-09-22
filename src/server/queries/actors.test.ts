@@ -81,6 +81,27 @@ describe("listActorDictionary", () => {
   });
 });
 
+describe("listActorDictionary の never-crawled", () => {
+  it("一度も引いていない声優だけを返す", async () => {
+    const db = await setupDb([]);
+    await upsertActors(db, [UEDA, HANAZAWA], NOW);
+    // 片方だけ走行の記録を持たせる
+    await ingest(db, payload({ runId: "run-1", voiceActorId: UEDA.id, works: [rawWork({})] }), NOW);
+
+    const entries = await listActorDictionary(db, { neverCrawled: true });
+
+    expect(entries.map((entry) => entry.id)).toEqual([HANAZAWA.id]);
+  });
+
+  it("絞らなければ全員返す", async () => {
+    const db = await setupDb([]);
+    await upsertActors(db, [UEDA, HANAZAWA], NOW);
+    await ingest(db, payload({ runId: "run-1", voiceActorId: UEDA.id, works: [rawWork({})] }), NOW);
+
+    expect(await listActorDictionary(db)).toHaveLength(2);
+  });
+});
+
 describe("upsertActors", () => {
   it("同じ id で呼び直すと上書きし、alias は重複しない", async () => {
     const db = await setupDb([]);

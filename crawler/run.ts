@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import {
   INGEST_PROTOCOL_VERSION,
   type IngestPayload,
+  isSingleWordFullName,
   STORE_SLUGS,
   type StoreSlug,
 } from "../src/domain/index.ts";
@@ -55,6 +56,7 @@ const USAGE = `使い方:
 オプション:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
+  --never-crawled           一度も引いたことがない声優だけを対象にする (古い順)
   --store <slug>            1 つのストアだけを対象にする (dlsite / audible / pokedora)
   --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
   --limit <N>               (--offset のぶんを飛ばした後) N 人の声優だけを対象にする
@@ -66,6 +68,7 @@ const USAGE = `使い方:
 const OPTION_SPEC = {
   "base-url": { type: "string" },
   only: { type: "string" },
+  "never-crawled": { type: "boolean" },
   store: { type: "string" },
   offset: { type: "string" },
   limit: { type: "string" },
@@ -256,12 +259,16 @@ function displayWidth(value: string): number {
  * 検索に使う空白入りの表記は保存された別名義だけを読み、残りは `buildSearchNames` が
  * 日本語表記から作る。当てずっぽうの切り方を辞書に溜めると、名寄せがその表記でも当たるようになる
  */
-export async function loadCrawlActors(client: AdminApiClient): Promise<CrawlActor[]> {
-  const entries = await client.listActors();
+export async function loadCrawlActors(
+  client: AdminApiClient,
+  options: { neverCrawled?: boolean } = {},
+): Promise<CrawlActor[]> {
+  const entries = await client.listActors(options);
   return entries.map((entry) => ({
     id: entry.id,
     slug: entry.slug,
     canonicalName: entry.canonicalName,
+    ...(entry.nameEn === undefined ? {} : { nameEn: entry.nameEn }),
     aliases: entry.aliases.map((alias) => ({
       name: alias.name,
       source: "manual",
@@ -289,7 +296,12 @@ export function buildSearchNames(actor: CrawlActor): string[] {
   const verified = spacedVerifiedAliasNames(actor);
   if (verified.length > 0) return [...verified, actor.canonicalName];
   const stored = spacedUnverifiedAliasNames(actor);
-  const generated = stored.length > 0 ? stored : spacedNameCandidates(actor.canonicalName);
+  if (stored.length > 0) return [actor.canonicalName, ...stored];
+  // 1 語の名義 (「ゆかな」「麦人」「KENN」) には姓と名の境界が無い。機械的に切ると
+  // 存在しない表記で 2 回余計に検索することになるので、候補を作らない。
+  // ローマ字を持たない声優は slug で代用する (slug はローマ字から作られている)
+  const romaji = actor.nameEn ?? actor.slug.replace(/-/g, " ");
+  const generated = isSingleWordFullName(romaji) ? [] : spacedNameCandidates(actor.canonicalName);
   return [actor.canonicalName, ...generated];
 }
 
@@ -381,8 +393,17 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   // 台帳を読むだけの走行でも取り込み先が要る。誰を調べるかは DB にしか無い
   const client = new AdminApiClient(baseUrl ?? "", token ?? "");
-  const all = await loadCrawlActors(client);
-  process.stdout.write(`対象声優を台帳から読んだ: ${all.length} 人\n`);
+  const neverCrawled = values["never-crawled"] === true;
+  const all = await loadCrawlActors(client, { neverCrawled });
+  process.stdout.write(
+    neverCrawled
+      ? `一度も引いていない声優を台帳から読んだ: ${all.length} 人\n`
+      : `対象声優を台帳から読んだ: ${all.length} 人\n`,
+  );
+  if (neverCrawled && all.length === 0) {
+    process.stdout.write("引き残しは無い\n");
+    return 0;
+  }
 
   const filtered = filterActors(all, asString(values.only));
   const actors = sliceActors(filtered, offset, limit);
@@ -650,12 +671,6 @@ async function reportFailure(
   }
 }
 
-/**
- * 1 回の `POST /api/admin/actors` に載せる人数。
- *
- * Worker 側は 1 人ずつ insert するので、2,501 人 (自動生成リスト) を 1 リクエストで
- * 送ると本文も実行時間も膨らむ。分割しても upsert は冪等なので結果は変わらない
- */
 /**
  * ストアごとの既知 ID。DLsite の `product.json` を新規 ID だけに絞るために使う。
  * 取れなくても致命的ではない (全件取り直しになるだけ) ので、失敗しても警告に留める。

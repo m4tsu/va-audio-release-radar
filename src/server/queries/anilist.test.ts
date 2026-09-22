@@ -412,15 +412,36 @@ describe("取り込みの記録", () => {
     });
   });
 
-  it("同じ runId で送り直しても記録は 1 行のまま", async () => {
+  it("同じ runId の 2 通目は件数を足し込む (1 回の走行はシーズンごとに分けて送る)", async () => {
+    const db = await emptyDb();
+    await ingestAniList(db, payload({ anime: [] }), NOW);
+
+    await ingestAniList(
+      db,
+      payload({
+        actors: [actor({ anilistStaffId: 999, nativeName: "別の人", fullName: "Betsuno Hito" })],
+        anime: [],
+      }),
+      "2026-09-29T00:00:00.000Z",
+    );
+
+    const runs = await db.select().from(anilistIngestRuns);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      actorCount: 2,
+      newActorCount: 2,
+      finishedAt: "2026-09-29T00:00:00.000Z",
+    });
+  });
+
+  it("同じ塊を送り直しても「新規」は増えない (実際に入った行から数えるため)", async () => {
     const db = await emptyDb();
     await ingestAniList(db, payload(), NOW);
 
     await ingestAniList(db, payload(), "2026-09-29T00:00:00.000Z");
 
-    const runs = await db.select().from(anilistIngestRuns);
-    expect(runs).toHaveLength(1);
-    expect(runs[0]).toMatchObject({ newActorCount: 0, finishedAt: "2026-09-29T00:00:00.000Z" });
+    const [run] = await db.select().from(anilistIngestRuns);
+    expect(run).toMatchObject({ newActorCount: 1, newAppearanceCount: 1 });
   });
 });
 

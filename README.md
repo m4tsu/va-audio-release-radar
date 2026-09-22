@@ -175,13 +175,16 @@ Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid 
 INGEST_TOKEN=dev node crawler/anilist.ts --base-url http://localhost:5199 \
   --new-actors-out work/new-actors.txt
 
-# 初めて見た声優だけを 3 ストアで 1 回ずつ引く
+# まだ引いていない声優を古い順に 3 ストアで 1 回ずつ引く
 INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
-  --only "$(cat work/new-actors.txt)"
+  --never-crawled --limit 120
 ```
 
 自動では `.github/workflows/weekly-anilist.yml` が同じ 2 つを順に実行する。日次のクロールと
 同じ秘匿値 (`INGEST_URL` / `INGEST_TOKEN`) を使い、同時には走らない。
+
+ストア巡回を「今回増えた人」ではなく「一度も引いていない人」で選ぶのは、1 回に収まらなかったぶんが
+次の週には新規でなくなって永久に引かれなくなるため。打ち切っても残りは次の週に出てくる。
 
 声優起点の走行は誰を調べるかを `GET /api/admin/actors` から引く。リストのファイルは読まない。
 かなは日本語版 Wikipedia から取り、出どころ付きで `POST /api/admin/actor-attributes` に送る。

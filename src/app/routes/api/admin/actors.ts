@@ -9,7 +9,8 @@ import { summarizeIssues } from "@/server/validation";
 /**
  * 追跡する声優の読み書き。ingest と同じ Bearer トークンを使う (どれもクローラー側の運用操作のため)。
  *
- * GET は声優起点の走行が「誰を調べるか」を引くための辞書。
+ * GET は声優起点の走行が「誰を調べるか」を引くための辞書。`?never-crawled=1` で
+ * 一度も引いていない声優だけに絞れる。
  * POST は ID と slug を送り手が決めるシード投入で、AniList からの取り込みは
  * ID と slug をサーバーが決める `POST /api/admin/anilist` を使う
  */
@@ -23,7 +24,9 @@ export const Route = createFileRoute("/api/admin/actors")({
         const unauthorized = requireBearer(request, env.INGEST_TOKEN);
         if (unauthorized) return unauthorized;
 
-        return Response.json(await listActorDictionary(getDb()));
+        // 一度も引いていない声優だけに絞る。週次のストア巡回がここから消化する
+        const neverCrawled = new URL(request.url).searchParams.get("never-crawled") === "1";
+        return Response.json(await listActorDictionary(getDb(), { neverCrawled }));
       },
       POST: async ({ request }) => {
         const unauthorized = requireBearer(request, env.INGEST_TOKEN);

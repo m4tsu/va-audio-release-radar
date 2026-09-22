@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { crawlAniList, recentSeasons, seasonLabel } from "./discovery/anilist.ts";
-import { buildAniListPayload } from "./discovery/anilist-payload.ts";
+import { buildAniListPayloadsBySeason } from "./discovery/anilist-payload.ts";
 import { AdminApiClient, AdminApiError, IngestProtocolMismatchError } from "./lib/ingest.ts";
 
 /**
@@ -117,91 +117,117 @@ export async function main(argv: readonly string[]): Promise<number> {
   );
   for (const warning of crawled.warnings) process.stderr.write(`[警告] ${warning}\n`);
 
-  const built = buildAniListPayload({
-    // 取り込みの記録の主キー。同じ走行を送り直しても記録が 1 行に保たれる
-    runId: `anilist-${startedAt}`,
+  // シーズンごとに分けて送る。12 シーズンぶんをまとめると作品 1,000 件・出演 数万件になり、
+  // 取り込み先が書き終える前にクライアントが諦める
+  const runId = `anilist-${startedAt}`;
+  const chunks = buildAniListPayloadsBySeason({
+    runId,
     startedAt,
     seasons,
     media: crawled.media,
     credits: crawled.credits,
   });
-  process.stdout.write(
-    `送る内容: 声優 ${built.payload.actors.length} 人 / 作品 ${built.payload.anime.length} 件\n`,
-  );
-  if (built.actorsWithoutNativeName > 0) {
-    process.stdout.write(`  日本語表記が無く送らない: ${built.actorsWithoutNativeName} 人\n`);
-  }
-  if (built.excludedAnime.length > 0) {
-    process.stdout.write(
-      `  ローマ字が無く送らない作品: ${built.excludedAnime.length} 件 ` +
-        `(${built.excludedAnime
-          .slice(0, 5)
-          .map((item) => item.titleNative ?? `media ${item.mediaId}`)
-          .join("、")})\n`,
-    );
-  }
-  if (built.collisions.length > 0) {
+
+  const collisions = chunks.flatMap((chunk) => chunk.collisions);
+  if (collisions.length > 0) {
     // 自動で連番を振らない。振ると、どちらが /anime/{slug} なのかが走行のたびに入れ替わる
-    process.stderr.write(`\n[エラー] 作品の slug が ${built.collisions.length} 件衝突した\n`);
-    for (const collision of built.collisions) {
+    process.stderr.write(`\n[エラー] 作品の slug が ${collisions.length} 件衝突した\n`);
+    for (const collision of collisions) {
       const members = collision.members.map((member) => `${member.titleRomaji} (${member.id})`);
       process.stderr.write(`  ${collision.slug}: ${members.join(" / ")}\n`);
     }
     return 1;
   }
 
+  const totals = {
+    actors: 0,
+    anime: 0,
+    excludedAnime: 0,
+    actorsWithoutNativeName: 0,
+  };
+  for (const chunk of chunks) {
+    totals.actors += chunk.payload.actors.length;
+    totals.anime += chunk.payload.anime.length;
+    totals.excludedAnime += chunk.excludedAnime.length;
+    totals.actorsWithoutNativeName += chunk.actorsWithoutNativeName;
+  }
+  process.stdout.write(
+    `送る内容: 声優 のべ ${totals.actors} 人 / 作品 ${totals.anime} 件 ` +
+      `(${chunks.length} 回に分けて送る)\n`,
+  );
+  if (totals.actorsWithoutNativeName > 0) {
+    process.stdout.write(`  日本語表記が無く送らない: のべ ${totals.actorsWithoutNativeName} 人\n`);
+  }
+  if (totals.excludedAnime > 0) {
+    process.stdout.write(`  ローマ字が無く送らない作品: ${totals.excludedAnime} 件\n`);
+  }
+
   if (dryRun) {
     process.stdout.write("--dry-run なので送らずに終わる\n");
-    return crawled.warnings.length > 0 ? 1 : 0;
+    return 0;
   }
 
   const client = new AdminApiClient(baseUrl ?? "", token ?? "");
-  let result: Awaited<ReturnType<AdminApiClient["ingestAniList"]>>;
-  try {
-    result = await client.ingestAniList(built.payload);
-  } catch (error) {
-    if (error instanceof IngestProtocolMismatchError) {
-      process.stderr.write(`[エラー] ${error.message}\n`);
+  const newActors: Array<{ slug: string; canonicalName: string }> = [];
+  const saved = { anime: 0, appearances: 0, newAppearances: 0, skippedActors: 0, dropped: 0 };
+
+  for (const [index, chunk] of chunks.entries()) {
+    const label = seasonLabel(seasons[index] ?? { year: 0, season: "WINTER" });
+    try {
+      const result = await client.ingestAniList(chunk.payload);
+      newActors.push(...result.newActors);
+      saved.anime += result.anime;
+      saved.appearances += result.appearances;
+      saved.newAppearances += result.newAppearances;
+      saved.skippedActors += result.skippedActors;
+      saved.dropped += result.droppedAppearances;
+      process.stdout.write(
+        `  ${label}: 作品 ${result.anime} 件 / 新しい声優 ${result.newActors.length} 人\n`,
+      );
+    } catch (error) {
+      if (error instanceof IngestProtocolMismatchError) {
+        // 残りも同じ結果になるので、ここで走行ごと止める
+        process.stderr.write(`[エラー] ${error.message}\n`);
+        return 1;
+      }
+      process.stderr.write(
+        `[エラー] ${label} の取り込みに失敗: ` +
+          `${error instanceof AdminApiError ? error.message : String(error)}\n`,
+      );
       return 1;
     }
-    process.stderr.write(
-      `[エラー] 取り込みに失敗: ${error instanceof AdminApiError ? error.message : String(error)}\n`,
-    );
-    return 1;
   }
 
   process.stdout.write(
-    `取り込み: 作品 ${result.anime} 件 / 出演 ${result.appearances} 件 ` +
-      `(うち新規 ${result.newAppearances} 件)\n`,
+    `取り込み: 作品 ${saved.anime} 件 / 出演 ${saved.appearances} 件 ` +
+      `(うち新規 ${saved.newAppearances} 件)\n`,
   );
-  process.stdout.write(`初めて見た声優: ${result.newActors.length} 人\n`);
-  for (const actor of result.newActors.slice(0, 20)) {
+  process.stdout.write(`初めて見た声優: ${newActors.length} 人\n`);
+  for (const actor of newActors.slice(0, 20)) {
     process.stdout.write(`  ${actor.canonicalName} (${actor.slug})\n`);
   }
-  if (result.newActors.length > 20) {
-    process.stdout.write(`  ほか ${result.newActors.length - 20} 人\n`);
+  if (newActors.length > 20) {
+    process.stdout.write(`  ほか ${newActors.length - 20} 人\n`);
   }
-  if (result.skippedActors > 0) {
-    process.stdout.write(`ローマ字が無く足せなかった声優: ${result.skippedActors} 人\n`);
+  if (saved.skippedActors > 0) {
+    process.stdout.write(`ローマ字が無く足せなかった声優: ${saved.skippedActors} 人\n`);
   }
-  if (result.droppedAppearances > 0) {
-    // 送った actors に居ない staff id を出演が指していた。送る側の組み立ての漏れなので目立たせる
-    process.stderr.write(
-      `[警告] 声優を引き当てられず落とした出演: ${result.droppedAppearances} 件\n`,
-    );
-  }
-  if (result.clearedScreened > 0) {
-    process.stdout.write(`辞書が増えたので、対象外の判断 ${result.clearedScreened} 件を捨てた\n`);
+  if (saved.dropped > 0) {
+    // 足せなかった声優 (ローマ字が無い) の出演がここに出る。送る側の組み立ての漏れでも
+    // 同じ数に乗るので、両方を疑えるように件数だけ出す
+    process.stdout.write(`声優を引き当てられず落とした出演: ${saved.dropped} 件\n`);
   }
 
   const outFile = asString(values["new-actors-out"]);
   if (outFile !== undefined) {
     // 後続の `crawler/run.ts --only` にそのまま渡せる形にする
-    await writeFile(outFile, result.newActors.map((actor) => actor.slug).join(","), "utf8");
+    await writeFile(outFile, newActors.map((actor) => actor.slug).join(","), "utf8");
     process.stdout.write(`初めて見た声優の slug を書き出した: ${outFile}\n`);
   }
 
-  return crawled.warnings.length > 0 ? 1 : 0;
+  // 取り込みが通ったら成功にする。警告は出したうえで 0 を返す。
+  // 1 ページの取得に失敗しただけで失敗にすると、台帳には入ったのに後続の巡回が飛ぶ
+  return 0;
 }
 
 function asString(value: string | boolean | undefined): string | undefined {

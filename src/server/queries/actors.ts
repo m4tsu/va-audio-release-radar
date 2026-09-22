@@ -61,6 +61,8 @@ export type ActorDictionaryEntry = {
   id: string;
   slug: string;
   canonicalName: string;
+  /** ローマ字表記。1 語の名義かどうかの判定に使う (空白入りの検索候補を作るかが変わる) */
+  nameEn?: string;
   aliases: Array<{ name: string; verified: boolean }>;
 };
 
@@ -170,15 +172,28 @@ export async function upsertActors(
  * 検索に使う空白入りの表記 (「上田 麗奈」) は日本語表記から機械的に作れるので保存しない。
  * ここに出るのは保存された別名義だけで、作るのは呼び出し側
  */
-export async function listActorDictionary(db: AppDb): Promise<ActorDictionaryEntry[]> {
-  const actors = await db
+export async function listActorDictionary(
+  db: AppDb,
+  options: { neverCrawled?: boolean } = {},
+): Promise<ActorDictionaryEntry[]> {
+  const base = db
     .select({
       id: voiceActors.id,
       slug: voiceActors.slug,
       canonicalName: voiceActors.canonicalName,
+      nameEn: voiceActors.nameEn,
     })
-    .from(voiceActors)
-    .orderBy(asc(voiceActors.id));
+    .from(voiceActors);
+
+  // 一度も引いたことがない声優。週次はここから少しずつ消化するので、
+  // 1 回の走行に収まらなくても次の週に残りが出る (「今回増えた人」だけを見ると取りこぼす)
+  const actors = await (options.neverCrawled === true
+    ? base
+        .where(
+          sql`not exists (select 1 from ${crawlRuns} where ${crawlRuns.voiceActorId} = ${voiceActors.id})`,
+        )
+        .orderBy(asc(voiceActors.firstSeenAt), asc(voiceActors.id))
+    : base.orderBy(asc(voiceActors.id)));
 
   const aliasRows = await db
     .select({
@@ -196,7 +211,13 @@ export async function listActorDictionary(db: AppDb): Promise<ActorDictionaryEnt
     aliasesByActor.set(row.voiceActorId, list);
   }
 
-  return actors.map((actor) => ({ ...actor, aliases: aliasesByActor.get(actor.id) ?? [] }));
+  return actors.map((actor) => ({
+    id: actor.id,
+    slug: actor.slug,
+    canonicalName: actor.canonicalName,
+    ...(actor.nameEn === null ? {} : { nameEn: actor.nameEn }),
+    aliases: aliasesByActor.get(actor.id) ?? [],
+  }));
 }
 
 /** 名寄せに使う辞書の行数。声優と別名の合計 */

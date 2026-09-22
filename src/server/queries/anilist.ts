@@ -1,4 +1,4 @@
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { slugWithStaffId, toActorId, toActorNameEn, toActorSlug } from "@/domain/actor-slug";
 import { ANIME_SEASONS, type AnimeSeason, seasonOrder, VOICE_ACTOR_GENDERS } from "@/domain/types";
@@ -404,8 +404,14 @@ async function countAppearances(db: AppDb, animeTitleIds: readonly string[]): Pr
 }
 
 /**
- * 走行の記録。同じ runId で送り直されたら上書きする (取り込みは冪等なので記録も 1 行に保つ)。
- * 対象シーズンは範囲で持つ。取得するシーズンは連続していて、両端と個数で言い表せる
+ * 走行の記録。
+ *
+ * 1 回の走行は大きすぎて 1 リクエストに収まらないので、シーズンごとに分けて送られてくる。
+ * 同じ runId の 2 通目からは件数を足し込む。対象シーズンは範囲で持ち、どの塊も走行全体の
+ * 範囲を送るので上書きでよい。
+ *
+ * 足し込むぶん、同じ塊が送り直されると `anime_count` と `actor_count` が二重に数えられる。
+ * 「新規」の 2 つは実際に入った行から数えているので、送り直しでは増えない
  */
 async function recordRun(
   db: AppDb,
@@ -429,21 +435,35 @@ async function recordRun(
   // zod が 1 件以上を保証しているので、ここに来る時点で両端は必ずある
   if (from === undefined || to === undefined) return;
 
-  const values = {
-    finishedAt: counts.finishedAt,
-    seasonFromYear: from.year,
-    seasonFrom: from.season,
-    seasonToYear: to.year,
-    seasonTo: to.season,
-    seasonCount: payload.seasons.length,
-    animeCount: counts.animeCount,
-    actorCount: payload.actors.length,
-    newActorCount: counts.newActorCount,
-    newAppearanceCount: counts.newAppearanceCount,
-  };
-
   await db
     .insert(anilistIngestRuns)
-    .values({ id: payload.runId, startedAt: payload.startedAt, ...values })
-    .onConflictDoUpdate({ target: anilistIngestRuns.id, set: values });
+    .values({
+      id: payload.runId,
+      startedAt: payload.startedAt,
+      finishedAt: counts.finishedAt,
+      seasonFromYear: from.year,
+      seasonFrom: from.season,
+      seasonToYear: to.year,
+      seasonTo: to.season,
+      seasonCount: payload.seasons.length,
+      animeCount: counts.animeCount,
+      actorCount: payload.actors.length,
+      newActorCount: counts.newActorCount,
+      newAppearanceCount: counts.newAppearanceCount,
+    })
+    .onConflictDoUpdate({
+      target: anilistIngestRuns.id,
+      set: {
+        finishedAt: counts.finishedAt,
+        seasonFromYear: from.year,
+        seasonFrom: from.season,
+        seasonToYear: to.year,
+        seasonTo: to.season,
+        seasonCount: payload.seasons.length,
+        animeCount: sql`${anilistIngestRuns.animeCount} + ${counts.animeCount}`,
+        actorCount: sql`${anilistIngestRuns.actorCount} + ${payload.actors.length}`,
+        newActorCount: sql`${anilistIngestRuns.newActorCount} + ${counts.newActorCount}`,
+        newAppearanceCount: sql`${anilistIngestRuns.newAppearanceCount} + ${counts.newAppearanceCount}`,
+      },
+    });
 }

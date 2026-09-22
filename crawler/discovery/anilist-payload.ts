@@ -40,6 +40,29 @@ export type AniListPayloadResult = {
   actorsWithoutNativeName: number;
 };
 
+/**
+ * シーズンごとに分けて組み立てる。取り込みは 1 リクエストで送れる大きさに収める必要があり、
+ * 1 回の走行ぶん (12 シーズン) をまとめると作品 1,000 件・出演 数万件になって、
+ * 取り込み先が応答する前にクライアントが諦める。
+ *
+ * シーズンで割るのは、出演がその作品の声優を指すので、作品と声優を同じ塊に入れないと
+ * 取り込み側で引き当てられないため。シーズンで割れば塊の中で必ず揃う
+ */
+export function buildAniListPayloadsBySeason(input: AniListPayloadInput): AniListPayloadResult[] {
+  return input.seasons.map((season) => {
+    const media = input.media.filter(
+      (item) => item.season.year === season.year && item.season.season === season.season,
+    );
+    const mediaIds = new Set(media.map((item) => item.id));
+    return buildAniListPayload({
+      ...input,
+      // 送る記録には走行全体のシーズン範囲を載せる。塊ごとに範囲が変わると記録が読めない
+      media,
+      credits: input.credits.filter((credit) => mediaIds.has(credit.mediaId)),
+    });
+  });
+}
+
 export function buildAniListPayload(input: AniListPayloadInput): AniListPayloadResult {
   const { actors, actorsWithoutNativeName } = buildActors(input.credits);
   // 送らない声優を指す出演は組み立てない。送ると取り込み側が引き当てに失敗して落とすので、

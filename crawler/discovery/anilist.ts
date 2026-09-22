@@ -533,8 +533,9 @@ async function crawlRemainingCharacters(
       counters,
     );
     if ("error" in response && !("json" in response)) {
+      // ここで break すると、下の「上限を超えた」の警告まで落ちて 2 つ目が嘘になる
       warnings.push(`media ${mediaId} の出演者 p${page}: 取得に失敗 (${response.error})`);
-      break;
+      return { credits, warnings };
     }
     if ("error" in response) {
       warnings.push(`media ${mediaId} の出演者 p${page}: GraphQL エラー (${response.error})`);

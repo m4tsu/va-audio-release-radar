@@ -51,6 +51,7 @@ export type ActorDictionaryEntry = {
   id: string;
   slug: string;
   canonicalName: string;
+  nameEn?: string;
   aliases: Array<{ name: string; verified: boolean }>;
 };
 
@@ -130,6 +131,8 @@ export type CrawlActor = {
   id: string;
   slug: string;
   canonicalName: string;
+  /** ローマ字表記。空白入りの検索候補を作るかどうかの判定に使う */
+  nameEn?: string;
   aliases?: Array<{ name: string; source: string; verified: boolean }>;
 };
 
@@ -246,10 +249,11 @@ export class AdminApiClient {
 
   /**
    * 声優起点の走行が「誰を調べるか」を引く辞書。台帳は DB にしかないので、
-   * リストをファイルで配らない
+   * リストをファイルで配らない。`neverCrawled` を立てると一度も引いていない声優だけになる
    */
-  async listActors(): Promise<ActorDictionaryEntry[]> {
-    const entries = await this.#send<unknown>("GET", "/api/admin/actors");
+  async listActors(options: { neverCrawled?: boolean } = {}): Promise<ActorDictionaryEntry[]> {
+    const query = options.neverCrawled === true ? "?never-crawled=1" : "";
+    const entries = await this.#send<unknown>("GET", `/api/admin/actors${query}`);
     if (!Array.isArray(entries)) throw new AdminApiError("actors が配列を返さなかった");
     return entries as ActorDictionaryEntry[];
   }

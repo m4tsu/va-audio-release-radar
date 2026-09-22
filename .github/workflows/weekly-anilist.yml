@@ -1,7 +1,7 @@
 name: 週次の AniList 取り込み
 
 # 対象シーズンを実行日から決めて AniList を引き、声優・アニメ・出演を本番の
-# POST /api/admin/anilist に送る。続けて、初めて見た声優だけを声優起点で 3 ストアから引く。
+# POST /api/admin/anilist に送る。続けて、まだ引いていない声優を声優起点で 3 ストアから引く。
 # 台帳は DB で、生成物のファイルは介さない。必要な Secrets は INGEST_URL と INGEST_TOKEN
 # (日次のクロールと同じもの。新しい秘匿値は増やさない)。
 on:
@@ -16,10 +16,14 @@ on:
         required: false
         type: string
       skip-store-crawl:
-        description: "初めて見た声優のストア巡回を飛ばす"
+        description: "まだ引いていない声優のストア巡回を飛ばす"
         required: false
         default: false
         type: boolean
+      store-crawl-limit:
+        description: "1 回に引く声優の上限 (空なら既定)"
+        required: false
+        type: string
 
 # 日次・声優起点の巡回と同じグループにする。レートリミッタはプロセス内にあるので、
 # 2 つの走行が重なると同じホストへの実効間隔が半分になる (crawler/lib/fetch.ts)
@@ -41,7 +45,8 @@ jobs:
     # 309 作品が上限に当たっており、一番多い作品で 4 ページだった
     # (docs/research/anilist-cast-instability-2026-09-22.md)。
     # AniList の間隔は docs/stores/anilist.md の「レート間隔」。
-    # 後半のストア巡回は初めて見た声優の人数に比例する (週あたり数人から数十人)
+    # 後半のストア巡回は 1 人あたり 20 秒以上かかるので人数で頭を打つ。
+    # 打ち切ったぶんは次の週に「まだ引いていない声優」として出てくる
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
@@ -62,19 +67,20 @@ jobs:
           if [ -n "$BASE_DATE" ]; then args+=(--base-date "$BASE_DATE"); fi
           node crawler/anilist.ts --base-url "$INGEST_URL" \
             --new-actors-out new-actors.txt "${args[@]}"
-      - name: 初めて見た声優を 3 ストアから引く
-        # 台帳に増えた人だけが対象。0 人なら何もしない
+      - name: まだ引いていない声優を 3 ストアから引く
+        # 「今回増えた人」ではなく「一度も引いていない人」を古い順に消化する。
+        # 増えた人だけを見ると、1 回に収まらなかったぶんが次の週には新規でなくなって
+        # 永久に引かれない。ここで打ち切っても残りは次の週に出てくる
         # (docs/decisions/0007-daily-crawl-from-store-feeds.md の「シーズンごと」)
         if: ${{ !inputs.skip-store-crawl }}
         env:
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           INGEST_URL: ${{ secrets.INGEST_URL }}
+          # 1 人あたり 3 ストアで 20 秒以上の待ちが要る (crawler/lib/fetch.ts の rateLimitFor)。
+          # このジョブの残り時間に収まる人数にする
+          LIMIT: ${{ inputs.store-crawl-limit || '120' }}
         run: |
-          if [ ! -s new-actors.txt ]; then
-            echo "初めて見た声優は 0 人。ストア巡回は飛ばす"
-            exit 0
-          fi
-          node crawler/run.ts --base-url "$INGEST_URL" --only "$(cat new-actors.txt)"
+          node crawler/run.ts --base-url "$INGEST_URL" --never-crawled --limit "$LIMIT"
       - name: 取得した生データを残す
         # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる
         if: always()

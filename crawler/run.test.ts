@@ -273,6 +273,24 @@ describe("buildSearchNames", () => {
     expect(buildSearchNames(KAJI)).toEqual(["梶裕貴", "梶 裕貴", "梶裕 貴"]);
   });
 
+  it("1 語の名義には候補を作らない (姓と名の境界が無いため)", () => {
+    // 「ゆかな」「麦人」「KENN」。切ると存在しない表記で 2 回余計に検索することになる
+    expect(
+      buildSearchNames({
+        id: "va_yukana",
+        slug: "yukana",
+        canonicalName: "ゆかな",
+        nameEn: "Yukana",
+      }),
+    ).toEqual(["ゆかな"]);
+  });
+
+  it("ローマ字を持たない声優は slug で 1 語かどうかを見る", () => {
+    expect(
+      buildSearchNames({ id: "va_mugihito", slug: "mugihito", canonicalName: "麦人" }),
+    ).toEqual(["麦人"]);
+  });
+
   it("未検証の別名義が保存されていればそれを使う", () => {
     expect(
       buildSearchNames({
@@ -331,12 +349,15 @@ describe("actors.generated.json", () => {
     // 2 文字以上の姓名を持つ声優は文字数に応じた切り方 で必ず候補が付く。
     // 候補が付かないのは「ゆかな」「麦人」「KENN」のように fullName が 1 語で
     // 姓と名の境界が無い芸名の人だけ。この集合は build-actors.ts の no-slug 除外だった
-    // 68 人と一致するので、大きく増えたら生成規則の劣化を疑う
+    // 68 人と一致するので、大きく増えたら生成規則の劣化を疑う。
+    // 下限も置くのは、判定が壊れて全員に候補が付くようになったときに気づくため
+    const seeds = await readGeneratedSeeds(GENERATED);
     const withoutCandidate: string[] = [];
-    for (const seed of await readGeneratedSeeds(GENERATED)) {
+    for (const seed of seeds) {
       if (buildSearchNames(seed).some((name) => name.includes(" "))) continue;
       withoutCandidate.push(seed.canonicalName);
     }
+    expect(withoutCandidate.length).toBeGreaterThan(30);
     expect(withoutCandidate.length).toBeLessThanOrEqual(70);
   });
 });
