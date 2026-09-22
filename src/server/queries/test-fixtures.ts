@@ -1,6 +1,7 @@
 import { INGEST_PROTOCOL_VERSION, type IngestPayload, type RawWork } from "@/domain/types";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
+import { writeActorAttributes } from "./actor-attributes";
 import { type ActorSeed, upsertActors } from "./actors";
 import { upsertAnime } from "./anime";
 import { ingest } from "./ingest";
@@ -27,10 +28,30 @@ export const HANAZAWA: ActorSeed = {
   gender: "female",
 };
 
-/** マイグレーション済みの空 DB に声優を入れて返す */
+/**
+ * マイグレーション済みの空 DB に声優を入れて返す。
+ *
+ * シードのかなは付加情報の行としても入れる。台帳でかなを持つとはそういうことで、
+ * 読み取り側は旧列を見ない (`actor-attributes.ts` の優先順位)
+ */
 export async function setupDb(actors: ActorSeed[] = [UEDA], now: string = NOW): Promise<AppDb> {
   const db = await createMigratedTestDb();
-  if (actors.length > 0) await upsertActors(db, actors, now);
+  if (actors.length === 0) return db;
+
+  await upsertActors(db, actors, now);
+  const kana = actors.flatMap((actor) =>
+    actor.nameKana === undefined
+      ? []
+      : [
+          {
+            voiceActorId: actor.id,
+            attribute: "nameKana" as const,
+            source: "wikipedia" as const,
+            value: actor.nameKana,
+          },
+        ],
+  );
+  if (kana.length > 0) await writeActorAttributes(db, kana, now);
   return db;
 }
 

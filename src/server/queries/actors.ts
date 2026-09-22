@@ -31,6 +31,7 @@ import {
   voiceActors,
 } from "../db/schema";
 import type { AppDb } from "../db/types";
+import { resolvedNameEn, resolvedNameKana } from "./actor-attributes";
 import { clearScreened } from "./screened";
 
 /** 一覧・検索結果の 1 行。作品数は声優ページへ行く前の目安として画面に出す */
@@ -181,7 +182,7 @@ export async function listActorDictionary(
       id: voiceActors.id,
       slug: voiceActors.slug,
       canonicalName: voiceActors.canonicalName,
-      nameEn: voiceActors.nameEn,
+      nameEn: resolvedNameEn,
     })
     .from(voiceActors);
 
@@ -240,7 +241,7 @@ export async function listActors(db: AppDb): Promise<ActorSummary[]> {
 
 /** 声優ページ用。エイリアスも一緒に返す */
 export async function getActorBySlug(db: AppDb, slug: string): Promise<ActorDetail | undefined> {
-  const [actor] = await db.select().from(voiceActors).where(eq(voiceActors.slug, slug)).limit(1);
+  const [actor] = await actorSelect(db).where(eq(voiceActors.slug, slug)).limit(1);
   if (!actor) return undefined;
 
   const aliases = await db
@@ -333,7 +334,7 @@ export async function searchActors(db: AppDb, q: string, limit = 20): Promise<Ac
       .where(
         or(
           like(voiceActors.canonicalName, pattern),
-          like(voiceActors.nameKana, pattern),
+          like(resolvedNameKana, pattern),
           like(voiceActorAliases.name, pattern),
         ),
       );
@@ -364,7 +365,7 @@ export async function loadActorIndex(
   db: AppDb,
 ): Promise<{ actors: VoiceActor[]; aliases: VoiceActorAlias[] }> {
   const [actorRows, aliasRows] = await Promise.all([
-    db.select().from(voiceActors),
+    actorSelect(db),
     db.select().from(voiceActorAliases),
   ]);
 
@@ -446,8 +447,8 @@ function summaryQuery(db: AppDb, extra?: SQL) {
         id: voiceActors.id,
         slug: voiceActors.slug,
         canonicalName: voiceActors.canonicalName,
-        nameKana: voiceActors.nameKana,
-        nameEn: voiceActors.nameEn,
+        nameKana: resolvedNameKana,
+        nameEn: resolvedNameEn,
         imageUrl: voiceActors.imageUrl,
         status: voiceActors.status,
         gender: voiceActors.gender,
@@ -505,7 +506,38 @@ function toStoreSlugs(concatenated: string | null): StoreSlug[] {
   return STORE_SLUGS.filter((slug) => found.has(slug));
 }
 
-type VoiceActorRow = typeof voiceActors.$inferSelect;
+/**
+ * 声優 1 行ぶんの select。かなとローマ字は列ではなく、出どころの優先順位で解いた値を返す
+ * (`actor-attributes.ts`)。旧列を直接読む場所を残さないため、`select()` の素の形を使わない
+ */
+function actorSelect(db: AppDb) {
+  return db
+    .select({
+      id: voiceActors.id,
+      slug: voiceActors.slug,
+      canonicalName: voiceActors.canonicalName,
+      nameKana: resolvedNameKana,
+      nameEn: resolvedNameEn,
+      anilistStaffId: voiceActors.anilistStaffId,
+      imageUrl: voiceActors.imageUrl,
+      status: voiceActors.status,
+      gender: voiceActors.gender,
+    })
+    .from(voiceActors);
+}
+
+/** `actorSelect` が返す 1 行 */
+type VoiceActorRow = {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  nameKana: string | null;
+  nameEn: string | null;
+  anilistStaffId: number | null;
+  imageUrl: string | null;
+  status: VoiceActor["status"];
+  gender: VoiceActor["gender"];
+};
 
 /** DB の null と ドメイン型の optional を突き合わせる。null を漏らすと画面側で扱いが割れる */
 export function toVoiceActor(row: VoiceActorRow): VoiceActor {

@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { voiceActorAttributes } from "../db/schema";
 import { writeActorAttributes } from "./actor-attributes";
@@ -102,6 +103,10 @@ describe("writeActorAttributes", () => {
     );
 
     expect(result).toEqual({ written: 1, skipped: 1 });
-    expect(await db.select().from(voiceActorAttributes)).toHaveLength(1);
+    const written = await db
+      .select()
+      .from(voiceActorAttributes)
+      .where(eq(voiceActorAttributes.attribute, "nameEn"));
+    expect(written).toHaveLength(1);
   });
 });

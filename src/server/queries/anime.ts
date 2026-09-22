@@ -13,6 +13,7 @@ import {
   voiceActors,
 } from "../db/schema";
 import type { AppDb } from "../db/types";
+import { resolvedNameEn } from "./actor-attributes";
 import { notAdultRated } from "./works";
 
 /**
@@ -413,7 +414,7 @@ export async function getAnimeBySlug(db: AppDb, slug: string): Promise<AnimeDeta
       actorId: voiceActors.id,
       actorSlug: voiceActors.slug,
       actorName: voiceActors.canonicalName,
-      actorNameEn: voiceActors.nameEn,
+      actorNameEn: resolvedNameEn,
       actorImageUrl: voiceActors.imageUrl,
     })
     .from(animeTitles)

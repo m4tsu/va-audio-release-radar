@@ -1,6 +1,11 @@
-import { inArray } from "drizzle-orm";
+import { getTableName, inArray, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
-import { ATTRIBUTE_SOURCES, VOICE_ACTOR_ATTRIBUTES } from "@/domain/types";
+import {
+  ATTRIBUTE_SOURCES,
+  type AttributeSource,
+  VOICE_ACTOR_ATTRIBUTES,
+  type VoiceActorAttribute,
+} from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { voiceActorAttributes, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -87,3 +92,55 @@ async function knownActorIds(
   }
   return found;
 }
+
+// --- 読み取り --------------------------------------------------------------
+
+/**
+ * かなを選ぶ順。手で書いたものが先で、取得したものはその後ろ。
+ * Wikidata を Wikipedia より先にするのは、項目の読み (P1814) が記事の本文より構造化されていて、
+ * 取り違えの余地が小さいため
+ */
+export const NAME_KANA_SOURCES = ["editorial", "wikidata", "wikipedia"] as const;
+
+/**
+ * 表示用ローマ字を選ぶ順。付加情報に無ければ供給元の写しの列に落ちる。
+ * 取得した値の置き場は列のほうなので、ここに並ぶのは手で書いたものだけ
+ */
+export const NAME_EN_SOURCES = ["editorial"] as const;
+
+/**
+ * 副問い合わせの中から外側の声優を指す参照。表名を明示して書く。
+ *
+ * 列オブジェクトをそのまま埋めると、外側の問い合わせが 1 つの表しか持たないときに
+ * 表名の付かない `"id"` になる。副問い合わせの中では内側の表の `id` が先に見つかるので、
+ * 別の列と突き合わせる問い合わせに化けて、値が 1 件も返らなくなる
+ */
+const OUTER_ACTOR_ID = sql`${sql.identifier(getTableName(voiceActors))}.${sql.identifier("id")}`;
+
+/**
+ * 1 つの属性から、出どころの優先順位で値を 1 つ選ぶ相関副問い合わせ。
+ *
+ * 外側の問い合わせが `voice_actors` を含んでいることが前提。並べ替えを `case` で書くのは、
+ * 優先順位をこの配列 1 か所に持たせるため。知らない出どころは最後に回す
+ */
+function pickAttribute(
+  attribute: VoiceActorAttribute,
+  sources: readonly AttributeSource[],
+): SQL<string | null> {
+  const ranks = sources.map((source, rank) => sql`when ${source} then ${rank}`);
+  return sql<string | null>`(
+    select ${voiceActorAttributes.value} from ${voiceActorAttributes}
+    where ${voiceActorAttributes.voiceActorId} = ${OUTER_ACTOR_ID}
+      and ${voiceActorAttributes.attribute} = ${attribute}
+    order by case ${voiceActorAttributes.source} ${sql.join(ranks, sql` `)} else ${sources.length} end
+    limit 1
+  )`;
+}
+
+/** 画面に出すかな。旧列 `name_kana` は読まない */
+export const resolvedNameKana: SQL<string | null> = pickAttribute("nameKana", NAME_KANA_SOURCES);
+
+/** 画面に出すローマ字。手で書いたものが無ければ供給元の写しの列 */
+export const resolvedNameEn: SQL<string | null> = sql<string | null>`coalesce(
+  ${pickAttribute("nameEn", NAME_EN_SOURCES)}, ${voiceActors.nameEn}
+)`;

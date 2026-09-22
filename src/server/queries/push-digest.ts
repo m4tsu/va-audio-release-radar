@@ -12,6 +12,7 @@ import {
 } from "../db/schema";
 import type { AppDb } from "../db/types";
 import type { DigestWindow } from "../push/slot";
+import { resolvedNameEn } from "./actor-attributes";
 import {
   type CrawlBaselines,
   discoveredAfterBaseline,
@@ -201,7 +202,7 @@ export async function actorNames(
       .select({
         id: voiceActors.id,
         canonicalName: voiceActors.canonicalName,
-        nameEn: voiceActors.nameEn,
+        nameEn: resolvedNameEn,
       })
       .from(voiceActors)
       .where(inArray(voiceActors.id, ids));
