@@ -6,7 +6,7 @@ import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { writeActorAttributes } from "./actor-attributes";
 import { getActorBySlug, upsertActors } from "./actors";
-import { type AniListIngestPayload, ingestAniList } from "./anilist";
+import { type AniListIngestPayload, anilistIngestPayloadSchema, ingestAniList } from "./anilist";
 import { getAnimeBySlug } from "./anime";
 import { recordScreened, screenedStoreProductIds } from "./screened";
 import { NOW } from "./test-fixtures";
@@ -176,6 +176,61 @@ describe("既に居る声優", () => {
     });
   });
 
+  it("性別を言わない応答は、別の経路が埋めた性別を消さない", async () => {
+    const db = await emptyDb();
+    await ingestAniList(db, payload({ anime: [] }), NOW);
+
+    // シーズンの応答は性別を返さない声優がいる。その穴は staff id で直接引く経路が埋める
+    await ingestAniList(
+      db,
+      payload({ runId: "anilist-run-2", actors: [actor({ gender: undefined })], anime: [] }),
+      NOW,
+    );
+
+    expect((await getActorBySlug(db, "ueda-reina"))?.gender).toBe("female");
+  });
+
+  it("ローマ字と画像を言わない応答は、保存済みの値を消さない", async () => {
+    const db = await emptyDb();
+    await ingestAniList(db, payload({ anime: [] }), NOW);
+
+    await ingestAniList(
+      db,
+      payload({
+        runId: "anilist-run-2",
+        actors: [actor({ fullName: undefined, imageUrl: undefined })],
+        anime: [],
+      }),
+      NOW,
+    );
+
+    expect(await getActorBySlug(db, "ueda-reina")).toMatchObject({
+      nameEn: "Reina Ueda",
+      imageUrl: "https://example.test/ueda.png",
+    });
+  });
+
+  it("古いシーズンを埋め戻しても、最後に見たシーズンは後退しない", async () => {
+    const db = await emptyDb();
+    await ingestAniList(db, payload({ anime: [] }), NOW);
+
+    await ingestAniList(
+      db,
+      payload({
+        runId: "anilist-run-2",
+        actors: [actor({ latestSeason: { year: 2024, season: "WINTER" } })],
+        anime: [],
+      }),
+      NOW,
+    );
+
+    const [row] = await db
+      .select()
+      .from(voiceActors)
+      .where(eq(voiceActors.anilistStaffId, UEDA_STAFF_ID));
+    expect(row).toMatchObject({ lastSeenSeasonYear: 2026, lastSeenSeason: "FALL" });
+  });
+
   it("付加情報と別名義は取り込みで変わらない", async () => {
     const db = await emptyDb();
     await ingestAniList(db, payload({ anime: [] }), NOW);
@@ -255,6 +310,62 @@ describe("作品と出演", () => {
   });
 });
 
+describe("入口の検証", () => {
+  it("空白だけの名前は受け取らない", () => {
+    const result = anilistIngestPayloadSchema.safeParse(
+      payload({ actors: [actor({ nativeName: "   " })], anime: [] }),
+    );
+
+    expect(result.success).toBe(false);
+  });
+
+  it("名前の前後の空白は詰めて保存する", async () => {
+    const db = await emptyDb();
+
+    await ingestAniList(
+      db,
+      anilistIngestPayloadSchema.parse(
+        payload({ actors: [actor({ nativeName: " 上田麗奈 " })], anime: [] }),
+      ),
+      NOW,
+    );
+
+    expect((await getActorBySlug(db, "ueda-reina"))?.canonicalName).toBe("上田麗奈");
+  });
+});
+
+describe("送り手の取りこぼし", () => {
+  it("actors に入っていない staff id の出演は落として数える", async () => {
+    const db = await emptyDb();
+
+    const result = await ingestAniList(
+      db,
+      payload({
+        anime: [
+          anime({
+            appearances: [
+              {
+                anilistStaffId: UEDA_STAFF_ID,
+                characterId: "anilist:c1",
+                role: "main" as const,
+              },
+              {
+                // 送り手が actors に入れ忘れた声優。黙って消えると気づけない
+                anilistStaffId: 12345,
+                characterId: "anilist:c2",
+                role: "supporting" as const,
+              },
+            ],
+          }),
+        ],
+      }),
+      NOW,
+    );
+
+    expect(result).toMatchObject({ droppedAppearances: 1, newAppearances: 1 });
+  });
+});
+
 describe("取り込みの記録", () => {
   it("対象シーズンの範囲と増えた数を 1 行に残す", async () => {
     const db = await emptyDb();
@@ -274,6 +385,30 @@ describe("取り込みの記録", () => {
       actorCount: 1,
       newActorCount: 1,
       newAppearanceCount: 1,
+    });
+  });
+
+  it("シーズンを新しい順に送っても、記録の範囲は古い順になる", async () => {
+    const db = await emptyDb();
+
+    await ingestAniList(
+      db,
+      payload({
+        seasons: [
+          { year: 2026, season: "FALL" },
+          { year: 2024, season: "WINTER" },
+        ],
+        anime: [],
+      }),
+      NOW,
+    );
+
+    const [run] = await db.select().from(anilistIngestRuns);
+    expect(run).toMatchObject({
+      seasonFromYear: 2024,
+      seasonFrom: "WINTER",
+      seasonToYear: 2026,
+      seasonTo: "FALL",
     });
   });
 

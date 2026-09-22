@@ -1,7 +1,7 @@
 import { count, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { slugWithStaffId, toActorId, toActorNameEn, toActorSlug } from "@/domain/actor-slug";
-import { ANIME_SEASONS, VOICE_ACTOR_GENDERS } from "@/domain/types";
+import { ANIME_SEASONS, type AnimeSeason, seasonOrder, VOICE_ACTOR_GENDERS } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { anilistIngestRuns, animeAppearances, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -15,9 +15,8 @@ import { clearScreened } from "./screened";
  * シーズンの窓と 1 作品あたりの取得人数は取得の範囲を絞る条件であって、対象から外す条件ではない。
  *
  * 声優は staff id で引き当てる。名前は表記が変わりうるので鍵にしない。
- * 初めて見る staff id にだけ行を作り、既に居る声優は供給元の写し
- * (日本語表記・ローマ字・性別・画像・最後に見たシーズン) だけを更新する。
- * 同一性 (id / slug / 初めて見た日時) と付加情報・別名義には触らない
+ * 初めて見る staff id にだけ行を作り、既に居る声優は供給元が今回言った項目だけを更新する。
+ * 同一性 (id / slug / 初めて見た日時) と、別表にある付加情報・別名義の行には触らない
  */
 
 // --- 入力 ------------------------------------------------------------------
@@ -33,8 +32,11 @@ const seasonSchema = z.object({
  */
 const anilistActorSchema = z.object({
   anilistStaffId: z.number().int(),
-  /** 日本語表記。ストアとの突き合わせに使う唯一の鍵 */
-  nativeName: z.string().min(1),
+  /**
+   * 日本語表記。ストアとの突き合わせに使う唯一の鍵なので、
+   * 空白を詰めて何も残らない名前は入口で弾く (空の名前で入るとどのストアにも当たらなくなる)
+   */
+  nativeName: z.string().trim().min(1),
   /** "Reina Ueda"。slug の元であり、英語表示に出す名前 */
   fullName: z.string().optional(),
   gender: z.enum(VOICE_ACTOR_GENDERS).optional(),
@@ -98,6 +100,8 @@ export type AniListIngestResult = {
   appearances: number;
   /** そのうち今回はじめて入ったもの */
   newAppearances: number;
+  /** 声優を引き当てられずに落とした出演の数 */
+  droppedAppearances: number;
   /** 保存した別名タイトルの数 */
   synonyms: number;
   /** 声優が増えたので捨てた「対象声優が居ない」の判断の数 */
@@ -117,10 +121,14 @@ export async function ingestAniList(
     now,
   );
 
-  // 「増えた出演」は前後の行数の差で数える。upsert は挿入と更新を分けて返さないため
-  const appearancesBefore = await countAppearances(db);
-  const animeResult = await upsertAnime(db, toAnimeSeeds(payload.anime, actorIdByStaffId), now);
-  const newAppearances = (await countAppearances(db)) - appearancesBefore;
+  const { seeds, droppedAppearances } = toAnimeSeeds(payload.anime, actorIdByStaffId);
+  // 「増えた出演」は前後の行数の差で数える (upsert は挿入と更新を分けて返さない)。
+  // 数える範囲を今回の作品に絞るのは、表全体だと同時に走る別の取り込みが入れた行まで
+  // この走行の増加として記録に残るため
+  const titleIds = seeds.map((seed) => seed.id);
+  const appearancesBefore = await countAppearances(db, titleIds);
+  const animeResult = await upsertAnime(db, seeds, now);
+  const newAppearances = (await countAppearances(db, titleIds)) - appearancesBefore;
 
   // 声優が増えたら、過去の「対象声優が居ない」の判断を捨てる。
   // 捨てないと、新しく追い始めた声優の既存作品が新着一覧から永久に入らない
@@ -141,6 +149,7 @@ export async function ingestAniList(
     anime: animeResult.titles,
     appearances: animeResult.appearances,
     newAppearances,
+    droppedAppearances,
     synonyms: animeResult.synonyms,
     clearedScreened,
   };
@@ -149,18 +158,24 @@ export async function ingestAniList(
 /**
  * 出演の staff id を声優 ID に置き換える。
  *
- * 置き換えられない出演 (slug を作れず足さなかった声優) はその 1 件だけを落とす。
- * 出演が 1 件も残らない作品は送らない (`upsertAnime` が 1 件以上を要求する)
+ * 置き換えられない出演 (足さなかった声優、送り手が `actors` に入れ忘れた staff id) は
+ * その 1 件だけを落とし、件数を返す。数えないと、キャストが丸ごと落ちた取り込みが
+ * 正常な件数とともに 200 を返す。出演が 1 件も残らない作品は送らない
+ * (`upsertAnime` が 1 件以上を要求する)
  */
 function toAnimeSeeds(
   anime: AniListIngestPayload["anime"],
   actorIdByStaffId: ReadonlyMap<number, string>,
-): AnimeSeed[] {
+): { seeds: AnimeSeed[]; droppedAppearances: number } {
   const seeds: AnimeSeed[] = [];
+  let droppedAppearances = 0;
   for (const title of anime) {
     const appearances = title.appearances.flatMap((appearance) => {
       const voiceActorId = actorIdByStaffId.get(appearance.anilistStaffId);
-      if (voiceActorId === undefined) return [];
+      if (voiceActorId === undefined) {
+        droppedAppearances += 1;
+        return [];
+      }
       return [
         {
           voiceActorId,
@@ -181,7 +196,7 @@ function toAnimeSeeds(
     if (appearances.length === 0) continue;
     seeds.push({ ...title, appearances });
   }
-  return seeds;
+  return { seeds, droppedAppearances };
 }
 
 /**
@@ -198,29 +213,31 @@ async function upsertAniListActors(
   newActors: NewActor[];
   skippedActors: number;
 }> {
-  const actorIdByStaffId = await loadActorIdsByStaffId(
+  const stored = await loadActorsByStaffId(
     db,
     actors.map((actor) => actor.anilistStaffId),
   );
   // slug は URL に出るので、今ある全員ぶんと突き合わせてから決める。
   // 今回の取得の中だけで見ると、既に居る別人と同じ slug を新しい声優に与えてしまう
-  const takenSlugs = await loadTakenSlugs(db);
+  const taken = await loadTaken(db);
+  const actorIdByStaffId = new Map<number, string>(
+    [...stored].map(([staffId, row]) => [staffId, row.id]),
+  );
   const newActors: NewActor[] = [];
   let skippedActors = 0;
 
   for (const actor of actors) {
-    const existingId = actorIdByStaffId.get(actor.anilistStaffId);
-    const supplied = suppliedColumns(actor);
+    const existing = stored.get(actor.anilistStaffId);
 
-    if (existingId !== undefined) {
+    if (existing !== undefined) {
       await db
         .update(voiceActors)
-        .set({ ...supplied, updatedAt: now })
-        .where(eq(voiceActors.id, existingId));
+        .set({ ...suppliedColumns(actor, existing), updatedAt: now })
+        .where(eq(voiceActors.id, existing.id));
       continue;
     }
 
-    const created = newActorRow(actor, takenSlugs);
+    const created = newActorRow(actor, taken);
     if (created === undefined) {
       skippedActors += 1;
       continue;
@@ -230,13 +247,21 @@ async function upsertAniListActors(
       id: created.id,
       slug: created.slug,
       anilistStaffId: actor.anilistStaffId,
-      ...supplied,
+      ...suppliedColumns(actor),
+      // 新しい行にだけ既定値を置く。既に居る声優には触らない (別の経路が埋めた値を消さないため)
+      gender: actor.gender ?? "unknown",
       status: "active",
       firstSeenAt: now,
       createdAt: now,
       updatedAt: now,
     });
-    takenSlugs.add(created.slug);
+    taken.slugs.add(created.slug);
+    taken.ids.add(created.id);
+    stored.set(actor.anilistStaffId, {
+      id: created.id,
+      lastSeenSeasonYear: actor.latestSeason?.year ?? null,
+      lastSeenSeason: actor.latestSeason?.season ?? null,
+    });
     actorIdByStaffId.set(actor.anilistStaffId, created.id);
     newActors.push({ ...created, anilistStaffId: actor.anilistStaffId });
   }
@@ -245,21 +270,46 @@ async function upsertAniListActors(
 }
 
 /**
- * AniList が言っている値だけを写した列。既に居る声優ではここだけを上書きする。
+ * 既に居る声優に上書きする列。**送られてきた項目だけ**を書く。
  *
- * AniList が値を持たない項目は null で上書きする。前回の応答に有って今回無い値を残すと、
- * 供給元が消した事実とこちらが取り損ねた事実を区別できないまま古い値が居座る。
- * 人が直した表記は付加情報の表 (`voice_actor_attributes`) に別の行として残るので、この上書きで消えない
+ * 送られてこない項目は「供給元が値を失った」ではなく「この経路では分からない」。
+ * シーズンの応答は性別を言わない声優がいて、その穴は staff id で直接引く別の経路が埋める。
+ * 無条件に null や "unknown" で上書きすると、埋めた値が取り込みのたびに消える。
+ *
+ * 最後に見たシーズンだけは新しい方を採る。古いシーズンを後から埋め戻す走行で、
+ * 「最後に確認した」が過去へ戻らないようにするため
  */
-function suppliedColumns(actor: AniListActorInput) {
+function suppliedColumns(
+  actor: AniListActorInput,
+  stored?: { lastSeenSeasonYear: number | null; lastSeenSeason: AnimeSeason | null },
+) {
+  const latest = latestSeasonOf(actor, stored);
   return {
-    canonicalName: actor.nativeName.trim(),
-    nameEn: toActorNameEn(actor.fullName) ?? null,
-    gender: actor.gender ?? "unknown",
-    imageUrl: actor.imageUrl ?? null,
-    lastSeenSeasonYear: actor.latestSeason?.year ?? null,
-    lastSeenSeason: actor.latestSeason?.season ?? null,
+    canonicalName: actor.nativeName,
+    ...(actor.fullName === undefined ? {} : { nameEn: toActorNameEn(actor.fullName) ?? null }),
+    ...(actor.gender === undefined ? {} : { gender: actor.gender }),
+    ...(actor.imageUrl === undefined ? {} : { imageUrl: actor.imageUrl }),
+    ...(latest === undefined
+      ? {}
+      : { lastSeenSeasonYear: latest.year, lastSeenSeason: latest.season }),
   };
+}
+
+/** 保存済みと今回のうち新しい方のシーズン。どちらも無ければ undefined (列に触らない) */
+function latestSeasonOf(
+  actor: AniListActorInput,
+  stored?: { lastSeenSeasonYear: number | null; lastSeenSeason: AnimeSeason | null },
+): { year: number; season: AnimeSeason } | undefined {
+  const incoming = actor.latestSeason;
+  if (incoming === undefined) return undefined;
+  if (stored?.lastSeenSeasonYear === null || stored?.lastSeenSeason === null) return incoming;
+  if (stored === undefined) return incoming;
+
+  const current = { year: stored.lastSeenSeasonYear, season: stored.lastSeenSeason };
+  return seasonOrder({ seasonYear: incoming.year, season: incoming.season }) >
+    seasonOrder({ seasonYear: current.year, season: current.season })
+    ? incoming
+    : current;
 }
 
 /**
@@ -270,45 +320,87 @@ function suppliedColumns(actor: AniListActorInput) {
  */
 function newActorRow(
   actor: AniListActorInput,
-  takenSlugs: ReadonlySet<string>,
+  taken: { slugs: ReadonlySet<string>; ids: ReadonlySet<string> },
 ): { id: string; slug: string; canonicalName: string } | undefined {
   const base = toActorSlug(actor.fullName);
   if (base === undefined) return undefined;
 
-  const slug = takenSlugs.has(base) ? slugWithStaffId(base, actor.anilistStaffId) : base;
-  // staff id 付きでも埋まっているなら、その staff id の行が既にある (= 既存として扱われる) はず。
-  // ここへ来るのは同じ取得に同じ staff id が 2 回入っていた場合なので、後の 1 件を落とす
-  if (takenSlugs.has(slug)) return undefined;
+  const candidate = isTaken(base, taken) ? slugWithStaffId(base, actor.anilistStaffId) : base;
+  // staff id を付けても埋まっているなら、その行は別人 (同じ staff id なら既存として扱われている)。
+  // 連番で逃げると誰がその slug を持つかが取り込みのたびに入れ替わるので、足さずに数える
+  if (isTaken(candidate, taken)) return undefined;
 
-  return { id: toActorId(slug), slug, canonicalName: actor.nativeName.trim() };
+  return { id: toActorId(candidate), slug: candidate, canonicalName: actor.nativeName };
 }
 
-async function loadActorIdsByStaffId(
+/** slug と、そこから作る ID のどちらかが既に使われているか */
+function isTaken(
+  slug: string,
+  taken: { slugs: ReadonlySet<string>; ids: ReadonlySet<string> },
+): boolean {
+  return taken.slugs.has(slug) || taken.ids.has(toActorId(slug));
+}
+
+/** 既に居る声優。上書きの前に、後退させたくない値 (最後に見たシーズン) も一緒に読む */
+type StoredActor = {
+  id: string;
+  lastSeenSeasonYear: number | null;
+  lastSeenSeason: AnimeSeason | null;
+};
+
+async function loadActorsByStaffId(
   db: AppDb,
   staffIds: readonly number[],
-): Promise<Map<number, string>> {
-  const found = new Map<number, string>();
+): Promise<Map<number, StoredActor>> {
+  const found = new Map<number, StoredActor>();
   for (const chunk of chunked([...new Set(staffIds)])) {
     const rows = await db
-      .select({ id: voiceActors.id, anilistStaffId: voiceActors.anilistStaffId })
+      .select({
+        id: voiceActors.id,
+        anilistStaffId: voiceActors.anilistStaffId,
+        lastSeenSeasonYear: voiceActors.lastSeenSeasonYear,
+        lastSeenSeason: voiceActors.lastSeenSeason,
+      })
       .from(voiceActors)
       .where(inArray(voiceActors.anilistStaffId, chunk));
     for (const row of rows) {
-      if (row.anilistStaffId !== null) found.set(row.anilistStaffId, row.id);
+      if (row.anilistStaffId === null) continue;
+      found.set(row.anilistStaffId, {
+        id: row.id,
+        lastSeenSeasonYear: row.lastSeenSeasonYear,
+        lastSeenSeason: row.lastSeenSeason,
+      });
     }
   }
   return found;
 }
 
-/** 今ある slug の全部。新しい声優の slug を決める前に読む */
-async function loadTakenSlugs(db: AppDb): Promise<Set<string>> {
-  const rows = await db.select({ slug: voiceActors.slug }).from(voiceActors);
-  return new Set(rows.map((row) => row.slug));
+/**
+ * 今ある slug と ID。新しい声優の slug を決める前に読む。
+ *
+ * ID も見るのは、ID が slug から作られる一方で、シード投入 (`upsertActors`) は両方を
+ * 別々に受け取るため。slug だけを見ると、その slug から作った ID が別の行と衝突して
+ * 取り込みが途中で落ちる
+ */
+async function loadTaken(db: AppDb): Promise<{ slugs: Set<string>; ids: Set<string> }> {
+  const rows = await db.select({ slug: voiceActors.slug, id: voiceActors.id }).from(voiceActors);
+  return {
+    slugs: new Set(rows.map((row) => row.slug)),
+    ids: new Set(rows.map((row) => row.id)),
+  };
 }
 
-async function countAppearances(db: AppDb): Promise<number> {
-  const [row] = await db.select({ value: count() }).from(animeAppearances);
-  return row?.value ?? 0;
+/** 指定した作品に付いている出演の数 */
+async function countAppearances(db: AppDb, animeTitleIds: readonly string[]): Promise<number> {
+  let total = 0;
+  for (const chunk of chunked([...new Set(animeTitleIds)])) {
+    const [row] = await db
+      .select({ value: count() })
+      .from(animeAppearances)
+      .where(inArray(animeAppearances.animeTitleId, chunk));
+    total += row?.value ?? 0;
+  }
+  return total;
 }
 
 /**
@@ -325,8 +417,15 @@ async function recordRun(
     newAppearanceCount: number;
   },
 ): Promise<void> {
-  const from = payload.seasons[0];
-  const to = payload.seasons.at(-1);
+  // 並び順は送り手に任せず、シーズンの順序で両端を決める。
+  // 新しい順に組み立てた走行が来ても、記録の範囲が逆向きにならないようにするため
+  const sorted = [...payload.seasons].sort(
+    (a, b) =>
+      seasonOrder({ seasonYear: a.year, season: a.season }) -
+      seasonOrder({ seasonYear: b.year, season: b.season }),
+  );
+  const from = sorted[0];
+  const to = sorted.at(-1);
   // zod が 1 件以上を保証しているので、ここに来る時点で両端は必ずある
   if (from === undefined || to === undefined) return;
 
