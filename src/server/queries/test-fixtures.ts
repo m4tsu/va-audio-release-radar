@@ -13,6 +13,7 @@ export const UEDA: ActorSeed = {
   slug: "ueda-reina",
   canonicalName: "上田麗奈",
   nameKana: "うえだれいな",
+  anilistStaffId: 100001,
   status: "active",
   gender: "female",
 };
@@ -21,6 +22,7 @@ export const HANAZAWA: ActorSeed = {
   id: "va_hanazawa-kana",
   slug: "hanazawa-kana",
   canonicalName: "花澤香菜",
+  anilistStaffId: 100002,
   status: "active",
   gender: "female",
 };

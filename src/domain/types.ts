@@ -82,6 +82,23 @@ export type VoiceActorAlias = {
   verified: boolean;
 };
 
+/**
+ * 声優の付加情報の属性。供給元 (AniList) が答えない問いへの答えで、無くても声優として成立する。
+ * 同じ属性に出どころが複数ありうるので、`voice_actor_attributes` に出どころごとの行で持ち、
+ * 読むときに属性ごとの優先順位で 1 つ選ぶ。
+ *
+ * - `nameKana`: 読み。検索と一覧の並びに使う
+ * - `nameEn`: 表示用のローマ字。本人・事務所の公表表記。無ければ供給元の写し (`voice_actors.name_en`) を使う
+ * - `visibility`: 公開状態。取り下げの申し出があったときに書く
+ */
+export type VoiceActorAttribute = "nameKana" | "nameEn" | "visibility";
+
+/**
+ * 付加情報の出どころ。`editorial` は人が書いた訂正で、他は取得元のサイト。
+ * どの出どころも自分の行だけを書き、他の出どころの行を消したり上書きしたりしない
+ */
+export type AttributeSource = "editorial" | "wikipedia" | "wikidata" | "anilist";
+
 export type AudioWork = {
   id: string; // "{storeSlug}:{storeProductId}" (MVP ではストア横断マージをしない)
   title: string;
@@ -337,6 +354,19 @@ export const INQUIRY_KINDS = [
 
 export const LOCALES = ["ja", "en"] as const satisfies readonly Locale[];
 
+export const VOICE_ACTOR_ATTRIBUTES = [
+  "nameKana",
+  "nameEn",
+  "visibility",
+] as const satisfies readonly VoiceActorAttribute[];
+
+export const ATTRIBUTE_SOURCES = [
+  "editorial",
+  "wikipedia",
+  "wikidata",
+  "anilist",
+] as const satisfies readonly AttributeSource[];
+
 /**
  * 値配列が型の全メンバーを過不足なく含むことをコンパイル時に確認する補助型。
  * 一致していれば `true` 型になり、ずれていれば決して `true` にならないタプル型になるため、
@@ -361,6 +391,14 @@ const _creditConfidencesCoverAllTypes: AssertSameLiteralSet<
 const _ageRatingsCoverAllTypes: AssertSameLiteralSet<AgeRating, (typeof AGE_RATINGS)[number]> =
   true;
 const _localesCoverAllTypes: AssertSameLiteralSet<Locale, (typeof LOCALES)[number]> = true;
+const _voiceActorAttributesCoverAllTypes: AssertSameLiteralSet<
+  VoiceActorAttribute,
+  (typeof VOICE_ACTOR_ATTRIBUTES)[number]
+> = true;
+const _attributeSourcesCoverAllTypes: AssertSameLiteralSet<
+  AttributeSource,
+  (typeof ATTRIBUTE_SOURCES)[number]
+> = true;
 const _voiceActorGendersCoverAllTypes: AssertSameLiteralSet<
   VoiceActorGender,
   (typeof VOICE_ACTOR_GENDERS)[number]
@@ -390,6 +428,8 @@ void [
   _animeRolesCoverAllTypes,
   _animeFormatsCoverAllTypes,
   _inquiryKindsCoverAllTypes,
+  _voiceActorAttributesCoverAllTypes,
+  _attributeSourcesCoverAllTypes,
 ];
 
 // --- 年齢区分の方針 --------------------------------------------------------

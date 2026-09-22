@@ -14,18 +14,18 @@
 -- 一覧の「作品数の多い順」が名前順と違う並びになることの確認用
 -- ベータの name_en は NULL。ローマ字を持たない声優が英語表示でも漢字表記のまま出ることの確認用
 INSERT OR REPLACE INTO voice_actors
-  (id, slug, canonical_name, name_kana, name_en, anilist_staff_id, image_url, status, created_at, updated_at)
+  (id, slug, canonical_name, name_kana, name_en, anilist_staff_id, image_url, status, first_seen_at, created_at, updated_at)
 VALUES
-  ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'てすとせいゆうあるふぁ', 'E2E Actor Alpha', NULL, NULL, 'active',
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, NULL, NULL, 'active',
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', 'E2E Actor Gamma', NULL, NULL, 'active',
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'てすとせいゆうでるた', 'E2E Actor Delta', NULL, NULL, 'active',
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-epsilon', 'e2e-epsilon', 'テスト声優イプシロン', 'てすとせいゆういぷしろん', 'E2E Actor Epsilon', NULL, NULL, 'active',
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+  ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'てすとせいゆうあるふぁ', 'E2E Actor Alpha', 900001, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, 900002, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', 'E2E Actor Gamma', 900003, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'てすとせいゆうでるた', 'E2E Actor Delta', 900004, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-epsilon', 'e2e-epsilon', 'テスト声優イプシロン', 'てすとせいゆういぷしろん', 'E2E Actor Epsilon', 900005, NULL, 'active',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO voice_actor_aliases (id, voice_actor_id, name, source, verified)
 VALUES (9000001, 'va_e2e-alpha', 'テスト 声優アルファ', 'manual', 1);

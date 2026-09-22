@@ -298,6 +298,7 @@ const AMASAKI: ActorSeed = {
   slug: "amasaki-kohei",
   // AniList 側の表記。ストアには 﨑 (U+FA11) で出てくる
   canonicalName: "天崎滉平",
+  anilistStaffId: 100003,
   status: "active",
   gender: "male",
 };
@@ -417,7 +418,17 @@ describe("reresolveUnmatchedCredits", () => {
     await ingest(db, payload({ works: [rawWork({ creditedNames: ["天\uFA11 滉平"] })] }), NOW);
     await upsertActors(
       db,
-      [AMASAKI, { ...AMASAKI, id: "va_other", slug: "other", canonicalName: "天\uFA11滉平" }],
+      [
+        AMASAKI,
+        // 同名の別人。staff id は一意なので別の値を持たせる
+        {
+          ...AMASAKI,
+          id: "va_other",
+          slug: "other",
+          canonicalName: "天\uFA11滉平",
+          anilistStaffId: 100005,
+        },
+      ],
       NOW,
     );
 

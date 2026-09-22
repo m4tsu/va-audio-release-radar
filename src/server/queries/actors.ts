@@ -65,7 +65,8 @@ export const actorSeedSchema = z.object({
   canonicalName: z.string().min(1),
   nameKana: z.string().optional(),
   nameEn: z.string().optional(),
-  anilistStaffId: z.number().int().optional(),
+  // 声優を一意に指す鍵 (同一性)。DB の制約と合わせて必須
+  anilistStaffId: z.number().int(),
   imageUrl: z.string().optional(),
   status: z.enum(["active", "inactive", "unknown"]).default("unknown"),
   // 既定を置くのは、性別を送らない既存のシードがそのまま通るようにするため
@@ -85,7 +86,7 @@ export type ActorSeed = z.infer<typeof actorSeedSchema>;
 
 /**
  * シードからの投入。slug / id は入力をそのまま使う (URL に出るので自動採番にしない)。
- * 既に居る声優は上書きし、`created_at` だけは初回の値を残す
+ * 既に居る声優は上書きし、同一性の列 (`anilist_staff_id` / `first_seen_at`) と `created_at` は初回の値を残す
  */
 export async function upsertActors(
   db: AppDb,
@@ -105,10 +106,11 @@ export async function upsertActors(
         canonicalName: actor.canonicalName,
         nameKana: actor.nameKana ?? null,
         nameEn: actor.nameEn ?? null,
-        anilistStaffId: actor.anilistStaffId ?? null,
+        anilistStaffId: actor.anilistStaffId,
         imageUrl: actor.imageUrl ?? null,
         status: actor.status,
         gender: actor.gender,
+        firstSeenAt: now,
         createdAt: now,
         updatedAt: now,
       })
@@ -119,7 +121,6 @@ export async function upsertActors(
           canonicalName: actor.canonicalName,
           nameKana: actor.nameKana ?? null,
           nameEn: actor.nameEn ?? null,
-          anilistStaffId: actor.anilistStaffId ?? null,
           imageUrl: actor.imageUrl ?? null,
           status: actor.status,
           gender: actor.gender,

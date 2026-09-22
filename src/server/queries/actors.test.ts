@@ -28,7 +28,12 @@ import {
  * 投入の入口 (`POST /api/admin/actors` が使うスキーマ) から見る
  */
 describe("actorSeedSchema の性別", () => {
-  const SEED = { id: "va_sato-rina", slug: "sato-rina", canonicalName: "佐藤利奈" };
+  const SEED = {
+    id: "va_sato-rina",
+    slug: "sato-rina",
+    canonicalName: "佐藤利奈",
+    anilistStaffId: 100004,
+  };
 
   it("性別を省いたシードは「不明」で保存される", async () => {
     const db = await setupDb([]);

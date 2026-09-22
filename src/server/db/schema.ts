@@ -4,10 +4,12 @@ import {
   ANIME_FORMATS,
   ANIME_ROLES,
   ANIME_SEASONS,
+  ATTRIBUTE_SOURCES,
   CREDIT_CONFIDENCES,
   INQUIRY_KINDS,
   LOCALES,
   STORE_SLUGS,
+  VOICE_ACTOR_ATTRIBUTES,
   VOICE_ACTOR_GENDERS,
   WORK_CATEGORIES,
 } from "@/domain/types";
@@ -21,6 +23,12 @@ import {
  * - 真偽値は integer の 0/1。boolean モードで TS 側だけ boolean に見せる
  * - フォロー状態はブラウザ内 (Dexie) に持つのでテーブルが無い。サーバーが知るのは、通知を購読した
  *   ブラウザが追う声優 (`push_subscription_actors`) だけ
+ *
+ * 声優のデータは 3 種類に分けて持つ。どの表・列がどれかは各表の先頭コメントに書く。
+ *
+ * 1. 同一性: staff id、slug、初めて見た日時。作られた後は変えない
+ * 2. 供給元の写し: AniList が言っている値。取り込みのたびに上書きする
+ * 3. 付加情報: 供給元が答えない問いへの答え。出どころごとに行を持ち、読むときに属性ごとの優先順位で選ぶ
  */
 
 /** 声優に紐づかない列挙。ドメイン型の union と同じ並びを手で維持する */
@@ -28,6 +36,12 @@ const VOICE_ACTOR_STATUSES = ["active", "inactive", "unknown"] as const;
 const ALIAS_SOURCES = ["manual", "anilist", "store"] as const;
 const CRAWL_RUN_STATUSES = ["ok", "error"] as const;
 
+/**
+ * 声優。同一性 (`id` / `slug` / `anilist_staff_id` / `first_seen_at`) と供給元の写し
+ * (`canonical_name` / `name_en` / `gender` / `image_url` / `last_seen_season`) が同居する。
+ * 同一性の列は作られた後に変えない。供給元の写しは取り込みのたびに AniList の値で上書きする。
+ * `name_kana` / `status` は付加情報で、置き場は `voice_actor_attributes` に移る (旧列は読み取り側の切り替えまで残す)
+ */
 export const voiceActors = sqliteTable(
   "voice_actors",
   {
@@ -38,6 +52,12 @@ export const voiceActors = sqliteTable(
     nameKana: text("name_kana"),
     // 英語名 ("Reina Ueda")。slug ("ueda-reina") からは姓名の順も大文字も戻せないので列で持つ
     nameEn: text("name_en"),
+    /**
+     * 声優を一意に指す鍵 (同一性)。名前は表記が変わりうるので鍵にしない。
+     * 全行が値を持ち、投入の入口 (`actorSeedSchema`) も必須にしているが、列は NOT NULL にしていない。
+     * SQLite は既存の列に NOT NULL を後から付けられず、表の作り直しは 6 つの表から参照されている
+     * この表では D1 で通らない (子の行が残ったまま親を消せない)
+     */
     anilistStaffId: integer("anilist_staff_id"),
     imageUrl: text("image_url"),
     status: text("status", { enum: VOICE_ACTOR_STATUSES }).notNull().default("unknown"),
@@ -46,10 +66,48 @@ export const voiceActors = sqliteTable(
      * 「その他」と言い切らないため。読み取り側は女性・男性を名指しで絞る
      */
     gender: text("gender", { enum: VOICE_ACTOR_GENDERS }).notNull().default("unknown"),
+    /**
+     * この声優を初めて見た日時 (同一性)。`created_at` と違い、行を作り直しても引き継ぐ。
+     * 既存の行には `created_at` が写してある。NOT NULL にしていない理由は `anilist_staff_id` と同じ
+     */
+    firstSeenAt: text("first_seen_at"),
+    // 出演を最後に確認したシーズン。窓から外れたことの記録であって、対象から外す条件ではない
+    lastSeenSeason: text("last_seen_season"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (t) => [uniqueIndex("voice_actors_slug_unique").on(t.slug)],
+  (t) => [
+    uniqueIndex("voice_actors_slug_unique").on(t.slug),
+    uniqueIndex("voice_actors_anilist_staff_id_unique").on(t.anilistStaffId),
+  ],
+);
+
+/**
+ * 声優の付加情報。声優 × 属性 × 出どころ で 1 行。
+ *
+ * 同じ属性に出どころが複数あれば行が複数ある。どの出どころも自分の行だけを書くので、
+ * 取り込みが訂正を消したり、訂正が取得値を消したりする経路が無い。
+ * 表に出す値は読み取り側が属性ごとの優先順位で 1 つ選ぶ (優先順位は DB ではなくコードが持つ)
+ */
+export const voiceActorAttributes = sqliteTable(
+  "voice_actor_attributes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    voiceActorId: text("voice_actor_id")
+      .notNull()
+      .references(() => voiceActors.id),
+    attribute: text("attribute", { enum: VOICE_ACTOR_ATTRIBUTES }).notNull(),
+    source: text("source", { enum: ATTRIBUTE_SOURCES }).notNull(),
+    value: text("value").notNull(),
+    recordedAt: text("recorded_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("voice_actor_attributes_actor_attribute_source_unique").on(
+      t.voiceActorId,
+      t.attribute,
+      t.source,
+    ),
+  ],
 );
 
 export const voiceActorAliases = sqliteTable(
