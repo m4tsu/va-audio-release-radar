@@ -95,9 +95,12 @@ export type VoiceActorAttribute = "nameKana" | "nameEn" | "visibility";
 
 /**
  * 付加情報の出どころ。`editorial` は人が書いた訂正で、他は取得元のサイト。
- * どの出どころも自分の行だけを書き、他の出どころの行を消したり上書きしたりしない
+ * どの出どころも自分の行だけを書き、他の出どころの行を消したり上書きしたりしない。
+ *
+ * AniList はここに並ばない。供給元が 1 つに決まる値 (表記・性別・画像) は
+ * `voice_actors` の列に写すので、付加情報の行にはならない
  */
-export type AttributeSource = "editorial" | "wikipedia" | "wikidata" | "anilist";
+export type AttributeSource = "editorial" | "wikipedia" | "wikidata";
 
 export type AudioWork = {
   id: string; // "{storeSlug}:{storeProductId}" (MVP ではストア横断マージをしない)
@@ -364,7 +367,6 @@ export const ATTRIBUTE_SOURCES = [
   "editorial",
   "wikipedia",
   "wikidata",
-  "anilist",
 ] as const satisfies readonly AttributeSource[];
 
 /**

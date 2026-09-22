@@ -49,16 +49,11 @@ describe("かなの優先順位", () => {
     expect((await getActorBySlug(db, UEDA.slug))?.nameKana).toBe("うえだれいな (項目)");
   });
 
-  it("付加情報の行が無ければ、旧列に値があっても表に出ない", async () => {
+  it("付加情報の行が無ければ、かなは出ない (他に置き場が無い)", async () => {
     const db = await dbWithUeda();
-    // 旧列は移し替え前のデータが残っている状態を作る。読み取り側はここを見ない
-    await db
-      .update(voiceActors)
-      .set({ nameKana: "きゅうれつのよみ" })
-      .where(eq(voiceActors.id, UEDA.id));
 
     expect((await getActorBySlug(db, UEDA.slug))?.nameKana).toBeUndefined();
-    expect(await searchActors(db, "きゅうれつのよみ")).toEqual([]);
+    expect(await searchActors(db, "うえだれいな")).toEqual([]);
   });
 
   it("一覧にも同じ値が出る", async () => {

@@ -41,7 +41,8 @@ const CRAWL_RUN_STATUSES = ["ok", "error"] as const;
  * (`canonical_name` / `name_en` / `gender` / `image_url` / `last_seen_season_*`) が同居する。
  * 同一性の列は作られた後に変えない (`upsertActors` の ON CONFLICT はこれらを SET に含めない)。
  * 供給元の写しは取り込みのたびに AniList の値で上書きする。
- * `name_kana` と `status` は付加情報だが列として残っている。読み取り側 (`queries/actors.ts`) がこの列を読むため
+ * `name_en` は「AniList がそう言っている」という事実で、人の訂正は付加情報の行として別に乗る
+ * (読むときの順位は `queries/actor-attributes.ts`)。`status` は付加情報だが、まだ列のまま読んでいる
  */
 export const voiceActors = sqliteTable(
   "voice_actors",
@@ -50,8 +51,10 @@ export const voiceActors = sqliteTable(
     id: text("id").primaryKey(),
     slug: text("slug").notNull(),
     canonicalName: text("canonical_name").notNull(),
-    nameKana: text("name_kana"),
-    // 英語名 ("Reina Ueda")。slug ("ueda-reina") からは姓名の順も大文字も戻せないので列で持つ
+    /**
+     * 英語名 ("Reina Ueda")。slug ("ueda-reina") からは姓名の順も大文字も戻せないので列で持つ。
+     * かなに同じ列が無いのは、AniList がかなを持たないため (出どころが付加情報の表にしかない)
+     */
     nameEn: text("name_en"),
     /**
      * 声優を一意に指す鍵 (同一性)。名前は表記が変わりうるので鍵にしない。

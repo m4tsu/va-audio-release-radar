@@ -1,0 +1,1 @@
+ALTER TABLE `voice_actors` DROP COLUMN `name_kana`;
