@@ -36,25 +36,40 @@ describe("kanaClaims", () => {
   });
 
   it("取り下げられた主張は読まない", () => {
-    expect(kanaClaims(deprecatedOnly)).toEqual([]);
+    expect(kanaClaims(ranked("wb-deprecated", "wb-deprecated"))).toEqual([]);
+  });
+
+  it("優先の主張があれば、並びが後ろでもそちらだけを読む", () => {
+    // 改名した人は旧名の読みも主張として残る。並び順で選ぶと旧名を採ることがある
+    expect(kanaClaims(ranked("wb-normal", "wb-preferred"))).toEqual(["あたらしいよみ"]);
+  });
+
+  it("順位が付いていなければ書かれている順に返す", () => {
+    expect(kanaClaims(ranked("wb-normal", "wb-normal"))).toEqual(["ふるいよみ", "あたらしいよみ"]);
   });
 });
 
-/** 取り下げ済み (`wb-deprecated`) の主張しか持たない項目。実物の markup を 1 件ぶんに削ったもの */
-const deprecatedOnly = `<!DOCTYPE html><html><body>
-<div class="wikibase-statementgroupview" id="P1814" data-property-id="P1814">
-<div class="wikibase-statementlistview">
-<div class="wikibase-statementlistview-listview">
-<div id="Q1$a" class="wikibase-statementview wb-deprecated">
+/** P1814 を 2 件持つ項目。実物の markup を値と順位だけ変えて 2 件ぶんに削ったもの */
+function ranked(firstRank: string, secondRank: string): string {
+  const statement = (rank: string, value: string) => `
+<div id="Q1$${value}" class="wikibase-statementview ${rank}">
 <div class="wikibase-statementview-mainsnak-container">
 <div class="wikibase-statementview-mainsnak" dir="auto"><div class="wikibase-snakview">
 <div class="wikibase-snakview-value-container" dir="auto"><div class="wikibase-snakview-body">
-<div class="wikibase-snakview-value wikibase-snakview-variation-valuesnak">まちがったよみ</div>
+<div class="wikibase-snakview-value wikibase-snakview-variation-valuesnak">${value}</div>
 </div></div>
 </div></div>
 </div>
-</div>
+<div class="wikibase-statementview-qualifiers"></div>
+</div>`;
+  return `<!DOCTYPE html><html><body>
+<div class="wikibase-statementgroupview" id="P1814" data-property-id="P1814">
+<div class="wikibase-statementlistview">
+<div class="wikibase-statementlistview-listview">
+${statement(firstRank, "ふるいよみ")}
+${statement(secondRank, "あたらしいよみ")}
 </div>
 </div>
 </div>
 </body></html>`;
+}

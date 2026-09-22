@@ -177,6 +177,15 @@ describe("refillActorKana", () => {
     });
   });
 
+  it("記事が無くなっていたら、失敗ではなく記事が無いとして残す", async () => {
+    // 失敗にすると、記事が消えた人が並んだだけで連続失敗の打ち切りに当たる
+    fetchTextMock.mockResolvedValueOnce(ng(404));
+    await expect(refillActorKana(target(), {})).resolves.toMatchObject({
+      status: "not-found",
+      httpStatus: 404,
+    });
+  });
+
   it("Wikidata を引けなければ失敗として残す", async () => {
     fetchTextMock
       .mockResolvedValueOnce(ok(article("yamaji-kazuhiro").replace("（やまじ かずひろ、", "（")))
@@ -213,16 +222,35 @@ describe("refillActorKanaAll", () => {
     expect(written.records[0]).toMatchObject({ status: "ok", source: "lead" });
   });
 
-  it("429 はその場で止める", async () => {
+  it("429 はその場で止め、引けなかった人を対象のまま残す", async () => {
     fetchTextMock.mockResolvedValue(ng(429));
     const cache = cacheOf([target(), target({ canonicalName: "麦人", title: "麦人" })]);
+    const file = await outFile();
     const { stop, done } = await refillActorKanaAll({
+      targets: refillTargets(cache.records),
+      cache,
+      outFile: file,
+    });
+    expect(stop?.kind).toBe("rate-limited");
+    expect(done).toHaveLength(1);
+    // 止めた原因の人こそ引き直したいので、行を書き換えて対象から外さない
+    expect(refillTargets(cache.records).map((record) => record.canonicalName)).toEqual([
+      "山路和弘",
+      "麦人",
+    ]);
+    await expect(readFile(file, "utf8")).rejects.toThrow(/ENOENT/);
+  });
+
+  it("記事が無くなっていた人は対象から外す", async () => {
+    fetchTextMock.mockResolvedValue(ng(404));
+    const cache = cacheOf([target()]);
+    const { stop } = await refillActorKanaAll({
       targets: refillTargets(cache.records),
       cache,
       outFile: await outFile(),
     });
-    expect(stop?.kind).toBe("rate-limited");
-    expect(done).toHaveLength(1);
+    expect(stop).toBeUndefined();
+    expect(refillTargets(cache.records)).toEqual([]);
   });
 
   it("例外が出た人も失敗として記録し、次の人へ進む", async () => {
@@ -252,6 +280,7 @@ describe("summarizeRefill", () => {
     ).toEqual({
       total: 5,
       ok: 3,
+      failed: 1,
       bySource: { lead: 2, wikidata: 1 },
       byReason: { [REFILLED_NO_KANA_REASON]: 1, "HTTP 503": 1 },
     });

@@ -30,7 +30,8 @@ import { type StopReason, stopReasonFor } from "./wikipedia-kana.ts";
  *
  * 結果は `wikipedia-kana.ts` と同じ `crawler/.cache/discovery/wikipedia-kana.json` の
  * 同じ人の行を書き換える。読みが取れなかった人の理由は「読みが書かれていない」と別の文字列にするので、
- * もう一度実行しても同じ人を引き直さない。
+ * もう一度実行しても同じ人を引き直さない。引けなかった人の行は書き換えないので、
+ * もう一度実行すればその人から引き直す。
  *
  * サイトの制約 (robots.txt・UA・使ってよい URL) は `docs/stores/wikimedia.md`
  */
@@ -38,6 +39,7 @@ import { type StopReason, stopReasonFor } from "./wikipedia-kana.ts";
 const STORE = "wikimedia";
 /** 何人ごとに進捗を出すか */
 const PROGRESS_EVERY = 10;
+const NOT_FOUND = 404;
 
 /** 引き直す対象。`wikipedia-kana.ts` がこの理由で残した人だけを引く */
 export const NO_KANA_REASON = describeKanaRejection("no-kana");
@@ -128,6 +130,18 @@ export async function refillActorKana(
     snapshot: options.snapshot,
   });
   if (!article.ok) {
+    // 404 は「その記事はもう無い」という答えであって、こちらの取得の失敗ではない。
+    // 失敗として残すと、記事が消えた人が並んだだけで連続失敗の打ち切りに当たる
+    if (article.status === NOT_FOUND) {
+      return {
+        canonicalName,
+        status: "not-found",
+        title,
+        httpStatus: NOT_FOUND,
+        reason: `引き直す記事が無くなった (${article.reason})`,
+        fetchedAt: new Date().toISOString(),
+      };
+    }
     return failureRecord(
       { canonicalName, status: "failed", title, fetchedAt: new Date().toISOString() },
       article,
@@ -223,8 +237,12 @@ export async function refillActorKanaAll(options: {
     const record = await refillActorKana(target, { snapshot: options.snapshot }).catch(
       (error: unknown) => errorRecord(target, error),
     );
-    replaceRecord(options.cache, record);
-    await writeJsonAtomic(options.outFile, options.cache);
+    // 失敗は答えではないので、前回の行 (引き直しの対象) をそのまま残す。
+    // 書き換えると対象から外れ、もう一度実行しても引き直されない
+    if (record.status !== "failed") {
+      replaceRecord(options.cache, record);
+      await writeJsonAtomic(options.outFile, options.cache);
+    }
     done.push(record);
     options.onProgress?.(done, options.targets.length);
 
@@ -240,12 +258,15 @@ export async function refillActorKanaAll(options: {
 export function summarizeRefill(records: readonly ActorKanaRecord[]): {
   total: number;
   ok: number;
+  /** 引けずに次の実行へ持ち越した人。結果は書き換えていない */
+  failed: number;
   bySource: Record<string, number>;
   byReason: Record<string, number>;
 } {
   const bySource: Record<string, number> = {};
   const byReason: Record<string, number> = {};
   let ok = 0;
+  let failed = 0;
   for (const record of records) {
     if (record.status === "ok") {
       ok += 1;
@@ -253,10 +274,11 @@ export function summarizeRefill(records: readonly ActorKanaRecord[]): {
       bySource[source] = (bySource[source] ?? 0) + 1;
       continue;
     }
+    if (record.status === "failed") failed += 1;
     const reason = record.reason ?? "unknown";
     byReason[reason] = (byReason[reason] ?? 0) + 1;
   }
-  return { total: records.length, ok, bySource, byReason };
+  return { total: records.length, ok, failed, bySource, byReason };
 }
 
 // --- CLI -------------------------------------------------------------------
@@ -349,6 +371,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   process.stdout.write(`引き直した: ${summary.total} 人\n`);
   process.stdout.write(`  かなが取れた: ${summary.ok} ${JSON.stringify(summary.bySource)}\n`);
   process.stdout.write(`  取れなかった: ${summary.total - summary.ok}\n`);
+  process.stdout.write(`  うち引けずに次へ持ち越した: ${summary.failed}\n`);
   process.stdout.write(`  理由の内訳: ${JSON.stringify(summary.byReason)}\n`);
   process.stdout.write(`  所要: ${formatDuration(Date.now() - startedAt)}\n`);
 

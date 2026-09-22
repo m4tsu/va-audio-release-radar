@@ -23,28 +23,33 @@ export function isEntityId(value: string): boolean {
 }
 
 /**
- * 単独の主張として置かれた P1814 の値を、書かれている順に返す。
+ * 単独の主張として置かれた P1814 の値を、読んでよい順に返す。
  *
  * **限定子の P1814 は返さない。** P1814 は P1559 (name in native language) や
  * P2562 (married name) の限定子としても付いており、P2562 は結婚後の姓なので
  * 無差別に拾うと別の読みが入る (`docs/research/actor-kana-sources-2026-09-20.md` の「Wikidata」)。
- * 限定子は別のプロパティの `.wikibase-statementview-qualifiers` の中に入るので、
- * P1814 の主張群の main snak だけを辿ることで外れる。
- * 取り下げられた主張 (`wb-deprecated`) は、編集者が誤りと印を付けたものなので読まない
+ * 限定子は `.wikibase-statementview-qualifiers` の中の snak として置かれ、
+ * `.wikibase-statementview-mainsnak-container` を持たないので、main snak だけを見ることで外れる。
+ * 入れ子の深さでは絞らない。主張の並びを包む div が増えても値を取り落とさないため。
+ *
+ * 順位は Wikibase の意味づけに従う。取り下げられた主張 (`wb-deprecated`) は編集者が
+ * 誤りと印を付けたものなので読まず、優先 (`wb-preferred`) が 1 つでもあれば優先だけを読む。
+ * 改名した人は旧名の読みも主張として残るので、並び順だけで選ぶと旧名を採ることがある
  */
 export function kanaClaims(html: string): string[] {
   const $ = cheerio.load(html);
-  const values: string[] = [];
   const statements = $(`.wikibase-statementgroupview[data-property-id="${NAME_IN_KANA}"]`)
-    .children(".wikibase-statementlistview")
-    .children(".wikibase-statementlistview-listview")
-    .children(".wikibase-statementview");
-  for (const statement of statements.toArray()) {
-    if ($(statement).hasClass("wb-deprecated")) continue;
+    .find(".wikibase-statementview")
+    .toArray()
+    .filter((statement) => !$(statement).hasClass("wb-deprecated"));
+  const preferred = statements.filter((statement) => $(statement).hasClass("wb-preferred"));
+  const values: string[] = [];
+  for (const statement of preferred.length > 0 ? preferred : statements) {
     const value = $(statement)
-      .children(".wikibase-statementview-mainsnak-container")
       // 値の無い主張 (somevalue / novalue) は別の variation クラスになるので当たらない
-      .find(".wikibase-snakview-value.wikibase-snakview-variation-valuesnak")
+      .find(
+        ".wikibase-statementview-mainsnak-container .wikibase-snakview-value.wikibase-snakview-variation-valuesnak",
+      )
       .first()
       .text()
       .trim();
