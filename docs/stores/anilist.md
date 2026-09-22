@@ -4,7 +4,7 @@
 更新: robots.txt・レート制限・利用規約を取り直したら (差分が無くても最終確認日を更新する)
 削除: AniList を対象声優の供給元から外したら
 
-実装: `crawler/discovery/anilist.ts` / `build-actors.ts` / `actor-entity.ts` / `cli.ts`
+実装: `crawler/discovery/` の `anilist.ts` / `anilist-gender.ts` / `fill-actor-gender.ts` / `build-actors.ts`
 共通の原則は [`README.md`](./README.md)。
 
 **ストアではない。** 対象声優の供給元であり、ここから作品は取らない。
@@ -135,11 +135,22 @@ query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
 対象は直近 12 シーズン (2024 WINTER 〜 2026 FALL)。作品数・人数は測定値で、
 出典は §8 の発見スパイクノート。
 
-### staff id の照会 (調査用。`crawler/cli.ts`)
+### staff id から性別だけを引く (`crawler/discovery/anilist-gender.ts`)
 
 ```graphql
-{ Staff(search: "上田麗奈") { id name { full native } } }
+query ($ids: [Int]) {
+  Page(page: 1, perPage: 50) {
+    staff(id_in: $ids) { id name { native full } gender }
+  }
+}
 ```
+
+対象は**対象声優リストと staff 集計にいる、性別が付いていない声優だけ**。
+シーズンのクエリは窓に入った作品の出演者しか通らないので、窓から外れた声優には性別が届かない。
+staff id で直接引くこの経路がそれを埋める。**引いても性別が付かない人は残る**
+(AniList 側が `gender` を持たない声優が居る。下の「既知の落とし穴」)。
+1 リクエストにまとめる id の数は `perPage` と揃える (返る件数が `perPage` で頭打ちになるため)。
+引いた値を対象声優リストへ入れるのは `fill-actor-gender.ts`。
 
 ---
 
@@ -164,7 +175,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 | 日本語表記の名前 | ○ | `name.native` → `canonicalName`。**ストアとの突き合わせに使う唯一の鍵** |
 | ローマ字表記 | ○ | `name.full` ("Reina Ueda") → `slug` の元、英語表示に出す名前 |
 | 声優の画像 | ○ | `image.medium` |
-| 性別 | ○ | `gender`。**自由記述の文字列で、利用者が編集できる。** 実応答は `Female` / `Male` / `Non-binary` / null の 4 通りだった (2026-09-21、[`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md))。そのまま保存せず列挙に写す |
+| 性別 | ○ | `gender`。**自由記述の文字列で、利用者が編集できる。** 実応答は `Female` / `Male` / `Non-binary` / null の 4 通りだった (2026-09-21、[`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md))。そのまま保存せず列挙に写す。作品からも staff id からも引ける |
 | 作品 (アニメ) | ○ | `media.id` / `title.{native,romaji,english}` / `coverImage.large` |
 | 表紙の代表色 | ○ | `coverImage.color` ("#e4a128") |
 | 別名タイトル | ○ | `synonyms`。**空配列のことがある** (2026-09-20 の実応答で、上位 3 件中 1 件) |
@@ -199,7 +210,9 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 - **3 語以上**「ブリドカット・セーラ・恵美」= Sarah Emi Bridcutt は最後の語を姓、
   残りを名として前から並べる
 - **性別を返さない声優が居る** (2026-09-21 の実測で対象 2,512 人中 162 人)。
-  返さないことと「女性でも男性でもない」ことは別なので、同じ値に畳まない
+  返さないことと「女性でも男性でもない」ことは別なので、同じ値に畳まない。
+  staff id で直接引いても同じで、**「問い合わせたが AniList が値を持たない」人は必ず残る**。
+  減らせるのは「まだ問い合わせていない」人だけなので、`anilist-gender.ts` は両者を別の状態で記録する
 - **`roleCount` (アニメでの役の多さ) と音声作品数はほぼ無相関** (スピアマン −0.047)。
   主役級ほど音声作品が多い、ということはない。対象の絞り込みに役の多さを使わない
 - 対象声優の大半は音声作品を出していない。DB には全員入れるが、作品 0 件の声優の

@@ -168,6 +168,21 @@ Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid 
 対象声優リストは AniList から生成した `crawler/actors.generated.json`。生成は `crawler/discovery/build-actors.ts`、
 手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
 かなは日本語版 Wikipedia からも取る (`crawler/discovery/wikipedia-kana.ts`)。
+性別は作品から取るほかに、声優の staff id からも引く (`crawler/discovery/anilist-gender.ts`)。
+シーズンの窓から外れて作品から取れなかった声優に届くのはこちらだけで、
+引いた値は**リストを作り直さずに、今あるリストの該当行へ書き入れる**
+(`crawler/discovery/fill-actor-gender.ts`)。作り直すと窓から外れた声優がリストごと消えるため。
+
+```bash
+# かなを引く (途中で止めても続きから再開する)
+node crawler/discovery/wikipedia-kana.ts --limit 100
+
+# 性別が付いていない声優の staff id を AniList に投げる
+node crawler/discovery/anilist-gender.ts
+
+# 取得した性別を今あるリストに書き入れる (--dry-run で人数だけ見られる)
+node crawler/discovery/fill-actor-gender.ts
+```
 
 ```bash
 # かなを取る (全員。数時間かかるので --limit で区切って重ねる)
