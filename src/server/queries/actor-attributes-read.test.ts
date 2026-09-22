@@ -53,7 +53,25 @@ describe("かなの優先順位", () => {
     const db = await dbWithUeda();
 
     expect((await getActorBySlug(db, UEDA.slug))?.nameKana).toBeUndefined();
-    expect(await searchActors(db, "うえだれいな")).toEqual([]);
+  });
+
+  it("順位に並べていない出どころの行は選ばない", async () => {
+    const db = await dbWithUeda();
+    // 表示用ローマ字の順位は 編集 だけ。かなの出どころで書いても、ローマ字としては出さない
+    await writeActorAttributes(
+      db,
+      [
+        {
+          voiceActorId: UEDA.id,
+          attribute: "nameEn",
+          source: "wikipedia",
+          value: "Wrong Romaji",
+        },
+      ],
+      NOW,
+    );
+
+    expect((await getActorBySlug(db, UEDA.slug))?.nameEn).toBeUndefined();
   });
 
   it("一覧にも同じ値が出る", async () => {

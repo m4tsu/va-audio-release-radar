@@ -13,19 +13,31 @@
 -- デルタは名前順ではアルファより後ろだが作品数はいちばん多い。
 -- 一覧の「作品数の多い順」が名前順と違う並びになることの確認用
 -- ベータの name_en は NULL。ローマ字を持たない声優が英語表示でも漢字表記のまま出ることの確認用
+-- イプシロンはかなも持たない。かなの無い声優の画面を確かめるため
 INSERT OR REPLACE INTO voice_actors
-  (id, slug, canonical_name, name_kana, name_en, anilist_staff_id, image_url, status, first_seen_at, created_at, updated_at)
+  (id, slug, canonical_name, name_en, anilist_staff_id, image_url, status, first_seen_at, created_at, updated_at)
 VALUES
-  ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'てすとせいゆうあるふぁ', 'E2E Actor Alpha', 900001, NULL, 'active',
+  ('va_e2e-alpha', 'e2e-alpha', 'テスト声優アルファ', 'E2E Actor Alpha', 900001, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', 'てすとせいゆうべーた', NULL, 900002, NULL, 'active',
+  ('va_e2e-beta', 'e2e-beta', 'テスト声優ベータ', NULL, 900002, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'てすとせいゆうがんま', 'E2E Actor Gamma', 900003, NULL, 'active',
+  ('va_e2e-gamma', 'e2e-gamma', 'テスト声優ガンマ', 'E2E Actor Gamma', 900003, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'てすとせいゆうでるた', 'E2E Actor Delta', 900004, NULL, 'active',
+  ('va_e2e-delta', 'e2e-delta', 'テスト声優デルタ', 'E2E Actor Delta', 900004, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('va_e2e-epsilon', 'e2e-epsilon', 'テスト声優イプシロン', 'てすとせいゆういぷしろん', 'E2E Actor Epsilon', 900005, NULL, 'active',
+  ('va_e2e-epsilon', 'e2e-epsilon', 'テスト声優イプシロン', NULL, 900005, NULL, 'active',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+-- かなは列ではなく付加情報の表に入れる。出どころを分けるのは、取得した値と手で書いた値が
+-- 互いを消さないため (docs/architecture.md の「データの不変条件」)。
+-- イプシロンにはかなを入れない (かなを持たない声優の画面を確かめるため)
+INSERT OR REPLACE INTO voice_actor_attributes
+  (voice_actor_id, attribute, source, value, recorded_at)
+VALUES
+  ('va_e2e-alpha', 'nameKana', 'wikipedia', 'てすとせいゆうあるふぁ', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-beta', 'nameKana', 'wikipedia', 'てすとせいゆうべーた', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-gamma', 'nameKana', 'wikipedia', 'てすとせいゆうがんま', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('va_e2e-delta', 'nameKana', 'editorial', 'てすとせいゆうでるた', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO voice_actor_aliases (id, voice_actor_id, name, source, verified)
 VALUES (9000001, 'va_e2e-alpha', 'テスト 声優アルファ', 'manual', 1);

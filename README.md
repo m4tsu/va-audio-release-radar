@@ -145,17 +145,18 @@ npm run db:counts -- --remote
 | 取得したかな (手で書いた人を除く) | 付加情報の表に出どころ `wikipedia` | 1,806 |
 | 性別 | `voice_actors.gender` が「不明」の行にだけ | 最大 2,400 件を照合し、不明だったぶんだけ入る |
 
-適用の前後で数を照合する。かなの合計は旧列 `name_kana` の件数と一致し、性別の「不明」は減る。
+適用の前後で数を照合する。かなの行が増え、性別の「不明」が減る。
 
 ```bash
 npx wrangler d1 execute DB --remote --command \
-  "select count(name_kana) kana, sum(gender = 'unknown') unknown from voice_actors"
+  "select source, count(*) n from voice_actor_attributes where attribute = 'nameKana' group by source"
 npx wrangler d1 execute DB --remote --command \
-  "select source, count(*) n from voice_actor_attributes group by source"
+  "select sum(gender = 'unknown') unknown from voice_actors"
 ```
 
-手元で適用したときは、かな 1,841 件 (編集 35 + Wikipedia 1,806) が旧列の件数と一致し、
-性別の「不明」が 330 件から 169 件に減った。旧列 `name_kana` は読み取り側を切り替えるまで残す。
+手元で適用したときは、かなが 1,841 件 (編集 35 + Wikipedia 1,806) 入り、性別の「不明」が
+330 件から 169 件に減った。かなの旧列はこの後の `0017` で消えるので、
+`0016` と `0017` は続けて適用してよい (`0016` が旧列を読み終えてから `0017` が消す)。
 
 ### プランの確認
 
