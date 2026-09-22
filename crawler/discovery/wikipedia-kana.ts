@@ -22,7 +22,8 @@ import {
 /**
  * 日本語版 Wikipedia から対象声優のかなを取る (取得だけ。DB には書かない)。
  *
- *   node crawler/discovery/wikipedia-kana.ts --limit 20
+ *   INGEST_TOKEN=dev node crawler/discovery/wikipedia-kana.ts \
+ *     --base-url http://localhost:5199 --limit 20
  *
  * 1 人につき `/wiki/<名前>` を引き、取れなければ `/wiki/<名前>_(声優)` で引き直す。
  * 5 秒間隔なので全員だと数時間かかる。既定で前回の続きから進み、取得済みの人は引き直さない。
@@ -31,7 +32,9 @@ import {
  * サイトの制約 (robots.txt・UA・使ってよい URL) は `docs/stores/wikimedia.md`、
  * 取ってよい記事の条件は `docs/research/actor-kana-sources-2026-09-20.md`。
  * 対象は台帳 (`GET /api/admin/actors`) から引く。結果は
- * `crawler/.cache/discovery/wikipedia-kana.json` に置く
+ * `crawler/.cache/discovery/wikipedia-kana.json` に置くだけで、台帳には入れない。
+ * 入れるのは `write-actor-kana.ts` (取得と送信を分けるのは、数時間の取得が途中で止まっても
+ * 取れたぶんを送れるようにするため)
  */
 
 const STORE = "wikimedia";

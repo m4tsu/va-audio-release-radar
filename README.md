@@ -203,9 +203,17 @@ INGEST_TOKEN=dev node crawler/discovery/wikipedia-kana.ts \
 node crawler/discovery/wikipedia-kana-refill.ts
 ```
 
-どちらも `crawler/.cache/discovery/wikipedia-kana.json` に書く。引いた人は理由付きで残るので、
-もう一度実行しても同じ人を引き直さない。外部サイトの制約は
+どちらも `crawler/.cache/discovery/wikipedia-kana.json` に書くだけで、台帳には入らない。
+引いた人は理由付きで残るので、もう一度実行しても同じ人を引き直さない。外部サイトの制約は
 [`docs/stores/wikimedia.md`](./docs/stores/wikimedia.md)。
+
+取れたぶんを台帳へ送る。取得と送信を分けてあるのは、数時間の取得が途中で止まっても
+取れたぶんを送れるようにするため。出どころ付きの行を書くので、人が書いた訂正を上書きしない。
+
+```bash
+INGEST_TOKEN=dev node crawler/discovery/write-actor-kana.ts \
+  --base-url http://localhost:5199   # --dry-run で件数だけ見られる
+```
 
 ポケドラは名前で検索できない (声優はタグで、一覧の URL に `tag_id` が要る) ので、声優タグ辞書
 `crawler/pokedora-tags.generated.json` を経由して引く。辞書に無い声優はポケドラを引かない。

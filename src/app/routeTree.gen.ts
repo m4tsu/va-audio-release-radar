@@ -31,7 +31,6 @@ import { Route as AnimeSeasonSeasonRouteImport } from './routes/anime.season.$se
 import { Route as ApiAdminActorAttributesRouteImport } from './routes/api/admin/actor-attributes'
 import { Route as ApiAdminActorsRouteImport } from './routes/api/admin/actors'
 import { Route as ApiAdminAnilistRouteImport } from './routes/api/admin/anilist'
-import { Route as ApiAdminAnimeRouteImport } from './routes/api/admin/anime'
 import { Route as ApiAdminIngestRouteImport } from './routes/api/admin/ingest'
 import { Route as ApiAdminKnownIdsRouteImport } from './routes/api/admin/known-ids'
 import { Route as ApiAdminPushDigestRouteImport } from './routes/api/admin/push-digest'
@@ -146,11 +145,6 @@ const ApiAdminAnilistRoute = ApiAdminAnilistRouteImport.update({
   path: '/api/admin/anilist',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAdminAnimeRoute = ApiAdminAnimeRouteImport.update({
-  id: '/api/admin/anime',
-  path: '/api/admin/anime',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAdminIngestRoute = ApiAdminIngestRouteImport.update({
   id: '/api/admin/ingest',
   path: '/api/admin/ingest',
@@ -190,7 +184,6 @@ export interface FileRoutesByFullPath {
   '/api/admin/actor-attributes': typeof ApiAdminActorAttributesRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
   '/api/admin/anilist': typeof ApiAdminAnilistRoute
-  '/api/admin/anime': typeof ApiAdminAnimeRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
   '/api/admin/push-digest': typeof ApiAdminPushDigestRoute
@@ -218,7 +211,6 @@ export interface FileRoutesByTo {
   '/api/admin/actor-attributes': typeof ApiAdminActorAttributesRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
   '/api/admin/anilist': typeof ApiAdminAnilistRoute
-  '/api/admin/anime': typeof ApiAdminAnimeRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
   '/api/admin/push-digest': typeof ApiAdminPushDigestRoute
@@ -247,7 +239,6 @@ export interface FileRoutesById {
   '/api/admin/actor-attributes': typeof ApiAdminActorAttributesRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
   '/api/admin/anilist': typeof ApiAdminAnilistRoute
-  '/api/admin/anime': typeof ApiAdminAnimeRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
   '/api/admin/push-digest': typeof ApiAdminPushDigestRoute
@@ -277,7 +268,6 @@ export interface FileRouteTypes {
     | '/api/admin/actor-attributes'
     | '/api/admin/actors'
     | '/api/admin/anilist'
-    | '/api/admin/anime'
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
     | '/api/admin/push-digest'
@@ -305,7 +295,6 @@ export interface FileRouteTypes {
     | '/api/admin/actor-attributes'
     | '/api/admin/actors'
     | '/api/admin/anilist'
-    | '/api/admin/anime'
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
     | '/api/admin/push-digest'
@@ -333,7 +322,6 @@ export interface FileRouteTypes {
     | '/api/admin/actor-attributes'
     | '/api/admin/actors'
     | '/api/admin/anilist'
-    | '/api/admin/anime'
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
     | '/api/admin/push-digest'
@@ -362,7 +350,6 @@ export interface RootRouteChildren {
   ApiAdminActorAttributesRoute: typeof ApiAdminActorAttributesRoute
   ApiAdminActorsRoute: typeof ApiAdminActorsRoute
   ApiAdminAnilistRoute: typeof ApiAdminAnilistRoute
-  ApiAdminAnimeRoute: typeof ApiAdminAnimeRoute
   ApiAdminIngestRoute: typeof ApiAdminIngestRoute
   ApiAdminKnownIdsRoute: typeof ApiAdminKnownIdsRoute
   ApiAdminPushDigestRoute: typeof ApiAdminPushDigestRoute
@@ -524,13 +511,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminAnilistRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/admin/anime': {
-      id: '/api/admin/anime'
-      path: '/api/admin/anime'
-      fullPath: '/api/admin/anime'
-      preLoaderRoute: typeof ApiAdminAnimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/admin/ingest': {
       id: '/api/admin/ingest'
       path: '/api/admin/ingest'
@@ -578,7 +558,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminActorAttributesRoute: ApiAdminActorAttributesRoute,
   ApiAdminActorsRoute: ApiAdminActorsRoute,
   ApiAdminAnilistRoute: ApiAdminAnilistRoute,
-  ApiAdminAnimeRoute: ApiAdminAnimeRoute,
   ApiAdminIngestRoute: ApiAdminIngestRoute,
   ApiAdminKnownIdsRoute: ApiAdminKnownIdsRoute,
   ApiAdminPushDigestRoute: ApiAdminPushDigestRoute,

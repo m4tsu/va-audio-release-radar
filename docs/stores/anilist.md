@@ -311,7 +311,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   12 シーズン 1,176 作品から 2,569 人、DLsite との交差 57 人、`roleCount` の無相関、
   AniList へのリクエストは通し実行で 24 件
 - [`docs/decisions/0001-target-actors-from-anilist.md`](../decisions/0001-target-actors-from-anilist.md) — 対象声優の定義
-- `crawler/discovery/actor-entity.ts` — slug の生成規則と除外条件
+- `src/domain/actor-slug.ts` — slug の生成規則と、衝突したときの決め方
 - <https://anilist.co/robots.txt> / <https://graphql.anilist.co/robots.txt> — 2026-09-19 確認 (§1)
 - <https://docs.anilist.co/guide/rate-limiting> — 2026-09-19 確認 (§2)
 - <https://docs.anilist.co/guide/terms-of-use> — 2026-09-19 確認 (§6)
