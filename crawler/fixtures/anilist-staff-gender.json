@@ -1,0 +1,38 @@
+{
+  "data": {
+    "Page": {
+      "staff": [
+        {
+          "id": 95002,
+          "name": { "native": "杉田智和", "full": "Tomokazu Sugita" },
+          "gender": "Male"
+        },
+        {
+          "id": 119724,
+          "name": { "native": "手塚ヒロミチ", "full": "Hiromichi Tezuka" },
+          "gender": null
+        },
+        {
+          "id": 120263,
+          "name": { "native": "濱野大輝", "full": "Daiki Hamano" },
+          "gender": null
+        },
+        {
+          "id": 123613,
+          "name": { "native": "小松昌平", "full": "Shouhei Komatsu" },
+          "gender": null
+        },
+        {
+          "id": 162831,
+          "name": { "native": "所河ひとみ", "full": "Hitomi Shogawa" },
+          "gender": null
+        },
+        {
+          "id": 191128,
+          "name": { "native": "江頭宏哉", "full": "Hiroya Egashira" },
+          "gender": null
+        }
+      ]
+    }
+  }
+}
