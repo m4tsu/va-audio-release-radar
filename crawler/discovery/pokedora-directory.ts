@@ -17,7 +17,7 @@ import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
  */
 
 const DISCOVERY_DIR = path.join(CACHE_DIR, "discovery");
-/** 声優タグ辞書 (生成物)。`actors.generated.json` と同じく git に入れて配る */
+/** 声優タグ辞書 (生成物)。ポケドラは名前で引けないので、タグ id の対応だけを配る */
 export const TAGS_GENERATED_JSON = path.join(CRAWLER_DIR, "pokedora-tags.generated.json");
 /** クロール中に見えた (tag_id, 表記) の蓄積先 */
 export const ACTOR_REFS_JSON = path.join(DISCOVERY_DIR, "pokedora-actor-refs.json");

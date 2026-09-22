@@ -416,7 +416,7 @@ type AniListPhaseResult = {
   seasons: SeasonKey[];
   mediaCount: number;
   mediaCountBySeason: Record<string, number>;
-  /** 作品そのもの。アニメ導線の生成 (build-anime.ts) が使う */
+  /** 作品そのもの。集計後にタイトルを捨てないために持つ */
   media: SeasonMedia[];
   /** 取得に使ったクエリの指紋。取得項目を変えたら中間結果も作り直す */
   queryFingerprint: string;

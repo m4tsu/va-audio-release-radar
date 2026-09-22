@@ -6,7 +6,7 @@ import { CACHE_DIR } from "../lib/paths.ts";
  * 取得した声優のかなの置き場所。
  *
  * 取得そのものは `wikipedia-kana.ts`、記事 HTML の解析は `wikipedia-article.ts`、
- * かなの文字列の形は `kana-text.ts`。対象声優リストを作る `build-actors.ts` はここだけを見るので、
+ * かなの文字列の形は `kana-text.ts`。台帳に入れる側はここだけを見るので、
  * 生成の側に取得の依存 (fetch / HTML 解析) が入らない
  */
 
@@ -51,7 +51,7 @@ export type ActorKanaCache = {
   records: ActorKanaRecord[];
 };
 
-/** 取得済みのかな (canonicalName → かな)。`build-actors.ts` が対象声優リストに入れる */
+/** 取得済みのかな (canonicalName → かな)。出どころ付きで台帳へ送る側が読む */
 export function kanaByCanonicalName(records: readonly ActorKanaRecord[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const record of records) {

@@ -11,7 +11,7 @@ import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { ActorQuery, AdapterResult, AdapterStatus, SourceAdapter } from "./adapters/types.ts";
-import { spacedNameCandidates } from "./discovery/actor-entity.ts";
+
 import {
   appendActorRefs,
   loadPokedoraDirectory,
@@ -27,6 +27,7 @@ import {
   spacedVerifiedAliasNames,
 } from "./lib/ingest.ts";
 import { STORE_COLUMN_LABELS } from "./lib/labels.ts";
+import { spacedNameCandidates } from "./lib/spaced-name.ts";
 
 /**
  * 声優起点の走行の本体。GitHub Actions からも手元からも同じものを動かす。

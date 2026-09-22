@@ -1,10 +1,7 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { INGEST_PROTOCOL_VERSION, type StoreSlug } from "../src/domain/index.ts";
 import type { AdapterResult, AdapterStatus } from "./adapters/types.ts";
 import { AdminApiClient, type CrawlActor, IngestProtocolMismatchError } from "./lib/ingest.ts";
-import { CRAWLER_DIR } from "./lib/paths.ts";
 import {
   buildSearchNames,
   filterActors,
@@ -17,8 +14,7 @@ import {
 } from "./run.ts";
 
 /**
- * ネットワークに出る部分 (main) は単体テストしない。集計・整形・絞り込みだけを固定で押さえる。
- * `actors.generated.json` は実際に配る値なので、形が崩れていないことをここで検出する
+ * ネットワークに出る部分 (main) は単体テストしない。集計・整形・絞り込みだけを固定で押さえる
  */
 
 const UEDA: CrawlActor = {
@@ -27,18 +23,6 @@ const UEDA: CrawlActor = {
   canonicalName: "上田麗奈",
 };
 const KAJI: CrawlActor = { id: "va_kaji-yuki", slug: "kaji-yuki", canonicalName: "梶裕貴" };
-
-/**
- * 配っている生成物。走行はこれを読まなくなったが、ファイル自体はまだ配るので
- * 形が崩れていないことをここで見る (読み込みはこのテストの中だけ)
- */
-type GeneratedSeed = CrawlActor & { nameEn?: string };
-
-async function readGeneratedSeeds(file: string): Promise<GeneratedSeed[]> {
-  const parsed: unknown = JSON.parse(await readFile(file, "utf8"));
-  if (!Array.isArray(parsed)) throw new Error(`${file} が配列ではない`);
-  return parsed as GeneratedSeed[];
-}
 
 /** 保存まで成功した 1 行。workCount は保存された件数なので fetchedCount と同じになる */
 function outcome(
@@ -310,55 +294,6 @@ describe("buildSearchNames", () => {
         ],
       }),
     ).toEqual(["上田 麗奈", "上田麗奈"]);
-  });
-});
-
-/**
- * 自動生成された対象声優リスト。`crawler/discovery/build-actors.ts` の出力で、
- * 生成元の `.cache/discovery/anilist-staff.json` はリポジトリに入らないので
- * 生成物のほうを検証する。ここが崩れたら ingest の zod が全件を弾く
- */
-describe("actors.generated.json", () => {
-  const GENERATED = path.join(CRAWLER_DIR, "actors.generated.json");
-
-  it("id は va_{slug} で、slug が重複しない", async () => {
-    const seeds = await readGeneratedSeeds(GENERATED);
-    expect(seeds.length).toBeGreaterThan(2000);
-    for (const seed of seeds) {
-      expect(seed.id).toBe(`va_${seed.slug}`);
-      // 衝突を人手で解いた slug には AniList の staff id が付くので数字も許す
-      expect(seed.slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-      expect(seed.canonicalName).not.toBe("");
-    }
-    expect(new Set(seeds.map((seed) => seed.slug)).size).toBe(seeds.length);
-  });
-
-  it("ローマ字表記が入っていて、前後と途中に余分な空白が無い", async () => {
-    const seeds = await readGeneratedSeeds(GENERATED);
-    const withNameEn = seeds.filter((seed) => seed.nameEn !== undefined);
-    // AniList の fullName が空の声優はそもそも slug を作れず除外されるので、ほぼ全員に入る
-    // (入らないのは fullName が無いまま slug を手で書いた人だけ)。大きく減ったら生成の取りこぼしを疑う
-    expect(withNameEn.length).toBeGreaterThan(2000);
-    for (const seed of withNameEn) {
-      expect(seed.nameEn).toBe(seed.nameEn?.trim());
-      expect(seed.nameEn).not.toMatch(/\s\s|[\r\n\t]/);
-    }
-  });
-
-  it("空白入り候補が無いのは fullName が 1 語の芸名だけ", async () => {
-    // 2 文字以上の姓名を持つ声優は文字数に応じた切り方 で必ず候補が付く。
-    // 候補が付かないのは「ゆかな」「麦人」「KENN」のように fullName が 1 語で
-    // 姓と名の境界が無い芸名の人だけ。この集合は build-actors.ts の no-slug 除外だった
-    // 68 人と一致するので、大きく増えたら生成規則の劣化を疑う。
-    // 下限も置くのは、判定が壊れて全員に候補が付くようになったときに気づくため
-    const seeds = await readGeneratedSeeds(GENERATED);
-    const withoutCandidate: string[] = [];
-    for (const seed of seeds) {
-      if (buildSearchNames(seed).some((name) => name.includes(" "))) continue;
-      withoutCandidate.push(seed.canonicalName);
-    }
-    expect(withoutCandidate.length).toBeGreaterThan(30);
-    expect(withoutCandidate.length).toBeLessThanOrEqual(70);
   });
 });
 

@@ -67,8 +67,7 @@ node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,pri
 | `npm run db:generate` | スキーマの差分から `migrations/*.sql` を生成する。続けて適用まで行う |
 | `npm run db:migrate:local` / `db:migrate:remote` | ローカル / 本番 D1 に適用 |
 | `npm run db:export:local` | 手元の D1 の中身を本番に流し込める SQL に書き出す (既定で Audible を除く。理由は「本番 D1」) |
-| `npm run db:export:actors` | 生成済みの声優リストから、既に D1 に居る声優のかな・ローマ字・性別を埋める SQL を書き出す (「本番 D1」) |
-| `npm run db:import:remote -- <file>` | 書き出した SQL を本番 D1 に流し込む。人が実行する |
+| `npm run db:import:remote -- <file>` / `db:import:local -- <file>` | 書き出した SQL を本番 / 手元の D1 に流し込む |
 | `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す (「本番 D1」)。中身はすべて入れ替わる |
 | `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
 | `npm run radar:crawl` | 声優起点のクローラー。オプションは `node crawler/run.ts --help` |
@@ -131,30 +130,32 @@ npm run db:counts -- --remote
 - 流し込みは wrangler が 1 つの取り込みとして行い、途中で失敗すれば元の状態に戻る (wrangler がその旨を表示する)。
   失敗したら原因を直して同じファイルを流し直す
 
-### 本番の声優のかな・ローマ字・性別を埋める
+### 生成物に入っていた値を台帳へ移す (1 回だけ)
 
-生成済みの声優リスト (`crawler/actors.generated.json`) から、本番に既に居る声優の `name_kana` /
-`name_en` / `gender` を埋める。かなでの検索、英語表示のローマ字の名前と A-Z の索引、
-声優一覧の性別の絞り込みは、この 3 列を見る。
+かな・性別は、かつて `crawler/` の生成物と手書きの訂正に入っていた。置き場を DB に一本化した
+([`docs/decisions/0015`](./docs/decisions/0015-db-is-the-ledger.md)) ので、その中身を
+`migrations/0016_backfill_actor_attributes.sql` に写してある。**マイグレーションなので、
+適用すれば入る。**手元は `npm run db:migrate:local`、本番は `npm run db:migrate:remote`。
 
-書き出すのは `UPDATE` だけで、行を作らず、消さず、別名義の表には触れない
-(`scripts/d1-export-actors.mjs`)。リストが値を持たない列は `SET` に入れないので、
-本番に既に入っている値は消えない。
+移すのは 2 種類だけ。別名義とアニメは投入済みで、どちらの DB にも既に入っている。
+
+| 移すもの | 行き先 | 件数 |
+|---|---|---|
+| 手で書いたかな | 付加情報の表に出どころ `editorial` | 35 |
+| 取得したかな (手で書いた人を除く) | 付加情報の表に出どころ `wikipedia` | 1,806 |
+| 性別 | `voice_actors.gender` が「不明」の行にだけ | 最大 2,400 件を照合し、不明だったぶんだけ入る |
+
+適用の前後で数を照合する。かなの合計は旧列 `name_kana` の件数と一致し、性別の「不明」は減る。
 
 ```bash
 npx wrangler d1 execute DB --remote --command \
-  "select count(name_kana) kana, count(name_en) en, sum(gender = 'unknown') unknown from voice_actors"
-npm run db:export:actors                 # work/d1-export/actors.sql に書く
-npm run db:import:remote -- work/d1-export/actors.sql
+  "select count(name_kana) kana, sum(gender = 'unknown') unknown from voice_actors"
 npx wrangler d1 execute DB --remote --command \
-  "select count(name_kana) kana, count(name_en) en, sum(gender = 'unknown') unknown from voice_actors"
+  "select source, count(*) n from voice_actor_attributes group by source"
 ```
 
-- 書き出しに出る「合計」が 1 日に書ける行数の上限に収まることを、流す前に確かめる
-  (見方は「手元のデータを本番へ移す」と同じ)
-- リストに居て本番に居ない声優の文は 0 行更新で通る。本番に声優の行を足すのは取り込み API
-  (`src/server/queries/actors.ts` の `upsertActors`) の役目で、この SQL ではない
-- 流した後も残る空欄は、リスト側が値を持たないぶん
+手元で適用したときは、かな 1,841 件 (編集 35 + Wikipedia 1,806) が旧列の件数と一致し、
+性別の「不明」が 330 件から 169 件に減った。旧列 `name_kana` は読み取り側を切り替えるまで残す。
 
 ### プランの確認
 
@@ -186,14 +187,16 @@ INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
 ストア巡回を「今回増えた人」ではなく「一度も引いていない人」で選ぶのは、1 回に収まらなかったぶんが
 次の週には新規でなくなって永久に引かれなくなるため。打ち切っても残りは次の週に出てくる。
 
-声優起点の走行は誰を調べるかを `GET /api/admin/actors` から引く。リストのファイルは読まない。
-かなは日本語版 Wikipedia から取り、出どころ付きで `POST /api/admin/actor-attributes` に送る。
-性別は作品から取るほかに声優の staff id からも引ける (`crawler/discovery/anilist-gender.ts`)。
-取得範囲から外れた声優には取り込みが性別を書かないので、埋めるにはこちらを使う。
+声優起点の走行も、かなの取得も、誰を調べるかを `GET /api/admin/actors` から引く。
+リストのファイルは読まない。性別は出演者と一緒に AniList から返るので、週次の取り込みが入れる。
+
+手で直したい値 (かな、表示用ローマ字、公開状態) は `POST /api/admin/actor-attributes` に
+出どころ `editorial` で送る。取り込みは自分の出どころの行しか書かないので、送った値は次の取り込みで消えない。
 
 ```bash
 # かなを取る (全員。数時間かかるので --limit で区切って重ねる)
-node crawler/discovery/wikipedia-kana.ts --limit 100
+INGEST_TOKEN=dev node crawler/discovery/wikipedia-kana.ts \
+  --base-url http://localhost:5199 --limit 100
 
 # 記事には辿り着けたが読みが書かれていなかった人だけを引き直し、
 # 記事の導入部と Wikidata の P1814 から埋める (同じ結果ファイルの同じ行を書き換える)

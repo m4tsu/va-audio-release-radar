@@ -32,7 +32,7 @@ import { notAdultRated } from "./works";
 /** 放送日。発売日 (`releaseDateSchema`) と同じ形で受け取る */
 const animeDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 形式で指定する");
 
-/** `POST /api/admin/anime` が受け取る 1 作品。`crawler/anime.generated.json` の 1 要素と同じ形 */
+/** 取り込みが受け取る 1 作品。AniList の取り込み (`queries/anilist.ts`) が出演を付け替えて渡す */
 export const animeSeedSchema = z.object({
   id: z.string().min(1),
   slug: z.string().min(1),

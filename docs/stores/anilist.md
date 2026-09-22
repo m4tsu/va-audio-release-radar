@@ -1,10 +1,10 @@
 # AniList
 
-読者: `crawler/discovery/anilist.ts` や `build-actors.ts` を触る前の人。公開前に利用規約を確かめる人
+読者: AniList を引くコードを触る前の人。公開前に利用規約を確かめる人
 更新: robots.txt・レート制限・利用規約を取り直したら (差分が無くても最終確認日を更新する)
 削除: AniList を対象声優の供給元から外したら
 
-実装: `crawler/anilist.ts` (週次の取り込み) と `crawler/discovery/` の `anilist.ts` / `anilist-payload.ts` / `anilist-gender.ts`
+実装: `crawler/anilist.ts` (週次の取り込み) と `crawler/discovery/` の `anilist.ts` / `anilist-payload.ts`
 共通の原則は [`README.md`](./README.md)。
 
 **ストアではない。** 対象声優の供給元であり、ここから作品は取らない。
@@ -102,7 +102,7 @@ POST https://graphql.anilist.co
 Content-Type: application/json
 ```
 
-**認証は不要。** クエリは 2 種類だけ。
+**認証は不要。** クエリは 2 種類だけ。性別も出演者と一緒にこの 2 つで取る。
 
 ### シーズンのアニメと出演声優 (`SEASON_PAGE_QUERY`)
 
@@ -157,23 +157,6 @@ query ($id: Int, $page: Int) {
 }
 ```
 
-### staff id から性別だけを引く (`crawler/discovery/anilist-gender.ts`)
-
-```graphql
-query ($ids: [Int]) {
-  Page(page: 1, perPage: 50) {
-    staff(id_in: $ids) { id name { native full } gender }
-  }
-}
-```
-
-対象は**台帳にいて性別が付いていない声優だけ**。シーズンのクエリは、今回の取得範囲に入った
-作品の出演者しか通らない。範囲から外れた声優は取り込みで性別を上書きされない (今回言っていない
-項目は触らない) ので、埋めるにはこの経路が要る。**引いても性別が付かない人は残る**
-(AniList 側が `gender` を持たない声優が居る。下の「既知の落とし穴」)。
-1 リクエストにまとめる id の数は `perPage` と揃える (返る件数が `perPage` で頭打ちになるため)。
-引いた値を対象声優リストへ入れるのは `fill-actor-gender.ts`。
-
 ---
 
 ## 4. 使ってはいけない URL
@@ -198,7 +181,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 | 日本語表記の名前 | ○ | `name.native` → `canonicalName`。**ストアとの突き合わせに使う唯一の鍵** |
 | ローマ字表記 | ○ | `name.full` ("Reina Ueda") → `slug` の元、英語表示に出す名前 |
 | 声優の画像 | ○ | `image.medium` |
-| 性別 | ○ | `gender`。**自由記述の文字列で、利用者が編集できる。** 実応答は `Female` / `Male` / `Non-binary` / null の 4 通りだった (2026-09-21、[`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md))。そのまま保存せず列挙に写す。作品からも staff id からも引ける |
+| 性別 | ○ | `gender`。**自由記述の文字列で、利用者が編集できる。** 実応答は `Female` / `Male` / `Non-binary` / null の 4 通りだった (2026-09-21、[`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md))。そのまま保存せず列挙に写す。出演者と一緒に返る |
 | 作品 (アニメ) | ○ | `media.id` / `title.{native,romaji,english}` / `coverImage.large` |
 | 表紙の代表色 | ○ | `coverImage.color` ("#e4a128") |
 | 別名タイトル | ○ | `synonyms`。**空配列のことがある** (2026-09-20 の実応答で、上位 3 件中 1 件) |
@@ -206,8 +189,8 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 | 人気度 | ○ | `popularity` (整数)。一覧の既定の並びに使う |
 | 放送開始日 / 終了日 | ○ | `startDate` / `endDate`。**`FuzzyDate` なので year / month / day が個別に null になりうる**。放送前の作品の終了日は 3 つとも null (2026-09-20 の実応答で確認) |
 | キャラクターと役 | ○ | `characters.edges[].node` / `.role` |
-| **かな表記** | **×** | 手で `crawler/actors-overrides.json` に持つ |
-| **別名義** | **×** | 同上。検証済みのものだけを手で持つ |
+| **かな表記** | **×** | 日本語版 Wikipedia から取り、台帳の付加情報に出どころ付きで入れる |
+| **別名義** | **×** | 検証済みのものだけを台帳の別名義の表に入れる |
 | 音声作品 | × | AniList はアニメのデータベースであり、音声作品は扱っていない |
 
 `title.english` は **null のことが実際にある** (2026-09-18 の実応答で確認)。
@@ -229,11 +212,11 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 - **`characters` の `total` と `lastPage` は最後のページに着くまで実際と違う値を返す。**
   続きの有無は `hasNextPage` だけで判定する (同じ測定ノート)
 - **slug が衝突したら生成を失敗させる。** 自動で連番を振らない。
-  解決は人が `crawler/actors-overrides.json` に書く。slug は URL に出て後から変えられない
+  後から来た人の slug に staff id を付ける (`src/domain/actor-slug.ts`)。slug は URL に出て後から変えられない
 - **ワープロ式のローマ字表記をそのまま使う。** `Akari Kitou` → `kitou-akari`、
   `Aoi Yuuki` → `yuuki-aoi`。長音を潰して `kito` / `yuki` に寄せない。
   「ou」「uu」が長音とは限らず (井上 = Inoue、松浦 = Matsuura)、潰すと別の名前を壊す。
-  本人の公表表記と食い違う人 (日笠陽子 = `Youko Hikasa`) は `crawler/actors-overrides.json` に書いて直す
+  本人の公表表記と食い違う人 (日笠陽子 = `Youko Hikasa`) は台帳の付加情報に出どころ「編集」で入れて直す
 - **`name.full` に改行や二重空白が混じっていることがある** ("Makoto\r\n Takahashi"、
   2026-09-18 に取得した応答の 2,567 件中 12 件)。英語表示に出す前に空白を詰める
 - **1 語の名義**「ゆかな」「麦人」「KENN」はその語をそのまま slug にする。
@@ -242,8 +225,8 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   残りを名として前から並べる
 - **性別を返さない声優が居る** (2026-09-21 の実測で対象 2,512 人中 162 人)。
   返さないことと「女性でも男性でもない」ことは別なので、同じ値に畳まない。
-  staff id で直接引いても同じで、**「問い合わせたが AniList が値を持たない」人は必ず残る**。
-  減らせるのは「まだ問い合わせていない」人だけなので、`anilist-gender.ts` は両者を別の状態で記録する
+  **「AniList が値を持たない」人は必ず残る**。取り込みは今回言われた項目だけを上書きするので、
+  値を持たない声優の性別は「不明」のまま動かない
 - **`roleCount` (アニメでの役の多さ) と音声作品数はほぼ無相関** (スピアマン −0.047)。
   主役級ほど音声作品が多い、ということはない。対象の絞り込みに役の多さを使わない
 - 対象声優の大半は音声作品を出していない。DB には全員入れる

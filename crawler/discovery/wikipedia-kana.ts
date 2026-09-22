@@ -1,10 +1,8 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { type FetchFailure, fetchText, rateLimitFor } from "../lib/fetch.ts";
+import { AdminApiClient } from "../lib/ingest.ts";
 import { writeJsonAtomic } from "../lib/json-file.ts";
-import { CRAWLER_DIR } from "../lib/paths.ts";
 import {
   type ActorKanaCache,
   type ActorKanaRecord,
@@ -32,12 +30,11 @@ import {
  *
  * サイトの制約 (robots.txt・UA・使ってよい URL) は `docs/stores/wikimedia.md`、
  * 取ってよい記事の条件は `docs/research/actor-kana-sources-2026-09-20.md`。
- * 結果は `crawler/.cache/discovery/wikipedia-kana.json` に置き、
- * `build-actors.ts` がそれを読んで対象声優リストに入れる
+ * 対象は台帳 (`GET /api/admin/actors`) から引く。結果は
+ * `crawler/.cache/discovery/wikipedia-kana.json` に置く
  */
 
 const STORE = "wikimedia";
-const DEFAULT_ACTORS_JSON = path.join(CRAWLER_DIR, "actors.generated.json");
 
 /** 何人ごとに進捗を出すか */
 const PROGRESS_EVERY = 20;
@@ -89,13 +86,12 @@ export function summarizeRecords(records: readonly ActorKanaRecord[]): {
 
 // --- 入出力 ----------------------------------------------------------------
 
-/** 対象声優リストから、引く相手の名前だけ取る */
-export async function loadCanonicalNames(filePath: string): Promise<string[]> {
-  const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
-  if (!Array.isArray(parsed)) throw new Error(`${filePath} が配列ではない`);
-  return (parsed as { canonicalName?: unknown }[])
-    .map((actor) => actor.canonicalName)
-    .filter((name): name is string => typeof name === "string" && name !== "");
+/** 台帳から、引く相手の名前だけ取る */
+export async function loadCanonicalNames(client: AdminApiClient): Promise<string[]> {
+  const entries = await client.listActors();
+  return entries
+    .map((entry) => entry.canonicalName)
+    .filter((name) => typeof name === "string" && name !== "");
 }
 
 // --- 取得 ------------------------------------------------------------------
@@ -264,7 +260,7 @@ const USAGE = `使い方:
   node crawler/discovery/wikipedia-kana.ts [オプション]
 
 オプション:
-  --actors <path>  対象声優リスト (既定 crawler/actors.generated.json)
+  --base-url <URL> 台帳の場所。環境変数 INGEST_URL でも指定できる (INGEST_TOKEN も要る)
   --out <path>     結果の置き場所 (既定 crawler/.cache/discovery/wikipedia-kana.json)
   --limit <N>      この人数だけ引いて終わる (既定: 残り全員)
   --restart        前回の結果を捨てて最初から引き直す (既定は続きから)
@@ -273,7 +269,7 @@ const USAGE = `使い方:
 `;
 
 const OPTION_SPEC = {
-  actors: { type: "string" },
+  "base-url": { type: "string" },
   out: { type: "string" },
   limit: { type: "string" },
   restart: { type: "boolean" },
@@ -300,7 +296,12 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
-  const actorsFile = asString(values.actors) ?? DEFAULT_ACTORS_JSON;
+  const baseUrl = asString(values["base-url"]) ?? process.env.INGEST_URL;
+  const token = process.env.INGEST_TOKEN;
+  if (baseUrl === undefined || baseUrl === "" || token === undefined || token === "") {
+    process.stderr.write(`--base-url (か INGEST_URL) と INGEST_TOKEN が要る\n\n${USAGE}`);
+    return 1;
+  }
   const outFile = asString(values.out) ?? KANA_JSON;
   const limitOption = asString(values.limit);
   const limit = limitOption === undefined ? undefined : Number(limitOption);
@@ -313,8 +314,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   const snapshot = values.snapshot === true;
   const startedAt = Date.now();
 
-  const canonicalNames = await loadCanonicalNames(actorsFile);
-  process.stdout.write(`対象声優: ${canonicalNames.length} 人 (${actorsFile})\n`);
+  const canonicalNames = await loadCanonicalNames(new AdminApiClient(baseUrl, token));
+  process.stdout.write(`対象声優を台帳から読んだ: ${canonicalNames.length} 人\n`);
 
   const existing = values.restart === true ? undefined : await readKanaCache(outFile);
   const cache: ActorKanaCache = existing ?? {
