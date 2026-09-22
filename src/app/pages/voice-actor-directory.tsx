@@ -72,6 +72,7 @@ const GENDER_LABEL_KEYS = {
   female: "voiceActors.genderFemale",
   male: "voiceActors.genderMale",
   other: "voiceActors.genderOther",
+  unknown: "voiceActors.genderUnknown",
 } as const satisfies Record<ActorGenderFilter, PlainTKey>;
 
 function ActorDirectory({ actors }: { actors: ActorSummary[] }) {
@@ -209,8 +210,8 @@ function StoreFilter({
 }
 
 /**
- * 性別の絞り込み。全員 / 女性 / 男性 / その他 の 4 つで、一覧の全員がどれか 1 つに必ず入る。
- * 「その他」に性別が分かっていない声優が入ることは `lib/actor-directory` が決める
+ * 性別の絞り込み。選択肢と、誰がどれに入るかは `lib/actor-directory` が決める。
+ * ここは並べて押せるようにするだけなので、選択肢が増えても文言の対応 (`GENDER_LABEL_KEYS`) だけで済む
  */
 function GenderFilter({
   value,

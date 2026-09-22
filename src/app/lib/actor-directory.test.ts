@@ -327,7 +327,7 @@ describe("arrangeActors (英語表示)", () => {
 });
 
 describe("性別の絞り込み", () => {
-  /** 4 つの区分は DB の列挙とずれている。ここが「その他」に何を入れるかを決める */
+  /** 区分は DB の列挙と 1 対 1。ここが各区分に何を入れるかを決める */
   const GENDERED: Row[] = [
     { slug: "f", workCount: 1, storeSlugs: ["dlsite"], gender: "female" },
     { slug: "m", workCount: 1, storeSlugs: ["dlsite"], gender: "male" },
@@ -346,24 +346,28 @@ describe("性別の絞り込み", () => {
     expect(filtered("male")).toEqual(["m"]);
   });
 
-  /** 分けると、性別が分かっていない声優がどの選択肢でも出てこなくなる */
-  test("その他には、女性でも男性でもない声優と性別が分かっていない声優が入る", () => {
-    expect(filtered("other")).toEqual(["o", "u"]);
+  /** 分かっていない声優が混ざると、この区分は実質「不明」になる */
+  test("その他には、女性でも男性でもないと分かっている声優だけが入る", () => {
+    expect(filtered("other")).toEqual(["o"]);
+  });
+
+  test("不明には、性別が分かっていない声優だけが入る", () => {
+    expect(filtered("unknown")).toEqual(["u"]);
   });
 
   /**
-   * 「4 つのどれを選んでも、一覧の全員がいずれか 1 つに必ず入る」。
+   * 「どれを選んでも、一覧の全員がいずれか 1 つに必ず入る」。
    * 区分が増えたときに、どこにも入らない声優が出ないことをここで見る
    */
   test("全員がちょうど 1 つの区分に入る", () => {
     const buckets = ACTOR_GENDER_FILTERS.filter((filter) => filter !== "all").map((filter) =>
       filtered(filter),
     );
-    expect(buckets.flat().sort()).toEqual(slugs(GENDERED).sort());
+    expect(buckets.flat().sort()).toEqual(filtered("all").sort());
   });
 
   test("ストアの絞り込みと同時に効く", () => {
-    expect(filtered("other", "audible")).toEqual(["o", "u"]);
+    expect(filtered("unknown", "audible")).toEqual(["u"]);
     expect(filtered("female", "audible")).toEqual([]);
   });
 

@@ -250,8 +250,10 @@ export const ja = {
     genderAll: "全員",
     genderFemale: "女性",
     genderMale: "男性",
-    /** 女性でも男性でもない声優と、性別が分かっていない声優が入る */
+    /** 出どころ (AniList) が「女性でも男性でもない」と答えた声優が入る */
     genderOther: "その他",
+    /** 出どころに性別が無い声優が入る。「その他」と分けないと、こちらの人数に埋もれる */
+    genderUnknown: "不明",
     shownCount: "{{count}} 人",
     /** 上限で切っているとき。絞り込みに当てはまる人数と、いま並んでいる人数の両方を出す */
     shownOfTotal: "{{total}} 人中 {{count}} 人",

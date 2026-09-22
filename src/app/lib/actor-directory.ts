@@ -1,6 +1,6 @@
 import type { Locale } from "@/app/i18n";
 import type { ActorSummary } from "@/app/lib/view-types";
-import type { StoreSlug, VoiceActorGender } from "@/domain/types";
+import { type StoreSlug, VOICE_ACTOR_GENDERS } from "@/domain/types";
 
 /**
  * 声優一覧の並べ替えと絞り込み。
@@ -26,13 +26,13 @@ export function isActorSort(value: string): value is ActorSort {
 }
 
 /**
- * 性別の絞り込みの選択肢。DB の列挙 (`VoiceActorGender`) とは別物で、
- * "other" は「女性でも男性でもない」と「分かっていない」の両方を指す。
+ * 性別の絞り込みの選択肢。絞らない "all" に DB の列挙 (`VoiceActorGender`) をそのまま並べる。
  *
- * 分けないのは、一覧の全員がどれか 1 つに必ず入るようにするため。
- * 「不明」を独立した選択肢にすると、利用者は空欄を選ばされることになる
+ * DB の値から作るのは、一覧の全員がどれか 1 つに必ず入る状態を型と実行時の両方で保つため。
+ * "other" (女性でも男性でもないと分かっている) と "unknown" (分かっていない) を
+ * 画面側で 1 つに畳むと、前者が後者の人数に埋もれて辿れなくなる
  */
-export const ACTOR_GENDER_FILTERS = ["all", "female", "male", "other"] as const;
+export const ACTOR_GENDER_FILTERS = ["all", ...VOICE_ACTOR_GENDERS] as const;
 export type ActorGenderFilter = (typeof ACTOR_GENDER_FILTERS)[number];
 export const DEFAULT_ACTOR_GENDER_FILTER: ActorGenderFilter = "all";
 
@@ -103,20 +103,8 @@ function narrow<T extends DirectoryActor>(
   gender: ActorGenderFilter,
 ): T[] {
   const inStore = store === null ? [...actors] : actors.filter((a) => a.storeSlugs.includes(store));
-  return gender === "all" ? inStore : inStore.filter((a) => matchesGender(a.gender, gender));
-}
-
-/**
- * 「その他」は女性でも男性でもない声優すべて。出どころ (AniList) が性別を持たない声優もここに入る。
- *
- * 4 つの選択肢のどれを選んでも、一覧の全員がいずれか 1 つに必ず入る
- */
-function matchesGender(
-  gender: VoiceActorGender,
-  filter: Exclude<ActorGenderFilter, "all">,
-): boolean {
-  if (filter === "other") return gender !== "female" && gender !== "male";
-  return gender === filter;
+  // "all" 以外は DB の値そのものなので、言い換えずに等値で見る
+  return gender === "all" ? inStore : inStore.filter((a) => a.gender === gender);
 }
 
 /**

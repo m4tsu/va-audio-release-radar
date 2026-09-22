@@ -202,6 +202,7 @@ export const en: Translations = {
     genderFemale: "Women",
     genderMale: "Men",
     genderOther: "Other",
+    genderUnknown: "Unknown",
     shownCount: { one: "{{count}} voice actor", other: "{{count}} voice actors" },
     shownOfTotal: "{{count}} of {{total}} voice actors",
     showAll: "Show all",

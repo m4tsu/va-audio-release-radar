@@ -195,7 +195,7 @@ describe("VoiceActorDirectoryPage の性別の絞り込み", () => {
    * どの声優がどの性別かは画面に出さないので、絞り込んだ結果の顔ぶれでしか確かめられない。
    * 誰がどこに入るかの規則そのものは `lib/actor-directory` が持つ
    */
-  // 選択肢の文言 (女性 / 男性 / その他) を名前に含めない。含めると下の「書かない」テストが素通りする
+  // 選択肢の文言 (女性 / 男性 / その他 / 不明) を名前に含めない。含めると下の「書かない」テストが素通りする
   const FEMALE = actorSummary({
     id: "va_f",
     slug: "f",
@@ -228,11 +228,12 @@ describe("VoiceActorDirectoryPage の性別の絞り込み", () => {
     expect(screen.getByText("1 人")).toBeInTheDocument();
   });
 
-  test("その他には性別が分かっていない声優も入る", async () => {
+  /** 増えたボタンが絞り込みの値に繋がっていること。誰がどの区分に入るかは `lib/actor-directory` が見る */
+  test("不明を選ぶと不明の声優だけになる", async () => {
     const user = userEvent.setup();
     renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
 
-    await user.click(within(genderFilter()).getByRole("button", { name: "その他" }));
+    await user.click(within(genderFilter()).getByRole("button", { name: "不明" }));
 
     expect(names()).toEqual(["架空ウミ"]);
   });
@@ -265,7 +266,7 @@ describe("VoiceActorDirectoryPage の性別の絞り込み", () => {
     renderWithLocale(<VoiceActorDirectoryPage actors={MIXED} />);
 
     for (const row of rows()) {
-      expect(row.textContent).not.toMatch(/女性|男性|その他/);
+      expect(row.textContent).not.toMatch(/女性|男性|その他|不明/);
     }
   });
 
@@ -302,6 +303,7 @@ describe("VoiceActorDirectoryPage の性別の絞り込み", () => {
       "Women",
       "Men",
       "Other",
+      "Unknown",
     ]);
   });
 });
