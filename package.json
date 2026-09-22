@@ -22,6 +22,7 @@
     "radar:crawl": "node crawler/run.ts",
     "radar:daily": "node crawler/daily.ts",
     "radar:anilist": "node crawler/anilist.ts",
+    "radar:kana": "node crawler/kana.ts",
     "radar:typecheck": "tsc -p tsconfig.crawler.json --noEmit",
     "radar:test": "vitest run --project node crawler",
     "cf-typegen": "wrangler types",

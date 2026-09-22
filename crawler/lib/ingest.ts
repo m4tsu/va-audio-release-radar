@@ -114,6 +114,22 @@ export type AniListIngestResponse = {
   clearedScreened: number;
 };
 
+/** `GET /api/admin/actor-kana` が返す 1 件 */
+export type KanaTarget = { id: string; canonicalName: string };
+
+/** `POST /api/admin/actor-kana` に送る 1 件。かなが取れなかった人は `kana` を省く */
+export type ActorKanaResult = {
+  voiceActorId: string;
+  kana?: string;
+  source?: "wikipedia" | "wikidata";
+};
+
+export type WriteActorKanaResponse = {
+  written: number;
+  withoutKana: number;
+  skipped: number;
+};
+
 /** `POST /api/admin/actor-attributes` に送る 1 件 */
 export type ActorAttributeSeed = {
   voiceActorId: string;
@@ -264,6 +280,18 @@ export class AdminApiClient {
   /** AniList の取得 1 回ぶん。声優の ID と slug はサーバーが決めて応答で返す */
   ingestAniList(payload: AniListIngestPayload): Promise<AniListIngestResponse> {
     return this.#send<AniListIngestResponse>("POST", "/api/admin/anilist", payload);
+  }
+
+  /** かなをまだ引いていない声優。古い順に返る */
+  async listActorsNeedingKana(limit: number): Promise<KanaTarget[]> {
+    const targets = await this.#send<unknown>("GET", `/api/admin/actor-kana?limit=${limit}`);
+    if (!Array.isArray(targets)) throw new AdminApiError("actor-kana が配列を返さなかった");
+    return targets as KanaTarget[];
+  }
+
+  /** かなの取得結果。取れなかった人も送ると、引いた印だけが付く */
+  writeActorKana(results: readonly ActorKanaResult[]): Promise<WriteActorKanaResponse> {
+    return this.#send<WriteActorKanaResponse>("POST", "/api/admin/actor-kana", results);
   }
 
   /** 付加情報 (かな、表示用ローマ字) を出どころ付きで書く */

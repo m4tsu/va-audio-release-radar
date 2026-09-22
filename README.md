@@ -73,6 +73,7 @@ node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,pri
 | `npm run radar:crawl` | 声優起点のクローラー。オプションは `node crawler/run.ts --help` |
 | `npm run radar:daily` | 新着一覧から日次で取り込む。オプションは `node crawler/daily.ts --help` |
 | `npm run radar:anilist` | AniList から対象声優とアニメを週次で取り込む。オプションは `node crawler/anilist.ts --help` |
+| `npm run radar:kana` | まだ引いていない声優のかなを取って台帳に入れる。オプションは `node crawler/kana.ts --help` |
 | `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
 | `npm run radar:test` / `radar:typecheck` | crawler だけのテスト / 型検査 |
 | `npm run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
@@ -188,32 +189,29 @@ INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
 ストア巡回を「今回増えた人」ではなく「一度も引いていない人」で選ぶのは、1 回に収まらなかったぶんが
 次の週には新規でなくなって永久に引かれなくなるため。打ち切っても残りは次の週に出てくる。
 
-声優起点の走行も、かなの取得も、誰を調べるかを `GET /api/admin/actors` から引く。
-リストのファイルは読まない。性別は出演者と一緒に AniList から返るので、週次の取り込みが入れる。
+声優起点の走行も、かなの取得も、誰を調べるかを台帳から引く。リストのファイルは読まない。
+性別は出演者と一緒に AniList から返るので、週次の取り込みが入れる。
 
-手で直したい値 (かな、表示用ローマ字、公開状態) は `POST /api/admin/actor-attributes` に
-出どころ `editorial` で送る。取り込みは自分の出どころの行しか書かないので、送った値は次の取り込みで消えない。
+**かなも週次で取る。**対象は「かなを持っていない人」ではなく「まだ引いていない人」。記事が無い
+声優は引いても取れないので、持っていないことを条件にすると毎週引き直すことになる。取れても
+取れなくても結果を送り、送った相手には引いた印が付く (`voice_actors.name_kana_checked_at`)。
+記事から読みが取れない人は、導入部と Wikidata の P1814 を見る経路に回る。
 
 ```bash
-# かなを取る (全員。数時間かかるので --limit で区切って重ねる)
-INGEST_TOKEN=dev node crawler/discovery/wikipedia-kana.ts \
-  --base-url http://localhost:5199 --limit 100
-
-# 記事には辿り着けたが読みが書かれていなかった人だけを引き直し、
-# 記事の導入部と Wikidata の P1814 から埋める (同じ結果ファイルの同じ行を書き換える)
-node crawler/discovery/wikipedia-kana-refill.ts
+# まだ引いていない人のかなを取って台帳に入れる (--dry-run で対象だけ見られる)
+INGEST_TOKEN=dev node crawler/kana.ts --base-url http://localhost:5199 --limit 50
 ```
 
-どちらも `crawler/.cache/discovery/wikipedia-kana.json` に書くだけで、台帳には入らない。
-引いた人は理由付きで残るので、もう一度実行しても同じ人を引き直さない。外部サイトの制約は
+それでもかなが付かない人は、手で入れる。手で直したい値 (かな、表示用ローマ字、公開状態) は
+`POST /api/admin/actor-attributes` に出どころ `editorial` で送る。取り込みは自分の出どころの行しか
+書かないので、送った値は次の取り込みで消えない。
+
+記事が後からできた人を引き直すときは、引いた印を消してから走らせる。外部サイトの制約は
 [`docs/stores/wikimedia.md`](./docs/stores/wikimedia.md)。
 
-取れたぶんを台帳へ送る。取得と送信を分けてあるのは、数時間の取得が途中で止まっても
-取れたぶんを送れるようにするため。出どころ付きの行を書くので、人が書いた訂正を上書きしない。
-
 ```bash
-INGEST_TOKEN=dev node crawler/discovery/write-actor-kana.ts \
-  --base-url http://localhost:5199   # --dry-run で件数だけ見られる
+npx wrangler d1 execute DB --local --command \
+  "update voice_actors set name_kana_checked_at = null where name_kana_checked_at < '2026-01-01'"
 ```
 
 ポケドラは名前で検索できない (声優はタグで、一覧の URL に `tag_id` が要る) ので、声優タグ辞書

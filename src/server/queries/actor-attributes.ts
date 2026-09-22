@@ -1,4 +1,4 @@
-import { getTableName, inArray, type SQL, sql } from "drizzle-orm";
+import { asc, getTableName, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   ATTRIBUTE_SOURCES,
@@ -79,7 +79,7 @@ export async function writeActorAttributes(
 
 async function knownActorIds(
   db: AppDb,
-  seeds: readonly ActorAttributeSeed[],
+  seeds: readonly { voiceActorId: string }[],
 ): Promise<Set<string>> {
   const ids = [...new Set(seeds.map((seed) => seed.voiceActorId))];
   const found = new Set<string>();
@@ -91,6 +91,88 @@ async function knownActorIds(
     for (const row of rows) found.add(row.id);
   }
   return found;
+}
+
+/** かなを引く相手。日本語表記で引くので、名前と ID だけあればよい */
+export type KanaTarget = { id: string; canonicalName: string };
+
+/**
+ * まだかなを引いていない声優。古い順に返す。
+ *
+ * 「かなを持っていない人」ではなく「引いていない人」で選ぶ。記事が無い声優は引いても
+ * 取れないので、持っていないことを条件にすると毎週引き直すことになる
+ */
+export async function listActorsNeedingKana(db: AppDb, limit: number): Promise<KanaTarget[]> {
+  return db
+    .select({ id: voiceActors.id, canonicalName: voiceActors.canonicalName })
+    .from(voiceActors)
+    .where(isNull(voiceActors.nameKanaCheckedAt))
+    .orderBy(asc(voiceActors.firstSeenAt), asc(voiceActors.id))
+    .limit(limit);
+}
+
+/** 1 人ぶんの取得結果。かなが取れなかった人も、引いたことを残すために送る */
+export const actorKanaResultSchema = z.object({
+  voiceActorId: z.string().min(1),
+  kana: z.string().min(1).optional(),
+  /** かなが取れたときだけ。記事なら wikipedia、Wikidata の項目なら wikidata */
+  source: z.enum(["wikipedia", "wikidata"]).optional(),
+});
+
+export type ActorKanaResult = z.infer<typeof actorKanaResultSchema>;
+
+export type WriteActorKanaResult = {
+  /** かなを書いた人数 */
+  written: number;
+  /** 引いたが取れなかった人数 */
+  withoutKana: number;
+  /** 台帳に居なくて何も書かなかった人数 */
+  skipped: number;
+};
+
+/**
+ * 取得結果を台帳に入れる。かなが取れた人は付加情報の行を書き、
+ * **取れなかった人も含めて全員に「引いた」印を付ける**。
+ *
+ * 印を付けないと、記事が無い声優を毎週引き直す。付ける相手を取れた人だけにしても同じ
+ */
+export async function writeActorKana(
+  db: AppDb,
+  results: readonly ActorKanaResult[],
+  now: string = new Date().toISOString(),
+): Promise<WriteActorKanaResult> {
+  const known = await knownActorIds(
+    db,
+    results.map((result) => ({ voiceActorId: result.voiceActorId })),
+  );
+  const found = results.filter(
+    (result) => known.has(result.voiceActorId) && result.kana !== undefined,
+  );
+
+  await writeActorAttributes(
+    db,
+    found.map((result) => ({
+      voiceActorId: result.voiceActorId,
+      attribute: "nameKana" as const,
+      source: result.source ?? ("wikipedia" as const),
+      value: result.kana ?? "",
+    })),
+    now,
+  );
+
+  const attempted = results.filter((result) => known.has(result.voiceActorId));
+  for (const chunk of chunked(attempted.map((result) => result.voiceActorId))) {
+    await db
+      .update(voiceActors)
+      .set({ nameKanaCheckedAt: now })
+      .where(inArray(voiceActors.id, chunk));
+  }
+
+  return {
+    written: found.length,
+    withoutKana: attempted.length - found.length,
+    skipped: results.length - attempted.length,
+  };
 }
 
 // --- 読み取り --------------------------------------------------------------

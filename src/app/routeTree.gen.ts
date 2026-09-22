@@ -29,6 +29,7 @@ import { Route as VoiceActorsSlugRouteImport } from './routes/voice-actors.$slug
 import { Route as WorksIdRouteImport } from './routes/works.$id'
 import { Route as AnimeSeasonSeasonRouteImport } from './routes/anime.season.$season'
 import { Route as ApiAdminActorAttributesRouteImport } from './routes/api/admin/actor-attributes'
+import { Route as ApiAdminActorKanaRouteImport } from './routes/api/admin/actor-kana'
 import { Route as ApiAdminActorsRouteImport } from './routes/api/admin/actors'
 import { Route as ApiAdminAnilistRouteImport } from './routes/api/admin/anilist'
 import { Route as ApiAdminIngestRouteImport } from './routes/api/admin/ingest'
@@ -135,6 +136,11 @@ const ApiAdminActorAttributesRoute = ApiAdminActorAttributesRouteImport.update({
   path: '/api/admin/actor-attributes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminActorKanaRoute = ApiAdminActorKanaRouteImport.update({
+  id: '/api/admin/actor-kana',
+  path: '/api/admin/actor-kana',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminActorsRoute = ApiAdminActorsRouteImport.update({
   id: '/api/admin/actors',
   path: '/api/admin/actors',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/voice-actors/': typeof VoiceActorsIndexRoute
   '/anime/season/$season': typeof AnimeSeasonSeasonRoute
   '/api/admin/actor-attributes': typeof ApiAdminActorAttributesRoute
+  '/api/admin/actor-kana': typeof ApiAdminActorKanaRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
   '/api/admin/anilist': typeof ApiAdminAnilistRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/voice-actors': typeof VoiceActorsIndexRoute
   '/anime/season/$season': typeof AnimeSeasonSeasonRoute
   '/api/admin/actor-attributes': typeof ApiAdminActorAttributesRoute
+  '/api/admin/actor-kana': typeof ApiAdminActorKanaRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
   '/api/admin/anilist': typeof ApiAdminAnilistRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/voice-actors/': typeof VoiceActorsIndexRoute
   '/anime/season/$season': typeof AnimeSeasonSeasonRoute
   '/api/admin/actor-attributes': typeof ApiAdminActorAttributesRoute
+  '/api/admin/actor-kana': typeof ApiAdminActorKanaRoute
   '/api/admin/actors': typeof ApiAdminActorsRoute
   '/api/admin/anilist': typeof ApiAdminAnilistRoute
   '/api/admin/ingest': typeof ApiAdminIngestRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
     | '/voice-actors/'
     | '/anime/season/$season'
     | '/api/admin/actor-attributes'
+    | '/api/admin/actor-kana'
     | '/api/admin/actors'
     | '/api/admin/anilist'
     | '/api/admin/ingest'
@@ -293,6 +303,7 @@ export interface FileRouteTypes {
     | '/voice-actors'
     | '/anime/season/$season'
     | '/api/admin/actor-attributes'
+    | '/api/admin/actor-kana'
     | '/api/admin/actors'
     | '/api/admin/anilist'
     | '/api/admin/ingest'
@@ -320,6 +331,7 @@ export interface FileRouteTypes {
     | '/voice-actors/'
     | '/anime/season/$season'
     | '/api/admin/actor-attributes'
+    | '/api/admin/actor-kana'
     | '/api/admin/actors'
     | '/api/admin/anilist'
     | '/api/admin/ingest'
@@ -348,6 +360,7 @@ export interface RootRouteChildren {
   VoiceActorsIndexRoute: typeof VoiceActorsIndexRoute
   AnimeSeasonSeasonRoute: typeof AnimeSeasonSeasonRoute
   ApiAdminActorAttributesRoute: typeof ApiAdminActorAttributesRoute
+  ApiAdminActorKanaRoute: typeof ApiAdminActorKanaRoute
   ApiAdminActorsRoute: typeof ApiAdminActorsRoute
   ApiAdminAnilistRoute: typeof ApiAdminAnilistRoute
   ApiAdminIngestRoute: typeof ApiAdminIngestRoute
@@ -497,6 +510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminActorAttributesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/actor-kana': {
+      id: '/api/admin/actor-kana'
+      path: '/api/admin/actor-kana'
+      fullPath: '/api/admin/actor-kana'
+      preLoaderRoute: typeof ApiAdminActorKanaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/admin/actors': {
       id: '/api/admin/actors'
       path: '/api/admin/actors'
@@ -556,6 +576,7 @@ const rootRouteChildren: RootRouteChildren = {
   VoiceActorsIndexRoute: VoiceActorsIndexRoute,
   AnimeSeasonSeasonRoute: AnimeSeasonSeasonRoute,
   ApiAdminActorAttributesRoute: ApiAdminActorAttributesRoute,
+  ApiAdminActorKanaRoute: ApiAdminActorKanaRoute,
   ApiAdminActorsRoute: ApiAdminActorsRoute,
   ApiAdminAnilistRoute: ApiAdminAnilistRoute,
   ApiAdminIngestRoute: ApiAdminIngestRoute,
