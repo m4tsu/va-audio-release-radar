@@ -107,6 +107,31 @@ export type StopReason = {
 };
 
 /**
+ * この 1 人の結果が、走行を止める合図かどうか。
+ * 403 と 429 はこちらの取り方を相手が拒んでいる合図なので、その場で止めて人が判断する。
+ * `consecutiveFailures` には、この人を含めた連続失敗数を渡す
+ */
+export function stopReasonFor(
+  record: ActorKanaRecord,
+  consecutiveFailures: number,
+): StopReason | undefined {
+  if (record.status !== "failed") return undefined;
+  if (record.httpStatus === FORBIDDEN) {
+    return { kind: "forbidden", detail: `${record.canonicalName}: ${record.reason}` };
+  }
+  if (record.httpStatus === TOO_MANY_REQUESTS) {
+    return { kind: "rate-limited", detail: `${record.canonicalName}: ${record.reason}` };
+  }
+  if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
+    return {
+      kind: "consecutive-failures",
+      detail: `${consecutiveFailures} 人続けて失敗 (最後: ${record.canonicalName} ${record.reason})`,
+    };
+  }
+  return undefined;
+}
+
+/**
  * 1 人ぶん。`<名前>` で取れなければ `<名前>_(声優)` を引く。
  * 引き直すのは「記事が無い」ときと「記事はあるが条件を満たさない」ときの両方で、
  * 曖昧さ回避のページに当たった人の本人記事がそちらにあるため
@@ -225,26 +250,9 @@ export async function crawlActorKana(options: {
     done += 1;
     options.onProgress?.(done, options.canonicalNames.length);
 
-    if (record.status !== "failed") {
-      consecutiveFailures = 0;
-      continue;
-    }
-    // 403 と 429 はこちらの取り方を相手が拒んでいる合図なので、その場で止めて人が判断する
-    if (record.httpStatus === FORBIDDEN) {
-      return { stop: { kind: "forbidden", detail: `${canonicalName}: ${record.reason}` } };
-    }
-    if (record.httpStatus === TOO_MANY_REQUESTS) {
-      return { stop: { kind: "rate-limited", detail: `${canonicalName}: ${record.reason}` } };
-    }
-    consecutiveFailures += 1;
-    if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
-      return {
-        stop: {
-          kind: "consecutive-failures",
-          detail: `${consecutiveFailures} 人続けて失敗 (最後: ${canonicalName} ${record.reason})`,
-        },
-      };
-    }
+    consecutiveFailures = record.status === "failed" ? consecutiveFailures + 1 : 0;
+    const stop = stopReasonFor(record, consecutiveFailures);
+    if (stop !== undefined) return { stop };
   }
 
   return {};

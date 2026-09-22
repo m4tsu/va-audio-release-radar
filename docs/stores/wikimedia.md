@@ -4,15 +4,18 @@
 更新: robots.txt・利用規約・User-Agent ポリシーを取り直したら (差分が無くても最終確認日を更新する)
 削除: Wikimedia を声優のかなの入手元から外したら
 
-実装: かなの取得は `crawler/discovery/wikipedia-kana.ts`、記事 HTML の解析は
-`crawler/discovery/wikipedia-article.ts`。外部アクセスは `crawler/lib/fetch.ts` を通り、
-GET で記事 HTML を取るだけで、間隔は既定値のまま。ブラウザ相当の UA を Wikimedia が
+実装: かなの取得は `crawler/discovery/wikipedia-kana.ts`、読みの無かった人の引き直しは
+`crawler/discovery/wikipedia-kana-refill.ts`、記事 HTML の解析は
+`crawler/discovery/wikipedia-article.ts`、Wikidata の項目 HTML の解析は
+`crawler/discovery/wikidata-entity.ts`。外部アクセスは `crawler/lib/fetch.ts` を通り、
+GET で記事と項目の HTML を取るだけで、間隔は既定値のまま。ブラウザ相当の UA を Wikimedia が
 禁じている (「既知の落とし穴」) ので、UA の振り分けは `fetch.ts` の `userAgentFor()` が持つ。
 共通の原則は [`README.md`](./README.md)。
 
 **ストアではない。** 声優のかなの入手元の候補であり、ここから作品は取らない。
 どれだけのかなが取れるかの測定は
-[`docs/research/actor-kana-sources-2026-09-20.md`](../research/actor-kana-sources-2026-09-20.md)、
+[`docs/research/actor-kana-sources-2026-09-20.md`](../research/actor-kana-sources-2026-09-20.md) と
+[`docs/research/actor-kana-refill-2026-09-22.md`](../research/actor-kana-refill-2026-09-22.md)、
 採否は [`docs/decisions/0006-actor-kana-from-wikipedia-ja.md`](../decisions/0006-actor-kana-from-wikipedia-ja.md)。
 
 ---
@@ -117,6 +120,11 @@ GET https://www.wikidata.org/wiki/<Q id>
 
 記事 HTML には対応する Wikidata の項目 id が埋め込まれている (`wgWikibaseItemId`)。
 **Wikipedia の記事から Wikidata の項目へはこの 1 本で辿れる。** 逆向き (名前から項目) の手段は無い。
+
+**どちらの URL も実際に引いている。** 記事は全対象声優ぶん、項目は
+「記事に辿り着けたのに読みが書かれていなかった人」で、かつ導入部からも読みが取れなかった人だけを
+記事から辿って引く (`crawler/discovery/wikipedia-kana-refill.ts`)。
+項目 id が記事に無ければ項目は引かない。
 
 一度きりのバッチで全対象声優を引く規模になるなら、live リクエストより dump を先に検討する。
 同じ policy の原文引用:

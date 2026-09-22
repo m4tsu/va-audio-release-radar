@@ -64,7 +64,39 @@ describe("parseArticle", () => {
     // Template:ActorActress の ふりがな は「みつしま ひかり」だが、本人の読みだと機械では言えない
     expect(parseArticle(fixture("mitsushima-hikari")).furigana).toBeUndefined();
   });
+
+  it("導入部の <b>名前</b>（かな、 から読みを取る", () => {
+    // Template:ActorActress しか無い記事なので、ふりがな 引数からは取れない
+    const article = parseArticle(fixture("yamaji-kazuhiro"));
+    expect(article.furigana).toBeUndefined();
+    expect(article.leadReading).toBe("やまじ かずひろ");
+  });
+
+  it("読みの直後に脚注が入っても、読みだけを取る", () => {
+    // 麦人 の導入部は「（むぎひと[注 2]、1944年…」で、同じ段落の後ろに別の括弧 (（代表）) がある
+    expect(parseArticle(fixture("mugihito")).leadReading).toBe("むぎひと");
+  });
+
+  it("記事名と違う名前の太字からは読みを取らない", () => {
+    expect(parseArticle(leadOfAnotherName)).toMatchObject({ pageName: "麦人" });
+    expect(parseArticle(leadOfAnotherName).leadReading).toBeUndefined();
+  });
+
+  it("Wikidata の項目 id を取る", () => {
+    expect(parseArticle(fixture("yamaji-kazuhiro")).wikibaseItemId).toBe("Q3546378");
+  });
+
+  it("項目 id を持たない記事では undefined", () => {
+    expect(parseArticle(fixture("ueda-reina")).wikibaseItemId).toBeUndefined();
+  });
 });
+
+/** 導入部の太字が記事名ではない記事。別人の読みを本人のものとして取らないことを見る */
+const leadOfAnotherName = `<!DOCTYPE html><html><head>
+<script>RLCONF={"wgPageName":"麦人"};</script></head>
+<body><div class="mw-parser-output">
+<p><b>寺田 誠</b>（てらだ まこと、1944年8月8日 - ）は、日本の俳優。</p>
+</div></body></html>`;
 
 describe("kanaFromArticle", () => {
   it("3 条件を満たす記事からかなを取る", () => {

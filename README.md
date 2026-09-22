@@ -169,6 +169,19 @@ Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid 
 手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
 かなは日本語版 Wikipedia からも取る (`crawler/discovery/wikipedia-kana.ts`)。
 
+```bash
+# かなを取る (全員。数時間かかるので --limit で区切って重ねる)
+node crawler/discovery/wikipedia-kana.ts --limit 100
+
+# 記事には辿り着けたが読みが書かれていなかった人だけを引き直し、
+# 記事の導入部と Wikidata の P1814 から埋める (同じ結果ファイルの同じ行を書き換える)
+node crawler/discovery/wikipedia-kana-refill.ts
+```
+
+どちらも `crawler/.cache/discovery/wikipedia-kana.json` に書く。引いた人は理由付きで残るので、
+もう一度実行しても同じ人を引き直さない。外部サイトの制約は
+[`docs/stores/wikimedia.md`](./docs/stores/wikimedia.md)。
+
 ポケドラは名前で検索できない (声優はタグで、一覧の URL に `tag_id` が要る) ので、声優タグ辞書
 `crawler/pokedora-tags.generated.json` を経由して引く。辞書に無い声優はポケドラを引かない。
 載っているのは一般 + BL に作品がある声優だけで、人数はこのファイルの要素数が正。

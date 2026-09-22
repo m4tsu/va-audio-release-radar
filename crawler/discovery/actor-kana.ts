@@ -13,6 +13,14 @@ import { CACHE_DIR } from "../lib/paths.ts";
 export const KANA_JSON = path.join(CACHE_DIR, "discovery", "wikipedia-kana.json");
 
 /**
+ * かなをどこから取ったか。
+ * furigana=`Template:声優` の引数 / kana-name=名前そのものがかな /
+ * lead=記事の導入部の括弧 / wikidata=Wikidata の P1814。
+ * 後ろの 2 つは `wikipedia-kana-refill.ts` が、読みの無かった人だけを引き直して埋める
+ */
+export type ActorKanaSource = "furigana" | "kana-name" | "lead" | "wikidata";
+
+/**
  * 1 人ぶんの結果。取れなかった人も理由付きで残す。
  * 「引いたが取れなかった」と「まだ引いていない」を区別できないと、再開のたびに引き直してしまう
  */
@@ -24,11 +32,13 @@ export type ActorKanaRecord = {
   kana?: string;
   /** 記事に書かれていたままの値。取り違えを後から追えるようにする */
   rawKana?: string;
-  source?: "furigana" | "kana-name";
+  source?: ActorKanaSource;
   /** かなを取った、または最後に引いた記事名 */
   title?: string;
   /** 着地した記事名。転送されたかどうかが後から分かる */
   pageName?: string;
+  /** 引いた Wikidata の項目 id。どの項目から読みを取ったかを後から追えるようにする */
+  wikibaseItemId?: string;
   reason?: string;
   /** HTTP ステータス。ネットワークエラーでは undefined */
   httpStatus?: number;

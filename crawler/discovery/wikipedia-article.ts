@@ -19,6 +19,10 @@ export type WikipediaArticle = {
   categories: string[];
   /** テンプレートの `ふりがな` 引数に書かれていた文字列 (wikitext のまま) */
   furigana?: string;
+  /** 導入部の `<b>名前</b>（かな、` の括弧の先頭に書かれていた文字列 */
+  leadReading?: string;
+  /** 対応する Wikidata の項目 id (`wgWikibaseItemId`)。記事から項目へ辿れる唯一の手がかり */
+  wikibaseItemId?: string;
 };
 
 /** 記事からかなを取らなかった理由 */
@@ -63,6 +67,9 @@ export function articleUrl(title: string): string {
 
 /** `"wgPageName":"上田麗奈"` の値。JSON 文字列としてエスケープされている */
 const PAGE_NAME_PATTERN = /"wgPageName"\s*:\s*("(?:[^"\\]|\\.)*")/;
+
+/** `"wgWikibaseItemId":"Q3546378"` の値。項目が無い記事にはこの変数が出ない */
+const WIKIBASE_ITEM_ID_PATTERN = /"wgWikibaseItemId"\s*:\s*"(Q\d+)"/;
 
 function parsePageName(html: string): string | undefined {
   const raw = PAGE_NAME_PATTERN.exec(html)?.[1];
@@ -123,6 +130,40 @@ function furiganaFromDataMw(dataMw: string): string[] {
   return found;
 }
 
+/** 記事名と導入部の太字を比べる形に揃える。`wgPageName` は空白を `_` で持つ */
+function withoutSeparators(value: string): string {
+  return value.normalize("NFC").replace(/[\s_]+/gu, "");
+}
+
+/** 連続する空白を 1 つに畳む。改行やタグの境界で入る空白を読みの比較から外すため */
+function collapseSpaces(value: string): string {
+  return value.normalize("NFC").replace(/\s+/gu, " ").trim();
+}
+
+/**
+ * 導入部の `<b>名前</b>（かな、…` から括弧の先頭を取る。
+ *
+ * 起点は**記事名と一致する太字**に限る。括弧だけを探すと、読みの直後に脚注が入る記事で
+ * 導入部を読み飛ばし、別の段落の括弧 (出演作の役名など) を拾う
+ * (`docs/research/actor-kana-sources-2026-09-20.md` の `麦人`)。
+ * 脚注の番号は `<sup>` に入るので、本文を読む前に落とす
+ */
+function parseLeadReading($: cheerio.CheerioAPI, pageName: string): string | undefined {
+  const wanted = withoutSeparators(pageName);
+  for (const element of $("p").toArray()) {
+    const bold = $(element).find("b").first();
+    if (bold.length === 0 || withoutSeparators(bold.text()) !== wanted) continue;
+    const paragraph = $(element).clone();
+    paragraph.find("sup").remove();
+    const text = collapseSpaces(paragraph.text());
+    const name = collapseSpaces(bold.text());
+    if (name === "" || !text.startsWith(name)) continue;
+    const reading = /^（\s*([^（）]+?)\s*[、）]/u.exec(text.slice(name.length))?.[1];
+    if (reading !== undefined) return reading;
+  }
+  return undefined;
+}
+
 export function parseArticle(html: string): WikipediaArticle {
   const $ = cheerio.load(html);
 
@@ -142,10 +183,14 @@ export function parseArticle(html: string): WikipediaArticle {
   const furigana = candidates[0];
 
   const pageName = parsePageName(html);
+  const leadReading = pageName === undefined ? undefined : parseLeadReading($, pageName);
+  const wikibaseItemId = WIKIBASE_ITEM_ID_PATTERN.exec(html)?.[1];
   return {
     ...(pageName === undefined ? {} : { pageName }),
     categories,
     ...(furigana === undefined ? {} : { furigana }),
+    ...(leadReading === undefined ? {} : { leadReading }),
+    ...(wikibaseItemId === undefined ? {} : { wikibaseItemId }),
   };
 }
 
