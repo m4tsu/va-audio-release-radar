@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import {
@@ -12,23 +10,22 @@ import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { ActorQuery, AdapterResult, AdapterStatus, SourceAdapter } from "./adapters/types.ts";
+import { spacedNameCandidates } from "./discovery/actor-entity.ts";
 import {
   appendActorRefs,
   loadPokedoraDirectory,
   lookupActor,
 } from "./discovery/pokedora-directory.ts";
 import {
-  type ActorSeed,
   AdminApiClient,
   AdminApiError,
-  describeGenderCounts,
+  type CrawlActor,
   failureReport,
   IngestProtocolMismatchError,
   spacedUnverifiedAliasNames,
   spacedVerifiedAliasNames,
 } from "./lib/ingest.ts";
 import { STORE_COLUMN_LABELS } from "./lib/labels.ts";
-import { CRAWLER_DIR } from "./lib/paths.ts";
 
 /**
  * 声優起点の走行の本体。GitHub Actions からも手元からも同じものを動かす。
@@ -36,8 +33,7 @@ import { CRAWLER_DIR } from "./lib/paths.ts";
  *   INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199
  *
  * 手順:
- *   1. 対象声優リスト (既定 `crawler/actors.generated.json`、`--actors` で切り替え) を
- *      `POST /api/admin/actors` で upsert する (名寄せの材料を先に揃える)。2,500 人規模なので分割して送る
+ *   1. 対象声優を `GET /api/admin/actors` で引く。台帳は DB にしかないので、リストのファイルは読まない
  *   2. 声優 × ストアごとに adapter で取得し、`IngestPayload` を `POST /api/admin/ingest` に送る
  *   3. 集計表を標準出力に出す
  *
@@ -53,26 +49,22 @@ const ADAPTERS: Record<StoreSlug, SourceAdapter> = {
 
 const ALL_STORES: readonly StoreSlug[] = STORE_SLUGS;
 
-const ACTORS_JSON = path.join(CRAWLER_DIR, "actors.generated.json");
-
 const USAGE = `使い方:
   INGEST_TOKEN=... node crawler/run.ts --base-url https://example.workers.dev [オプション]
 
 オプション:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
-  --actors <path>           使う声優リスト (既定 crawler/actors.generated.json)
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
   --store <slug>            1 つのストアだけを対象にする (dlsite / audible / pokedora)
   --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
   --limit <N>               (--offset のぶんを飛ばした後) N 人の声優だけを対象にする
-  --dry-run                 取得はするが DB へは送らない (声優の upsert も行わない)
+  --dry-run                 取得はするが DB へは送らない (対象声優の読み取りだけは行う)
   --no-snapshot             取得した生データを .cache/snapshots に保存しない
   --no-skip-known           既知 ID の詳細取得を飛ばさず、毎回すべて取り直す
 `;
 
 const OPTION_SPEC = {
   "base-url": { type: "string" },
-  actors: { type: "string" },
   only: { type: "string" },
   store: { type: "string" },
   offset: { type: "string" },
@@ -103,7 +95,7 @@ export type SaveStatus = "saved" | "failed" | "skipped";
 
 /** 声優 1 人 × ストア 1 つの結果。最後の表と終了コードの材料 */
 export type RunOutcome = {
-  actor: ActorSeed;
+  actor: CrawlActor;
   storeSlug: StoreSlug;
   status: AdapterStatus;
   /** adapter が取れた作品数。保存できたかどうかとは無関係 */
@@ -258,29 +250,47 @@ function displayWidth(value: string): number {
 
 // --- シード ----------------------------------------------------------------
 
-export async function loadActorSeeds(file: string = ACTORS_JSON): Promise<ActorSeed[]> {
-  const parsed: unknown = JSON.parse(await readFile(file, "utf8"));
-  if (!Array.isArray(parsed)) throw new Error(`${file} が配列ではない`);
-  // 中身の検証はサーバー側の zod に任せる。二重に持つと片方だけ古くなるため
-  return parsed as ActorSeed[];
+/**
+ * 対象声優を台帳から引く。
+ *
+ * 検索に使う空白入りの表記は保存された別名義だけを読み、残りは `buildSearchNames` が
+ * 日本語表記から作る。当てずっぽうの切り方を辞書に溜めると、名寄せがその表記でも当たるようになる
+ */
+export async function loadCrawlActors(client: AdminApiClient): Promise<CrawlActor[]> {
+  const entries = await client.listActors();
+  return entries.map((entry) => ({
+    id: entry.id,
+    slug: entry.slug,
+    canonicalName: entry.canonicalName,
+    aliases: entry.aliases.map((alias) => ({
+      name: alias.name,
+      source: "manual",
+      verified: alias.verified,
+    })),
+  }));
 }
 
 /**
  * Audible 向けの検索候補。DLsite adapter はこの配列を無視して canonicalName の完全一致検索だけを行う。
  *
- * 順番は 検証済みの空白入り alias → canonicalName → 未検証の空白入り alias。
+ * 順番は 検証済みの空白入り別名義 → canonicalName → 機械的に切った空白入りの候補。
  *
  * - 検証済みが先頭なのは実測どおり (「石見舞菜香」は該当なし、「石見 舞菜香」だと 2 件)
- * - 未検証を canonicalName の後ろに置くのは、自動生成のリスト では 2,501 人ぶんの
- *   候補が当てずっぽうの切り方だから。adapter は 1 件以上取れた時点で打ち切るので、
- *   canonicalName で引ける大多数の声優に対して余分な検索リクエストが出ない
- * - それでも未検証を候補に含めるのは、含めないと自動生成の声優が
- *   Audible の空白問題 (石見舞菜香 と同じ形) を一切吸収できないため
+ * - 機械的な候補を canonicalName の後ろに置くのは、切る位置が当てずっぽうだから。
+ *   adapter は 1 件以上取れた時点で打ち切るので、canonicalName で引ける大多数の声優に
+ *   余分な検索リクエストは出ない
+ * - それでも候補に含めるのは、含めないと Audible の空白問題 (石見舞菜香 と同じ形) を
+ *   一切吸収できないため
+ *
+ * 機械的な候補は日本語表記からその場で作る。台帳に保存しないのは、当てずっぽうの表記が
+ * 別名義の表に入ると、ストアのクレジット表記の照合がその表記でも当たるようになるため
  */
-export function buildSearchNames(actor: ActorSeed): string[] {
+export function buildSearchNames(actor: CrawlActor): string[] {
   const verified = spacedVerifiedAliasNames(actor);
   if (verified.length > 0) return [...verified, actor.canonicalName];
-  return [actor.canonicalName, ...spacedUnverifiedAliasNames(actor)];
+  const stored = spacedUnverifiedAliasNames(actor);
+  const generated = stored.length > 0 ? stored : spacedNameCandidates(actor.canonicalName);
+  return [actor.canonicalName, ...generated];
 }
 
 /**
@@ -292,17 +302,20 @@ export function buildSearchNames(actor: ActorSeed): string[] {
  * (「81 人目から 420 人」がそのまま書けるようにするため)
  */
 export function sliceActors(
-  actors: readonly ActorSeed[],
+  actors: readonly CrawlActor[],
   offset: number | undefined,
   limit: number | undefined,
-): ActorSeed[] {
+): CrawlActor[] {
   const start = offset ?? 0;
   const end = limit === undefined ? undefined : start + limit;
   return actors.slice(start, end);
 }
 
 /** `--only` の値で絞る。canonicalName と slug のどちらでも書けるようにする */
-export function filterActors(actors: readonly ActorSeed[], only: string | undefined): ActorSeed[] {
+export function filterActors(
+  actors: readonly CrawlActor[],
+  only: string | undefined,
+): CrawlActor[] {
   if (only === undefined) return [...actors];
   const wanted = new Set(
     only
@@ -332,11 +345,12 @@ export async function main(argv: readonly string[]): Promise<number> {
   const dryRun = values["dry-run"] === true;
   const baseUrl = asString(values["base-url"]) ?? process.env.INGEST_URL;
   const token = process.env.INGEST_TOKEN;
-  if (!dryRun && (baseUrl === undefined || baseUrl === "")) {
+  // --dry-run でも要る。誰を調べるかは台帳 (DB) にしか無いので、読むために接続する
+  if (baseUrl === undefined || baseUrl === "") {
     process.stderr.write(`--base-url か環境変数 INGEST_URL が要る\n\n${USAGE}`);
     return 1;
   }
-  if (!dryRun && (token === undefined || token === "")) {
+  if (token === undefined || token === "") {
     process.stderr.write("環境変数 INGEST_TOKEN が要る\n");
     return 1;
   }
@@ -365,9 +379,12 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
-  const actorsFile = asString(values.actors) ?? ACTORS_JSON;
-  const seeds = await loadActorSeeds(actorsFile);
-  const filtered = filterActors(seeds, asString(values.only));
+  // 台帳を読むだけの走行でも取り込み先が要る。誰を調べるかは DB にしか無い
+  const client = new AdminApiClient(baseUrl ?? "", token ?? "");
+  const all = await loadCrawlActors(client);
+  process.stdout.write(`対象声優を台帳から読んだ: ${all.length} 人\n`);
+
+  const filtered = filterActors(all, asString(values.only));
   const actors = sliceActors(filtered, offset, limit);
   if (actors.length === 0) {
     process.stderr.write(
@@ -381,22 +398,6 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(
       `先頭 ${offset} 人を飛ばし、${offset + 1} 人目から ${offset + actors.length} 人目までを対象にする\n`,
     );
-  }
-
-  // dry-run では API に触らない。取り込み先がまだ無い状態でも取得部分だけ試せるようにする
-  const client = dryRun ? undefined : new AdminApiClient(baseUrl ?? "", token ?? "");
-
-  if (client !== undefined) {
-    // --only で絞っていてもシードは全件入れる。名寄せは他の声優の別名まで見て判定するため
-    const seeded = await upsertAllActors(client, seeds);
-    process.stdout.write(
-      `声優シードを投入: ${seeded.actors} 人 / alias ${seeded.aliases} 件 (${actorsFile})\n`,
-    );
-    process.stdout.write(`  性別: ${describeGenderCounts(seeds)}\n`);
-    if (seeded.clearedScreened > 0) {
-      // 辞書が増えたので、過去に「対象外」と判断した作品を次の日次が引き直す
-      process.stdout.write(`辞書が増えたので、対象外の判断 ${seeded.clearedScreened} 件を捨てた\n`);
-    }
   }
 
   // ポケドラは名前で検索できない (声優はタグで、URL に tag_id が要る)。先に辞書を読む
@@ -414,7 +415,9 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
   }
 
-  const knownIds = await loadKnownIds(client, stores, values["no-skip-known"] === true);
+  // 送らない走行では取り込み先を渡さない。取得だけを試せるようにするため
+  const ingestTarget = dryRun ? undefined : client;
+  const knownIds = await loadKnownIds(ingestTarget, stores, values["no-skip-known"] === true);
   const runDate = new Date().toISOString().slice(0, 10);
   const snapshot = values["no-snapshot"] !== true;
 
@@ -458,7 +461,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         // かなりが重複になる。credit は作品に紐づいて既に保存されているので、
         // 2 人目以降で詳細を飛ばしても出演者は落ちない (upsert は credit を消さない)
         markFetched(knownIds, storeSlug, result.works);
-        forActor.push(await send(client, actor, storeSlug, result, runDate, startedAt));
+        forActor.push(await send(ingestTarget, actor, storeSlug, result, runDate, startedAt));
       }
     } catch (error) {
       // 版ずれ。残り全員も確実に同じ結果になるので、ここで打ち切る
@@ -510,7 +513,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 function progressLine(
   index: number,
   total: number,
-  actor: ActorSeed,
+  actor: CrawlActor,
   outcomes: readonly RunOutcome[],
   skippedStores: readonly StoreSlug[] = [],
 ): string {
@@ -536,7 +539,7 @@ function progressLine(
  */
 export async function send(
   client: AdminApiClient | undefined,
-  actor: ActorSeed,
+  actor: CrawlActor,
   storeSlug: StoreSlug,
   result: AdapterResult,
   runDate: string,
@@ -619,7 +622,7 @@ export async function send(
  */
 async function reportFailure(
   client: AdminApiClient,
-  source: { runId: string; storeSlug: StoreSlug; actor: ActorSeed; startedAt?: string },
+  source: { runId: string; storeSlug: StoreSlug; actor: CrawlActor; startedAt?: string },
   reason: string,
 ): Promise<boolean> {
   try {
@@ -653,23 +656,6 @@ async function reportFailure(
  * Worker 側は 1 人ずつ insert するので、2,501 人 (自動生成リスト) を 1 リクエストで
  * 送ると本文も実行時間も膨らむ。分割しても upsert は冪等なので結果は変わらない
  */
-const ACTOR_UPSERT_CHUNK = 200;
-
-/** シードを分割して投入し、件数を足し合わせる */
-async function upsertAllActors(
-  client: AdminApiClient,
-  seeds: readonly ActorSeed[],
-): Promise<{ actors: number; aliases: number; clearedScreened: number }> {
-  const total = { actors: 0, aliases: 0, clearedScreened: 0 };
-  for (let start = 0; start < seeds.length; start += ACTOR_UPSERT_CHUNK) {
-    const result = await client.upsertActors(seeds.slice(start, start + ACTOR_UPSERT_CHUNK));
-    total.actors += result.actors;
-    total.aliases += result.aliases;
-    total.clearedScreened += result.clearedScreened;
-  }
-  return total;
-}
-
 /**
  * ストアごとの既知 ID。DLsite の `product.json` を新規 ID だけに絞るために使う。
  * 取れなくても致命的ではない (全件取り直しになるだけ) ので、失敗しても警告に留める。

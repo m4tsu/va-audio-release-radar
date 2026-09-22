@@ -1,0 +1,44 @@
+{
+  "data": {
+    "Media": {
+      "id": 171018,
+      "characters": {
+        "pageInfo": {
+          "currentPage": 4,
+          "lastPage": 4,
+          "hasNextPage": false,
+          "perPage": 25,
+          "total": 76
+        },
+        "edges": [
+          {
+            "role": "BACKGROUND",
+            "node": {
+              "id": 352097,
+              "name": {
+                "native": "男子B",
+                "full": "Danshi B"
+              },
+              "image": {
+                "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg"
+              }
+            },
+            "voiceActors": [
+              {
+                "id": 152907,
+                "name": {
+                  "native": "観世智顕",
+                  "full": "Noriaki Kanze"
+                },
+                "image": {
+                  "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n152907-k0MSLzTIXYOj.png"
+                },
+                "gender": "Male"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

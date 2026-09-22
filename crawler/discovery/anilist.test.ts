@@ -166,12 +166,9 @@ describe("parseSeasonPage", () => {
   });
 
   it("想定外の形でも落ちない", () => {
-    expect(parseSeasonPage(undefined)).toEqual({ media: [], credits: [], hasNextPage: false });
-    expect(parseSeasonPage({ data: { Page: null } })).toEqual({
-      media: [],
-      credits: [],
-      hasNextPage: false,
-    });
+    const empty = { media: [], credits: [], hasNextPage: false, moreCharacterMediaIds: [] };
+    expect(parseSeasonPage(undefined)).toEqual(empty);
+    expect(parseSeasonPage({ data: { Page: null } })).toEqual(empty);
   });
 });
 

@@ -1,14 +1,14 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { INGEST_PROTOCOL_VERSION, type StoreSlug } from "../src/domain/index.ts";
 import type { AdapterResult, AdapterStatus } from "./adapters/types.ts";
-import { type ActorSeed, AdminApiClient, IngestProtocolMismatchError } from "./lib/ingest.ts";
+import { AdminApiClient, type CrawlActor, IngestProtocolMismatchError } from "./lib/ingest.ts";
 import { CRAWLER_DIR } from "./lib/paths.ts";
 import {
   buildSearchNames,
   filterActors,
   formatOutcomeTable,
-  loadActorSeeds,
   markFetched,
   type RunOutcome,
   send,
@@ -21,22 +21,28 @@ import {
  * `actors.generated.json` は実際に配る値なので、形が崩れていないことをここで検出する
  */
 
-const UEDA: ActorSeed = {
+const UEDA: CrawlActor = {
   id: "va_ueda-reina",
   slug: "ueda-reina",
   canonicalName: "上田麗奈",
-  anilistStaffId: 100001,
 };
-const KAJI: ActorSeed = {
-  id: "va_kaji-yuki",
-  slug: "kaji-yuki",
-  canonicalName: "梶裕貴",
-  anilistStaffId: 100006,
-};
+const KAJI: CrawlActor = { id: "va_kaji-yuki", slug: "kaji-yuki", canonicalName: "梶裕貴" };
+
+/**
+ * 配っている生成物。走行はこれを読まなくなったが、ファイル自体はまだ配るので
+ * 形が崩れていないことをここで見る (読み込みはこのテストの中だけ)
+ */
+type GeneratedSeed = CrawlActor & { nameEn?: string };
+
+async function readGeneratedSeeds(file: string): Promise<GeneratedSeed[]> {
+  const parsed: unknown = JSON.parse(await readFile(file, "utf8"));
+  if (!Array.isArray(parsed)) throw new Error(`${file} が配列ではない`);
+  return parsed as GeneratedSeed[];
+}
 
 /** 保存まで成功した 1 行。workCount は保存された件数なので fetchedCount と同じになる */
 function outcome(
-  actor: ActorSeed,
+  actor: CrawlActor,
   storeSlug: StoreSlug,
   status: AdapterStatus,
   workCount = 0,
@@ -59,7 +65,7 @@ function outcome(
 
 /** 取得はできたが ingest への送信に失敗した 1 行 */
 function saveFailed(
-  actor: ActorSeed,
+  actor: CrawlActor,
   storeSlug: StoreSlug,
   fetchedCount: number,
   failureRecorded: boolean,
@@ -256,28 +262,24 @@ describe("buildSearchNames", () => {
         id: "va_iwami-manaka",
         slug: "iwami-manaka",
         canonicalName: "石見舞菜香",
-        anilistStaffId: 100007,
         aliases: [{ name: "石見 舞菜香", source: "manual", verified: true }],
       }),
     ).toEqual(["石見 舞菜香", "石見舞菜香"]);
   });
 
-  it("空白入り alias が無ければ canonicalName だけ", () => {
-    expect(buildSearchNames(KAJI)).toEqual(["梶裕貴"]);
+  it("保存された別名義が無ければ、日本語表記から候補を作って後ろに置く", () => {
+    // 台帳は当てずっぽうの切り方を保存しない (保存すると名寄せがその表記でも当たる)。
+    // adapter は 1 件でも取れたら打ち切るので、canonicalName を先に試せば余分な検索は出ない
+    expect(buildSearchNames(KAJI)).toEqual(["梶裕貴", "梶 裕貴", "梶裕 貴"]);
   });
 
-  it("未検証の alias は canonicalName の後ろに置く", () => {
-    // 自動生成のリストは当てずっぽうの切り方で候補を持つ。adapter は 1 件でも取れたら
-    // 打ち切るので、canonicalName を先に試せば大多数の声優で余分な検索が出ない
+  it("未検証の別名義が保存されていればそれを使う", () => {
     expect(
       buildSearchNames({
         ...UEDA,
-        aliases: [
-          { name: "上田 麗奈", source: "manual", verified: false },
-          { name: "上田麗 奈", source: "manual", verified: false },
-        ],
+        aliases: [{ name: "上田 麗奈", source: "manual", verified: false }],
       }),
-    ).toEqual(["上田麗奈", "上田 麗奈", "上田麗 奈"]);
+    ).toEqual(["上田麗奈", "上田 麗奈"]);
   });
 
   it("検証済みがあれば未検証の候補は使わない", () => {
@@ -302,7 +304,7 @@ describe("actors.generated.json", () => {
   const GENERATED = path.join(CRAWLER_DIR, "actors.generated.json");
 
   it("id は va_{slug} で、slug が重複しない", async () => {
-    const seeds = await loadActorSeeds(GENERATED);
+    const seeds = await readGeneratedSeeds(GENERATED);
     expect(seeds.length).toBeGreaterThan(2000);
     for (const seed of seeds) {
       expect(seed.id).toBe(`va_${seed.slug}`);
@@ -314,7 +316,7 @@ describe("actors.generated.json", () => {
   });
 
   it("ローマ字表記が入っていて、前後と途中に余分な空白が無い", async () => {
-    const seeds = await loadActorSeeds(GENERATED);
+    const seeds = await readGeneratedSeeds(GENERATED);
     const withNameEn = seeds.filter((seed) => seed.nameEn !== undefined);
     // AniList の fullName が空の声優はそもそも slug を作れず除外されるので、ほぼ全員に入る
     // (入らないのは fullName が無いまま slug を手で書いた人だけ)。大きく減ったら生成の取りこぼしを疑う
@@ -331,7 +333,7 @@ describe("actors.generated.json", () => {
     // 姓と名の境界が無い芸名の人だけ。この集合は build-actors.ts の no-slug 除外だった
     // 68 人と一致するので、大きく増えたら生成規則の劣化を疑う
     const withoutCandidate: string[] = [];
-    for (const seed of await loadActorSeeds(GENERATED)) {
+    for (const seed of await readGeneratedSeeds(GENERATED)) {
       if (buildSearchNames(seed).some((name) => name.includes(" "))) continue;
       withoutCandidate.push(seed.canonicalName);
     }

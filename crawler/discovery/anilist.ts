@@ -35,6 +35,41 @@ export function seasonOrder(key: SeasonKey): number {
   return key.year * 4 + ANILIST_SEASONS.indexOf(key.season);
 }
 
+/**
+ * その日が属するシーズン。AniList の季節は 1-3 月 WINTER / 4-6 月 SPRING /
+ * 7-9 月 SUMMER / 10-12 月 FALL
+ */
+export function seasonOfDate(isoDate: string): SeasonKey {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) throw new Error(`日付として読めない: ${isoDate}`);
+  const year = date.getUTCFullYear();
+  const index = Math.floor(date.getUTCMonth() / 3);
+  const season = ANILIST_SEASONS[index];
+  if (season === undefined) throw new Error(`季節を決められない: ${isoDate}`);
+  return { year, season };
+}
+
+/**
+ * 基準日から対象シーズンを決める。**次のシーズンを新しい端にして、そこから count 個**を
+ * 古い順に返す。
+ *
+ * 新しい端を「今」ではなく「次」にするのは、AniList が放送前の作品を先にシーズンへ
+ * 並べるため。次を含めないと、新番組で初めて名前が出る声優が 3 か月遅れて入る
+ */
+export function recentSeasons(baseDateIso: string, count: number): SeasonKey[] {
+  if (!Number.isInteger(count) || count < 1) throw new Error(`シーズン数は 1 以上: ${count}`);
+  const newest = seasonOrder(seasonOfDate(baseDateIso)) + 1;
+  const oldest = newest - (count - 1);
+  return enumerateSeasons(seasonKeyOf(oldest), seasonKeyOf(newest));
+}
+
+/** 順序値からシーズンへ戻す */
+function seasonKeyOf(order: number): SeasonKey {
+  const season = ANILIST_SEASONS[((order % 4) + 4) % 4];
+  if (season === undefined) throw new Error(`順序値からシーズンを作れない: ${order}`);
+  return { year: Math.floor(order / 4), season };
+}
+
 /** from から to まで (両端含む) のシーズンを古い順に並べる */
 export function enumerateSeasons(from: SeasonKey, to: SeasonKey): SeasonKey[] {
   const result: SeasonKey[] = [];
@@ -65,12 +100,34 @@ export const SEASON_PAGE_QUERY = `query ($season: MediaSeason, $seasonYear: Int,
       startDate { year month day }
       endDate { year month day }
       coverImage { large color }
-      characters(perPage: 25, sort: ROLE) {
+      characters(page: 1, perPage: 25, sort: ROLE) {
+        pageInfo { hasNextPage }
         edges {
           role
           node { id name { native full } image { medium } }
           voiceActors(language: JAPANESE) { id name { native full } image { medium } gender }
         }
+      }
+    }
+  }
+}`;
+
+/**
+ * 1 作品ぶんのキャラクターの続き。シーズンのクエリは 1 ページ目しか返さないので、
+ * `hasNextPage` が立っている作品だけこれで続きを引く。
+ *
+ * `perPage` に 25 より大きい値を書いても AniList が 25 に丸める (2026-09-22 の実測)。
+ * ページ送りの回数は減らせないので、素直に 25 のまま送る
+ */
+export const MEDIA_CHARACTERS_QUERY = `query ($id: Int, $page: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    characters(page: $page, perPage: 25, sort: ROLE) {
+      pageInfo { hasNextPage }
+      edges {
+        role
+        node { id name { native full } image { medium } }
+        voiceActors(language: JAPANESE) { id name { native full } image { medium } gender }
       }
     }
   }
@@ -119,17 +176,24 @@ export type MediaCredit = {
   role?: string;
 };
 
-/** `Page` の応答から作品と出演声優を取り出す。想定外の形は静かに捨てる */
+/**
+ * `Page` の応答から作品と出演声優を取り出す。想定外の形は静かに捨てる。
+ *
+ * `moreCharacterMediaIds` は、キャラクターが 1 ページに収まらなかった作品。
+ * 呼び出し側が `MEDIA_CHARACTERS_QUERY` で続きを引く
+ */
 export function parseSeasonPage(json: unknown): {
   media: SeasonMediaRef[];
   credits: MediaCredit[];
   hasNextPage: boolean;
+  moreCharacterMediaIds: number[];
 } {
   const page = asRecord(asRecord(asRecord(json)?.data)?.Page);
   const pageInfo = asRecord(page?.pageInfo);
   const list = Array.isArray(page?.media) ? page.media : [];
   const media: SeasonMediaRef[] = [];
   const credits: MediaCredit[] = [];
+  const moreCharacterMediaIds: number[] = [];
 
   for (const raw of list) {
     const record = asRecord(raw);
@@ -161,9 +225,40 @@ export function parseSeasonPage(json: unknown): {
       ...(coverImageColor === undefined ? {} : { coverImageColor }),
     });
     credits.push(...parseCharacterEdges(record?.characters, mediaId));
+    if (hasMoreCharacters(record?.characters)) moreCharacterMediaIds.push(mediaId);
   }
 
-  return { media, credits, hasNextPage: pageInfo?.hasNextPage === true };
+  return {
+    media,
+    credits,
+    hasNextPage: pageInfo?.hasNextPage === true,
+    moreCharacterMediaIds,
+  };
+}
+
+/**
+ * `Media.characters` の応答から出演を取り出す。続きがあるかも返す。
+ *
+ * 続きの有無は `hasNextPage` だけで見る。同じ応答の `lastPage` と `total` は、
+ * 最後のページに着くまで実際と違う値を返す (2026-09-22 の実測: 1〜2 ページ目は
+ * 「500 件 / 20 ページ」、実際は 76 件 / 4 ページ)。
+ * 出典は `docs/research/anilist-cast-instability-2026-09-22.md`
+ */
+export function parseMediaCharacters(json: unknown): {
+  credits: MediaCredit[];
+  hasNextPage: boolean;
+} {
+  const mediaRecord = asRecord(asRecord(asRecord(json)?.data)?.Media);
+  const mediaId = asNumber(mediaRecord?.id);
+  if (mediaId === undefined) return { credits: [], hasNextPage: false };
+  return {
+    credits: parseCharacterEdges(mediaRecord?.characters, mediaId),
+    hasNextPage: hasMoreCharacters(mediaRecord?.characters),
+  };
+}
+
+function hasMoreCharacters(characters: unknown): boolean {
+  return asRecord(asRecord(characters)?.pageInfo)?.hasNextPage === true;
 }
 
 /** 1 作品ぶんの `characters.edges` から声優を取り出す */
@@ -412,6 +507,47 @@ async function postGraphql(
   return graphqlError === undefined ? { json } : { json, error: graphqlError };
 }
 
+/**
+ * 1 作品ぶんのキャラクターの 2 ページ目以降。`hasNextPage` が下りるまで送る。
+ *
+ * 上限を置くのは、相手の応答が壊れて `hasNextPage` が立ち続けたときに走り続けないため。
+ * 実測で一番多い作品でも 4 ページだった (2026-09-22)
+ */
+const MAX_CHARACTER_PAGES = 40;
+
+async function crawlRemainingCharacters(
+  mediaId: number,
+  snapshot: boolean | undefined,
+  counters: { network: number; cache: number },
+): Promise<{ credits: MediaCredit[]; warnings: string[] }> {
+  const credits: MediaCredit[] = [];
+  const warnings: string[] = [];
+  const fingerprint = queryFingerprint(MEDIA_CHARACTERS_QUERY);
+
+  for (let page = 2; page <= MAX_CHARACTER_PAGES; page += 1) {
+    const response = await postGraphql(
+      MEDIA_CHARACTERS_QUERY,
+      { id: mediaId, page },
+      `media-characters-${mediaId}-p${page}-${fingerprint}`,
+      snapshot,
+      counters,
+    );
+    if ("error" in response && !("json" in response)) {
+      warnings.push(`media ${mediaId} の出演者 p${page}: 取得に失敗 (${response.error})`);
+      break;
+    }
+    if ("error" in response) {
+      warnings.push(`media ${mediaId} の出演者 p${page}: GraphQL エラー (${response.error})`);
+    }
+    const parsed = parseMediaCharacters("json" in response ? response.json : undefined);
+    credits.push(...parsed.credits);
+    if (!parsed.hasNextPage) return { credits, warnings };
+  }
+
+  warnings.push(`media ${mediaId} の出演者が ${MAX_CHARACTER_PAGES} ページを超えたので打ち切った`);
+  return { credits, warnings };
+}
+
 export async function crawlAniList(options: {
   seasons: SeasonKey[];
   /** シーズンごとに取る作品数の上限 (50 件 × ページ) */
@@ -459,6 +595,17 @@ export async function crawlAniList(options: {
       for (const credit of parsed.credits) {
         if (keptIds.has(credit.mediaId)) credits.push({ ...credit, season });
       }
+
+      // キャラクターが 1 ページに収まらなかった作品は続きを引く。
+      // 25 人で切ると、同じ役の中の順序が取得ごとに変わるせいで、誰が対象声優になるかが
+      // 走行のたびに入れ替わる (docs/research/anilist-cast-instability-2026-09-22.md)
+      for (const mediaId of parsed.moreCharacterMediaIds) {
+        if (!keptIds.has(mediaId)) continue;
+        const extra = await crawlRemainingCharacters(mediaId, options.snapshot, counters);
+        for (const credit of extra.credits) credits.push({ ...credit, season });
+        warnings.push(...extra.warnings);
+      }
+
       taken += kept.length;
 
       if (!parsed.hasNextPage || taken >= options.mediaPerSeason) break;

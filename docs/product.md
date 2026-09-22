@@ -28,18 +28,19 @@ ASMR 推薦サイト、声優事典 / アニメのキャスト DB、価格追跡
 
 ## 対象声優
 
-**対象声優 = AniList にアニメ出演記録がある日本語声優。** 直近 12 シーズンのアニメの日本語 voiceActors から
-機械的に決める。人が名前を挙げない。DLsite にしか居ない同人 ASMR の声優はフォロー対象にしない
-(クレジット表記としては保存する)。
+**対象声優 = AniList にアニメ出演記録がある日本語声優。** 実行日から決めた直近 12 シーズンのアニメの
+日本語 voiceActors を、1 作品あたりの人数で切らずに機械的に集める。人が名前を挙げない。
+DLsite にしか居ない同人 ASMR の声優はフォロー対象にしない (クレジット表記としては保存する)。
 
 対象声優の大半は音声作品を出していない。その声優もフォローできる。出演アニメがあればページを出し、
 音声作品がまだ無いことを画面に書く。そのページは検索エンジンには載せない (sitemap に出さず noindex)
 ([`decisions/0012`](./decisions/0012-follow-actors-without-works.md))。
 
-リストは追加だけを行う。直近 12 シーズンという窓は取得対象を絞る条件であり、窓から外れた声優を消す
-理由にしない。改名は別名義として扱う ([`decisions/0009`](./decisions/0009-actor-list-append-only.md))。
+台帳は DB で、行は消さない。12 シーズンという窓も 1 シーズンあたりの作品数も取得範囲を絞る条件であり、
+範囲から外れた声優を消す理由にしない。改名は別名義として扱う
+([`decisions/0009`](./decisions/0009-actor-list-append-only.md)、[`decisions/0015`](./decisions/0015-db-is-the-ledger.md))。
 
-生成規則は `crawler/discovery/actor-entity.ts`、人数は `crawler/actors.generated.json` が正。
+対象シーズンの決め方と slug の規則はコードが正 (`crawler/discovery/anilist.ts`、`src/domain/actor-slug.ts`)。
 
 ## 対象作品
 

@@ -4,7 +4,7 @@
 更新: robots.txt・レート制限・利用規約を取り直したら (差分が無くても最終確認日を更新する)
 削除: AniList を対象声優の供給元から外したら
 
-実装: `crawler/discovery/` の `anilist.ts` / `anilist-gender.ts` / `fill-actor-gender.ts` / `build-actors.ts`
+実装: `crawler/anilist.ts` (週次の取り込み) と `crawler/discovery/` の `anilist.ts` / `anilist-payload.ts` / `anilist-gender.ts`
 共通の原則は [`README.md`](./README.md)。
 
 **ストアではない。** 対象声優の供給元であり、ここから作品は取らない。
@@ -120,7 +120,8 @@ query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
       startDate { year month day }
       endDate { year month day }
       coverImage { large color }
-      characters(perPage: 25, sort: ROLE) {
+      characters(page: 1, perPage: 25, sort: ROLE) {
+        pageInfo { hasNextPage }
         edges {
           role
           node { id name { native full } image { medium } }
@@ -132,8 +133,29 @@ query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
 }
 ```
 
-対象は直近 12 シーズン (2024 WINTER 〜 2026 FALL)。作品数・人数は測定値で、
-出典は §8 の発見スパイクノート。
+対象シーズンは実行日から決める。次のシーズンを新しい端にして、そこから 12 個
+(`crawler/discovery/anilist.ts` の `recentSeasons`)。固定の年は書かない。
+
+`characters` は 1 ページ目だけが返る。`pageInfo.hasNextPage` が立っている作品は
+下の `MEDIA_CHARACTERS_QUERY` で続きを引き、**出演者を上限で切らない**。
+
+### 1 作品ぶんの出演者の続き (`MEDIA_CHARACTERS_QUERY`)
+
+```graphql
+query ($id: Int, $page: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    characters(page: $page, perPage: 25, sort: ROLE) {
+      pageInfo { hasNextPage }
+      edges {
+        role
+        node { id name { native full } image { medium } }
+        voiceActors(language: JAPANESE) { id name { native full } image { medium } gender }
+      }
+    }
+  }
+}
+```
 
 ### staff id から性別だけを引く (`crawler/discovery/anilist-gender.ts`)
 
@@ -145,9 +167,9 @@ query ($ids: [Int]) {
 }
 ```
 
-対象は**対象声優リストと staff 集計にいる、性別が付いていない声優だけ**。
-シーズンのクエリは窓に入った作品の出演者しか通らないので、窓から外れた声優には性別が届かない。
-staff id で直接引くこの経路がそれを埋める。**引いても性別が付かない人は残る**
+対象は**台帳にいて性別が付いていない声優だけ**。シーズンのクエリは、今回の取得範囲に入った
+作品の出演者しか通らない。範囲から外れた声優は取り込みで性別を上書きされない (今回言っていない
+項目は触らない) ので、埋めるにはこの経路が要る。**引いても性別が付かない人は残る**
 (AniList 側が `gender` を持たない声優が居る。下の「既知の落とし穴」)。
 1 リクエストにまとめる id の数は `perPage` と揃える (返る件数が `perPage` で頭打ちになるため)。
 引いた値を対象声優リストへ入れるのは `fill-actor-gender.ts`。
@@ -162,8 +184,9 @@ staff id で直接引くこの経路がそれを埋める。**引いても性別
 robots.txt ではなく §6 の利用規約に照らして判断する。
 
 - `isAdult: false` を外さない。成人向けアニメを対象集合に入れない
-- `characters(perPage: 25)` を大きくしない。1 作品あたりの往復と応答量が増える。
-  主役級を取るのが目的なので `sort: ROLE` の上位 25 人で足りている
+- `characters(perPage: ...)` に 25 より大きい値を書いても意味が無い。AniList が 25 に丸める
+  (2026-09-22 の実測、[`anilist-cast-instability-2026-09-22.md`](../research/anilist-cast-instability-2026-09-22.md))。
+  全員を取るには `hasNextPage` が下りるまでページを送る
 
 ---
 
@@ -195,8 +218,16 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
 
 - **`node { id }` を外すと `voiceActors` が null になる。** キャラクターの `node` を
   取らないクエリにすると声優が返ってこない。消さないこと
-- **同じ `nativeName` を複数の staff id が持つ場合は除外する** (`ambiguous`)。
-  自動で選ぶと同名別人を取り違える。対象声優の生成時点では該当 0 人だった
+- **同じ `nativeName` を複数の staff id が持つことがある。** 台帳からは落とさない
+  (staff id が鍵なので別人として持てる)。ストアのクレジット表記からどちらの作品かを断定できない
+  問題は、照合が「複数の声優に当たったら unmatched」で断っている (`src/domain/identity.ts`)
+- **`characters` は 1 ページ 25 人で、同じ役の中の順序が取得ごとに変わる。**
+  25 人で切ると、同じ条件で取り直しても毎回 100 人規模の出演者が入れ替わる
+  (2026-09-22 の測定で、1 ページに収まらない 309 作品のうち 281 作品で中身が変わった。
+  [`anilist-cast-instability-2026-09-22.md`](../research/anilist-cast-instability-2026-09-22.md))。
+  ページを送って全員取ること
+- **`characters` の `total` と `lastPage` は最後のページに着くまで実際と違う値を返す。**
+  続きの有無は `hasNextPage` だけで判定する (同じ測定ノート)
 - **slug が衝突したら生成を失敗させる。** 自動で連番を振らない。
   解決は人が `crawler/actors-overrides.json` に書く。slug は URL に出て後から変えられない
 - **ワープロ式のローマ字表記をそのまま使う。** `Akari Kitou` → `kitou-akari`、
@@ -215,8 +246,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   減らせるのは「まだ問い合わせていない」人だけなので、`anilist-gender.ts` は両者を別の状態で記録する
 - **`roleCount` (アニメでの役の多さ) と音声作品数はほぼ無相関** (スピアマン −0.047)。
   主役級ほど音声作品が多い、ということはない。対象の絞り込みに役の多さを使わない
-- 対象声優の大半は音声作品を出していない。DB には全員入れるが、作品 0 件の声優の
-  `/voice-actors/{slug}` は 404 を返す
+- 対象声優の大半は音声作品を出していない。DB には全員入れる
 - **API の利用規約 (`docs.anilist.co/guide/terms-of-use`、2026-09-19 確認) に、
   データの保存・再配布と商用利用についての制限がある。** 原文引用:
 
@@ -284,11 +314,14 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   `contact@anilist.co` への問い合わせが要る
 - シーズンを 12 から増やしたときの対象人数の伸び方
 - `Page(perPage: 50)` の上限が 50 で正しいか (AniList 側の最大値を確認していない)
+- 出演者を全ページ引いたときの通しの所要時間 (作品ごとのページ数を全件で数えていない)
 
 ---
 
 ## 8. 出典
 
+- [`docs/research/anilist-cast-instability-2026-09-22.md`](../research/anilist-cast-instability-2026-09-22.md) —
+  同じ条件で取り直しても出演者が入れ替わること、`perPage` の丸め、`total` / `lastPage` の当てにならなさ
 - [`docs/research/anilist-gender-2026-09-21.md`](../research/anilist-gender-2026-09-21.md) —
   `Staff.gender` の生の値の内訳と、対象声優に畳んだときの埋まり具合
 - [`docs/research/discovery-spike-2026-09-18.md`](../research/discovery-spike-2026-09-18.md) —

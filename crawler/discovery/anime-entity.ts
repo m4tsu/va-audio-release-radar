@@ -238,8 +238,10 @@ export function buildAnimeEntities(
  * 実行のたびに入れ替わり、別作品の出演者が混ざる。どちらを正とするかは人が決める
  * (声優 slug と同じ方針。`actor-entity.ts`)
  */
-export function findAnimeSlugCollisions(anime: readonly AnimeEntity[]): AnimeSlugCollision[] {
-  const bySlug = new Map<string, AnimeEntity[]>();
+export function findAnimeSlugCollisions(
+  anime: readonly { id: string; slug: string; titleRomaji: string }[],
+): AnimeSlugCollision[] {
+  const bySlug = new Map<string, Array<{ id: string; slug: string; titleRomaji: string }>>();
   for (const item of anime) {
     const group = bySlug.get(item.slug);
     if (group) group.push(item);

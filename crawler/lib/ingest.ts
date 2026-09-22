@@ -1,8 +1,13 @@
 import {
+  type AnimeFormat,
+  type AnimeRole,
+  type AnimeSeason,
+  type AttributeSource,
   INGEST_PROTOCOL_VERSION,
   type IngestPayload,
   type StoreSlug,
   VOICE_ACTOR_GENDERS,
+  type VoiceActorAttribute,
   type VoiceActorGender,
 } from "../../src/domain/index.ts";
 
@@ -41,18 +46,101 @@ export type UpsertActorsResponse = {
   clearedScreened: number;
 };
 
-/** 対象声優リスト (`crawler/actors.generated.json`) の 1 件。検証そのものはサーバー側の zod に任せる */
-export type ActorSeed = {
+/** `GET /api/admin/actors` が返す 1 件。声優起点の走行が誰を調べるかを決める材料 */
+export type ActorDictionaryEntry = {
   id: string;
   slug: string;
   canonicalName: string;
+  aliases: Array<{ name: string; verified: boolean }>;
+};
+
+/** `POST /api/admin/anilist` に送る 1 回ぶん。検証そのものはサーバー側の zod に任せる */
+export type AniListIngestPayload = {
+  protocolVersion: number;
+  runId: string;
+  startedAt: string;
+  seasons: Array<{ year: number; season: AnimeSeason }>;
+  actors: Array<{
+    anilistStaffId: number;
+    nativeName: string;
+    fullName?: string;
+    gender?: VoiceActorGender;
+    imageUrl?: string;
+    latestSeason?: { year: number; season: AnimeSeason };
+  }>;
+  anime: Array<{
+    id: string;
+    slug: string;
+    titleNative?: string;
+    titleRomaji: string;
+    titleEnglish?: string;
+    seasonYear: number;
+    season: AnimeSeason;
+    coverImageUrl?: string;
+    coverImageColor?: string;
+    format?: AnimeFormat;
+    popularity?: number;
+    startDate?: string;
+    endDate?: string;
+    synonyms?: string[];
+    appearances: Array<{
+      anilistStaffId: number;
+      characterId: string;
+      characterNameNative?: string;
+      characterNameFull?: string;
+      characterImageUrl?: string;
+      role: AnimeRole;
+    }>;
+  }>;
+};
+
+/** `POST /api/admin/anilist` の応答。初めて見た声優は後続の走行が使う */
+export type AniListIngestResponse = {
+  runId: string;
+  actors: number;
+  newActors: Array<{
+    id: string;
+    slug: string;
+    canonicalName: string;
+    anilistStaffId: number;
+  }>;
+  skippedActors: number;
+  anime: number;
+  appearances: number;
+  newAppearances: number;
+  droppedAppearances: number;
+  synonyms: number;
+  clearedScreened: number;
+};
+
+/** `POST /api/admin/actor-attributes` に送る 1 件 */
+export type ActorAttributeSeed = {
+  voiceActorId: string;
+  attribute: VoiceActorAttribute;
+  source: AttributeSource;
+  value: string;
+};
+
+/**
+ * 走行が声優を指すのに要る最小限。誰を調べて、どの名前で検索するかだけを持つ。
+ * 投入用の `ActorSeed` と分けてあるのは、走行が台帳から引くときに
+ * staff id や性別を必要としないため (`GET /api/admin/actors` もそれらを返さない)
+ */
+export type CrawlActor = {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  aliases?: Array<{ name: string; source: string; verified: boolean }>;
+};
+
+/** シード投入 (`POST /api/admin/actors`) の 1 件。検証そのものはサーバー側の zod に任せる */
+export type ActorSeed = CrawlActor & {
   nameKana?: string;
   nameEn?: string;
   /** 声優を指す鍵。サーバー側の zod も必須にしている */
   anilistStaffId: number;
   /** 省くとサーバー側の zod が "unknown" を入れる */
   gender?: VoiceActorGender;
-  aliases?: Array<{ name: string; source: string; verified: boolean }>;
 };
 
 /** 性別の日本語表記。クローラーの標準出力にだけ出る (画面には出さない) */
@@ -87,7 +175,7 @@ export function describeGenderCounts(actors: readonly { gender?: VoiceActorGende
  * Audible はナレーター検索が空白の有無で結果が変わる名前があるため、
  * `crawler/run.ts` と `crawler/cli.ts` がこれを検索候補の先頭に置く
  */
-export function spacedVerifiedAliasNames(actor: Pick<ActorSeed, "aliases">): string[] {
+export function spacedVerifiedAliasNames(actor: Pick<CrawlActor, "aliases">): string[] {
   return spacedAliasNames(actor, true);
 }
 
@@ -96,11 +184,11 @@ export function spacedVerifiedAliasNames(actor: Pick<ActorSeed, "aliases">): str
  * 「3 文字で切った形」を当てずっぽうで持っているので、検証済みとは分けて扱う。
  * `crawler/run.ts` はこれを canonicalName より後ろの候補に置く
  */
-export function spacedUnverifiedAliasNames(actor: Pick<ActorSeed, "aliases">): string[] {
+export function spacedUnverifiedAliasNames(actor: Pick<CrawlActor, "aliases">): string[] {
   return spacedAliasNames(actor, false);
 }
 
-function spacedAliasNames(actor: Pick<ActorSeed, "aliases">, verified: boolean): string[] {
+function spacedAliasNames(actor: Pick<CrawlActor, "aliases">, verified: boolean): string[] {
   return (actor.aliases ?? [])
     .filter((alias) => alias.verified === verified && /\s/.test(alias.name))
     .map((alias) => alias.name);
@@ -154,6 +242,28 @@ export class AdminApiClient {
 
   upsertActors(seeds: readonly ActorSeed[]): Promise<UpsertActorsResponse> {
     return this.#send<UpsertActorsResponse>("POST", "/api/admin/actors", seeds);
+  }
+
+  /**
+   * 声優起点の走行が「誰を調べるか」を引く辞書。台帳は DB にしかないので、
+   * リストをファイルで配らない
+   */
+  async listActors(): Promise<ActorDictionaryEntry[]> {
+    const entries = await this.#send<unknown>("GET", "/api/admin/actors");
+    if (!Array.isArray(entries)) throw new AdminApiError("actors が配列を返さなかった");
+    return entries as ActorDictionaryEntry[];
+  }
+
+  /** AniList の取得 1 回ぶん。声優の ID と slug はサーバーが決めて応答で返す */
+  ingestAniList(payload: AniListIngestPayload): Promise<AniListIngestResponse> {
+    return this.#send<AniListIngestResponse>("POST", "/api/admin/anilist", payload);
+  }
+
+  /** 付加情報 (かな、表示用ローマ字) を出どころ付きで書く */
+  writeActorAttributes(
+    seeds: readonly ActorAttributeSeed[],
+  ): Promise<{ written: number; skipped: number }> {
+    return this.#send("POST", "/api/admin/actor-attributes", seeds);
   }
 
   ingest(payload: IngestPayload): Promise<IngestResponse> {

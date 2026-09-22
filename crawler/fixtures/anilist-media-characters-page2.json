@@ -1,0 +1,84 @@
+{
+  "data": {
+    "Media": {
+      "id": 171018,
+      "characters": {
+        "pageInfo": {
+          "currentPage": 2,
+          "lastPage": 20,
+          "hasNextPage": true,
+          "perPage": 25,
+          "total": 500
+        },
+        "edges": [
+          {
+            "role": "BACKGROUND",
+            "node": {
+              "id": 270700,
+              "name": {
+                "native": "鬼頭ナキ",
+                "full": "Naki Kitou"
+              },
+              "image": {
+                "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b270700-j44U9thDeoXZ.png"
+              }
+            },
+            "voiceActors": [
+              {
+                "id": 107487,
+                "name": {
+                  "native": "万沙子磯辺",
+                  "full": "Masako Isobe"
+                },
+                "image": {
+                  "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n107487-QfzFj0tGdUP4.jpg"
+                },
+                "gender": "Female"
+              }
+            ]
+          },
+          {
+            "role": "BACKGROUND",
+            "node": {
+              "id": 309809,
+              "name": {
+                "native": "邪視",
+                "full": "Jashi"
+              },
+              "image": {
+                "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b309809-HHGduVD6KgVk.jpg"
+              }
+            },
+            "voiceActors": []
+          },
+          {
+            "role": "BACKGROUND",
+            "node": {
+              "id": 309814,
+              "name": {
+                "native": "男性教師",
+                "full": "Dansei Kyoushi"
+              },
+              "image": {
+                "medium": "https://s4.anilist.co/file/anilistcdn/character/medium/b309814-7jMZROkmZemD.png"
+              }
+            },
+            "voiceActors": [
+              {
+                "id": 154693,
+                "name": {
+                  "native": "越後屋コースケ",
+                  "full": "Kousuke Echigoya"
+                },
+                "image": {
+                  "medium": "https://s4.anilist.co/file/anilistcdn/staff/medium/n154693-zDvM23WGjBWB.jpg"
+                },
+                "gender": "Male"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

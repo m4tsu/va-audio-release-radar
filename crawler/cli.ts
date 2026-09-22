@@ -8,10 +8,10 @@ import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { ActorQuery, AdapterResult, Coverage, SourceAdapter } from "./adapters/types.ts";
 import { loadPokedoraDirectory, lookupActor } from "./discovery/pokedora-directory.ts";
-import { type ActorSeed, spacedVerifiedAliasNames } from "./lib/ingest.ts";
+import { AdminApiClient, type CrawlActor, spacedVerifiedAliasNames } from "./lib/ingest.ts";
 import { STORE_LABELS } from "./lib/labels.ts";
 import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
-import { loadActorSeeds } from "./run.ts";
+import { loadCrawlActors } from "./run.ts";
 
 /**
  * 調査用 CLI。
@@ -23,7 +23,8 @@ import { loadActorSeeds } from "./run.ts";
  *   --store <slug>           1 つのストアだけ実行する (dlsite / audible / pokedora)
  *   --json                   RawWork[] をそのまま標準出力に出す
  *   --no-snapshot            crawler/.cache/snapshots への保存を止める
- *   --skip-known RJ1,RJ2     既知 ID の詳細取得を飛ばす (将来 DB から渡す)
+ *   --skip-known RJ1,RJ2     既知 ID の詳細取得を飛ばす
+ *   --base-url <URL>         台帳から検証済みの別名義を引く (省くと入力した名前だけで検索する)
  *
  * 依存は増やさず node:util の parseArgs で引数を読む
  */
@@ -43,6 +44,8 @@ const USAGE = `使い方:
   --json                    RawWork[] を JSON で出力する
   --no-snapshot             取得した生データを .cache/snapshots に保存しない
   --skip-known <id,id,...>  既知の作品 ID の詳細取得を飛ばす
+  --base-url <URL>          台帳の場所。環境変数 INGEST_URL と INGEST_TOKEN でも指定できる。
+                            省くと検証済みの別名義を使わず、入力した名前だけで検索する
 `;
 
 function isStoreSlug(value: string): value is StoreSlug {
@@ -54,19 +57,21 @@ const OPTION_SPEC = {
   json: { type: "boolean" },
   "no-snapshot": { type: "boolean" },
   "skip-known": { type: "string" },
+  "base-url": { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
 /**
  * 入力した声優名を検索候補に組み立てる。
  *
- * 対象声優リストに canonicalName / slug / alias のどれかで一致する声優がいれば、
+ * 台帳に canonicalName / slug / 別名義 のどれかで一致する声優がいれば、
  * その検証済みの空白入り alias を Audible 向けの先頭候補として使う (`buildSearchNames` と同じ考え方)。
  * 見つからなければ入力した文字列だけで検索する。DLsite は canonicalName だけを見るので、
  * どちらの場合も canonicalName には入力した文字列をそのまま使う (これまでの挙動を変えないため)
  */
-async function buildActorQuery(actorName: string): Promise<ActorQuery> {
-  const seeds = await loadActorSeeds().catch(() => [] as ActorSeed[]);
+async function buildActorQuery(actorName: string, client?: AdminApiClient): Promise<ActorQuery> {
+  const seeds =
+    client === undefined ? [] : await loadCrawlActors(client).catch(() => [] as CrawlActor[]);
   const matched = seeds.find(
     (seed) =>
       seed.canonicalName === actorName ||
@@ -130,7 +135,15 @@ export async function main(argv: readonly string[]): Promise<number> {
       .filter((id) => id !== ""),
   );
 
-  const query = await buildActorQuery(actorName);
+  // 台帳に届かないときは入力した名前だけで検索する。1 人ぶんを手元で調べる用途を、
+  // 取り込み先が動いていることに依存させない
+  const baseUrl = values["base-url"] ?? process.env.INGEST_URL;
+  const token = process.env.INGEST_TOKEN;
+  const client =
+    baseUrl === undefined || baseUrl === "" || token === undefined || token === ""
+      ? undefined
+      : new AdminApiClient(baseUrl, token);
+  const query = await buildActorQuery(actorName, client);
   const results: AdapterResult[] = [];
   for (const store of stores) {
     const adapter = ADAPTERS[store];

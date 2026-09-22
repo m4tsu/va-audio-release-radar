@@ -73,6 +73,7 @@ node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,pri
 | `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
 | `npm run radar:crawl` | 声優起点のクローラー。オプションは `node crawler/run.ts --help` |
 | `npm run radar:daily` | 新着一覧から日次で取り込む。オプションは `node crawler/daily.ts --help` |
+| `npm run radar:anilist` | AniList から対象声優とアニメを週次で取り込む。オプションは `node crawler/anilist.ts --help` |
 | `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
 | `npm run radar:test` / `radar:typecheck` | crawler だけのテスト / 型検査 |
 | `npm run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
@@ -165,24 +166,27 @@ Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid 
 声優ごとにストアを巡回し、`POST /api/admin/ingest` で取り込む。相手サイトのレート制限は
 `crawler/lib/fetch.ts` の 1 箇所で守る。外部サイトの制約は [`docs/stores/`](./docs/stores/)。
 
-対象声優リストは AniList から生成した `crawler/actors.generated.json`。生成は `crawler/discovery/build-actors.ts`、
-手で持つ情報 (かな、英語表記の訂正、検証済み別名、slug 衝突の解決) は `crawler/actors-overrides.json`。
-かなは日本語版 Wikipedia からも取る (`crawler/discovery/wikipedia-kana.ts`)。
-性別は作品から取るほかに、声優の staff id からも引く (`crawler/discovery/anilist-gender.ts`)。
-シーズンの窓から外れて作品から取れなかった声優に届くのはこちらだけで、
-引いた値は**リストを作り直さずに、今あるリストの該当行へ書き入れる**
-(`crawler/discovery/fill-actor-gender.ts`)。作り直すと窓から外れた声優がリストごと消えるため。
+対象声優とアニメは AniList から週次で台帳 (DB) に足す。**生成物のファイルは介さない**
+([`docs/decisions/0015`](./docs/decisions/0015-db-is-the-ledger.md))。対象シーズンは実行日から決め、
+1 作品あたりの出演者はページを送って全員取る。範囲から外れた声優・作品・出演は消さない。
 
 ```bash
-# かなを引く (途中で止めても続きから再開する)
-node crawler/discovery/wikipedia-kana.ts --limit 100
+# 週次と同じことを手元で行う (--dry-run なら送らずに件数だけ見る)
+INGEST_TOKEN=dev node crawler/anilist.ts --base-url http://localhost:5199 \
+  --new-actors-out work/new-actors.txt
 
-# 性別が付いていない声優の staff id を AniList に投げる
-node crawler/discovery/anilist-gender.ts
-
-# 取得した性別を今あるリストに書き入れる (--dry-run で人数だけ見られる)
-node crawler/discovery/fill-actor-gender.ts
+# 初めて見た声優だけを 3 ストアで 1 回ずつ引く
+INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
+  --only "$(cat work/new-actors.txt)"
 ```
+
+自動では `.github/workflows/weekly-anilist.yml` が同じ 2 つを順に実行する。日次のクロールと
+同じ秘匿値 (`INGEST_URL` / `INGEST_TOKEN`) を使い、同時には走らない。
+
+声優起点の走行は誰を調べるかを `GET /api/admin/actors` から引く。リストのファイルは読まない。
+かなは日本語版 Wikipedia から取り、出どころ付きで `POST /api/admin/actor-attributes` に送る。
+性別は作品から取るほかに声優の staff id からも引ける (`crawler/discovery/anilist-gender.ts`)。
+取得範囲から外れた声優には取り込みが性別を書かないので、埋めるにはこちらを使う。
 
 ```bash
 # かなを取る (全員。数時間かかるので --limit で区切って重ねる)

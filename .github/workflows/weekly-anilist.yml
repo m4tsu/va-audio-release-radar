@@ -1,0 +1,105 @@
+name: 週次の AniList 取り込み
+
+# 対象シーズンを実行日から決めて AniList を引き、声優・アニメ・出演を本番の
+# POST /api/admin/anilist に送る。続けて、初めて見た声優だけを声優起点で 3 ストアから引く。
+# 台帳は DB で、生成物のファイルは介さない。必要な Secrets は INGEST_URL と INGEST_TOKEN
+# (日次のクロールと同じもの。新しい秘匿値は増やさない)。
+on:
+  schedule:
+    # 月曜 20:20 UTC = 火曜 05:20 JST。日次 (04:10 UTC) と重ならない時刻にする。
+    # 週 1 回なので時刻の精度は要らない。正時を外すのは GitHub Actions の混雑を避けるため
+    - cron: "20 20 * * 1"
+  workflow_dispatch:
+    inputs:
+      base-date:
+        description: "対象シーズンを決める基準日 (YYYY-MM-DD。空なら実行日)"
+        required: false
+        type: string
+      skip-store-crawl:
+        description: "初めて見た声優のストア巡回を飛ばす"
+        required: false
+        default: false
+        type: boolean
+
+# 日次・声優起点の巡回と同じグループにする。レートリミッタはプロセス内にあるので、
+# 2 つの走行が重なると同じホストへの実効間隔が半分になる (crawler/lib/fetch.ts)
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+# 失敗を Issue に書くのに要る。読み取りは checkout のぶん
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  weekly:
+    name: AniList から台帳に足す
+    runs-on: ubuntu-latest
+    # 12 シーズン × 上位 100 作品 = 24 リクエスト。加えて、出演者が 1 ページ (25 人) に
+    # 収まらない作品ぶんのページ送りがある。2026-09-22 の測定では 1,175 作品のうち
+    # 309 作品が上限に当たっており、一番多い作品で 4 ページだった
+    # (docs/research/anilist-cast-instability-2026-09-22.md)。
+    # AniList の間隔は docs/stores/anilist.md の「レート間隔」。
+    # 後半のストア巡回は初めて見た声優の人数に比例する (週あたり数人から数十人)
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: AniList を引いて台帳に足す
+        # 入力と秘匿値は env 経由で渡す。run 本文に ${{ }} で埋め込むと、入力の中身が
+        # シェルとして解釈されてしまうため
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          BASE_DATE: ${{ inputs.base-date }}
+        run: |
+          args=()
+          if [ -n "$BASE_DATE" ]; then args+=(--base-date "$BASE_DATE"); fi
+          node crawler/anilist.ts --base-url "$INGEST_URL" \
+            --new-actors-out new-actors.txt "${args[@]}"
+      - name: 初めて見た声優を 3 ストアから引く
+        # 台帳に増えた人だけが対象。0 人なら何もしない
+        # (docs/decisions/0007-daily-crawl-from-store-feeds.md の「シーズンごと」)
+        if: ${{ !inputs.skip-store-crawl }}
+        env:
+          INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+        run: |
+          if [ ! -s new-actors.txt ]; then
+            echo "初めて見た声優は 0 人。ストア巡回は飛ばす"
+            exit 0
+          fi
+          node crawler/run.ts --base-url "$INGEST_URL" --only "$(cat new-actors.txt)"
+      - name: 取得した生データを残す
+        # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: anilist-snapshots
+          path: crawler/.cache/snapshots
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: 失敗を Issue に出す
+        # 失敗しても GitHub は黙っているので、人が見る場所に出す。
+        # cancelled() を入れるのは timeout-minutes で打ち切られた走行を拾うため
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create crawl-failure --color b60205 --description "日次のクロールが失敗した" --force
+          existing="$(gh issue list --label crawl-failure --state open --limit 1 --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "週次の AniList 取り込みが失敗した: $RUN_URL"
+          else
+            gh issue create \
+              --title "週次の AniList 取り込みが失敗した" \
+              --label crawl-failure \
+              --body "$(printf '%s\n\n%s\n' "走行のログ: $RUN_URL" "直ったらこの Issue を閉じる。閉じないと次の失敗が追記になって気づきにくい。")"
+          fi
