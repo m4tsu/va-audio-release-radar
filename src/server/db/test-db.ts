@@ -29,7 +29,11 @@ export function createTestDb(): AppDb {
  */
 export async function createMigratedTestDb(upToTag?: string): Promise<AppDb> {
   const db = createTestDb();
-  for (const migration of readMigrations()) {
+  const migrations = readMigrations();
+  if (upToTag !== undefined && !migrations.some((migration) => migration.tag === upToTag)) {
+    throw new Error(`マイグレーション ${upToTag} が journal に無い`);
+  }
+  for (const migration of migrations) {
     await applyMigration(db, migration);
     if (migration.tag === upToTag) break;
   }

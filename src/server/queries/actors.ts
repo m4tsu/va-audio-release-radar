@@ -86,7 +86,9 @@ export type ActorSeed = z.infer<typeof actorSeedSchema>;
 
 /**
  * シードからの投入。slug / id は入力をそのまま使う (URL に出るので自動採番にしない)。
- * 既に居る声優は上書きし、同一性の列 (`anilist_staff_id` / `first_seen_at`) と `created_at` は初回の値を残す
+ * 既に居る声優は上書きするが、同一性の列 (`slug` / `anilist_staff_id` / `first_seen_at`) と
+ * `created_at` は初回の値を残す。シードの slug や staff id が保存済みの値と違っても更新しない
+ * (slug は URL に出ていて、staff id は声優を指す鍵なので、どちらも後から動かさない)
  */
 export async function upsertActors(
   db: AppDb,
@@ -117,7 +119,6 @@ export async function upsertActors(
       .onConflictDoUpdate({
         target: voiceActors.id,
         set: {
-          slug: actor.slug,
           canonicalName: actor.canonicalName,
           nameKana: actor.nameKana ?? null,
           nameEn: actor.nameEn ?? null,

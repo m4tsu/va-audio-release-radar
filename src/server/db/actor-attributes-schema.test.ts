@@ -9,8 +9,8 @@ import type { AppDb } from "./types";
 /**
  * 声優の付加情報の表と、同一性の列がマイグレーション SQL の制約どおりに振る舞うことを確かめる。
  *
- * 表を読み書きする関数はまだ無い (管理 API と読み取り側は別 issue) ので、drizzle で直接行を入れて
- * 制約を見る。制約は `migrations/*.sql` に書かれたものが本番に当たるので、適用後の DB で確かめる
+ * 読み書きの関数を通さず drizzle で直接行を入れて制約を見る。制約は `migrations/*.sql` に
+ * 書かれたものが本番に当たるので、スキーマの定義ではなく適用後の DB で確かめる
  */
 
 /** 付加情報の表が入る直前のマイグレーション。既存の行がどう写されるかを見るための起点 */
@@ -122,6 +122,18 @@ describe("voice_actors の同一性の列", () => {
     });
   });
 
+  it("同じ id のシードが別の slug や staff id を持っていても、保存済みの値が残る", async () => {
+    const db = await setupDb();
+
+    await upsertActors(db, [{ ...UEDA, slug: "ueda-reina-renamed", anilistStaffId: 100009 }], NOW);
+
+    const [row] = await db
+      .select({ slug: voiceActors.slug, anilistStaffId: voiceActors.anilistStaffId })
+      .from(voiceActors)
+      .where(eq(voiceActors.id, UEDA.id));
+    expect(row).toEqual({ slug: UEDA.slug, anilistStaffId: UEDA.anilistStaffId });
+  });
+
   it("マイグレーションを当てると、既に居た声優の初めて見た日時に作成日時が写る", async () => {
     const db = await createMigratedTestDb(BEFORE_ATTRIBUTES);
     await db.run(
@@ -133,8 +145,16 @@ describe("voice_actors の同一性の列", () => {
     await applyMigrationsAfter(db, BEFORE_ATTRIBUTES);
 
     const [row] = await db
-      .select({ firstSeenAt: voiceActors.firstSeenAt, lastSeenSeason: voiceActors.lastSeenSeason })
+      .select({
+        firstSeenAt: voiceActors.firstSeenAt,
+        lastSeenSeasonYear: voiceActors.lastSeenSeasonYear,
+        lastSeenSeason: voiceActors.lastSeenSeason,
+      })
       .from(voiceActors);
-    expect(row).toEqual({ firstSeenAt: "2026-09-18T00:00:00.000Z", lastSeenSeason: null });
+    expect(row).toEqual({
+      firstSeenAt: "2026-09-18T00:00:00.000Z",
+      lastSeenSeasonYear: null,
+      lastSeenSeason: null,
+    });
   });
 });

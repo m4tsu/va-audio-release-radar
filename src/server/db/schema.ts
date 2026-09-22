@@ -38,9 +38,10 @@ const CRAWL_RUN_STATUSES = ["ok", "error"] as const;
 
 /**
  * 声優。同一性 (`id` / `slug` / `anilist_staff_id` / `first_seen_at`) と供給元の写し
- * (`canonical_name` / `name_en` / `gender` / `image_url` / `last_seen_season`) が同居する。
- * 同一性の列は作られた後に変えない。供給元の写しは取り込みのたびに AniList の値で上書きする。
- * `name_kana` / `status` は付加情報で、置き場は `voice_actor_attributes` に移る (旧列は読み取り側の切り替えまで残す)
+ * (`canonical_name` / `name_en` / `gender` / `image_url` / `last_seen_season_*`) が同居する。
+ * 同一性の列は作られた後に変えない (`upsertActors` の ON CONFLICT はこれらを SET に含めない)。
+ * 供給元の写しは取り込みのたびに AniList の値で上書きする。
+ * `name_kana` と `status` は付加情報だが列として残っている。読み取り側 (`queries/actors.ts`) がこの列を読むため
  */
 export const voiceActors = sqliteTable(
   "voice_actors",
@@ -55,8 +56,8 @@ export const voiceActors = sqliteTable(
     /**
      * 声優を一意に指す鍵 (同一性)。名前は表記が変わりうるので鍵にしない。
      * 全行が値を持ち、投入の入口 (`actorSeedSchema`) も必須にしているが、列は NOT NULL にしていない。
-     * SQLite は既存の列に NOT NULL を後から付けられず、表の作り直しは 6 つの表から参照されている
-     * この表では D1 で通らない (子の行が残ったまま親を消せない)
+     * SQLite は既存の列に NOT NULL を後から付けられず、表の作り直しは他の表から外部キーで
+     * 参照されているこの表では D1 で通らない (子の行が残ったまま親を消せない)
      */
     anilistStaffId: integer("anilist_staff_id"),
     imageUrl: text("image_url"),
@@ -67,12 +68,17 @@ export const voiceActors = sqliteTable(
      */
     gender: text("gender", { enum: VOICE_ACTOR_GENDERS }).notNull().default("unknown"),
     /**
-     * この声優を初めて見た日時 (同一性)。`created_at` と違い、行を作り直しても引き継ぐ。
-     * 既存の行には `created_at` が写してある。NOT NULL にしていない理由は `anilist_staff_id` と同じ
+     * この声優を供給元で初めて確認した日時 (同一性)。行の管理用の `created_at` とは別に、
+     * 声優の事実として持つ。投入し直しても初回の値を残す。
+     * 追加時に既存の行へは `created_at` を写した。NOT NULL にしていない理由は `anilist_staff_id` と同じ
      */
     firstSeenAt: text("first_seen_at"),
-    // 出演を最後に確認したシーズン。窓から外れたことの記録であって、対象から外す条件ではない
-    lastSeenSeason: text("last_seen_season"),
+    /**
+     * 出演を最後に確認したシーズン。`anime_titles` と同じ 年 + 季節 の 2 列で持つ。
+     * 窓から外れたことの記録であって、対象から外す条件ではない
+     */
+    lastSeenSeasonYear: integer("last_seen_season_year"),
+    lastSeenSeason: text("last_seen_season", { enum: ANIME_SEASONS }),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -110,6 +116,10 @@ export const voiceActorAttributes = sqliteTable(
   ],
 );
 
+/**
+ * 別名義。付加情報だが、`voice_actor_attributes` には入れない。
+ * 1 人に複数の値があり、それぞれに検証の有無が付くので、属性 1 つに値 1 つの形に収まらない
+ */
 export const voiceActorAliases = sqliteTable(
   "voice_actor_aliases",
   {

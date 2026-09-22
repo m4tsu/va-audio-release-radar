@@ -48,7 +48,8 @@ export type ActorSeed = {
   canonicalName: string;
   nameKana?: string;
   nameEn?: string;
-  anilistStaffId?: number;
+  /** 声優を指す鍵。サーバー側の zod も必須にしている */
+  anilistStaffId: number;
   /** 省くとサーバー側の zod が "unknown" を入れる */
   gender?: VoiceActorGender;
   aliases?: Array<{ name: string; source: string; verified: boolean }>;

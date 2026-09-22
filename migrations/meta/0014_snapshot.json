@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0d353f2b-c4bb-4678-9a74-10d99f9816fd",
+  "id": "c2463bd6-dd9e-40aa-8b0a-e786bf81b395",
   "prevId": "4b977086-d580-4dc1-bbcb-8160d2d669c6",
   "tables": {
     "anime_appearances": {
@@ -1378,6 +1378,13 @@
         "first_seen_at": {
           "name": "first_seen_at",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_seen_season_year": {
+          "name": "last_seen_season_year",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

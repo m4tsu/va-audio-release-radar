@@ -76,7 +76,7 @@ describe("AdminApiClient", () => {
 
     const result = await withFakeTimers(() =>
       new AdminApiClient("http://x", "dev").upsertActors([
-        { id: "va_a", slug: "a", canonicalName: "あ" },
+        { id: "va_a", slug: "a", canonicalName: "あ", anilistStaffId: 1 },
       ]),
     );
 

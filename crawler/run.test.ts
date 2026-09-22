@@ -25,8 +25,14 @@ const UEDA: ActorSeed = {
   id: "va_ueda-reina",
   slug: "ueda-reina",
   canonicalName: "上田麗奈",
+  anilistStaffId: 100001,
 };
-const KAJI: ActorSeed = { id: "va_kaji-yuki", slug: "kaji-yuki", canonicalName: "梶裕貴" };
+const KAJI: ActorSeed = {
+  id: "va_kaji-yuki",
+  slug: "kaji-yuki",
+  canonicalName: "梶裕貴",
+  anilistStaffId: 100006,
+};
 
 /** 保存まで成功した 1 行。workCount は保存された件数なので fetchedCount と同じになる */
 function outcome(
@@ -250,6 +256,7 @@ describe("buildSearchNames", () => {
         id: "va_iwami-manaka",
         slug: "iwami-manaka",
         canonicalName: "石見舞菜香",
+        anilistStaffId: 100007,
         aliases: [{ name: "石見 舞菜香", source: "manual", verified: true }],
       }),
     ).toEqual(["石見 舞菜香", "石見舞菜香"]);
