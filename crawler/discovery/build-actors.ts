@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { toActorNameEn } from "../../src/domain/index.ts";
 import { describeGenderCounts } from "../lib/ingest.ts";
 import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
 import {
@@ -12,7 +13,6 @@ import {
   type ExclusionReason,
   type FetchedKana,
   type StaffInput,
-  toActorNameEn,
 } from "./actor-entity.ts";
 import { KANA_JSON, kanaByCanonicalName, readKanaCache } from "./actor-kana.ts";
 

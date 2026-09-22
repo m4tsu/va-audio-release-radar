@@ -56,6 +56,14 @@ export type ActorSummary = {
 
 export type ActorDetail = VoiceActor & { aliases: VoiceActorAlias[] };
 
+/** クローラーへ配る辞書の 1 件 (`GET /api/admin/actors`) */
+export type ActorDictionaryEntry = {
+  id: string;
+  slug: string;
+  canonicalName: string;
+  aliases: Array<{ name: string; verified: boolean }>;
+};
+
 const aliasSourceSchema = z.enum(["manual", "anilist", "store"]);
 
 /** `POST /api/admin/actors` が受け取るシードの 1 件 */
@@ -152,6 +160,43 @@ export async function upsertActors(
   const clearedScreened = after > before ? await clearScreened(db) : 0;
 
   return { actors: actors.length, aliases: aliasCount, clearedScreened };
+}
+
+/**
+ * クローラーが読む声優の辞書。1 人につき ID・slug・日本語表記と、保存済みの別名義。
+ *
+ * 声優起点の走行はこれを引いて誰を調べるかを決める。ファイルを配らないのは、DB が台帳で、
+ * ファイルを挟むと台帳と配った内容がずれるため。
+ * 検索に使う空白入りの表記 (「上田 麗奈」) は日本語表記から機械的に作れるので保存しない。
+ * ここに出るのは保存された別名義だけで、作るのは呼び出し側
+ */
+export async function listActorDictionary(db: AppDb): Promise<ActorDictionaryEntry[]> {
+  const actors = await db
+    .select({
+      id: voiceActors.id,
+      slug: voiceActors.slug,
+      canonicalName: voiceActors.canonicalName,
+    })
+    .from(voiceActors)
+    .orderBy(asc(voiceActors.id));
+
+  const aliasRows = await db
+    .select({
+      voiceActorId: voiceActorAliases.voiceActorId,
+      name: voiceActorAliases.name,
+      verified: voiceActorAliases.verified,
+    })
+    .from(voiceActorAliases)
+    .orderBy(asc(voiceActorAliases.voiceActorId), asc(voiceActorAliases.name));
+
+  const aliasesByActor = new Map<string, Array<{ name: string; verified: boolean }>>();
+  for (const row of aliasRows) {
+    const list = aliasesByActor.get(row.voiceActorId) ?? [];
+    list.push({ name: row.name, verified: row.verified });
+    aliasesByActor.set(row.voiceActorId, list);
+  }
+
+  return actors.map((actor) => ({ ...actor, aliases: aliasesByActor.get(actor.id) ?? [] }));
 }
 
 /** 名寄せに使う辞書の行数。声優と別名の合計 */

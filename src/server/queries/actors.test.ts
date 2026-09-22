@@ -5,6 +5,7 @@ import {
   actorSeedSchema,
   getActorBySlug,
   getActorStoreCoverage,
+  listActorDictionary,
   listActors,
   searchActors,
   upsertActors,
@@ -49,6 +50,34 @@ describe("actorSeedSchema の性別", () => {
     await upsertActors(db, [actorSeedSchema.parse({ ...SEED, gender: "female" })], NOW);
 
     expect((await getActorBySlug(db, SEED.slug))?.gender).toBe("female");
+  });
+});
+
+describe("listActorDictionary", () => {
+  it("声優と保存済みの別名義を返す", async () => {
+    const db = await setupDb([]);
+    await upsertActors(
+      db,
+      [{ ...UEDA, aliases: [{ name: "上田 麗奈", source: "manual", verified: true }] }, HANAZAWA],
+      NOW,
+    );
+
+    const entries = await listActorDictionary(db);
+
+    expect(entries).toEqual([
+      {
+        id: HANAZAWA.id,
+        slug: HANAZAWA.slug,
+        canonicalName: HANAZAWA.canonicalName,
+        aliases: [],
+      },
+      {
+        id: UEDA.id,
+        slug: UEDA.slug,
+        canonicalName: UEDA.canonicalName,
+        aliases: [{ name: "上田 麗奈", verified: true }],
+      },
+    ]);
   });
 });
 

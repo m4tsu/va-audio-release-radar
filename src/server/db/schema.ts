@@ -361,6 +361,38 @@ export const crawlRuns = sqliteTable(
 );
 
 /**
+ * AniList からの取り込み 1 回ぶんの記録。
+ *
+ * 取り込みは足すだけで行を消さないので、「前回に居て今回に居ない声優」は結果から読めない。
+ * 何シーズンを対象にして何が増えたかはここにしか残らない。
+ * ストアの巡回 (`crawl_runs`) と分けてあるのは、AniList がストアではなく声優の供給元で、
+ * 数える対象 (作品・声優・出演) が違うため
+ */
+export const anilistIngestRuns = sqliteTable(
+  "anilist_ingest_runs",
+  {
+    // クローラーが払い出す runId をそのまま主キーにする
+    id: text("id").primaryKey(),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at").notNull(),
+    /** 対象にしたシーズンの範囲。`anime_titles` と同じ 年 + 季節 で持つ */
+    seasonFromYear: integer("season_from_year").notNull(),
+    seasonFrom: text("season_from", { enum: ANIME_SEASONS }).notNull(),
+    seasonToYear: integer("season_to_year").notNull(),
+    seasonTo: text("season_to", { enum: ANIME_SEASONS }).notNull(),
+    seasonCount: integer("season_count").notNull(),
+    animeCount: integer("anime_count").notNull().default(0),
+    /** 送られた声優の数。このうち何人が新規かは下の列 */
+    actorCount: integer("actor_count").notNull().default(0),
+    newActorCount: integer("new_actor_count").notNull().default(0),
+    /** 今回はじめて入った出演の数。既に居た出演の更新は数えない */
+    newAppearanceCount: integer("new_appearance_count").notNull().default(0),
+  },
+  // 新しい順に読むのが唯一の読み取り
+  (t) => [index("anilist_ingest_runs_started_at_idx").on(t.startedAt)],
+);
+
+/**
  * アニメ 1 作品。
  * あらすじ・話数・放送局は持たない。アニメ事典にしないための歯止め (同 §5)
  */

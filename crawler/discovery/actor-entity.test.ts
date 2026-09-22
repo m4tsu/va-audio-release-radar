@@ -10,8 +10,6 @@ import {
   findSlugCollisions,
   type StaffInput,
   spacedNameCandidates,
-  toActorNameEn,
-  toActorSlug,
 } from "./actor-entity.ts";
 
 function staff(overrides: Partial<StaffInput> = {}): StaffInput {
@@ -24,45 +22,6 @@ function staff(overrides: Partial<StaffInput> = {}): StaffInput {
     ...overrides,
   };
 }
-
-describe("toActorSlug", () => {
-  it("名-姓 を 姓-名 にして小文字化する", () => {
-    expect(toActorSlug("Reina Ueda")).toBe("ueda-reina");
-  });
-
-  it("AniList のワープロ式表記をそのまま使い、長音を潰さない", () => {
-    // 「ou」「uu」が長音とは限らない (井上 = Inoue) ので、機械的に潰すと別の名前を壊す
-    expect(toActorSlug("Akari Kitou")).toBe("kitou-akari");
-    expect(toActorSlug("Aoi Yuuki")).toBe("yuuki-aoi");
-    expect(toActorSlug("Souma Saitou")).toBe("saitou-souma");
-  });
-
-  it("3 語以上なら最後の語を姓、残りを名として前から並べる", () => {
-    expect(toActorSlug("Sarah Emi Bridcutt")).toBe("bridcutt-sarah-emi");
-  });
-
-  it("改行や記号が混ざっていても落とす", () => {
-    expect(toActorSlug("Makoto\r\n Takahashi")).toBe("takahashi-makoto");
-    expect(toActorSlug("Debi-Debi Debiru")).toBe("debiru-debidebi");
-  });
-
-  it("1 語ならその語をそのまま slug にする (ゆかな・麦人・KENN のような名義)", () => {
-    expect(toActorSlug("Yukana")).toBe("yukana");
-    expect(toActorSlug("Mugihito")).toBe("mugihito");
-    expect(toActorSlug("KENN")).toBe("kenn");
-  });
-
-  it("記号が混ざっていても中身が残れば slug にする", () => {
-    // "!" は落ちるが "kukkii" は残るので、1 語の名義として slug になる
-    expect(toActorSlug("Kukkii!")).toBe("kukkii");
-  });
-
-  it("空、または記号だけで中身が残らないなら slug を作らない", () => {
-    expect(toActorSlug("   ")).toBeUndefined();
-    expect(toActorSlug("!!!")).toBeUndefined();
-    expect(toActorSlug(undefined)).toBeUndefined();
-  });
-});
 
 describe("spacedNameCandidates", () => {
   it("4 文字以上は姓を 2 文字で切った形と 3 文字で切った形を返す", () => {
@@ -88,29 +47,6 @@ describe("spacedNameCandidates", () => {
 
   it("異体字も 1 文字として数える", () => {
     expect(spacedNameCandidates("種﨑敦美")).toEqual(["種﨑 敦美", "種﨑敦 美"]);
-  });
-});
-
-describe("toActorNameEn", () => {
-  it("AniList の表記をそのまま返す", () => {
-    expect(toActorNameEn("Reina Ueda")).toBe("Reina Ueda");
-  });
-
-  it("ワープロ式のつづりを詰めない", () => {
-    // 「ou」「uu」が長音とは限らない (Inoue / Matsuura)。寄せるかどうかは人が overrides で決める
-    expect(toActorNameEn("Youko Hikasa")).toBe("Youko Hikasa");
-    expect(toActorNameEn("Miyu Inoue")).toBe("Miyu Inoue");
-  });
-
-  it("改行と連続した空白を 1 つの空白に詰める", () => {
-    expect(toActorNameEn("Makoto\r\n Takahashi")).toBe("Makoto Takahashi");
-    expect(toActorNameEn("Jun  Kasama")).toBe("Jun Kasama");
-    expect(toActorNameEn("Yui Tsukada ")).toBe("Yui Tsukada");
-  });
-
-  it("fullName が無い / 空白だけなら undefined", () => {
-    expect(toActorNameEn(undefined)).toBeUndefined();
-    expect(toActorNameEn("   ")).toBeUndefined();
   });
 });
 

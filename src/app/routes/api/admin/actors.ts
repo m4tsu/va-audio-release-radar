@@ -3,12 +3,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { requireBearer } from "@/server/auth";
 import { getDb } from "@/server/db/client";
-import { actorSeedSchema, upsertActors } from "@/server/queries/actors";
+import { actorSeedSchema, listActorDictionary, upsertActors } from "@/server/queries/actors";
 import { summarizeIssues } from "@/server/validation";
 
 /**
- * 追跡する声優のシード投入。`crawler/actors.generated.json` をそのまま流し込む想定で、
- * ingest と同じ Bearer トークンを使う (どちらもクローラー側の運用操作のため)
+ * 追跡する声優の読み書き。ingest と同じ Bearer トークンを使う (どれもクローラー側の運用操作のため)。
+ *
+ * GET は声優起点の走行が「誰を調べるか」を引くための辞書。
+ * POST は ID と slug を送り手が決めるシード投入で、AniList からの取り込みは
+ * ID と slug をサーバーが決める `POST /api/admin/anilist` を使う
  */
 
 const requestSchema = z.array(actorSeedSchema).min(1);
@@ -16,6 +19,12 @@ const requestSchema = z.array(actorSeedSchema).min(1);
 export const Route = createFileRoute("/api/admin/actors")({
   server: {
     handlers: {
+      GET: async ({ request }) => {
+        const unauthorized = requireBearer(request, env.INGEST_TOKEN);
+        if (unauthorized) return unauthorized;
+
+        return Response.json(await listActorDictionary(getDb()));
+      },
       POST: async ({ request }) => {
         const unauthorized = requireBearer(request, env.INGEST_TOKEN);
         if (unauthorized) return unauthorized;
