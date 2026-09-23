@@ -291,7 +291,11 @@ export async function workStatsForActors(
  * 全声優横断の新着。トップで使う。
  *
  * `storeSlug` を渡すとそのストアに掲載がある作品だけになる。絞ってもカードに出す掲載は
- * 全ストアぶん (`loadListings`) のまま。同じ作品が他のストアにもあることは隠さない
+ * 全ストアぶん (`loadListings`) のまま。同じ作品が他のストアにもあることは隠さない。
+ *
+ * 発売日のある作品と無い作品を別々に引いてから合わせる。1 本の問い合わせだと窓の条件が
+ * 発売日と初出の `or` になり、索引を使えずに全作品と全 listing を読む。
+ * それぞれの上位 `limit` 件を合わせて並べ直せば、全体の上位 `limit` 件と同じになる
  */
 export async function latestWorks(
   db: AppDb,
@@ -304,25 +308,58 @@ export async function latestWorks(
     now = new Date().toISOString(),
   } = options;
 
-  const rows = await db
-    .select(workSelection)
-    .from(audioWorks)
-    // 買える listing だけを繋ぐ。`storeSlug` で絞るときに取り下げた listing へ当たると、
-    // 他のストアで買えることを根拠に「そのストアで買える作品」として出てしまう
-    .innerJoin(
-      storeListings,
-      and(eq(storeListings.audioWorkId, audioWorks.id), isNull(storeListings.delistedAt)),
-    )
-    .where(
-      and(
-        notAdultRated,
-        withinPeriod(now, sinceDays),
-        storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
-      ),
-    )
-    .groupBy(audioWorks.id)
-    .orderBy(...feedOrder)
-    .limit(limit);
+  const sinceIso = isoDaysAgo(now, sinceDays);
+  // 買える listing だけを見る。`storeSlug` で絞るときに取り下げた listing へ当たると、
+  // 他のストアで買えることを根拠に「そのストアで買える作品」として出てしまう
+  const listingOnSale = and(
+    isNull(storeListings.delistedAt),
+    storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
+  );
+
+  const [dated, undated] = await Promise.all([
+    // 発売日の索引を新しい順にたどり、`limit` 件そろった所で止まる。集約すると止まれないので、
+    // 初出は作品ごとの副問い合わせで取る (並べる件数ぶんしか評価されない)
+    db
+      .select({
+        ...workColumns,
+        firstSeenAt: sql<string>`(
+          select min(${storeListings.firstSeenAt}) from ${storeListings}
+          where ${storeListings.audioWorkId} = ${audioWorks.id} and ${listingOnSale}
+        )`,
+      })
+      .from(audioWorks)
+      .where(
+        and(
+          gte(audioWorks.releaseDate, sinceIso.slice(0, 10)),
+          notAdultRated,
+          sql`exists (
+            select 1 from ${storeListings}
+            where ${storeListings.audioWorkId} = ${audioWorks.id} and ${listingOnSale}
+          )`,
+        ),
+      )
+      .orderBy(desc(audioWorks.releaseDate), asc(audioWorks.id))
+      .limit(limit),
+    // 初出の索引で窓の中の listing だけを読む。発売日の条件の前の `+` は、発売日の索引
+    // (発売日が無い作品を全部たどる) を選ばせないため
+    db
+      .select(workSelection)
+      .from(storeListings)
+      .innerJoin(audioWorks, eq(audioWorks.id, storeListings.audioWorkId))
+      .where(
+        and(
+          gte(storeListings.firstSeenAt, sinceIso),
+          listingOnSale,
+          sql`+${audioWorks.releaseDate} is null`,
+          notAdultRated,
+        ),
+      )
+      .groupBy(audioWorks.id)
+      .orderBy(...newestFirstOrder)
+      .limit(limit),
+  ]);
+  // 同着を id で決めるのは、2 つを合わせたときにどちらの上位から採るかを実行ごとに揺らさないため
+  const rows = [...dated, ...undated].sort(newestFirst).slice(0, limit);
 
   const workIds = rows.map((row) => row.id);
   const [listings, actorsByWork, castSizes] = await Promise.all([
@@ -615,7 +652,7 @@ function isoDaysAgo(now: string, days: number): string {
 /** 作品に紐づく listing の初出のうち最も古いもの。発売日が無い作品の並び順に使う */
 const firstSeenAtExpression = sql<string>`min(${storeListings.firstSeenAt})`;
 
-const workSelection = {
+const workColumns = {
   id: audioWorks.id,
   title: audioWorks.title,
   category: audioWorks.category,
@@ -623,8 +660,10 @@ const workSelection = {
   coverImageUrl: audioWorks.coverImageUrl,
   durationSeconds: audioWorks.durationSeconds,
   makerName: audioWorks.makerName,
-  firstSeenAt: firstSeenAtExpression,
 };
+
+/** listing を繋いで作品ごとに集約する問い合わせの select。初出は繋いだ listing の最小 */
+const workSelection = { ...workColumns, firstSeenAt: firstSeenAtExpression };
 
 type WorkRow = {
   id: string;
@@ -661,6 +700,14 @@ const feedOrder = [desc(releaseSortKey)];
 
 function rowSortKey(row: WorkRow): string {
   return row.releaseDate ?? row.firstSeenAt.slice(0, 10);
+}
+
+/** `newestFirstOrder` と同じ並び (日付の降順、同着は id の昇順) を JS 側で作る */
+function newestFirst(a: WorkRow, b: WorkRow): number {
+  const keyA = rowSortKey(a);
+  const keyB = rowSortKey(b);
+  if (keyA !== keyB) return keyA < keyB ? 1 : -1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 /** 段の順。upcoming → recent → older */

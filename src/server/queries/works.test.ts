@@ -241,6 +241,54 @@ describe("latestWorks", () => {
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:NODATE"]);
   });
 
+  /**
+   * 発売日のある作品と無い作品は別々に引いて合わせる (`latestWorks`)。
+   * 片方だけで上限まで埋めると、もう片方の新しい作品が切り落とされる
+   */
+  it("上限は発売日の有無をまたいで、日付の新しい順にかかる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "D1", releaseDate: "2026-09-17" }),
+          rawWork({ storeProductId: "D5", releaseDate: "2026-09-13" }),
+          rawWork({ storeProductId: "D6", releaseDate: "2026-09-12" }),
+        ],
+      }),
+      NOW,
+    );
+    await ingest(
+      db,
+      payload({ runId: "run-2", works: [rawWork({ storeProductId: "NODATE" })] }),
+      daysAgo(3),
+    );
+
+    const works = await latestWorks(db, { now: NOW, limit: 2 });
+
+    // NODATE の日付は初出の 3 日前 (2026-09-15)。D5 より新しい
+    expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:D1", "dlsite:NODATE"]);
+  });
+
+  it("同じ日付の作品は id の順で上限にかかる", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "B", releaseDate: "2026-09-10" }),
+          rawWork({ storeProductId: "A", releaseDate: "2026-09-10" }),
+          rawWork({ storeProductId: "C", releaseDate: "2026-09-10" }),
+        ],
+      }),
+      NOW,
+    );
+
+    const works = await latestWorks(db, { now: NOW, limit: 2 });
+
+    expect(works.map((item) => item.work.id)).toEqual(["dlsite:A", "dlsite:B"]);
+  });
+
   it("ストアで絞り込める", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);
