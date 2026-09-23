@@ -1,16 +1,4 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNotNull,
-  like,
-  or,
-  type SQL,
-  sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { normalizeName } from "@/domain/normalize";
 import {
@@ -315,40 +303,23 @@ export async function getActorStoreCoverage(
 }
 
 /**
- * 声優検索。部分一致 (SQL の LIKE) と表記揺れ一致 (`normalizeName`) の和集合を返す。
+ * 声優検索。部分一致 (SQL の LIKE と同じ規則) と表記揺れ一致 (`normalizeName`) の和集合を返す。
  *
- * `normalizeName` は空白・中黒などを落とすので SQL では表現できない。名前だけを全件読んで
- * JS 側で突き合わせている (`matchByNormalizedName`)。追跡対象が 2,500 人規模になり
- * 1 回の検索で声優と別名を全件読むようになったので、遅くなったら正規化済みの列を持たせて
- * 索引を張る。作品が 1 件も無い声優も結果に含める (`listActors` と同じ理由)
+ * `normalizeName` は空白・中黒などを落とすので SQL では表現できない。名前は声優と別名を
+ * 1 回ずつ全件読み、部分一致も表記揺れ一致も JS 側で突き合わせる。部分一致を SQL に残すと、
+ * 声優と別名の join の行ごとにかなを解き直すうえ、表記揺れのためにもう一度全件を読むことになる。
+ * 追跡対象が増えて遅くなったら、正規化済みの列を持たせて索引を張る。
+ * 作品が 1 件も無い声優も結果に含める (`listActors` と同じ理由)
  */
 export async function searchActors(db: AppDb, q: string, limit = 20): Promise<ActorSummary[]> {
   const query = q.trim();
   if (query.length === 0) return [];
 
-  const ids = new Set<string>();
-
-  // ワイルドカードを落とした結果が空なら LIKE は打たない ("%" だけの検索語が全件一致になるため)
-  const literal = stripLikeWildcards(query);
-  if (literal.length > 0) {
-    const pattern = `%${literal}%`;
-    const likeRows = await db
-      .selectDistinct({ id: voiceActors.id })
-      .from(voiceActors)
-      .leftJoin(voiceActorAliases, eq(voiceActorAliases.voiceActorId, voiceActors.id))
-      .where(
-        or(
-          like(voiceActors.canonicalName, pattern),
-          like(resolvedNameKana, pattern),
-          like(voiceActorAliases.name, pattern),
-        ),
-      );
-    for (const row of likeRows) ids.add(row.id);
-  }
-
-  for (const id of await matchByNormalizedName(db, query)) {
-    ids.add(id);
-  }
+  const { actors, aliases } = await loadActorIndex(db);
+  const ids = new Set<string>([
+    ...matchByLike(actors, aliases, query),
+    ...matchByNormalizedName(actors, aliases, query),
+  ]);
   if (ids.size === 0) return [];
 
   // LIKE と正規化一致の和集合は声優数ぶんまで膨らむ。D1 の bound parameter 上限に
@@ -402,12 +373,42 @@ export async function loadActorIndex(
   };
 }
 
+/**
+ * 名前・かな・別名のどれかに検索語を含む声優の id。SQL の `like '%語%'` と同じ規則で比べる。
+ *
+ * SQLite の LIKE は ASCII の英字だけ大文字小文字を区別しない (それ以外の文字は区別する)ので、
+ * ASCII の英字だけを小文字に寄せてから部分一致を見る。ワイルドカードは検索語から落とす
+ * (`stripLikeWildcards`。"%" だけの検索語が全件一致にならないように)
+ */
+function matchByLike(actors: VoiceActor[], aliases: VoiceActorAlias[], query: string): string[] {
+  const literal = asciiLowerCase(stripLikeWildcards(query));
+  if (literal.length === 0) return [];
+
+  const contains = (value: string | undefined) =>
+    value !== undefined && asciiLowerCase(value).includes(literal);
+  const matched = new Set<string>();
+  for (const actor of actors) {
+    if (contains(actor.canonicalName) || contains(actor.nameKana)) matched.add(actor.id);
+  }
+  for (const alias of aliases) {
+    if (contains(alias.name)) matched.add(alias.voiceActorId);
+  }
+  return [...matched];
+}
+
+function asciiLowerCase(value: string): string {
+  return value.replace(/[A-Z]/g, (char) => char.toLowerCase());
+}
+
 /** `normalizeName` が完全一致する声優の id。表記揺れ ("上田 麗奈" → "上田麗奈") を拾う */
-async function matchByNormalizedName(db: AppDb, query: string): Promise<string[]> {
+function matchByNormalizedName(
+  actors: VoiceActor[],
+  aliases: VoiceActorAlias[],
+  query: string,
+): string[] {
   const normalizedQuery = normalizeName(query);
   if (normalizedQuery.length === 0) return [];
 
-  const { actors, aliases } = await loadActorIndex(db);
   const matched = new Set<string>();
   for (const actor of actors) {
     if (normalizeName(actor.canonicalName) === normalizedQuery) matched.add(actor.id);

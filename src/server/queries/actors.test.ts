@@ -213,6 +213,17 @@ describe("searchActors", () => {
     expect(results.map((actor) => actor.slug)).toEqual([UEDA.slug]);
   });
 
+  /** 部分一致は SQL の LIKE と同じ規則で JS 側が見る。英字の大文字小文字は区別しない */
+  it("英字は大文字小文字を区別せずに部分一致する", async () => {
+    const db = await setupDb([
+      { ...UEDA, aliases: [{ name: "Reina Ueda", source: "store", verified: false }] },
+    ]);
+    await giveEachActorAWork(db, [UEDA]);
+
+    expect((await searchActors(db, "eina ue")).map((actor) => actor.slug)).toEqual([UEDA.slug]);
+    expect((await searchActors(db, "REINA")).map((actor) => actor.slug)).toEqual([UEDA.slug]);
+  });
+
   it("LIKE のワイルドカードは検索語として効かない", async () => {
     const db = await setupDb([UEDA, HANAZAWA]);
     await giveEachActorAWork(db, [UEDA, HANAZAWA]);
