@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  getTableName,
   gte,
   inArray,
   isNotNull,
@@ -322,9 +323,12 @@ export async function latestWorks(
     db
       .select({
         ...workColumns,
+        // 外側の作品は表名を明示して指す。select 句の中では drizzle が列を表名なしで出すので、
+        // `audio_works.id` が内側の `store_listings.id` を指してしまう
         firstSeenAt: sql<string>`(
           select min(${storeListings.firstSeenAt}) from ${storeListings}
-          where ${storeListings.audioWorkId} = ${audioWorks.id} and ${listingOnSale}
+          where ${storeListings.audioWorkId} = ${sql.identifier(getTableName(audioWorks))}.${sql.identifier("id")}
+            and ${listingOnSale}
         )`,
       })
       .from(audioWorks)
