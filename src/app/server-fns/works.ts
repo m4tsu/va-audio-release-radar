@@ -18,10 +18,12 @@ const periodSchema = z.object({
 export const fetchWork = createServerFn({ method: "GET" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getWorkById }] = await Promise.all([
+    const [{ getDb }, { getWorkById }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/works"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return (await getWorkById(getDb(), data.id)) ?? null;
   });
 
@@ -33,10 +35,12 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { worksByActor }] = await Promise.all([
+    const [{ getDb }, { worksByActor }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/works"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return worksByActor(getDb(), data.voiceActorId, { limit: data.limit });
   });
 
@@ -61,10 +65,12 @@ export const fetchLatestWorks = createServerFn({ method: "GET" })
     periodSchema.extend({ storeSlug: z.enum(STORE_SLUGS).optional() }).default(PERIOD_DEFAULTS),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { latestWorks }] = await Promise.all([
+    const [{ getDb }, { latestWorks }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/works"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return latestWorks(getDb(), {
       limit: data.limit,
       sinceDays: data.sinceDays,

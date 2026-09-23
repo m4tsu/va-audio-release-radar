@@ -51,11 +51,14 @@ export const assignCreditFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     await requireAdmin();
-    const [{ getDb }, { assignCredit }] = await Promise.all([
+    const [{ getDb }, { assignCredit }, { markDataChanged }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/admin"),
+      import("@/server/response-cache"),
     ]);
-    return assignCredit(getDb(), data);
+    const result = await assignCredit(getDb(), data);
+    markDataChanged();
+    return result;
   });
 
 export const fetchCrawlerHealth = createServerFn({ method: "GET" }).handler(async () => {

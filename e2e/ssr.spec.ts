@@ -283,6 +283,26 @@ test("/admin/* は noindex", async ({ request }) => {
 });
 
 /**
+ * E2E に置く理由: **SSR の応答** (ヘッダ)。Worker の入口 (`src/worker.ts`) が応答ごとに付ける
+ * キャッシュの扱いは、実際に Worker が返す応答でしか確かめられない。
+ * 手元の dev はキャッシュしないので、見るのはヘッダだけ (判定の中身は `src/server/cache-policy.test.ts`)
+ */
+test("公開ページはキャッシュ可、管理画面と 404 はキャッシュ不可のヘッダで返る", async ({
+  request,
+}) => {
+  const page = await request.get(`/voice-actors/${ACTOR_SLUG}`);
+  expect(page.headers()["cloudflare-cdn-cache-control"]).toBeDefined();
+  expect(page.headers()["cache-control"]).toBe("no-cache");
+  expect(page.headers().vary).toBe("Cookie, Accept-Language");
+
+  for (const path of ["/admin/crawler-health", "/voice-actors/no-such-actor"]) {
+    const res = await request.get(path);
+    expect(res.headers()["cache-control"], path).toBe("no-store");
+    expect(res.headers()["cloudflare-cdn-cache-control"], path).toBeUndefined();
+  }
+});
+
+/**
  * E2E に置く理由: **SSR の応答** (本文)。公開前に検索へ載らないことは、
  * 実際に Worker が返す robots.txt でしか確かめられない
  */

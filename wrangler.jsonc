@@ -16,6 +16,10 @@
   // 次の起動に持ち越すので、3 時間のあいだ 10 分おきに起動する。予定時刻の丸め方は src/server/push/slot.ts
   "triggers": { "crons": ["*/10 9-11 * * 5"] },
   "compatibility_date": "2026-09-01",
+  // Worker の前に Cloudflare のキャッシュを置く。ヒットした応答は Worker を起動せず、D1 も読まない。
+  // 何をキャッシュしてよいかは src/worker.ts が応答ごとに決める (既定は no-store)。
+  // 有効にすると Cache-Control の無い応答もキャッシュされるので、判定を外さないこと
+  "cache": { "enabled": true },
   // TanStack Start のサーバーランタイムが Node 互換 API を使う
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },

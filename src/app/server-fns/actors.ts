@@ -12,10 +12,12 @@ import { z } from "zod";
 export const fetchActorBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getActorBySlug }] = await Promise.all([
+    const [{ getDb }, { getActorBySlug }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return (await getActorBySlug(getDb(), data.slug)) ?? null;
   });
 
@@ -26,10 +28,12 @@ export const fetchActorBySlug = createServerFn({ method: "GET" })
 export const fetchActorStoreCoverage = createServerFn({ method: "GET" })
   .validator(z.object({ voiceActorId: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getActorStoreCoverage }] = await Promise.all([
+    const [{ getDb }, { getActorStoreCoverage }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return getActorStoreCoverage(getDb(), data.voiceActorId);
   });
 
@@ -41,17 +45,21 @@ export const searchActorsFn = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { searchActors }] = await Promise.all([
+    const [{ getDb }, { searchActors }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return searchActors(getDb(), data.q, data.limit);
   });
 
 export const fetchAllActors = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ getDb }, { listActors }] = await Promise.all([
+  const [{ getDb }, { listActors }, { markPublicData }] = await Promise.all([
     import("@/server/db/client"),
     import("@/server/queries/actors"),
+    import("@/server/response-cache"),
   ]);
+  markPublicData();
   return listActors(getDb());
 });

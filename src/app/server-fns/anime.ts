@@ -20,39 +20,47 @@ const seasonInput = z.object({
 export const fetchSeasonAnime = createServerFn({ method: "GET" })
   .validator(seasonInput)
   .handler(async ({ data }) => {
-    const [{ getDb }, { listSeasonAnime }] = await Promise.all([
+    const [{ getDb }, { listSeasonAnime }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return listSeasonAnime(getDb(), data.seasonYear, data.season, data.limit);
   });
 
 export const fetchAnimeBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getAnimeBySlug }] = await Promise.all([
+    const [{ getDb }, { getAnimeBySlug }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return (await getAnimeBySlug(getDb(), data.slug)) ?? null;
   });
 
 export const fetchAnimeByActor = createServerFn({ method: "GET" })
   .validator(z.object({ voiceActorId: z.string().min(1), limit: z.number().int().min(1).max(50) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { animeByActor }] = await Promise.all([
+    const [{ getDb }, { animeByActor }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return animeByActor(getDb(), data.voiceActorId, data.limit);
   });
 
 /** 出せる作品があるシーズン。`/anime` の索引と、シーズン一覧の前後の導線が使う */
 export const fetchAnimeSeasons = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ getDb }, { listSeasonsWithAnime }] = await Promise.all([
+  const [{ getDb }, { listSeasonsWithAnime }, { markPublicData }] = await Promise.all([
     import("@/server/db/client"),
     import("@/server/queries/anime"),
+    import("@/server/response-cache"),
   ]);
+  markPublicData();
   return listSeasonsWithAnime(getDb());
 });
 
@@ -84,9 +92,11 @@ export const searchAnimeFn = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { searchAnime }] = await Promise.all([
+    const [{ getDb }, { searchAnime }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
+      import("@/server/response-cache"),
     ]);
+    markPublicData();
     return searchAnime(getDb(), data.q, data.limit);
   });
