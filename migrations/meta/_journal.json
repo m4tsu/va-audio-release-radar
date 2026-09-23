@@ -134,6 +134,20 @@
       "when": 1790092086038,
       "tag": "0018_sudden_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1790177244032,
+      "tag": "0019_on_sale_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1790177247986,
+      "tag": "0020_on_sale_counts_triggers",
+      "breakpoints": true
     }
   ]
 }

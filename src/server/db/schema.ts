@@ -91,6 +91,15 @@ export const voiceActors = sqliteTable(
      */
     lastSeenSeasonYear: integer("last_seen_season_year"),
     lastSeenSeason: text("last_seen_season", { enum: ANIME_SEASONS }),
+    /**
+     * 買える作品の数 (R18 を除き、取り下げていない listing が 1 件以上ある作品)。
+     * 一覧・検索・アニメの各画面が声優ごとにこれを数え直すと、1 回の表示で全声優ぶんの
+     * credit と listing を読むことになる。値はトリガーが保つので、書き込み側は触らない
+     * (`migrations/0020_on_sale_counts_triggers.sql`)
+     */
+    onSaleWorkCount: integer("on_sale_work_count").notNull().default(0),
+    /** 買える作品が載っているストア ("dlsite,audible")。`group_concat(distinct)` なので区切りは "," 固定 */
+    onSaleStoreSlugs: text("on_sale_store_slugs"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -199,6 +208,8 @@ export const storeListings = sqliteTable(
     // ingest の upsert キー。ストア内で商品 ID は一意
     uniqueIndex("store_listings_store_product_unique").on(t.storeSlug, t.storeProductId),
     index("store_listings_audio_work_id_idx").on(t.audioWorkId),
+    // 新着が窓の中の listing だけを読むため (`latestWorks`)。無いと全作品を読んでから窓で落とす
+    index("store_listings_first_seen_at_idx").on(t.firstSeenAt),
   ],
 );
 
@@ -430,6 +441,12 @@ export const animeTitles = sqliteTable(
     /** 放送開始日 / 終了日。揃っていない日付を持たない理由は `@/domain/types.ts` の `AnimeTitle` */
     startDate: text("start_date"),
     endDate: text("end_date"),
+    /**
+     * 買える作品を持つ出演者の人数 (`voice_actors.on_sale_work_count` が 1 以上の人)。
+     * 0 の作品は一覧にも検索にも出さない。シーズンの索引が全作品の出演者を数え直さずに済むよう持つ。
+     * 値はトリガーが保つ (`migrations/0020_on_sale_counts_triggers.sql`)
+     */
+    onSaleActorCount: integer("on_sale_actor_count").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
