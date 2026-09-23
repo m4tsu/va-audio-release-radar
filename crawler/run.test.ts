@@ -7,8 +7,10 @@ import {
   filterActors,
   formatOutcomeTable,
   markFetched,
+  parseShard,
   type RunOutcome,
   send,
+  shardActors,
   sliceActors,
   summarize,
 } from "./run.ts";
@@ -23,6 +25,17 @@ const UEDA: CrawlActor = {
   canonicalName: "上田麗奈",
 };
 const KAJI: CrawlActor = { id: "va_kaji-yuki", slug: "kaji-yuki", canonicalName: "梶裕貴" };
+const HANAZAWA: CrawlActor = {
+  id: "va_hanazawa-kana",
+  slug: "hanazawa-kana",
+  canonicalName: "花澤香菜",
+};
+const ISHIMI: CrawlActor = {
+  id: "va_iwami-manaka",
+  slug: "iwami-manaka",
+  canonicalName: "石見舞菜香",
+};
+const NEWCOMER: CrawlActor = { id: "va_newcomer", slug: "newcomer", canonicalName: "新人" };
 
 /** 保存まで成功した 1 行。workCount は保存された件数なので fetchedCount と同じになる */
 function outcome(
@@ -223,6 +236,57 @@ describe("sliceActors", () => {
 
   it("offset が人数を超えたら空", () => {
     expect(sliceActors(actors, 5, 10)).toEqual([]);
+  });
+});
+
+describe("parseShard", () => {
+  it("i/n を読む", () => {
+    expect(parseShard("2/3")).toEqual({ index: 2, total: 3 });
+  });
+
+  it("指定が無ければ undefined", () => {
+    expect(parseShard(undefined)).toBeUndefined();
+  });
+
+  it("読めない指定は undefined (呼び出し側が止める)", () => {
+    // 0 始まりで書かれた 0/3 も弾く。黙って 1 番目として扱うと 3 番目が誰にも引かれない
+    for (const value of ["0/3", "4/3", "3", "a/b", "1/0", "-1/3", "1/3 "]) {
+      expect(parseShard(value)).toBeUndefined();
+    }
+  });
+});
+
+describe("shardActors", () => {
+  const actors = [UEDA, KAJI, HANAZAWA, ISHIMI];
+
+  it("指定が無ければ全員返す", () => {
+    expect(shardActors(actors, undefined)).toEqual(actors);
+  });
+
+  it("全部の組を合わせると元の全員になり、重なりが無い", () => {
+    const shards = [1, 2, 3].map((index) => shardActors(actors, { index, total: 3 }));
+
+    expect(
+      shards
+        .flat()
+        .map((actor) => actor.id)
+        .sort(),
+    ).toEqual(actors.map((actor) => actor.id).sort());
+  });
+
+  it("対象が増えても、元から居た人の組は変わらない", () => {
+    // 月次は 3 つのジョブに分けて順に走らせる。その間に日次が作品を足して対象が増える。
+    // --offset で分けると境目がずれ、どの組にも入らない人が出る
+    const before = shardActors(actors, { index: 1, total: 3 });
+    const grown = [NEWCOMER, ...actors];
+
+    const after = shardActors(grown, { index: 1, total: 3 });
+
+    expect(after.filter((actor) => actor.id !== NEWCOMER.id)).toEqual(before);
+  });
+
+  it("1 組なら全員が入る", () => {
+    expect(shardActors(actors, { index: 1, total: 1 })).toEqual(actors);
   });
 });
 

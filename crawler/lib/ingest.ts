@@ -130,6 +130,24 @@ export type WriteActorKanaResponse = {
   skipped: number;
 };
 
+/**
+ * `POST /api/admin/delistings` に送る 1 件。
+ *
+ * 判定が付かなかった作品は送らない。`delisted: false` は「買える」という主張で、
+ * 前に付いた取り下げを取り消してしまう
+ */
+export type Delisting = {
+  storeSlug: StoreSlug;
+  storeProductId: string;
+  delisted: boolean;
+};
+
+export type RecordDelistingsResponse = {
+  delisted: number;
+  relisted: number;
+  unknown: number;
+};
+
 /** `POST /api/admin/actor-attributes` に送る 1 件 */
 export type ActorAttributeSeed = {
   voiceActorId: string;
@@ -299,6 +317,16 @@ export class AdminApiClient {
   /** かなの取得結果。取れなかった人も送ると、引いた印だけが付く */
   writeActorKana(results: readonly ActorKanaResult[]): Promise<WriteActorKanaResponse> {
     return this.#send<WriteActorKanaResponse>("POST", "/api/admin/actor-kana", results);
+  }
+
+  /**
+   * 販売終了の判定を書く。台帳が持っている商品を引き直した結果だけを送る。
+   *
+   * 声優起点の走行ではここを埋められない。ストアの検索結果には売っている作品しか
+   * 出ないので、買えなくなった作品は検索から消える (`crawler/delist.ts`)
+   */
+  recordDelistings(items: readonly Delisting[]): Promise<RecordDelistingsResponse> {
+    return this.#send<RecordDelistingsResponse>("POST", "/api/admin/delistings", items);
   }
 
   /** 付加情報 (かな、表示用ローマ字) を出どころ付きで書く */

@@ -12,6 +12,7 @@ import {
   DLSITE_FLOORS,
   type DlsiteFloor,
   dlsiteAdapter,
+  isDelisted,
   parsePagerCount,
   parseProductJson,
   parseSearchHtml,
@@ -301,6 +302,31 @@ describe("parseProductJson", () => {
   });
 });
 
+describe("isDelisted", () => {
+  it("on_sale が 0 なら販売終了", () => {
+    expect(isDelisted({ onSale: false, isReserveWork: false })).toBe(true);
+  });
+
+  it("on_sale が 1 なら販売中", () => {
+    expect(isDelisted({ onSale: true, isReserveWork: false })).toBe(false);
+  });
+
+  /**
+   * false に倒すと「買える」という主張になり、前に付いた取り下げを取り消してしまう。
+   * 分からないものは動かさない (`docs/decisions/0008-no-price-no-availability.md`)
+   */
+  it("on_sale を読めなければ判定を付けない", () => {
+    expect(isDelisted({ isReserveWork: false })).toBeUndefined();
+  });
+
+  it("予約作品は買えなくても判定を付けない", () => {
+    // 未発売の作品が on_sale: 0 を返すかは測れていない
+    // (docs/research/dlsite-on-sale-2026-09-23.md)
+    expect(isDelisted({ onSale: false, isReserveWork: true })).toBeUndefined();
+    expect(isDelisted({ onSale: true, isReserveWork: true })).toBeUndefined();
+  });
+});
+
 describe("applyProductDetail", () => {
   it("一覧の作品に発売日と声優全員を補う", () => {
     const listWork = parseSearchHtml(searchHtml, FETCHED_AT).works[0];
@@ -314,6 +340,17 @@ describe("applyProductDetail", () => {
     expect(merged.creditedNames).toEqual(["上田麗奈"]);
     expect(merged.genres).toContain("ASMR");
     expect(merged.storeCategory).toBe("SOU");
+  });
+
+  it("販売終了を読めた作品にだけ判定を付ける", () => {
+    const listWork = parseSearchHtml(searchHtml, FETCHED_AT).works[0];
+    if (listWork === undefined) throw new Error("fixture が空");
+    const base = { workno: listWork.storeProductId, voiceNames: [], genres: [] };
+
+    expect(applyProductDetail(listWork, { ...base, onSale: false }).delisted).toBe(true);
+    expect(applyProductDetail(listWork, { ...base, onSale: true }).delisted).toBe(false);
+    // 読めなかった作品は欄ごと送らない。送ると取り込み側が今ある値を動かす
+    expect(applyProductDetail(listWork, base)).not.toHaveProperty("delisted");
   });
 
   it("voice_by が空なら一覧の声優名を残す", () => {

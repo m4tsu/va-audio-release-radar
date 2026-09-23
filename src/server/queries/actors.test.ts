@@ -320,6 +320,8 @@ describe("listActors", () => {
    */
   it("掲載が無い作品や、知らないストアの掲載は storeSlugs に出さない", async () => {
     const db = await setupDb([UEDA]);
+    // 買える作品を 1 件持たせる。1 件も無いと一覧そのものから外れて storeSlugs を見られない
+    await giveEachActorAWork(db, [UEDA]);
     await db.insert(audioWorks).values({
       id: "unknown:1",
       title: "掲載の無い作品",
@@ -336,7 +338,7 @@ describe("listActors", () => {
       sourceStoreSlug: "dlsite",
     });
 
-    expect((await listActors(db))[0]?.storeSlugs).toEqual([]);
+    expect((await listActors(db))[0]?.storeSlugs).toEqual(["dlsite"]);
 
     // STORE_SLUGS に無い slug (Phase 2 で足す予定の audiobookjp) を直に入れる
     await db.insert(storeListings).values({
@@ -350,7 +352,7 @@ describe("listActors", () => {
       lastCheckedAt: NOW,
     });
 
-    expect((await listActors(db))[0]?.storeSlugs).toEqual([]);
+    expect((await listActors(db))[0]?.storeSlugs).toEqual(["dlsite"]);
   });
 });
 

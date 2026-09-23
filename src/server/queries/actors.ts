@@ -421,8 +421,16 @@ async function matchByNormalizedName(db: AppDb, query: string): Promise<string[]
   return [...matched];
 }
 
-/** 1 声優につき何作品に credit があるか。同じ作品に複数 credit が付くので distinct で数える */
-const workCountExpression = sql<number>`count(distinct ${audioCredits.audioWorkId})`;
+/**
+ * 1 声優につき何作品が買えるか。同じ作品に複数 credit が付くので distinct で数える。
+ *
+ * `case` を挟むのは、join が leftJoin だから。取り下げた listing しか無い作品でも
+ * credit の行そのものは残り、listing 側が null になって並ぶ。credit 側の列を素で数えると
+ * その作品も 1 件に入ってしまうので、listing が付いた行だけを数える
+ */
+const workCountExpression = sql<number>`count(distinct case
+  when ${storeListings.id} is not null then ${audioCredits.audioWorkId}
+end)`;
 
 /**
  * この声優の作品が載っているストアを 1 行にまとめたもの ("dlsite,audible")。
@@ -433,8 +441,11 @@ const workCountExpression = sql<number>`count(distinct ${audioCredits.audioWorkI
 const storeSlugsExpression = sql<string | null>`group_concat(distinct ${storeListings.storeSlug})`;
 
 /**
- * 作品が 1 件以上ある声優かどうか。sitemap に載せる声優を選ぶのに使う
- * (`sitemapEntries` (queries/works.ts))。
+ * 作品が 1 件以上ある声優かどうか。取り下げたかどうかは見ない。
+ *
+ * 月次の引き直しが対象を選ぶのに使う (`listActorDictionary` の `withWorks`)。
+ * 買える作品が 1 件も残っていない声優も引き直す。ストアの検索に新作が出れば拾えるので、
+ * 「今買えるものが無い」ことは調べない理由にならない。
  *
  * EXISTS にするのは、声優 1 人ずつ作品数を引き直すと 2,500 人ぶんのクエリになるため。
  * 1 件見つかった時点で打ち切られるので、作品数を数えるより安い
@@ -444,13 +455,28 @@ export const hasAnyAudioCredit: SQL = sql`exists (
 )`;
 
 /**
+ * 買える作品を 1 件でも持つ声優かどうか。
+ *
+ * 画面が声優を選ぶときはこちらを見る。声優ページは買える作品も出演アニメも無ければ 404 で
+ * (`routes/voice-actors.$slug.tsx`)、作品一覧は取り下げた listing を落とす
+ * (`onSaleSomewhere` (queries/works.ts))。`hasAnyAudioCredit` で選ぶと、
+ * 作品がすべて販売終了した声優が sitemap と一覧に残り、開くと 404 になる
+ */
+export const hasOnSaleAudioWork: SQL = sql`exists (
+  select 1 from ${audioCredits}
+  join ${storeListings} on ${storeListings.audioWorkId} = ${audioCredits.audioWorkId}
+  where ${audioCredits.voiceActorId} = ${voiceActors.id}
+    and ${storeListings.delistedAt} is null
+)`;
+
+/**
  * ページが出る声優かどうか。音声作品か出演アニメのどちらかがあれば出る
  * (404 の条件は `routes/voice-actors.$slug.tsx`)。
  *
  * 一覧と検索がこれで絞るのは、どちらも声優ページへのリンクを並べる場所だから。
  * 絞らないと 404 になるページへのリンクが並ぶ
  */
-const hasPage: SQL = sql`(${hasAnyAudioCredit} or exists (
+const hasPage: SQL = sql`(${hasOnSaleAudioWork} or exists (
   select 1 from ${animeAppearances}
   where ${animeAppearances.voiceActorId} = ${voiceActors.id}
 ))`;

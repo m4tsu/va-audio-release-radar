@@ -29,6 +29,14 @@ export const Route = createFileRoute("/api/admin/actors")({
         const params = new URL(request.url).searchParams;
         const neverCrawled = params.get("never-crawled") === "1";
         const withWorks = params.get("with-works") === "1";
+        // 両方指定されても片方を黙って優先しない。選ばれた集合が指定と違うと、
+        // 呼び出し側は全員を引いたつもりで一部しか引かずに終わる
+        if (neverCrawled && withWorks) {
+          return Response.json(
+            { error: "never-crawled と with-works は同時に指定できない" },
+            { status: 400 },
+          );
+        }
         return Response.json(await listActorDictionary(getDb(), { neverCrawled, withWorks }));
       },
       POST: async ({ request }) => {

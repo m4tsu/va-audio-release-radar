@@ -76,6 +76,7 @@ node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,pri
 | `npm run radar:daily` | 新着一覧から日次で取り込む。オプションは `node crawler/daily.ts --help` |
 | `npm run radar:anilist` | AniList から対象声優とアニメを週次で取り込む。オプションは `node crawler/anilist.ts --help` |
 | `npm run radar:kana` | まだ引いていない声優のかなを取って台帳に入れる。オプションは `node crawler/kana.ts --help` |
+| `npm run radar:delist` | 台帳の DLsite 作品を引き直し、買えなくなったものを取り下げる。オプションは `node crawler/delist.ts --help` |
 | `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
 | `npm run radar:test` / `radar:typecheck` | crawler だけのテスト / 型検査 |
 | `npm run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
@@ -192,18 +193,28 @@ INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
 次の週には新規でなくなって永久に引かれなくなるため。打ち切っても残りは次の週に出てくる。
 
 **月に 1 回、作品を持つ声優を引き直す** (`.github/workflows/monthly-backfill.yml`)。日次の新着一覧が
-取りこぼした作品を埋め、検索の上限に当たった声優を数える。DLsite は既知作品の詳細も取り直し、
-もう買えない作品を取り下げる。取り下げた listing は行を消さず、読むときに落とす
+取りこぼした作品を埋め、検索の上限に当たった声優を数える。
+
+```bash
+# 月次と同じことを手元で行う (ストアごとに分ける。DLsite は組にも分ける)
+INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
+  --store dlsite --with-works --shard 1/3
+```
+
+**同じ月次で、台帳の DLsite 作品を引き直して取り下げる。**これを声優起点でやらない理由がある。
+ストアの検索結果には売っている作品しか出ないので、買えなくなった作品は検索から消え、
+上の走行では詳細を引き直す機会そのものが無い (測定は
+[`docs/research/dlsite-on-sale-2026-09-23.md`](./docs/research/dlsite-on-sale-2026-09-23.md))。
+だから台帳が持っている商品 ID を起点にする。取り下げた listing は行を消さず、読むときに落とす
 ([`docs/decisions/0008`](./docs/decisions/0008-no-price-no-availability.md))。
 
 ```bash
-# 月次と同じことを手元で行う (ストアごとに分ける。DLsite は人数でも分ける)
-INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
-  --store dlsite --with-works --no-skip-known --offset 0 --limit 400
+# 台帳の DLsite 作品を引き直す (--dry-run で送らずに結果だけ見られる)
+INGEST_TOKEN=dev node crawler/delist.ts --base-url http://localhost:5199 --limit 50
 ```
 
-`--no-skip-known` を付けるのは、既知作品の詳細を取り直さないと販売終了に気づけないため。
-日次は新規作品の詳細しか引かない。
+買えるかどうかを読めなかった作品は送らない。送ると「買える」という主張になり、
+前に付いた取り下げを取り消してしまう。
 
 声優起点の走行も、かなの取得も、誰を調べるかを台帳から引く。リストのファイルは読まない。
 性別は出演者と一緒に AniList から返るので、週次の取り込みが入れる。

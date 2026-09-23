@@ -16,7 +16,7 @@ import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
-import { hasAnyAudioCredit } from "./actors";
+import { hasOnSaleAudioWork } from "./actors";
 
 /**
  * 発売日を基準にした「新しさ」。画面の 3 段と NEW バッジはこの値だけで決める。
@@ -302,11 +302,15 @@ export async function latestWorks(
   const rows = await db
     .select(workSelection)
     .from(audioWorks)
-    .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
+    // 買える listing だけを繋ぐ。`storeSlug` で絞るときに取り下げた listing へ当たると、
+    // 他のストアで買えることを根拠に「そのストアで買える作品」として出てしまう
+    .innerJoin(
+      storeListings,
+      and(eq(storeListings.audioWorkId, audioWorks.id), isNull(storeListings.delistedAt)),
+    )
     .where(
       and(
         notAdultRated,
-        onSaleSomewhere,
         withinPeriod(now, sinceDays),
         storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
       ),
@@ -366,14 +370,13 @@ export async function feedForActors(
       .select(workSelection)
       .from(audioWorks)
       .innerJoin(audioCredits, eq(audioCredits.audioWorkId, audioWorks.id))
-      .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
+      // 買える listing だけを繋ぐ。繋がらない作品はここで落ちる (`onSaleSomewhere` と同じ)
+      .innerJoin(
+        storeListings,
+        and(eq(storeListings.audioWorkId, audioWorks.id), isNull(storeListings.delistedAt)),
+      )
       .where(
-        and(
-          inArray(audioCredits.voiceActorId, ids),
-          notAdultRated,
-          onSaleSomewhere,
-          withinPeriod(now, sinceDays),
-        ),
+        and(inArray(audioCredits.voiceActorId, ids), notAdultRated, withinPeriod(now, sinceDays)),
       )
       .groupBy(audioWorks.id)
       .orderBy(...feedOrder)
@@ -421,8 +424,10 @@ export async function feedForActors(
 /**
  * 指定ストアで既に DB に入っている商品 ID (`store_product_id`) の一覧。
  *
- * クローラーが DLsite の `product.json` を新規 ID だけに絞るために使う。DLsite は 1 作品ずつ
- * しか引けず間隔も要るので、既知の 30 件を毎回引き直すと 1 声優あたり 1 分近く無駄になる
+ * 2 つの使い道がある。1 つは新規 ID の絞り込み。DLsite は 1 作品ずつしか引けず間隔も要るので、
+ * 既知の 30 件を毎回引き直すと 1 声優あたり 1 分近く無駄になる。
+ * もう 1 つは月次の取り下げの対象 (`crawler/delist.ts`)。取り下げ済みの行も返す。
+ * 返さないと、また買えるようになった作品を引き直せなくなる
  */
 export async function knownStoreProductIds(db: AppDb, storeSlug: StoreSlug): Promise<string[]> {
   const rows = await db
@@ -439,9 +444,9 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
     db
       .select({ slug: voiceActors.slug, updatedAt: voiceActors.updatedAt })
       .from(voiceActors)
-      // 作品が 1 件も無い声優のページは noindex なので sitemap にも出さない
+      // 買える作品が 1 件も無い声優のページは noindex なので sitemap にも出さない
       // (条件は `routes/voice-actors.$slug.tsx` と揃える)
-      .where(hasAnyAudioCredit)
+      .where(hasOnSaleAudioWork)
       .orderBy(asc(voiceActors.slug)),
     db
       .select({ id: audioWorks.id, updatedAt: audioWorks.updatedAt })

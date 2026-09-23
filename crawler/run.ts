@@ -61,6 +61,7 @@ const USAGE = `使い方:
   --store <slug>            1 つのストアだけを対象にする (dlsite / audible / pokedora)
   --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
   --limit <N>               (--offset のぶんを飛ばした後) N 人の声優だけを対象にする
+  --shard <i/n>             対象を n 組に分けた i 番目だけを引く (月次を複数ジョブに分ける)
   --dry-run                 取得はするが DB へは送らない (対象声優の読み取りだけは行う)
   --no-snapshot             取得した生データを .cache/snapshots に保存しない
   --no-skip-known           既知 ID の詳細取得を飛ばさず、毎回すべて取り直す
@@ -74,6 +75,7 @@ const OPTION_SPEC = {
   store: { type: "string" },
   offset: { type: "string" },
   limit: { type: "string" },
+  shard: { type: "string" },
   "dry-run": { type: "boolean" },
   "no-snapshot": { type: "boolean" },
   "no-skip-known": { type: "boolean" },
@@ -181,7 +183,12 @@ export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
   return summary;
 }
 
-/** 声優ごとに 1 行の表。どの声優のどのストアが空・失敗だったかを一目で追えるようにする */
+/**
+ * 声優ごとに 1 行の表。どの声優のどのストアが空・失敗だったかを一目で追えるようにする。
+ *
+ * 時間切れで打ち切られた走行はここまで来ない (プロセスごと止められる)。
+ * どこまで進んだかは走行中に出る `[k/N] 名前` の行と `crawl_runs` の行数で追う
+ */
 export function formatOutcomeTable(outcomes: readonly RunOutcome[]): string {
   // 列はストアが増えても勝手に増える。`--store` で 1 つに絞った走行でも全ストアの列を出し、
   // 引かなかったストアは "-" にする (0 件と「そもそも取っていない」を混ぜないため)
@@ -337,6 +344,47 @@ export function sliceActors(
   return actors.slice(start, end);
 }
 
+export type Shard = { index: number; total: number };
+
+/**
+ * `--shard i/n` を読む。`i` は 1 始まり。形が違えば undefined を返す
+ */
+export function parseShard(value: string | undefined): Shard | undefined {
+  if (value === undefined) return undefined;
+  const matched = /^(\d+)\/(\d+)$/.exec(value);
+  if (matched === null) return undefined;
+  const index = Number(matched[1]);
+  const total = Number(matched[2]);
+  if (total < 1 || index < 1 || index > total) return undefined;
+  return { index, total };
+}
+
+/**
+ * 声優 ID から毎回同じ数を作る (FNV-1a 32bit)。
+ * 組分けが走行ごとに変わらなければよく、分布の質は問わない
+ */
+function hashActorId(id: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/**
+ * `--shard i/n` で対象を分ける。
+ *
+ * 声優 ID のハッシュで分けるので、どの組に入るかは他の声優が増えても変わらない。
+ * `--offset` で分けると、ジョブの合間に日次が作品を足して対象が 1 人増えたときに
+ * 境目が丸ごとずれ、どの組にも入らない人が出る。月次は 3 つのジョブに分けて順に走らせるので、
+ * その間 (数時間) に対象が動くことを前提にする
+ */
+export function shardActors(actors: readonly CrawlActor[], shard: Shard | undefined): CrawlActor[] {
+  if (shard === undefined) return [...actors];
+  return actors.filter((actor) => hashActorId(actor.id) % shard.total === shard.index - 1);
+}
+
 /** `--only` の値で絞る。canonicalName と slug のどちらでも書けるようにする */
 export function filterActors(
   actors: readonly CrawlActor[],
@@ -397,6 +445,13 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
+  const shardOption = asString(values.shard);
+  const shard = parseShard(shardOption);
+  if (shardOption !== undefined && shard === undefined) {
+    process.stderr.write(`--shard は 1 始まりの i/n の形で指定する: ${shardOption}\n`);
+    return 1;
+  }
+
   const offsetOption = asString(values.offset);
   const offset = offsetOption === undefined ? undefined : Number(offsetOption);
   // 0 を許すのは「先頭から」を明示して書けるようにするため (スクリプトで組み立てやすい)
@@ -421,12 +476,17 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
-  const filtered = filterActors(all, asString(values.only));
+  const filtered = shardActors(filterActors(all, asString(values.only)), shard);
+  if (shard !== undefined) {
+    process.stdout.write(
+      `${shard.total} 組に分けた ${shard.index} 番目を対象にする: ${filtered.length} 人\n`,
+    );
+  }
   const actors = sliceActors(filtered, offset, limit);
   if (actors.length === 0) {
     process.stderr.write(
       filtered.length === 0
-        ? "対象の声優が 0 人。--only の指定を見直す\n"
+        ? "対象の声優が 0 人。--only か --shard の指定を見直す\n"
         : `対象の声優が 0 人。--offset ${offset} が候補 ${filtered.length} 人を超えている\n`,
     );
     return 1;
@@ -550,15 +610,6 @@ export async function main(argv: readonly string[]): Promise<number> {
       `DB に記録できなかった失敗 ${summary.saveFailedUnrecorded} 件 ` +
         `(crawl_runs に行が無いので、管理画面からは 0 件の声優と区別が付かない)\n`,
     );
-  }
-
-  // 対象の全員を回り切ったか。時間切れで打ち切られた走行が「成功」に見えないようにする
-  if (outcomes.length > 0 && index < actors.length) {
-    process.stderr.write(
-      `\n[打ち切り] ${index} 人目までで終わった (対象 ${actors.length} 人)。\n` +
-        `  再開するには --offset ${index} を付ける\n`,
-    );
-    return 1;
   }
 
   // 取得の失敗と保存の失敗、どちらでも異常終了。ここまで来ている時点で全件の送信は終えている

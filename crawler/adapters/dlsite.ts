@@ -241,17 +241,22 @@ export type DlsiteProductDetail = {
 };
 
 /**
- * ストアが販売終了を示しているか。
+ * ストアが販売終了を示しているか。**分からないときは undefined を返す。**
  *
- * 買えないことがはっきり読めたときだけ true。読めなかった作品 (`on_sale` が無い、
- * 詳細を引けなかった) は false にする。一覧に出ないことを理由に取り下げないのと同じで、
- * 分からないものを取り下げない ([`decisions/0008`](../../docs/decisions/0008-no-price-no-availability.md))。
+ * true / false は「はっきり読めた」ときだけ。`on_sale` が無い、知らない値、予約作品
+ * (未発売の作品が `on_sale: 0` を返すかを測れていない) は undefined にする。
  *
- * 予約作品を外すのは、未発売の作品が `on_sale: 0` を返すかを測れていないため
+ * false に倒さないのは、それが「買える」という主張になり、前に付いた取り下げを
+ * 取り消してしまうため。分からないものは動かさない
+ * (`docs/decisions/0008-no-price-no-availability.md`)
  */
-export function isDelisted(detail: Pick<DlsiteProductDetail, "onSale" | "isReserveWork">): boolean {
-  if (detail.onSale !== false) return false;
-  return detail.isReserveWork !== true;
+export function isDelisted(
+  detail: Pick<DlsiteProductDetail, "onSale" | "isReserveWork">,
+): boolean | undefined {
+  if (detail.onSale === undefined) return undefined;
+  // 予約作品は買えなくても「まだ売っていない」だけかもしれない
+  if (detail.isReserveWork === true) return undefined;
+  return !detail.onSale;
 }
 
 /** product.json は 1 件だけの配列。想定外の形なら undefined を返し、一覧の情報だけで進める */
@@ -329,6 +334,7 @@ function collectVoiceNames(entries: readonly unknown[]): string[] {
 
 /** 一覧から作った RawWork に product.json の情報を上書きする。詳細のほうが確度が高い */
 export function applyProductDetail(work: RawWork, detail: DlsiteProductDetail): RawWork {
+  const delisted = isDelisted(detail);
   return {
     ...work,
     // voice_by には出演者全員が入る。一覧の span.author は代表者しか出ないことがある
@@ -345,9 +351,9 @@ export function applyProductDetail(work: RawWork, detail: DlsiteProductDetail): 
     // 理由に unknown へ落とすと、一覧の事実まで捨ててしまう
     ageRating: detail.ageCategory === undefined ? work.ageRating : toAgeRating(detail.ageCategory),
     storeSection: detail.siteId ?? work.storeSection,
-    // 販売終了は詳細でしか分からない。買えると分かった作品は取り下げを取り消す
-    // (再販された作品が一覧に戻ったときに、古い取り下げが残らないようにするため)
-    delisted: isDelisted(detail),
+    // 販売終了は詳細でしか分からない。読めなかったときは項目ごと省いて、
+    // 取り込み側に今ある値を残させる
+    ...(delisted === undefined ? {} : { delisted }),
   };
 }
 
