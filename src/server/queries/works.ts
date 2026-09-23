@@ -1,4 +1,17 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
@@ -28,6 +41,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * 許可制にすると Audible の作品が丸ごと消える
  */
 export const notAdultRated = ne(audioWorks.ageRating, "r18");
+
+/**
+ * どこかのストアでまだ買える作品か。
+ *
+ * ストアが販売終了を示した listing には `delisted_at` が入る
+ * (`docs/decisions/0008-no-price-no-availability.md`)。作品の行は消さないので、読むときに落とす。
+ * 1 つのストアで終わっても他で買えるなら出す。listing を 1 件も持たない作品は出さない
+ */
+export const onSaleSomewhere: SQL = sql`exists (
+  select 1 from ${storeListings}
+  where ${storeListings.audioWorkId} = ${audioWorks.id}
+    and ${storeListings.delistedAt} is null
+)`;
 
 export type WorkSummary = {
   id: string;
@@ -117,7 +143,7 @@ export async function getWorkById(
   const [row] = await db
     .select()
     .from(audioWorks)
-    .where(and(eq(audioWorks.id, id), notAdultRated))
+    .where(and(eq(audioWorks.id, id), notAdultRated, onSaleSomewhere))
     .limit(1);
   if (!row) return undefined;
 
@@ -179,7 +205,7 @@ export async function worksByActor(
     .from(audioWorks)
     .innerJoin(audioCredits, eq(audioCredits.audioWorkId, audioWorks.id))
     .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
-    .where(and(eq(audioCredits.voiceActorId, voiceActorId), notAdultRated))
+    .where(and(eq(audioCredits.voiceActorId, voiceActorId), notAdultRated, onSaleSomewhere))
     .groupBy(audioWorks.id)
     .orderBy(...newestFirstOrder)
     .limit(limit);
@@ -231,7 +257,7 @@ export async function workStatsForActors(
       .from(audioCredits)
       .innerJoin(audioWorks, eq(audioWorks.id, audioCredits.audioWorkId))
       .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
-      .where(and(inArray(audioCredits.voiceActorId, ids), notAdultRated))
+      .where(and(inArray(audioCredits.voiceActorId, ids), notAdultRated, onSaleSomewhere))
       .groupBy(audioCredits.voiceActorId, audioWorks.id)
       .as("per_work");
 
@@ -280,6 +306,7 @@ export async function latestWorks(
     .where(
       and(
         notAdultRated,
+        onSaleSomewhere,
         withinPeriod(now, sinceDays),
         storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
       ),
@@ -341,7 +368,12 @@ export async function feedForActors(
       .innerJoin(audioCredits, eq(audioCredits.audioWorkId, audioWorks.id))
       .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
       .where(
-        and(inArray(audioCredits.voiceActorId, ids), notAdultRated, withinPeriod(now, sinceDays)),
+        and(
+          inArray(audioCredits.voiceActorId, ids),
+          notAdultRated,
+          onSaleSomewhere,
+          withinPeriod(now, sinceDays),
+        ),
       )
       .groupBy(audioWorks.id)
       .orderBy(...feedOrder)
@@ -414,7 +446,7 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
     db
       .select({ id: audioWorks.id, updatedAt: audioWorks.updatedAt })
       .from(audioWorks)
-      .where(notAdultRated)
+      .where(and(notAdultRated, onSaleSomewhere))
       .orderBy(desc(audioWorks.updatedAt)),
   ]);
 
@@ -641,7 +673,8 @@ export async function loadListings(
     const rows = await db
       .select()
       .from(storeListings)
-      .where(inArray(storeListings.audioWorkId, ids))
+      // 取り下げた listing は返さない。押すと買えない商品ページに飛ぶため
+      .where(and(inArray(storeListings.audioWorkId, ids), isNull(storeListings.delistedAt)))
       .orderBy(asc(storeListings.storeSlug));
 
     for (const row of rows) {

@@ -40,7 +40,13 @@ jobs:
     runs-on: ubuntu-latest
     # 所要は 声優の人数 × ストアごとの往復数 × ホストごとの間隔 で決まる (crawler/lib/fetch.ts)。
     # 往復は 1 ストア 1 回とは限らない。DLsite は引くフロアの数だけ増える
-    # (docs/decisions/0011-dlsite-garumani-floor.md)。上の only で対象を絞って使う前提の値
+    # (docs/decisions/0011-dlsite-garumani-floor.md)。
+    #
+    # **この上限に収まる人数の目安は 350 人** (3 ストアすべてを引く場合)。
+    # 1 人あたり DLsite 2 フロア + Audible 1 回 + ポケドラ 1 回で、間隔の合計が約 31 秒。
+    # 120 分 ÷ 31 秒 ≒ 230 人。--store で 1 つに絞れば DLsite で 360 人、Audible で 1,200 人。
+    # 間隔は docs/stores/ の各ファイルの「レート間隔」。上の only で対象を絞って使う前提の値。
+    # 対象の全員を回すもの (月次) は monthly-backfill.yml が人数で分けて回す
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5

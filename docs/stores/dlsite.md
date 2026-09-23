@@ -234,7 +234,7 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 
 使うキー: `workno, work_name, maker_name, maker_id, regist_date, age_category,
 age_category_string, work_type, work_type_string,
-image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`。
+image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, is_reserve_work, site_id`。
 `price` と `official_price` は読まない。持たない ([`decisions/0008`](../decisions/0008-no-price-no-availability.md))
 
 | 項目 | 可否 | 備考 |
@@ -248,7 +248,8 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, site_id`
 | 男性向け / 女性向け | ○ | `sex_category`。女性向けが 2 (2026-09-20 実測)。現在は取得していない |
 | 予約作品か | ○ | `is_reserve_work`。true なら `regist_date` が未来になりうる (現在は取得していない) |
 | セール終了日時 | ○ | `campaign_end_date` (現在は取得していない) |
-| 販売中の印 | △ | `on_sale`。販売中の作品では 1 (2026-09-20、`crawler/fixtures/` の product.json で確認)。販売終了の作品でどの値になるかは未確認。現在は取得していない |
+| 販売中の印 | ○ | `on_sale`。今買えるなら 1、買えないなら 0。一覧に出た作品は必ず 1 で、0 は 5 日経っても 0 だった (2026-09-23 の測定、[`dlsite-on-sale-2026-09-23.md`](../research/dlsite-on-sale-2026-09-23.md))。取り下げの判定に使う |
+| 予約作品か (再掲) | ○ | `is_reserve_work`。**未発売の作品が `on_sale: 0` を返すかは測れていない**ので、取り下げの判定はこれが立っていないことも条件にする |
 | 役名 | × | 持っていない |
 | 別名義の根拠 | × | §6 |
 

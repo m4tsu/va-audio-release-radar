@@ -6,6 +6,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  isNull,
   like,
   or,
   type SQL,
@@ -177,7 +178,7 @@ export async function upsertActors(
  */
 export async function listActorDictionary(
   db: AppDb,
-  options: { neverCrawled?: boolean } = {},
+  options: { neverCrawled?: boolean; withWorks?: boolean } = {},
 ): Promise<ActorDictionaryEntry[]> {
   const base = db
     .select({
@@ -190,13 +191,17 @@ export async function listActorDictionary(
 
   // 一度も引いたことがない声優。週次はここから少しずつ消化するので、
   // 1 回の走行に収まらなくても次の週に残りが出る (「今回増えた人」だけを見ると取りこぼす)
-  const actors = await (options.neverCrawled === true
-    ? base
-        .where(
-          sql`not exists (select 1 from ${crawlRuns} where ${crawlRuns.voiceActorId} = ${voiceActors.id})`,
-        )
-        .orderBy(asc(voiceActors.firstSeenAt), asc(voiceActors.id))
-    : base.orderBy(asc(voiceActors.id)));
+  // 作品を持つ声優。月次の引き直しはここを対象にする
+  // (作品 0 件の声優は対象外。`docs/decisions/0007-daily-crawl-from-store-feeds.md`)
+  const actors = await (options.withWorks === true
+    ? base.where(hasAnyAudioCredit).orderBy(asc(voiceActors.id))
+    : options.neverCrawled === true
+      ? base
+          .where(
+            sql`not exists (select 1 from ${crawlRuns} where ${crawlRuns.voiceActorId} = ${voiceActors.id})`,
+          )
+          .orderBy(asc(voiceActors.firstSeenAt), asc(voiceActors.id))
+      : base.orderBy(asc(voiceActors.id)));
 
   const aliasRows = await db
     .select({
@@ -478,7 +483,14 @@ function summaryQuery(db: AppDb, extra?: SQL) {
       .leftJoin(audioCredits, eq(audioCredits.voiceActorId, voiceActors.id))
       // 作品がどのストアに載っているかは listing が持つ。作品 1 件につき行が増えるが、
       // 作品数は count(distinct) で数えているので重複しても狂わない
-      .leftJoin(storeListings, eq(storeListings.audioWorkId, audioCredits.audioWorkId))
+      .leftJoin(
+        storeListings,
+        and(
+          eq(storeListings.audioWorkId, audioCredits.audioWorkId),
+          // 取り下げた listing は作品数にもストアの絞り込みにも数えない
+          isNull(storeListings.delistedAt),
+        ),
+      )
       .where(extra === undefined ? hasPage : and(hasPage, extra))
       .groupBy(voiceActors.id)
   );

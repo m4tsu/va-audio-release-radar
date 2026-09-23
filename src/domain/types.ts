@@ -234,6 +234,14 @@ export type RawWork = {
   genres?: string[];
   ageRating: AgeRating;
   storeSection?: string; // ストア固有の区分 (StoreListing.storeSection と同じ値)
+  /**
+   * ストアが「今は買えない」と示しているか。
+   *
+   * 省いた作品は取り下げの判定に使わない。一覧に出ないことを理由に取り下げないのと同じで、
+   * 分からないものを取り下げない (`docs/decisions/0008-no-price-no-availability.md`)。
+   * false を送ると、前に付いた取り下げが取り消される (再販された作品のため)
+   */
+  delisted?: boolean;
   fetchedAt: string;
 };
 
@@ -504,6 +512,7 @@ export const rawWorkSchema = z.object({
   genres: z.array(z.string()).optional(),
   ageRating: z.enum(AGE_RATINGS),
   storeSection: z.string().optional(),
+  delisted: z.boolean().optional(),
   fetchedAt: z.string(),
 }) satisfies z.ZodType<RawWork>;
 

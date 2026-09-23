@@ -19,6 +19,7 @@ import {
   loadCrawlBaselines,
   loadListings,
   notAdultRated,
+  onSaleSomewhere,
 } from "./works";
 
 /**
@@ -144,7 +145,7 @@ export async function digestWorks(
       .from(audioWorks)
       .innerJoin(audioCredits, eq(audioCredits.audioWorkId, audioWorks.id))
       .innerJoin(storeListings, eq(storeListings.audioWorkId, audioWorks.id))
-      .where(and(inArray(audioCredits.voiceActorId, ids), notAdultRated, inWindow))
+      .where(and(inArray(audioCredits.voiceActorId, ids), notAdultRated, onSaleSomewhere, inWindow))
       .groupBy(audioWorks.id);
     for (const row of rows) works.set(row.id, { ...row, actorIds: [] });
   }

@@ -14,7 +14,7 @@ import {
 } from "../db/schema";
 import type { AppDb } from "../db/types";
 import { resolvedNameEn } from "./actor-attributes";
-import { notAdultRated } from "./works";
+import { notAdultRated, onSaleSomewhere } from "./works";
 
 /**
  * アニメ導線。
@@ -284,6 +284,7 @@ const appearanceActorHasAudioWork = sql`exists (
   inner join ${audioWorks} on ${audioWorks.id} = ${audioCredits.audioWorkId}
   where ${audioCredits.voiceActorId} = ${animeAppearances.voiceActorId}
     and ${notAdultRated}
+    and ${onSaleSomewhere}
 )`;
 
 /**
@@ -627,7 +628,7 @@ async function loadWorkCountsByActor(
       })
       .from(audioCredits)
       .innerJoin(audioWorks, eq(audioWorks.id, audioCredits.audioWorkId))
-      .where(and(inArray(audioCredits.voiceActorId, chunk), notAdultRated))
+      .where(and(inArray(audioCredits.voiceActorId, chunk), notAdultRated, onSaleSomewhere))
       .groupBy(audioCredits.voiceActorId, audioWorks.category);
 
     for (const row of rows) {

@@ -230,7 +230,29 @@ export type DlsiteProductDetail = {
   workType?: string;
   voiceNames: string[];
   genres: string[];
+  /**
+   * 今買えるか。`on_sale` が 1 なら買える、0 なら買えない
+   * (2026-09-23 の測定、`docs/research/dlsite-on-sale-2026-09-23.md`)。
+   * 読めなければ undefined にして、取り下げの判定に使わない
+   */
+  onSale?: boolean;
+  /** 予約作品か。未発売の作品が `on_sale: 0` を返すかは測れていないので、取り下げから外す材料にする */
+  isReserveWork?: boolean;
 };
+
+/**
+ * ストアが販売終了を示しているか。
+ *
+ * 買えないことがはっきり読めたときだけ true。読めなかった作品 (`on_sale` が無い、
+ * 詳細を引けなかった) は false にする。一覧に出ないことを理由に取り下げないのと同じで、
+ * 分からないものを取り下げない ([`decisions/0008`](../../docs/decisions/0008-no-price-no-availability.md))。
+ *
+ * 予約作品を外すのは、未発売の作品が `on_sale: 0` を返すかを測れていないため
+ */
+export function isDelisted(detail: Pick<DlsiteProductDetail, "onSale" | "isReserveWork">): boolean {
+  if (detail.onSale !== false) return false;
+  return detail.isReserveWork !== true;
+}
 
 /** product.json は 1 件だけの配列。想定外の形なら undefined を返し、一覧の情報だけで進める */
 export function parseProductJson(text: string): DlsiteProductDetail | undefined {
@@ -261,7 +283,19 @@ export function parseProductJson(text: string): DlsiteProductDetail | undefined 
     ageCategory: asNumber(record.age_category),
     siteId: asString(record.site_id),
     workType: asString(record.work_type),
+    onSale: asSaleFlag(record.on_sale),
+    isReserveWork: record.is_reserve_work === true,
   };
+}
+
+/**
+ * `on_sale` を真偽に写す。1 と 0 しか observed していないので、
+ * 知らない値は undefined にして取り下げの判定に使わない
+ */
+function asSaleFlag(value: unknown): boolean | undefined {
+  if (value === 1) return true;
+  if (value === 0) return false;
+  return undefined;
 }
 
 /** `[{ name: "..." }, ...]` から name だけを取り出す */
@@ -311,6 +345,9 @@ export function applyProductDetail(work: RawWork, detail: DlsiteProductDetail): 
     // 理由に unknown へ落とすと、一覧の事実まで捨ててしまう
     ageRating: detail.ageCategory === undefined ? work.ageRating : toAgeRating(detail.ageCategory),
     storeSection: detail.siteId ?? work.storeSection,
+    // 販売終了は詳細でしか分からない。買えると分かった作品は取り下げを取り消す
+    // (再販された作品が一覧に戻ったときに、古い取り下げが残らないようにするため)
+    delisted: isDelisted(detail),
   };
 }
 

@@ -42,6 +42,7 @@ function outcome(
     workCount,
     newCount,
     unmatchedCount,
+    delistedCount: 0,
     queryUsed,
     save: "saved",
   };
@@ -62,6 +63,7 @@ function saveFailed(
     workCount: 0,
     newCount: 0,
     unmatchedCount: 0,
+    delistedCount: 0,
     reason: "POST /api/admin/ingest が HTTP 400",
     save: "failed",
     failureRecorded,
@@ -89,6 +91,8 @@ describe("summarize", () => {
       saved: 4,
       saveFailed: 0,
       saveFailedUnrecorded: 0,
+      delisted: 0,
+      incomplete: 0,
     });
   });
 
@@ -105,6 +109,8 @@ describe("summarize", () => {
       saved: 0,
       saveFailed: 0,
       saveFailedUnrecorded: 0,
+      delisted: 0,
+      incomplete: 0,
     });
   });
 

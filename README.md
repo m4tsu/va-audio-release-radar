@@ -191,6 +191,20 @@ INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
 ストア巡回を「今回増えた人」ではなく「一度も引いていない人」で選ぶのは、1 回に収まらなかったぶんが
 次の週には新規でなくなって永久に引かれなくなるため。打ち切っても残りは次の週に出てくる。
 
+**月に 1 回、作品を持つ声優を引き直す** (`.github/workflows/monthly-backfill.yml`)。日次の新着一覧が
+取りこぼした作品を埋め、検索の上限に当たった声優を数える。DLsite は既知作品の詳細も取り直し、
+もう買えない作品を取り下げる。取り下げた listing は行を消さず、読むときに落とす
+([`docs/decisions/0008`](./docs/decisions/0008-no-price-no-availability.md))。
+
+```bash
+# 月次と同じことを手元で行う (ストアごとに分ける。DLsite は人数でも分ける)
+INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
+  --store dlsite --with-works --no-skip-known --offset 0 --limit 400
+```
+
+`--no-skip-known` を付けるのは、既知作品の詳細を取り直さないと販売終了に気づけないため。
+日次は新規作品の詳細しか引かない。
+
 声優起点の走行も、かなの取得も、誰を調べるかを台帳から引く。リストのファイルは読まない。
 性別は出演者と一緒に AniList から返るので、週次の取り込みが入れる。
 

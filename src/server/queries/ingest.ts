@@ -271,6 +271,8 @@ function listingUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
       productUrl: work.productUrl,
       titleRaw: work.titleRaw,
       storeSection: work.storeSection ?? null,
+      // 初めて見た作品が既に買えないこともある (月次が引き直した作品など)
+      delistedAt: work.delisted === true ? now : null,
       firstSeenAt: now,
       lastSeenAt: now,
       lastCheckedAt: now,
@@ -286,9 +288,17 @@ function listingUpsert(db: AppDb, workId: string, work: RawWork, now: string) {
         // 区分は詳細を取れたときだけ埋まる (DLsite は product.json 由来)。既知の作品では
         // 詳細取得を飛ばすので、値が無いときは null で潰さず既存の値を残す
         storeSection: work.storeSection ?? keep(storeListings.storeSection),
-        // 販売終了の日時はここでは触らない。一覧に出たことは「売っている」の根拠にならず、
-        // 入れるのはストアが販売終了を明示したときだけ (decisions/0008)
-        delistedAt: keep(storeListings.delistedAt),
+        // 販売終了の日時は、ストアがはっきり示したときだけ動かす。一覧に出たことも
+        // 出なかったことも根拠にしない (decisions/0008)。
+        // 送られてこない作品 (詳細を引いていない) は既にある値を残す。
+        // 買えると分かった作品は取り消す (再販された作品の取り下げが残らないように)
+        delistedAt:
+          work.delisted === undefined
+            ? keep(storeListings.delistedAt)
+            : work.delisted
+              ? // 既に取り下げてあるなら、最初に気づいた日時のままにする
+                sql`coalesce(${storeListings.delistedAt}, ${now})`
+              : null,
         lastSeenAt: now,
         lastCheckedAt: now,
       },

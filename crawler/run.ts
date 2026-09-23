@@ -57,6 +57,7 @@ const USAGE = `使い方:
   --base-url <URL>          取り込み先。環境変数 INGEST_URL でも指定できる
   --only <名前,名前>        指定した声優 (canonicalName または slug) だけを対象にする
   --never-crawled           一度も引いたことがない声優だけを対象にする (古い順)
+  --with-works              作品を持つ声優だけを対象にする (月次の引き直し)
   --store <slug>            1 つのストアだけを対象にする (dlsite / audible / pokedora)
   --offset <N>              先頭 N 人の声優を飛ばす (--limit と併用して途中から再開する)
   --limit <N>               (--offset のぶんを飛ばした後) N 人の声優だけを対象にする
@@ -69,6 +70,7 @@ const OPTION_SPEC = {
   "base-url": { type: "string" },
   only: { type: "string" },
   "never-crawled": { type: "boolean" },
+  "with-works": { type: "boolean" },
   store: { type: "string" },
   offset: { type: "string" },
   limit: { type: "string" },
@@ -111,6 +113,10 @@ export type RunOutcome = {
   reason?: string;
   /** 実際に検索に使った語。Audible は空白入り別名フォールバックがあるため canonicalName と違うことがある */
   queryUsed?: string;
+  /** この走行で「もう買えない」と分かった作品の数 */
+  delistedCount: number;
+  /** 検索の上限に当たって、取り切れなかったか。分からなければ undefined */
+  coverageComplete?: boolean;
   save: SaveStatus;
   /**
    * `save: "failed"` のとき、失敗したことを `crawl_runs` に残せたか。
@@ -136,6 +142,10 @@ export type RunSummary = {
   saveFailed: number;
   /** 保存に失敗し、その失敗すら crawl_runs に残せなかった数 */
   saveFailedUnrecorded: number;
+  /** もう買えないと分かった作品の数 */
+  delisted: number;
+  /** 検索の上限に当たって取り切れなかった 声優×ストア の数 */
+  incomplete: number;
 };
 
 export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
@@ -151,6 +161,8 @@ export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
     saved: 0,
     saveFailed: 0,
     saveFailedUnrecorded: 0,
+    delisted: 0,
+    incomplete: 0,
   };
   for (const outcome of outcomes) {
     summary[outcome.status] += 1;
@@ -158,6 +170,8 @@ export function summarize(outcomes: readonly RunOutcome[]): RunSummary {
     summary.works += outcome.workCount;
     summary.new += outcome.newCount;
     summary.unmatched += outcome.unmatchedCount;
+    summary.delisted += outcome.delistedCount;
+    if (outcome.coverageComplete === false) summary.incomplete += 1;
     if (outcome.save === "saved") summary.saved += 1;
     if (outcome.save === "failed") {
       summary.saveFailed += 1;
@@ -261,7 +275,7 @@ function displayWidth(value: string): number {
  */
 export async function loadCrawlActors(
   client: AdminApiClient,
-  options: { neverCrawled?: boolean } = {},
+  options: { neverCrawled?: boolean; withWorks?: boolean } = {},
 ): Promise<CrawlActor[]> {
   const entries = await client.listActors(options);
   return entries.map((entry) => ({
@@ -394,14 +408,16 @@ export async function main(argv: readonly string[]): Promise<number> {
   // 台帳を読むだけの走行でも取り込み先が要る。誰を調べるかは DB にしか無い
   const client = new AdminApiClient(baseUrl ?? "", token ?? "");
   const neverCrawled = values["never-crawled"] === true;
-  const all = await loadCrawlActors(client, { neverCrawled });
-  process.stdout.write(
-    neverCrawled
-      ? `一度も引いていない声優を台帳から読んだ: ${all.length} 人\n`
-      : `対象声優を台帳から読んだ: ${all.length} 人\n`,
-  );
-  if (neverCrawled && all.length === 0) {
-    process.stdout.write("引き残しは無い\n");
+  const withWorks = values["with-works"] === true;
+  if (neverCrawled && withWorks) {
+    process.stderr.write("--never-crawled と --with-works は同時に指定できない\n");
+    return 1;
+  }
+  const all = await loadCrawlActors(client, { neverCrawled, withWorks });
+  const what = neverCrawled ? "一度も引いていない声優" : withWorks ? "作品を持つ声優" : "対象声優";
+  process.stdout.write(`${what}を台帳から読んだ: ${all.length} 人\n`);
+  if ((neverCrawled || withWorks) && all.length === 0) {
+    process.stdout.write("対象が 0 人。何もしない\n");
     return 0;
   }
 
@@ -519,11 +535,30 @@ export async function main(argv: readonly string[]): Promise<number> {
       `保存できた作品 ${summary.works} 件 (new ${summary.new}) / ` +
       `未解決クレジット ${summary.unmatched} 件\n`,
   );
+  if (summary.delisted > 0) {
+    process.stdout.write(`もう買えないと分かった作品 ${summary.delisted} 件 (一覧から落とす)\n`);
+  }
+  if (summary.incomplete > 0) {
+    // 検索の上限に当たった声優。画面ではストアの検索リンクに逃がしているが、
+    // 月次で何人がそこに居るかは走行の出力でしか分からない
+    process.stdout.write(
+      `検索の上限に当たって取り切れなかった 声優×ストア ${summary.incomplete} 件\n`,
+    );
+  }
   if (summary.saveFailedUnrecorded > 0) {
     process.stdout.write(
       `DB に記録できなかった失敗 ${summary.saveFailedUnrecorded} 件 ` +
         `(crawl_runs に行が無いので、管理画面からは 0 件の声優と区別が付かない)\n`,
     );
+  }
+
+  // 対象の全員を回り切ったか。時間切れで打ち切られた走行が「成功」に見えないようにする
+  if (outcomes.length > 0 && index < actors.length) {
+    process.stderr.write(
+      `\n[打ち切り] ${index} 人目までで終わった (対象 ${actors.length} 人)。\n` +
+        `  再開するには --offset ${index} を付ける\n`,
+    );
+    return 1;
   }
 
   // 取得の失敗と保存の失敗、どちらでも異常終了。ここまで来ている時点で全件の送信は終えている
@@ -576,6 +611,12 @@ export async function send(
     workCount: 0,
     newCount: 0,
     unmatchedCount: 0,
+    // 取れた作品のうち、ストアが「もう買えない」と示したもの。
+    // 詳細を引かなかった作品は判断が付かないので数に入らない
+    delistedCount: result.works.filter((work) => work.delisted === true).length,
+    ...(result.coverage?.complete === undefined
+      ? {}
+      : { coverageComplete: result.coverage.complete }),
     ...(result.reason === undefined ? {} : { reason: result.reason }),
     ...(result.queryUsed === undefined ? {} : { queryUsed: result.queryUsed }),
     save: "skipped",

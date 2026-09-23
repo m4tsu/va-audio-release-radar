@@ -276,6 +276,9 @@ describe("parseProductJson", () => {
         "マッサージ",
         "耳かき",
       ],
+      // 固定データは販売中の作品なので買える。取り下げの判定はこの 2 つで決める
+      onSale: true,
+      isReserveWork: false,
     });
   });
 
