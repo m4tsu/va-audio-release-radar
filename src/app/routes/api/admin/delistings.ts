@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { requireBearer } from "@/server/auth";
+import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
 import { delistingSchema, recordDelistings } from "@/server/queries/delistings";
 import { summarizeIssues } from "@/server/validation";
@@ -39,7 +40,9 @@ export const Route = createFileRoute("/api/admin/delistings")({
         }
 
         const result = await recordDelistings(getDb(), parsed.data, new Date().toISOString());
-        return Response.json(result);
+        return Response.json(result, {
+          headers: dataChangedHeaders(result.delisted + result.relisted > 0),
+        });
       },
     },
   },

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireBearer } from "@/server/auth";
+import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
 import { requireIngestProtocolVersion } from "@/server/protocol";
 import { anilistIngestPayloadSchema, ingestAniList } from "@/server/queries/anilist";
@@ -48,7 +49,7 @@ export const Route = createFileRoute("/api/admin/anilist")({
         }
 
         const result = await ingestAniList(getDb(), parsed.data, new Date().toISOString());
-        return Response.json(result);
+        return Response.json(result, { headers: dataChangedHeaders(true) });
       },
     },
   },

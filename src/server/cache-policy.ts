@@ -21,7 +21,10 @@
 
 /** 公開データのサーバー関数が応答に立てる目印。入口で読んで消す */
 export const PUBLIC_DATA_HEADER = "x-koetrail-cache";
-/** データを書き換えたサーバー関数が応答に立てる目印。入口がキャッシュを消す */
+/**
+ * 画面に出るデータを書き換えた書き込み (管理 API・管理画面のサーバー関数) が応答に立てる目印。入口がキャッシュを消す。
+ * パスで決めないのは、取り込みの多くは何も変えずに終わるため。そこで消すと、消す回数の上限をすぐに使い切る
+ */
 export const DATA_CHANGED_HEADER = "x-koetrail-data-changed";
 
 /**
@@ -32,6 +35,14 @@ export const DATA_CHANGED_HEADER = "x-koetrail-data-changed";
 export const CDN_CACHE_CONTROL = "max-age=3600, stale-while-revalidate=86400";
 
 const CACHEABLE_FILES = new Set(["/sitemap.xml", "/robots.txt"]);
+
+/**
+ * 管理 API が書き込みの結果を返すときに添えるヘッダ。`changed` が true なら入口がキャッシュを消す。
+ * サーバー関数からは `markDataChanged` (`response-cache.ts`) を使う
+ */
+export function dataChangedHeaders(changed: boolean): Record<string, string> {
+  return changed ? { [DATA_CHANGED_HEADER]: "1" } : {};
+}
 
 export type CacheDecision = {
   /** キャッシュ可なら true。false なら `no-store` を付ける (`private` の応答はそのまま) */
@@ -47,12 +58,7 @@ export function decideCache(request: Request, response: Response): CacheDecision
   const readOnly = request.method === "GET" || request.method === "HEAD";
 
   if (!readOnly) {
-    // 管理 API の書き込み (取り込み・AniList・かな・取り下げなど) と、書き換えたと名乗った
-    // サーバー関数 (管理画面の割り当て) だけ。POST でも読むだけの関数 (フォロー中のフィード) で
-    // 消すと、消す回数の上限をすぐに使い切る
-    const changed =
-      pathname.startsWith("/api/admin/") || response.headers.get(DATA_CHANGED_HEADER) !== null;
-    return { cacheable: false, purge: response.ok && changed };
+    return { cacheable: false, purge: response.ok && response.headers.has(DATA_CHANGED_HEADER) };
   }
 
   const notCacheable: CacheDecision = { cacheable: false, purge: false };
@@ -63,7 +69,14 @@ export function decideCache(request: Request, response: Response): CacheDecision
   if (pathname.startsWith("/admin") || pathname.startsWith("/api/")) return notCacheable;
 
   if (pathname.startsWith("/_serverFn/")) {
-    return { cacheable: response.headers.get(PUBLIC_DATA_HEADER) === "public", purge: false };
+    // キャッシュのキーは URL だけで、リクエストのヘッダを含まない。TanStack Start は `x-tsr-serverFn` の
+    // 無いリクエストに別の形 (直列化しない素の値) で返すので、それを載せると同じ URL を引く画面が壊れる。
+    // 画面の取得 (ヘッダ付き) への応答だけを載せる
+    const fromClient = request.headers.get("x-tsr-serverFn") === "true";
+    return {
+      cacheable: fromClient && response.headers.get(PUBLIC_DATA_HEADER) === "public",
+      purge: false,
+    };
   }
   if (CACHEABLE_FILES.has(pathname)) return { cacheable: true, purge: false };
   if (response.headers.get("content-type")?.startsWith("text/html")) {
@@ -82,7 +95,8 @@ export function applyCacheDecision(response: Response, decision: CacheDecision):
     headers.set("cloudflare-cdn-cache-control", CDN_CACHE_CONTROL);
     // ブラウザ向けの指定を自分で持つ応答 (sitemap / robots) はそれを残す
     if (!headers.has("cache-control")) headers.set("cache-control", "no-cache");
-    if (decision.vary) headers.set("vary", decision.vary);
+    // 応答が持っている Vary (圧縮など) は残して足す
+    if (decision.vary) headers.append("vary", decision.vary);
   } else {
     headers.delete("cloudflare-cdn-cache-control");
     if (!/\bprivate\b/.test(headers.get("cache-control") ?? "")) {

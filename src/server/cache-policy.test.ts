@@ -3,6 +3,7 @@ import {
   applyCacheDecision,
   CDN_CACHE_CONTROL,
   DATA_CHANGED_HEADER,
+  dataChangedHeaders,
   decideCache,
   PUBLIC_DATA_HEADER,
 } from "./cache-policy";
@@ -11,6 +12,11 @@ const ORIGIN = "https://koetrail.com";
 
 function get(path: string): Request {
   return new Request(`${ORIGIN}${path}`);
+}
+
+/** 画面がサーバー関数を呼ぶときの形。TanStack Start はこのヘッダで応答の形を決める */
+function serverFn(path: string, headers: Record<string, string> = { "x-tsr-serverFn": "true" }) {
+  return new Request(`${ORIGIN}${path}`, { headers });
 }
 
 function post(path: string): Request {
@@ -55,11 +61,19 @@ describe("decideCache", () => {
   });
 
   it("サーバー関数は、公開データを名乗ったものだけキャッシュする", () => {
-    expect(decideCache(get("/_serverFn/abc"), json({ [PUBLIC_DATA_HEADER]: "public" }))).toEqual({
-      cacheable: true,
-      purge: false,
-    });
-    expect(decideCache(get("/_serverFn/abc"), json()).cacheable).toBe(false);
+    expect(
+      decideCache(serverFn("/_serverFn/abc"), json({ [PUBLIC_DATA_HEADER]: "public" })),
+    ).toEqual({ cacheable: true, purge: false });
+    expect(decideCache(serverFn("/_serverFn/abc"), json()).cacheable).toBe(false);
+  });
+
+  /**
+   * キャッシュのキーは URL だけ。ヘッダの無いリクエストへの応答 (直列化しない素の値) を載せると、
+   * 同じ URL を引く画面に壊れた応答が返る
+   */
+  it("画面の取得でないサーバー関数の呼び出しへの応答はキャッシュしない", () => {
+    const marked = json({ [PUBLIC_DATA_HEADER]: "public" });
+    expect(decideCache(serverFn("/_serverFn/abc", {}), marked).cacheable).toBe(false);
   });
 
   it("sitemap と robots はキャッシュし、それ以外の HTML でないものはキャッシュしない", () => {
@@ -70,12 +84,21 @@ describe("decideCache", () => {
     expect(decideCache(get("/manifest.webmanifest"), json()).cacheable).toBe(false);
   });
 
-  it("管理 API への書き込みが成功したら、キャッシュを消す", () => {
-    expect(decideCache(post("/api/admin/ingest"), json())).toEqual({
+  it("書き込みがデータを変えたと名乗って成功したら、キャッシュを消す", () => {
+    expect(decideCache(post("/api/admin/ingest"), json(dataChangedHeaders(true)))).toEqual({
       cacheable: false,
       purge: true,
     });
-    expect(decideCache(post("/api/admin/ingest"), json({}, 400)).purge).toBe(false);
+    expect(decideCache(post("/api/admin/ingest"), json(dataChangedHeaders(true), 400)).purge).toBe(
+      false,
+    );
+  });
+
+  /** 取り込みの大半は既知の作品を取り込み直すだけ。そこで消すと、消す回数の上限をすぐに使い切る */
+  it("何も変えなかった書き込みではキャッシュを消さない", () => {
+    expect(decideCache(post("/api/admin/ingest"), json(dataChangedHeaders(false))).purge).toBe(
+      false,
+    );
   });
 
   /** POST でも読むだけの関数 (フォロー中のフィード) で消すと、消す回数の上限をすぐに使い切る */
@@ -98,6 +121,16 @@ describe("applyCacheDecision", () => {
     expect(response.headers.get("cloudflare-cdn-cache-control")).toBe(CDN_CACHE_CONTROL);
     expect(response.headers.get("cache-control")).toBe("no-cache");
     expect(response.headers.get("vary")).toBe("Cookie, Accept-Language");
+  });
+
+  it("応答がもともと持つ Vary は残して足す", () => {
+    const response = applyCacheDecision(html(200, { vary: "Accept-Encoding" }), {
+      cacheable: true,
+      vary: "Cookie, Accept-Language",
+      purge: false,
+    });
+
+    expect(response.headers.get("vary")).toBe("Accept-Encoding, Cookie, Accept-Language");
   });
 
   it("キャッシュ可でも、応答が自分で付けたブラウザ向けの指定は残す", () => {

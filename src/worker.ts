@@ -37,6 +37,10 @@ export default {
 async function purgeCache(ctx: ExecutionContext): Promise<void> {
   // Workers Cache が無効な環境 (手元の dev) では `ctx.cache` が無い
   if (ctx.cache === undefined) return;
-  const result = await ctx.cache.purge({ purgeEverything: true });
-  if (!result.success) console.warn("キャッシュを消せなかった", result.errors);
+  try {
+    const result = await ctx.cache.purge({ purgeEverything: true });
+    if (!result.success) console.warn("キャッシュを消せなかった", result.errors);
+  } catch (error) {
+    console.warn("キャッシュを消せなかった", error);
+  }
 }

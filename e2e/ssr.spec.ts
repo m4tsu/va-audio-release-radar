@@ -293,7 +293,7 @@ test("公開ページはキャッシュ可、管理画面と 404 はキャッシ
   const page = await request.get(`/voice-actors/${ACTOR_SLUG}`);
   expect(page.headers()["cloudflare-cdn-cache-control"]).toBeDefined();
   expect(page.headers()["cache-control"]).toBe("no-cache");
-  expect(page.headers().vary).toBe("Cookie, Accept-Language");
+  expect(page.headers().vary).toContain("Cookie, Accept-Language");
 
   for (const path of ["/admin/crawler-health", "/voice-actors/no-such-actor"]) {
     const res = await request.get(path);

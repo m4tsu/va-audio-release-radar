@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { ingestPayloadSchema } from "@/domain/types";
 import { requireBearer } from "@/server/auth";
+import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
 import { requireIngestProtocolVersion } from "@/server/protocol";
 import { ingest } from "@/server/queries/ingest";
@@ -47,7 +48,8 @@ export const Route = createFileRoute("/api/admin/ingest")({
         }
 
         const result = await ingest(getDb(), parsed.data, new Date().toISOString());
-        return Response.json(result);
+        // 既知の作品を取り込み直すだけの回が大半なので、新しい listing があったときだけキャッシュを消す
+        return Response.json(result, { headers: dataChangedHeaders(result.new > 0) });
       },
     },
   },
