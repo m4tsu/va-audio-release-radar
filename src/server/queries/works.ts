@@ -12,8 +12,13 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
-import type { CreditConfidence, StoreSlug, WorkCategory } from "@/domain/types";
-import { chunked } from "../db/chunked";
+import {
+  type CreditConfidence,
+  STORE_SLUGS,
+  type StoreSlug,
+  type WorkCategory,
+} from "@/domain/types";
+import { chunked, SQL_IN_CHUNK_SIZE } from "../db/chunked";
 import { audioCredits, audioWorks, crawlRuns, storeListings, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
 import { hasOnSaleAudioWork } from "./actors";
@@ -147,7 +152,7 @@ export async function getWorkById(
     .limit(1);
   if (!row) return undefined;
 
-  const [listings, creditRows, baselines, castSizes] = await Promise.all([
+  const [listings, creditRows, castSizes] = await Promise.all([
     loadListings(db, [id]),
     db
       .select({
@@ -163,7 +168,6 @@ export async function getWorkById(
       .leftJoin(voiceActors, eq(voiceActors.id, audioCredits.voiceActorId))
       .where(eq(audioCredits.audioWorkId, id))
       .orderBy(asc(audioCredits.creditedName)),
-    loadCrawlBaselines(db),
     loadCastSizes(db, [id]),
   ]);
 
@@ -171,6 +175,7 @@ export async function getWorkById(
   const actorIds = creditRows
     .map((credit) => credit.voiceActorId)
     .filter((actorId): actorId is string => actorId !== null);
+  const baselines = await loadCrawlBaselines(db, actorIds);
 
   return {
     work: toWorkSummary(row),
@@ -215,7 +220,7 @@ export async function worksByActor(
   const workIds = rows.map((row) => row.id);
   const [listings, baselines, castSizes] = await Promise.all([
     loadListings(db, workIds),
-    loadCrawlBaselines(db),
+    loadCrawlBaselines(db, [voiceActorId]),
     loadCastSizes(db, workIds),
   ]);
 
@@ -320,12 +325,12 @@ export async function latestWorks(
     .limit(limit);
 
   const workIds = rows.map((row) => row.id);
-  const [listings, actorsByWork, baselines, castSizes] = await Promise.all([
+  const [listings, actorsByWork, castSizes] = await Promise.all([
     loadListings(db, workIds),
     loadWorkActors(db, workIds),
-    loadCrawlBaselines(db),
     loadCastSizes(db, workIds),
   ]);
+  const baselines = await loadCrawlBaselines(db, actorIdsOf(actorsByWork));
 
   const classified = rows.map((row) => {
     const workListings = listings.get(row.id) ?? [];
@@ -390,12 +395,12 @@ export async function feedForActors(
   // 引く行数も limit のままで、それ以上フォローしたときだけ一時的に増える
   const rows = [...collected.values()];
   const workIds = rows.map((row) => row.id);
-  const [listings, actorsByWork, baselines, castSizes] = await Promise.all([
+  const [listings, actorsByWork, castSizes] = await Promise.all([
     loadListings(db, workIds),
     loadWorkActors(db, workIds, voiceActorIds),
-    loadCrawlBaselines(db),
     loadCastSizes(db, workIds),
   ]);
+  const baselines = await loadCrawlBaselines(db, actorIdsOf(actorsByWork));
 
   const classified = rows.map((row) => {
     const workListings = listings.get(row.id) ?? [];
@@ -493,31 +498,60 @@ function baselineKey(voiceActorId: string, storeSlug: StoreSlug): string {
  * (`started_at` はクローラーが取得を始めた時刻で、取り込みより前になる)。
  *
  * 声優に紐付かない走行 (新着一覧) は基準にならないので外す。
- * 行数は 声優数 × ストア数 なので、まとめて 1 回で読む
+ *
+ * `voiceActorIds` を渡すと、その声優の分だけを読む。画面は並べる作品の出演者の分しか使わないので、
+ * 全声優ぶんを集計すると走行の記録が増えるほど 1 回の表示で読む行が増えていく。
+ * 省くと全声優ぶんをまとめて 1 回で読む (ダイジェストが 1 回の起動で使い回す)
  */
-export async function loadCrawlBaselines(db: AppDb): Promise<CrawlBaselines> {
-  const rows = await db
-    .select({
-      voiceActorId: crawlRuns.voiceActorId,
-      storeSlug: crawlRuns.storeSlug,
-      finishedAt: sql<string>`min(${crawlRuns.finishedAt})`,
-    })
-    .from(crawlRuns)
-    .where(
-      and(
-        eq(crawlRuns.status, "ok"),
-        isNotNull(crawlRuns.voiceActorId),
-        isNotNull(crawlRuns.finishedAt),
-      ),
-    )
-    .groupBy(crawlRuns.voiceActorId, crawlRuns.storeSlug);
-
+export async function loadCrawlBaselines(
+  db: AppDb,
+  voiceActorIds?: readonly string[],
+): Promise<CrawlBaselines> {
   const baselines: CrawlBaselines = new Map();
-  for (const row of rows) {
-    if (row.voiceActorId === null) continue;
-    baselines.set(baselineKey(row.voiceActorId, row.storeSlug), row.finishedAt);
+  const succeeded = and(
+    eq(crawlRuns.status, "ok"),
+    isNotNull(crawlRuns.voiceActorId),
+    isNotNull(crawlRuns.finishedAt),
+  );
+  const scopes =
+    voiceActorIds === undefined
+      ? [succeeded]
+      : // ストアも並べるのは `crawl_runs_store_actor_started_idx` (ストア, 声優) の索引で引くため。
+        // 声優だけで絞ると先頭の列が決まらず、索引を使えずに全行を読む
+        chunked(voiceActorIds, SQL_IN_CHUNK_SIZE - STORE_SLUGS.length).map((ids) =>
+          and(
+            succeeded,
+            inArray(crawlRuns.storeSlug, [...STORE_SLUGS]),
+            inArray(crawlRuns.voiceActorId, ids),
+          ),
+        );
+
+  for (const where of scopes) {
+    const rows = await db
+      .select({
+        voiceActorId: crawlRuns.voiceActorId,
+        storeSlug: crawlRuns.storeSlug,
+        finishedAt: sql<string>`min(${crawlRuns.finishedAt})`,
+      })
+      .from(crawlRuns)
+      .where(where)
+      .groupBy(crawlRuns.voiceActorId, crawlRuns.storeSlug);
+
+    for (const row of rows) {
+      if (row.voiceActorId === null) continue;
+      baselines.set(baselineKey(row.voiceActorId, row.storeSlug), row.finishedAt);
+    }
   }
   return baselines;
+}
+
+/** 作品ごとの出演者から、段を決めるのに要る声優の ID を集める */
+function actorIdsOf(actorsByWork: Map<string, WorkActor[]>): string[] {
+  const ids = new Set<string>();
+  for (const actors of actorsByWork.values()) {
+    for (const actor of actors) ids.add(actor.id);
+  }
+  return [...ids];
 }
 
 /**

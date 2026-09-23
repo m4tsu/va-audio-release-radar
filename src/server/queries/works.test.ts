@@ -8,6 +8,7 @@ import {
   getWorkById,
   knownStoreProductIds,
   latestWorks,
+  loadCrawlBaselines,
   sitemapEntries,
   workStatsForActors,
   worksByActor,
@@ -624,6 +625,60 @@ describe("latestWorks / worksByActor の段", () => {
       // 初回クロールで見つかった発売日無しの作品は新着にしない
       "dlsite:NODATE": "older",
     });
+  });
+
+  /**
+   * 初回クロールの基準は、並べる作品の出演者の分だけを読む (`loadCrawlBaselines`)。
+   * 読む声優を取り違えると基準が見つからず、後から見つかった作品まで older に落ちる
+   */
+  it("初回クロールより後に見つかった発売日無しの作品は、どの画面でも recent", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ storeProductId: "INITIAL" })] }), daysAgo(40));
+    await ingest(
+      db,
+      payload({ runId: "run-2", works: [rawWork({ storeProductId: "FOUND" })] }),
+      daysAgo(5),
+    );
+
+    const expected = { "dlsite:INITIAL": "older", "dlsite:FOUND": "recent" };
+    expect(freshnessById(await latestWorks(db, { now: NOW }))).toEqual(expected);
+    expect(freshnessById(await worksByActor(db, UEDA.id, { now: NOW }))).toEqual(expected);
+    expect((await getWorkById(db, "dlsite:FOUND", NOW))?.freshness).toBe("recent");
+  });
+});
+
+describe("loadCrawlBaselines", () => {
+  it("声優を渡すと、その声優の分だけを全件のときと同じ値で返す", async () => {
+    // IN 句を分割する件数 (90 からストアの数を引いた数) を超える人数にする
+    const actors = Array.from({ length: 100 }, (_, index) => ({
+      id: `va_test-${index}`,
+      slug: `test-${index}`,
+      canonicalName: `テスト声優${index}`,
+      anilistStaffId: 200000 + index,
+      status: "active" as const,
+      gender: "female" as const,
+    }));
+    const db = await setupDb(actors);
+    for (const [index, actor] of actors.entries()) {
+      await ingest(db, payload({ runId: `run-${index}`, voiceActorId: actor.id, works: [] }), NOW);
+    }
+
+    const all = await loadCrawlBaselines(db);
+    const requested = actors.slice(1).map((actor) => actor.id);
+    const scoped = await loadCrawlBaselines(db, requested);
+
+    expect(scoped.size).toBe(requested.length);
+    const excluded = actors[0]?.id ?? "";
+    expect([...scoped].sort()).toEqual(
+      [...all].filter(([key]) => !key.startsWith(excluded)).sort(),
+    );
+  });
+
+  it("空の配列なら何も読まない", async () => {
+    const db = await setupDb();
+    await ingest(db, payload(), NOW);
+
+    expect((await loadCrawlBaselines(db, [])).size).toBe(0);
   });
 });
 
