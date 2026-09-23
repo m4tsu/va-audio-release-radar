@@ -21,7 +21,7 @@
   "observability": { "enabled": true },
   // canonical / og:url / sitemap を絶対 URL にするときのオリジン (@/server/site の siteOrigin)。
   // 空文字なら未設定として、実際に来たリクエストのオリジンを使う。
-  // 本番で正規のホストに固定したくなったらここに "https://example.com" のように入れる
+  // 本番の値は package.json の deploy が --var で渡す。ここに入れると dev と E2E の canonical まで本番を向く
   // CONTACT_URL は利用規約・プライバシーポリシーに載せる外部の問い合わせ窓口 ("https://..." か "mailto:...")。
   // 空文字なら外部窓口の案内を出さない (サイト内の /contact への案内は常に出る)。
   // TURNSTILE_SITE_KEY はお問い合わせ画面の bot 対策の画面側の鍵。HTML に出る公開鍵なので vars に置く。
@@ -37,10 +37,10 @@
   "vars": {
     "SITE_URL": "",
     "CONTACT_URL": "",
-    "TURNSTILE_SITE_KEY": "",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFBGLIGwb4Ee8mIj",
     "ALLOW_INDEXING": "",
-    "VAPID_PUBLIC_KEY": "",
-    "VAPID_SUBJECT": ""
+    "VAPID_PUBLIC_KEY": "BL3MZJQ11GPIF5CNA5L9uL57ph7dfiSywYOTEokZ_pMetWMYPOL1a-KKThN5xdihFbf2ya4M6PAWUmshOp2pwzE",
+    "VAPID_SUBJECT": "https://koetrail.com"
   },
   "d1_databases": [
     {

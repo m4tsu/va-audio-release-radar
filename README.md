@@ -31,7 +31,9 @@ npm run dev                # ポートは vite.config.ts の server.port
 手元の D1 の位置づけと作り直し方は「本番 D1」。
 
 秘匿値が要る機能 (取り込み・管理画面・お問い合わせ) を触るときは `.dev.vars.example` を `.dev.vars` にコピーして値を入れる。
-canonical / og:url / `sitemap.xml` を本番の正規ホストに固定する場合は `wrangler.jsonc` の `vars.SITE_URL` に入れる。
+canonical / og:url / `sitemap.xml` のオリジンは `SITE_URL`。本番の値は `package.json` の `deploy` が
+`wrangler deploy --var` で渡す。`wrangler.jsonc` では空にしておき、dev と E2E ではリクエストのオリジンを使う
+(E2E は canonical が `baseURL` を指すことを確かめている)。
 利用規約・プライバシーポリシーに載せる外部の問い合わせ窓口は `vars.CONTACT_URL` (`https://...` か `mailto:...`)。
 未設定なら外部窓口の案内は出ない (サイト内の `/contact` への案内は常に出る)。
 `/contact` から送信できるようにするには、bot 対策 (Cloudflare Turnstile) の鍵を 2 つとも入れる。
