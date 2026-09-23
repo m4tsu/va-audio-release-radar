@@ -1,17 +1,19 @@
 -- 「買える作品の数」を声優とアニメの行に持たせ、トリガーで保つ。
 --
--- 画面は声優やアニメを選ぶたびに「買える作品を持つか」を credit → 作品 → listing と辿って調べていた。
--- 出演の全行・声優の全行でこれを繰り返すので、1 回の表示で数万行を読む。
--- 数えた結果を行に持てば、読む側は 1 行ずつ見るだけで済む。
+-- 一覧・検索・シーズンの索引は、声優やアニメを選ぶ条件に「買える作品を持つか」を使う。
+-- これを credit → 作品 → listing と辿って確かめると、出演の全行・声優の全行について作品を読むので、
+-- 数えた結果を行に持たせ、読む側は 1 行ずつ見るだけにする。
 --
 -- アプリの書き込み経路ではなくトリガーで保つのは、credit・listing・作品・出演を書き換える経路が
 -- ingest・AniList の取り込み・管理画面・手で流す SQL と複数あり、どれか 1 つが数え直しを忘れると
 -- 一覧から作品が消えたり、開くと 404 になる声優が並んだりするため。
+-- 「買える」の条件 (R18 でなく、取り下げていない listing がある) は `src/server/queries/works.ts` の
+-- `notAdultRated` / `onSaleSomewhere` と同じ。どちらかを変えるときは両方を変える。
 --
 -- 数え直しは影響を受けた声優・アニメの行だけに絞る。値が変わらない更新 (取り込みのたびの
 -- last_seen_at の書き換えなど) では WHEN で発火させない。
--- 行を入れる順に依存しないよう、声優とアニメの行を足したときにも数え直す。表の丸ごとの流し込み
--- (`npm run db:restore:local`) は子の表を後から入れるので、どの順でも最後に入れた行で値が揃う。
+-- 数え直しが参照する 5 つの表 (声優・作品・listing・credit・出演) とアニメのどれに行を足しても数え直すので、
+-- 表を丸ごと流し込むとき (`npm run db:restore:local`) も、入れる順によらず最後に入れた行で値が揃う。
 
 -- 既存の行を数える。トリガーより先に流すのは、声優の値が変わるたびにアニメの数え直しが走らないようにするため
 UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
@@ -116,6 +118,19 @@ END;
 --> statement-breakpoint
 CREATE TRIGGER `audio_works_on_sale_au` AFTER UPDATE OF `age_rating` ON `audio_works`
 WHEN (OLD.`age_rating` = 'r18') IS NOT (NEW.`age_rating` = 'r18')
+BEGIN
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
+  WHERE `id` IN (SELECT `voice_actor_id` FROM `audio_credits` WHERE `audio_work_id` = NEW.`id`);
+END;
+--> statement-breakpoint
+-- 作品の行は credit と listing より先に入るのが普通だが、流し込みの順が逆でも値が揃うようにする
+CREATE TRIGGER `audio_works_on_sale_ai` AFTER INSERT ON `audio_works`
 BEGIN
   UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
     SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)

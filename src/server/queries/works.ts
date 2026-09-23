@@ -53,7 +53,10 @@ export const notAdultRated = ne(audioWorks.ageRating, "r18");
  *
  * ストアが販売終了を示した listing には `delisted_at` が入る
  * (`docs/decisions/0008-no-price-no-availability.md`)。作品の行は消さないので、読むときに落とす。
- * 1 つのストアで終わっても他で買えるなら出す。listing を 1 件も持たない作品は出さない
+ * 1 つのストアで終わっても他で買えるなら出す。listing を 1 件も持たない作品は出さない。
+ *
+ * 声優とアニメの行に持たせた「買える作品の数」は、トリガーがこれと `notAdultRated` と同じ条件で数える
+ * (`migrations/0020_on_sale_counts_triggers.sql`)。条件を変えるときはトリガーも作り直す
  */
 export const onSaleSomewhere: SQL = sql`exists (
   select 1 from ${storeListings}
@@ -176,7 +179,8 @@ export async function getWorkById(
   const actorIds = creditRows
     .map((credit) => credit.voiceActorId)
     .filter((actorId): actorId is string => actorId !== null);
-  const baselines = await loadCrawlBaselines(db, actorIds);
+  // 基準を見るのは発売日が無い作品だけ (`classifyWork`)。発売日があれば読まずに済ませる
+  const baselines = await loadCrawlBaselines(db, row.releaseDate ? [] : actorIds);
 
   return {
     work: toWorkSummary(row),
@@ -221,7 +225,7 @@ export async function worksByActor(
   const workIds = rows.map((row) => row.id);
   const [listings, baselines, castSizes] = await Promise.all([
     loadListings(db, workIds),
-    loadCrawlBaselines(db, [voiceActorId]),
+    loadCrawlBaselines(db, rows.some((row) => row.releaseDate === null) ? [voiceActorId] : []),
     loadCastSizes(db, workIds),
   ]);
 
@@ -371,7 +375,7 @@ export async function latestWorks(
     loadWorkActors(db, workIds),
     loadCastSizes(db, workIds),
   ]);
-  const baselines = await loadCrawlBaselines(db, actorIdsOf(actorsByWork));
+  const baselines = await loadCrawlBaselines(db, undatedActorIds(rows, actorsByWork));
 
   const classified = rows.map((row) => {
     const workListings = listings.get(row.id) ?? [];
@@ -441,7 +445,7 @@ export async function feedForActors(
     loadWorkActors(db, workIds, voiceActorIds),
     loadCastSizes(db, workIds),
   ]);
-  const baselines = await loadCrawlBaselines(db, actorIdsOf(actorsByWork));
+  const baselines = await loadCrawlBaselines(db, undatedActorIds(rows, actorsByWork));
 
   const classified = rows.map((row) => {
     const workListings = listings.get(row.id) ?? [];
@@ -586,11 +590,15 @@ export async function loadCrawlBaselines(
   return baselines;
 }
 
-/** 作品ごとの出演者から、段を決めるのに要る声優の ID を集める */
-function actorIdsOf(actorsByWork: Map<string, WorkActor[]>): string[] {
+/**
+ * 段を決めるのに初回クロールの基準が要る声優の ID。基準を見るのは発売日が無い作品だけなので
+ * (`classifyWork`)、その出演者に限る。該当が無ければ空で、基準は読まない
+ */
+function undatedActorIds(rows: WorkRow[], actorsByWork: Map<string, WorkActor[]>): string[] {
   const ids = new Set<string>();
-  for (const actors of actorsByWork.values()) {
-    for (const actor of actors) ids.add(actor.id);
+  for (const row of rows) {
+    if (row.releaseDate !== null) continue;
+    for (const actor of actorsByWork.get(row.id) ?? []) ids.add(actor.id);
   }
   return [...ids];
 }

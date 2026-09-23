@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { animeTitles, voiceActors } from "../db/schema";
+import { animeTitles, audioCredits, audioWorks, storeListings, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
 import { assignCredit } from "./admin";
 import { recordDelistings } from "./delistings";
@@ -106,6 +106,42 @@ describe("買える作品の数", () => {
     });
 
     expect((await actorCounts(db, HANAZAWA.id))?.count).toBe(1);
+  });
+
+  /** 表を丸ごと流し込むときは、外部キーを止めて子の表を先に入れることがある */
+  it("credit と listing を作品より先に入れても、作品を入れた時点で数が揃う", async () => {
+    const db = await setupDb();
+    await db.run(sql`pragma foreign_keys = off`);
+
+    await db.insert(audioCredits).values({
+      audioWorkId: "dlsite:RJ1",
+      voiceActorId: UEDA.id,
+      creditedName: UEDA.canonicalName,
+      confidence: "verified",
+      sourceStoreSlug: "dlsite",
+    });
+    await db.insert(storeListings).values({
+      audioWorkId: "dlsite:RJ1",
+      storeSlug: "dlsite",
+      storeProductId: "RJ1",
+      productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ1.html",
+      titleRaw: "作品",
+      firstSeenAt: NOW,
+      lastSeenAt: NOW,
+      lastCheckedAt: NOW,
+    });
+    expect((await actorCounts(db, UEDA.id))?.count).toBe(0);
+
+    await db.insert(audioWorks).values({
+      id: "dlsite:RJ1",
+      title: "作品",
+      category: "audio_drama",
+      ageRating: "general",
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    expect(await actorCounts(db, UEDA.id)).toEqual({ count: 1, stores: "dlsite" });
   });
 
   it("アニメは買える作品を持つ出演者だけを数える", async () => {
