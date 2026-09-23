@@ -14,19 +14,13 @@
 -- (`npm run db:restore:local`) は子の表を後から入れるので、どの順でも最後に入れた行で値が揃う。
 
 -- 既存の行を数える。トリガーより先に流すのは、声優の値が変わるたびにアニメの数え直しが走らないようにするため
-UPDATE `voice_actors` SET
-  `on_sale_work_count` = (
-    SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-      AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-  ),
-  `on_sale_store_slugs` = (
-    SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-  );
+UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+  SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+  FROM `audio_credits` `ac`
+  JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+  JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+  WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+);
 --> statement-breakpoint
 UPDATE `anime_titles` SET `on_sale_actor_count` = (
   SELECT count(DISTINCT `aa`.`voice_actor_id`) FROM `anime_appearances` `aa`
@@ -39,95 +33,65 @@ UPDATE `anime_titles` SET `on_sale_actor_count` = (
 CREATE TRIGGER `audio_credits_on_sale_ai` AFTER INSERT ON `audio_credits`
 WHEN NEW.`voice_actor_id` IS NOT NULL
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` = NEW.`voice_actor_id`;
 END;
 --> statement-breakpoint
 CREATE TRIGGER `audio_credits_on_sale_ad` AFTER DELETE ON `audio_credits`
 WHEN OLD.`voice_actor_id` IS NOT NULL
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` = OLD.`voice_actor_id`;
 END;
 --> statement-breakpoint
 CREATE TRIGGER `audio_credits_on_sale_au` AFTER UPDATE OF `voice_actor_id`, `audio_work_id` ON `audio_credits`
 WHEN OLD.`voice_actor_id` IS NOT NEW.`voice_actor_id` OR OLD.`audio_work_id` IS NOT NEW.`audio_work_id`
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` IN (OLD.`voice_actor_id`, NEW.`voice_actor_id`);
 END;
 --> statement-breakpoint
 CREATE TRIGGER `store_listings_on_sale_ai` AFTER INSERT ON `store_listings`
 WHEN NEW.`delisted_at` IS NULL
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` IN (SELECT `voice_actor_id` FROM `audio_credits` WHERE `audio_work_id` = NEW.`audio_work_id`);
 END;
 --> statement-breakpoint
 CREATE TRIGGER `store_listings_on_sale_ad` AFTER DELETE ON `store_listings`
 WHEN OLD.`delisted_at` IS NULL
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` IN (SELECT `voice_actor_id` FROM `audio_credits` WHERE `audio_work_id` = OLD.`audio_work_id`);
 END;
 --> statement-breakpoint
@@ -137,19 +101,13 @@ WHEN (OLD.`delisted_at` IS NULL) IS NOT (NEW.`delisted_at` IS NULL)
   OR OLD.`audio_work_id` IS NOT NEW.`audio_work_id`
   OR OLD.`store_slug` IS NOT NEW.`store_slug`
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` IN (
     SELECT `voice_actor_id` FROM `audio_credits`
     WHERE `audio_work_id` IN (OLD.`audio_work_id`, NEW.`audio_work_id`)
@@ -159,37 +117,25 @@ END;
 CREATE TRIGGER `audio_works_on_sale_au` AFTER UPDATE OF `age_rating` ON `audio_works`
 WHEN (OLD.`age_rating` = 'r18') IS NOT (NEW.`age_rating` = 'r18')
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` IN (SELECT `voice_actor_id` FROM `audio_credits` WHERE `audio_work_id` = NEW.`id`);
 END;
 --> statement-breakpoint
 CREATE TRIGGER `voice_actors_on_sale_ai` AFTER INSERT ON `voice_actors`
 BEGIN
-  UPDATE `voice_actors` SET
-    `on_sale_work_count` = (
-      SELECT count(DISTINCT `ac`.`audio_work_id`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-        AND EXISTS (SELECT 1 FROM `store_listings` `sl` WHERE `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL)
-    ),
-    `on_sale_store_slugs` = (
-      SELECT group_concat(DISTINCT `sl`.`store_slug`) FROM `audio_credits` `ac`
-      JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id`
-      JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
-      WHERE `ac`.`voice_actor_id` = `voice_actors`.`id` AND `w`.`age_rating` <> 'r18'
-    )
+  UPDATE `voice_actors` SET (`on_sale_work_count`, `on_sale_store_slugs`) = (
+    SELECT count(DISTINCT `ac`.`audio_work_id`), group_concat(DISTINCT `sl`.`store_slug`)
+    FROM `audio_credits` `ac`
+    JOIN `audio_works` `w` ON `w`.`id` = `ac`.`audio_work_id` AND `w`.`age_rating` <> 'r18'
+    JOIN `store_listings` `sl` ON `sl`.`audio_work_id` = `ac`.`audio_work_id` AND `sl`.`delisted_at` IS NULL
+    WHERE `ac`.`voice_actor_id` = `voice_actors`.`id`
+  )
   WHERE `id` = NEW.`id`;
 END;
 --> statement-breakpoint

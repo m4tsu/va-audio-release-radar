@@ -100,6 +100,9 @@ Cloudflare の D1 は Workers Free プランでは Time Travel で 7 日しか�
 [`docs/research/d1-migration-write-rows-2026-09-20.md`](./docs/research/d1-migration-write-rows-2026-09-20.md))。
 `npm run db:export:local` が書き出しのたびに見積もりを出すので、その「合計」が
 Cloudflare の料金ページの D1 の欄の上限に収まることを確かめてから流す。
+見積もりには、声優とアニメの行の「買える作品の数」をトリガーが数え直す分 (`migrations/0020_on_sale_counts_triggers.sql`)
+が入っていない。流し込みでは書き込みが見積もりより増え、読み取りも 1 日の上限に届く量になりうる
+(2026-09-24 の測定は [`docs/research/d1-read-rows-2026-09-24.md`](./docs/research/d1-read-rows-2026-09-24.md))。
 
 1 日目 (声優と作品)
 
