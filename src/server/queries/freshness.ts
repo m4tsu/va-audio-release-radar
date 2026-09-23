@@ -1,4 +1,4 @@
-import { and, eq, isNull, max } from "drizzle-orm";
+import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
 import { crawlRuns } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -49,7 +49,15 @@ export async function loadCrawlerFreshness(db: AppDb, now: string): Promise<Craw
       lastSuccessAt: max(crawlRuns.finishedAt),
     })
     .from(crawlRuns)
-    .where(and(eq(crawlRuns.status, "ok"), isNull(crawlRuns.voiceActorId)))
+    .where(
+      and(
+        eq(crawlRuns.status, "ok"),
+        // ストアを並べるのは `crawl_runs_store_actor_started_idx` (ストア, 声優) の索引で
+        // 日次の走行だけを引くため。無いと声優起点の走行まで全件を読む
+        inArray(crawlRuns.storeSlug, [...STORE_SLUGS]),
+        isNull(crawlRuns.voiceActorId),
+      ),
+    )
     .groupBy(crawlRuns.storeSlug);
 
   const latest = new Map(rows.map((row) => [row.storeSlug, row.lastSuccessAt ?? undefined]));
