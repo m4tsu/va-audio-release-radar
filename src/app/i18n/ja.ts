@@ -13,7 +13,7 @@
 export const ja = {
   app: {
     /** サービス名。言語で変えないブランドなので、英語辞書でも同じ文字列を使う */
-    name: "Koenect",
+    name: "Koetrail",
     description:
       "好きな声優をフォローして、ASMR・朗読・ボイスドラマの新作を DLsite・Audible・ポケットドラマCD からまとめてチェック。",
   },

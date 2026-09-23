@@ -306,7 +306,7 @@ test("Web アプリマニフェストが言語に応じて返り、HTML から�
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("application/manifest+json");
   const manifest = await res.json();
-  expect(manifest.name).toBe("Koenect");
+  expect(manifest.name).toBe("Koetrail");
   expect(manifest.start_url).toBe("/following");
   expect(manifest.lang).toBe("ja");
 

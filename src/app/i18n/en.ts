@@ -10,7 +10,7 @@ import type { Translations } from "./index";
 export const en: Translations = {
   app: {
     // ブランド名なので訳さない
-    name: "Koenect",
+    name: "Koetrail",
     description:
       "Follow your favorite voice actors and keep up with their new ASMR, audiobooks and audio dramas on DLsite, Audible and Pocket Drama CD.",
   },

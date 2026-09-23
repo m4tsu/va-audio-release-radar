@@ -272,7 +272,7 @@ robots.txt ではなく §6 の利用規約に照らして判断する。
   - **事実**: 月間売上が $150 を超えなければ commercial license は不要。超えたら
     `contact@anilist.co` に連絡して取得する必要がある
   - **事実**: アプリ名・サービス名に "AniList" / "AniChart" を使わなければ naming
-    guidelines には抵触しない。サービス名 `Koenect` (`src/app/i18n/ja.ts` の `app.name`) は
+    guidelines には抵触しない。サービス名 `Koetrail` (`src/app/i18n/ja.ts` の `app.name`) は
     どちらの語も含まないため、naming guidelines には抵触しない
   - **事実**: 今回読んだ Terms of Use には、一般的な「AniList のデータを使っていることを
     クレジット表示せよ」という帰属表示の義務は見当たらなかった (naming guidelines は
