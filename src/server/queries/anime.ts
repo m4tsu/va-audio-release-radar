@@ -274,18 +274,22 @@ export type ActorAnimeAppearance = {
 };
 
 /**
- * 音声作品を 1 件でも持つ声優かどうか。
+ * 出演の行の声優が、買える音声作品を 1 件でも持つかどうか。
  *
- * `hasAnyAudioCredit` (queries/actors.ts) は `voice_actors.id` に束縛されているので、
- * 出演の行から引くこちらは別に持つ。R18 を除くのは画面に出す条件と揃えるため
+ * 数はトリガーが声優の行に持たせている (`voice_actors.on_sale_work_count`)。
+ * credit と listing を辿り直すと、出演の行ごとにその声優の作品を読むことになる
  */
 const appearanceActorHasAudioWork = sql`exists (
-  select 1 from ${audioCredits}
-  inner join ${audioWorks} on ${audioWorks.id} = ${audioCredits.audioWorkId}
-  where ${audioCredits.voiceActorId} = ${animeAppearances.voiceActorId}
-    and ${notAdultRated}
-    and ${onSaleSomewhere}
+  select 1 from ${voiceActors}
+  where ${voiceActors.id} = ${animeAppearances.voiceActorId}
+    and ${voiceActors.onSaleWorkCount} > 0
 )`;
+
+/**
+ * 買える作品を持つ出演者が 1 人以上いるアニメか。一覧・検索・sitemap に出す条件。
+ * 人数はトリガーがアニメの行に持たせている (`anime_titles.on_sale_actor_count`)
+ */
+const titleHasOnSaleActor = sql`${animeTitles.onSaleActorCount} > 0`;
 
 /**
  * そのシーズンのアニメ一覧。人気の高い順。
@@ -321,6 +325,8 @@ export async function listSeasonAnime(
       and(
         eq(animeTitles.seasonYear, seasonYear),
         eq(animeTitles.season, season),
+        titleHasOnSaleActor,
+        // 印と絞り込みに使う出演者 ID は、買える作品を持つ人に限る (人数と同じ意味にする)
         appearanceActorHasAudioWork,
       ),
     )
@@ -349,11 +355,10 @@ export async function listSeasonsWithAnime(db: AppDb): Promise<AnimeSeasonEntry[
     .select({
       seasonYear: animeTitles.seasonYear,
       season: animeTitles.season,
-      animeCount: sql<number>`count(distinct ${animeTitles.id})`,
+      animeCount: sql<number>`count(*)`,
     })
     .from(animeTitles)
-    .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
-    .where(appearanceActorHasAudioWork)
+    .where(titleHasOnSaleActor)
     .groupBy(animeTitles.seasonYear, animeTitles.season);
 
   // シーズン数はたかだか数十行なので、SQL で CASE を書くより JS 側で並べたほうが読める
@@ -375,12 +380,11 @@ export async function hasSeasonAnime(
   const rows = await db
     .select({ id: animeTitles.id })
     .from(animeTitles)
-    .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
     .where(
       and(
         eq(animeTitles.seasonYear, seasonYear),
         eq(animeTitles.season, season),
-        appearanceActorHasAudioWork,
+        titleHasOnSaleActor,
       ),
     )
     .limit(1);
@@ -532,12 +536,10 @@ export async function animeForActors(
         seasonYear: animeTitles.seasonYear,
         season: animeTitles.season,
         coverImageUrl: animeTitles.coverImageUrl,
-        actorCount: sql<number>`count(distinct ${animeAppearances.voiceActorId})`,
+        actorCount: animeTitles.onSaleActorCount,
       })
       .from(animeTitles)
-      .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
-      .where(and(inArray(animeTitles.id, ids), appearanceActorHasAudioWork))
-      .groupBy(animeTitles.id);
+      .where(and(inArray(animeTitles.id, ids), titleHasOnSaleActor));
 
     found.push(...rows.map(toAnimeSummary));
   }
@@ -570,10 +572,9 @@ export async function searchAnime(db: AppDb, q: string, limit = 20): Promise<Ani
       season: animeTitles.season,
       coverImageUrl: animeTitles.coverImageUrl,
       popularity: animeTitles.popularity,
-      actorCount: sql<number>`count(distinct ${animeAppearances.voiceActorId})`,
+      actorCount: animeTitles.onSaleActorCount,
     })
     .from(animeTitles)
-    .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
     .leftJoin(animeTitleSynonyms, eq(animeTitleSynonyms.animeTitleId, animeTitles.id))
     .where(
       and(
@@ -583,7 +584,7 @@ export async function searchAnime(db: AppDb, q: string, limit = 20): Promise<Ani
           like(animeTitles.titleEnglish, pattern),
           like(animeTitleSynonyms.name, pattern),
         ),
-        appearanceActorHasAudioWork,
+        titleHasOnSaleActor,
       ),
     )
     .groupBy(animeTitles.id)
@@ -601,10 +602,9 @@ export async function animeSitemapEntries(
   db: AppDb,
 ): Promise<Array<{ slug: string; updatedAt: string }>> {
   const rows = await db
-    .selectDistinct({ slug: animeTitles.slug, updatedAt: animeTitles.updatedAt })
+    .select({ slug: animeTitles.slug, updatedAt: animeTitles.updatedAt })
     .from(animeTitles)
-    .innerJoin(animeAppearances, eq(animeAppearances.animeTitleId, animeTitles.id))
-    .where(appearanceActorHasAudioWork)
+    .where(titleHasOnSaleActor)
     .orderBy(asc(animeTitles.slug));
   return rows;
 }

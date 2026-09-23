@@ -106,6 +106,8 @@ export const voiceActors = sqliteTable(
   (t) => [
     uniqueIndex("voice_actors_slug_unique").on(t.slug),
     uniqueIndex("voice_actors_anilist_staff_id_unique").on(t.anilistStaffId),
+    // 声優一覧は名前順に全員を並べる。索引が無いと並べ替えのために全行をもう一度読む
+    index("voice_actors_canonical_name_idx").on(t.canonicalName),
   ],
 );
 

@@ -6,7 +6,6 @@ import {
   eq,
   inArray,
   isNotNull,
-  isNull,
   like,
   or,
   type SQL,
@@ -27,7 +26,6 @@ import {
   animeAppearances,
   audioCredits,
   crawlRuns,
-  storeListings,
   voiceActorAliases,
   voiceActors,
 } from "../db/schema";
@@ -422,25 +420,6 @@ async function matchByNormalizedName(db: AppDb, query: string): Promise<string[]
 }
 
 /**
- * 1 声優につき何作品が買えるか。同じ作品に複数 credit が付くので distinct で数える。
- *
- * `case` を挟むのは、join が leftJoin だから。取り下げた listing しか無い作品でも
- * credit の行そのものは残り、listing 側が null になって並ぶ。credit 側の列を素で数えると
- * その作品も 1 件に入ってしまうので、listing が付いた行だけを数える
- */
-const workCountExpression = sql<number>`count(distinct case
-  when ${storeListings.id} is not null then ${audioCredits.audioWorkId}
-end)`;
-
-/**
- * この声優の作品が載っているストアを 1 行にまとめたもの ("dlsite,audible")。
- *
- * SQLite の `group_concat` は `distinct` を付けると区切り文字を指定できないので "," 固定になる。
- * ストアの slug に "," は入らないので、読む側は素朴に分割してよい (`toStoreSlugs`)
- */
-const storeSlugsExpression = sql<string | null>`group_concat(distinct ${storeListings.storeSlug})`;
-
-/**
  * 作品が 1 件以上ある声優かどうか。取り下げたかどうかは見ない。
  *
  * 月次の引き直しが対象を選ぶのに使う (`listActorDictionary` の `withWorks`)。
@@ -460,14 +439,12 @@ export const hasAnyAudioCredit: SQL = sql`exists (
  * 画面が声優を選ぶときはこちらを見る。声優ページは買える作品も出演アニメも無ければ 404 で
  * (`routes/voice-actors.$slug.tsx`)、作品一覧は取り下げた listing を落とす
  * (`onSaleSomewhere` (queries/works.ts))。`hasAnyAudioCredit` で選ぶと、
- * 作品がすべて販売終了した声優が sitemap と一覧に残り、開くと 404 になる
+ * 作品がすべて販売終了した声優が sitemap と一覧に残り、開くと 404 になる。
+ *
+ * 数はトリガーが声優の行に持たせている (`voice_actors.on_sale_work_count`)。
+ * credit と listing を辿り直すと、一覧 1 回で全声優ぶんの作品を読むことになる
  */
-export const hasOnSaleAudioWork: SQL = sql`exists (
-  select 1 from ${audioCredits}
-  join ${storeListings} on ${storeListings.audioWorkId} = ${audioCredits.audioWorkId}
-  where ${audioCredits.voiceActorId} = ${voiceActors.id}
-    and ${storeListings.delistedAt} is null
-)`;
+export const hasOnSaleAudioWork: SQL = sql`${voiceActors.onSaleWorkCount} > 0`;
 
 /**
  * ページが出る声優かどうか。音声作品か出演アニメのどちらかがあれば出る
@@ -484,42 +461,26 @@ const hasPage: SQL = sql`(${hasOnSaleAudioWork} or exists (
 /**
  * 一覧・検索で共有する select。`extra` は呼び出し側の追加条件。
  *
- * 作品の有無で絞らない (絞るのは `hasPage`)。作品が 1 件も無い声優は leftJoin の相手が
- * 居ないので `workCount` が 0、`storeSlugs` が空で返る。
- *
- * 作品数もストアも年齢区分で絞らない。保存する時点で許可集合の外 (R18) を弾いているので
- * (`ingest`)、ここで絞っても結果は変わらず、全声優ぶんの集計に `audio_works` の join が増えるだけになる
+ * 作品の有無で絞らない (絞るのは `hasPage`)。作品が 1 件も無い声優は `workCount` が 0、
+ * `storeSlugs` が空で返る。作品数とストアはトリガーが声優の行に持たせた値を読む
+ * (`voice_actors.on_sale_work_count` / `on_sale_store_slugs`)
  */
 function summaryQuery(db: AppDb, extra?: SQL) {
-  return (
-    db
-      .select({
-        id: voiceActors.id,
-        slug: voiceActors.slug,
-        canonicalName: voiceActors.canonicalName,
-        nameKana: resolvedNameKana,
-        nameEn: resolvedNameEn,
-        imageUrl: voiceActors.imageUrl,
-        status: voiceActors.status,
-        gender: voiceActors.gender,
-        workCount: workCountExpression,
-        storeSlugs: storeSlugsExpression,
-      })
-      .from(voiceActors)
-      .leftJoin(audioCredits, eq(audioCredits.voiceActorId, voiceActors.id))
-      // 作品がどのストアに載っているかは listing が持つ。作品 1 件につき行が増えるが、
-      // 作品数は count(distinct) で数えているので重複しても狂わない
-      .leftJoin(
-        storeListings,
-        and(
-          eq(storeListings.audioWorkId, audioCredits.audioWorkId),
-          // 取り下げた listing は作品数にもストアの絞り込みにも数えない
-          isNull(storeListings.delistedAt),
-        ),
-      )
-      .where(extra === undefined ? hasPage : and(hasPage, extra))
-      .groupBy(voiceActors.id)
-  );
+  return db
+    .select({
+      id: voiceActors.id,
+      slug: voiceActors.slug,
+      canonicalName: voiceActors.canonicalName,
+      nameKana: resolvedNameKana,
+      nameEn: resolvedNameEn,
+      imageUrl: voiceActors.imageUrl,
+      status: voiceActors.status,
+      gender: voiceActors.gender,
+      workCount: voiceActors.onSaleWorkCount,
+      storeSlugs: voiceActors.onSaleStoreSlugs,
+    })
+    .from(voiceActors)
+    .where(extra === undefined ? hasPage : and(hasPage, extra));
 }
 
 /** summaryQuery が返す行。select の指定と手で合わせる */

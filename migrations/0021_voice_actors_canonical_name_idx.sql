@@ -1,0 +1,1 @@
+CREATE INDEX `voice_actors_canonical_name_idx` ON `voice_actors` (`canonical_name`);

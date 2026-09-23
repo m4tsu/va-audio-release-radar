@@ -204,26 +204,32 @@ const OUTER_ACTOR_ID = sql`${sql.identifier(getTableName(voiceActors))}.${sql.id
 /**
  * 1 つの属性から、出どころの優先順位で値を 1 つ選ぶ相関副問い合わせ。
  *
- * 外側の問い合わせが `voice_actors` を含んでいることが前提。並べ替えを `case` で書くのは、
- * 優先順位をこの配列 1 か所に持たせるため。
+ * 外側の問い合わせが `voice_actors` を含んでいることが前提。出どころごとの副問い合わせを
+ * 配列の順に `coalesce` で並べるので、優先順位はこの配列 1 か所に持たせたままになる。
  *
  * **並べた出どころ以外は選ばない。** 最後に回すだけにすると、順位を決めていない出どころの行が
- * 表に出る。1 つの属性に同じ出どころは 1 行しか無い (表の一意制約) ので、絞った後の順位は必ず 1 つに決まる
+ * 表に出る。1 つの属性に同じ出どころは 1 行しか無く (表の一意制約)、値は NOT NULL なので、
+ * 最初に見つかった出どころの値がそのまま選ばれる。
+ *
+ * 出どころを 1 つずつ等号で引くのは、一意索引を 1 回ずつ突くだけで済ませるため。
+ * `in` と `order by` で書くより D1 の読み取り行数が少なく、全声優を並べる一覧で効く
  */
 function pickAttribute(
   attribute: VoiceActorAttribute,
   sources: readonly AttributeSource[],
 ): SQL<string | null> {
-  const ranks = sources.map((source, rank) => sql`when ${source} then ${rank}`);
-  const listed = sources.map((source) => sql`${source}`);
-  return sql<string | null>`(
+  const perSource = sources.map(
+    (source) => sql`(
     select ${voiceActorAttributes.value} from ${voiceActorAttributes}
     where ${voiceActorAttributes.voiceActorId} = ${OUTER_ACTOR_ID}
       and ${voiceActorAttributes.attribute} = ${attribute}
-      and ${voiceActorAttributes.source} in (${sql.join(listed, sql`, `)})
-    order by case ${voiceActorAttributes.source} ${sql.join(ranks, sql` `)} end
-    limit 1
-  )`;
+      and ${voiceActorAttributes.source} = ${source}
+  )`,
+  );
+  // coalesce は引数を 2 つ以上とるので、出どころが 1 つなら副問い合わせをそのまま返す
+  return perSource.length === 1
+    ? (perSource[0] as SQL<string | null>)
+    : sql<string | null>`coalesce(${sql.join(perSource, sql`, `)})`;
 }
 
 /** 画面に出すかな。旧列 `name_kana` は読まない */

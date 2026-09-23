@@ -148,6 +148,13 @@
       "when": 1790177247986,
       "tag": "0020_on_sale_counts_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1790177658052,
+      "tag": "0021_voice_actors_canonical_name_idx",
+      "breakpoints": true
     }
   ]
 }
