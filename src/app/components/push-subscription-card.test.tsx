@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { PushSubscriptionCard } from "@/app/components/push-subscription-card";
@@ -39,16 +39,39 @@ describe("PushSubscriptionCard の出し分け", () => {
     expect(screen.queryByRole("heading", { name: "新作の通知" })).not.toBeInTheDocument();
   });
 
-  test("未購読なら受け取るボタンと、何がサーバーに渡るかの注記を出す", () => {
+  test("未購読なら受け取るボタンを出し、説明と保存の注記は常には出さない", () => {
     usePushStore.setState({ status: "unsubscribed" });
     renderWithLocale(<PushSubscriptionCard vapidPublicKey={KEY} />);
 
     expect(screen.getByRole("heading", { name: "新作の通知" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新作の通知を受け取る" })).toBeEnabled();
+    expect(screen.queryByText(/このブラウザへ 1 通だけ通知します/)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/フォロー中の声優と通知の宛先をサーバーに保存します/),
+      screen.queryByText(/フォロー中の声優と通知の宛先をサーバーに保存します/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("購読中も保存の注記は常には出さない", () => {
+    usePushStore.setState({ status: "subscribed" });
+    renderWithLocale(<PushSubscriptionCard vapidPublicKey={KEY} />);
+
+    expect(
+      screen.queryByText(/フォロー中の声優と通知の宛先をサーバーに保存します/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("ヘルプの印を押すと、何がサーバーに渡るかの注記とプライバシーポリシーへのリンクを出す", async () => {
+    const user = userEvent.setup();
+    usePushStore.setState({ status: "unsubscribed" });
+    renderWithLocale(<PushSubscriptionCard vapidPublicKey={KEY} />);
+
+    await user.click(screen.getByRole("button", { name: "新作の通知の説明" }));
+
+    const help = screen.getByRole("dialog", { name: "新作の通知の説明" });
+    expect(
+      within(help).getByText(/フォロー中の声優と通知の宛先をサーバーに保存します/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute(
+    expect(within(help).getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute(
       "href",
       "/privacy",
     );
@@ -70,7 +93,7 @@ describe("PushSubscriptionCard の出し分け", () => {
     renderWithLocale(<PushSubscriptionCard vapidPublicKey={KEY} />);
 
     expect(screen.getByText(/このブラウザは通知に対応していません/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /通知を/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/ホーム画面に追加/)).not.toBeInTheDocument();
   });
 
@@ -86,7 +109,7 @@ describe("PushSubscriptionCard の出し分け", () => {
     renderWithLocale(<PushSubscriptionCard vapidPublicKey={KEY} />);
 
     expect(screen.getByText(/通知がブラウザの設定でブロックされています/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /通知を/ })).not.toBeInTheDocument();
   });
 
   test("失敗していればその旨を alert で出す", () => {
@@ -102,6 +125,8 @@ describe("PushSubscriptionCard の出し分け", () => {
 
     expect(screen.getByRole("heading", { name: "New release alerts" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Get new release alerts" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "About new release alerts" })).toBeInTheDocument();
+    expect(screen.queryByText(/stored on the server/)).not.toBeInTheDocument();
   });
 });
 

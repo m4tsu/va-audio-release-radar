@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { HelpPopover } from "@/app/components/help-popover";
 import { Button } from "@/app/components/ui/button";
 import { useLocale, useT } from "@/app/i18n";
 import { actorDisplayName } from "@/app/lib/actor-name";
@@ -15,7 +16,10 @@ import { useFollowStore } from "@/app/store/follow-store";
  * 名前の隣に最新リリースの年月を出すのは、フォローしても当面は何も届かない声優が多いため。
  * フィードが空でも、その人のいちばん新しい作品がいつのものかはここで分かる
  * (発売予定の作品があればその年月になる。`ActorWorkStats`)。
- * フォロー ID はサーバーが知らないので、フィードと同じくまとめて送って引き直す
+ * フォロー ID はサーバーが知らないので、フィードと同じくまとめて送って引き直す。
+ *
+ * 保存先がこのブラウザだけであることは、見出しの隣のヘルプの印に入れる。
+ * 一覧を見るたびに要る文ではなく、作品の一覧を上に寄せるほうを取る
  */
 export function FollowManager() {
   const t = useT();
@@ -26,9 +30,14 @@ export function FollowManager() {
 
   return (
     <section className="space-y-3 rounded-xl border bg-card p-4">
-      <h2 className="font-medium text-sm">
-        {t("following.manageTitle", { count: follows.length })}
-      </h2>
+      <div className="flex items-center gap-1">
+        <h2 className="font-medium text-sm">
+          {t("following.manageTitle", { count: follows.length })}
+        </h2>
+        <HelpPopover label={t("following.storageHelpLabel")}>
+          <p>{t("following.storageNote")}</p>
+        </HelpPopover>
+      </div>
       <ul aria-label={t("following.listLabel")} className="flex flex-wrap gap-2">
         {follows.map((actor) => {
           const name = actorDisplayName(actor, locale);
@@ -66,7 +75,6 @@ export function FollowManager() {
           );
         })}
       </ul>
-      <p className="text-muted-foreground text-xs">{t("following.storageNote")}</p>
     </section>
   );
 }

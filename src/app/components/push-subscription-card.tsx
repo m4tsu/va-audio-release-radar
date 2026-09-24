@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
+import { HelpPopover } from "@/app/components/help-popover";
 import { Button } from "@/app/components/ui/button";
 import { useT } from "@/app/i18n";
 import { usePushStore } from "@/app/store/push-store";
@@ -11,7 +12,10 @@ import { usePushStore } from "@/app/store/push-store";
  * ブラウザから直接サーバーへ送る経路 (store 経由) を持つので、ページではなく部品に置く。
  *
  * `vapidPublicKey` が無い環境 (鍵を置いていない) では区画そのものを出さない。
- * 押しても成立しない操作を見せないため
+ * 押しても成立しない操作を見せないため。
+ *
+ * 常に出すのは状態と操作と、操作に要る案内 (非対応・ブロック・エラー) だけ。
+ * 何をする通知か、サーバーに何を保存するかは見出しの隣のヘルプの印に入れ、作品の一覧を上に寄せる
  */
 export function PushSubscriptionCard({ vapidPublicKey }: { vapidPublicKey: string | null }) {
   const t = useT();
@@ -28,10 +32,45 @@ export function PushSubscriptionCard({ vapidPublicKey }: { vapidPublicKey: strin
 
   return (
     <section aria-labelledby={headingId} className="space-y-3 rounded-xl border bg-card p-4">
-      <h2 id={headingId} className="font-medium text-sm">
-        {t("push.title")}
-      </h2>
-      <p className="text-muted-foreground text-sm">{t("push.description")}</p>
+      {/* 見出しと操作を 1 行に並べる。狭い画面では操作が次の行へ折り返す */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex items-center gap-1">
+          <h2 id={headingId} className="font-medium text-sm">
+            {t("push.title")}
+          </h2>
+          <HelpPopover label={t("push.helpLabel")}>
+            <p>{t("push.description")}</p>
+            <p className="text-muted-foreground text-xs">
+              {t("push.storageNote")}{" "}
+              <Link to="/privacy" className="underline underline-offset-2">
+                {t("push.privacyLink")}
+              </Link>
+            </p>
+          </HelpPopover>
+        </div>
+
+        {status === "unsubscribed" ? (
+          <Button type="button" disabled={busy} onClick={() => void subscribe(vapidPublicKey)}>
+            {busy ? t("push.enabling") : t("push.enable")}
+          </Button>
+        ) : null}
+
+        {status === "subscribed" ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p role="status" className="text-sm">
+              {t("push.enabled")}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void unsubscribe()}
+            >
+              {busy ? t("push.disabling") : t("push.disable")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
 
       {status === "unsupported" ? (
         <p className="text-sm">
@@ -42,40 +81,11 @@ export function PushSubscriptionCard({ vapidPublicKey }: { vapidPublicKey: strin
 
       {status === "denied" ? <p className="text-sm">{t("push.denied")}</p> : null}
 
-      {status === "unsubscribed" ? (
-        <Button type="button" disabled={busy} onClick={() => void subscribe(vapidPublicKey)}>
-          {busy ? t("push.enabling") : t("push.enable")}
-        </Button>
-      ) : null}
-
-      {status === "subscribed" ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <p role="status" className="text-sm">
-            {t("push.enabled")}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={() => void unsubscribe()}
-          >
-            {busy ? t("push.disabling") : t("push.disable")}
-          </Button>
-        </div>
-      ) : null}
-
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {t("push.errorFailed")}
         </p>
       ) : null}
-
-      <p className="text-muted-foreground text-xs">
-        {t("push.storageNote")}{" "}
-        <Link to="/privacy" className="underline underline-offset-2">
-          {t("push.privacyLink")}
-        </Link>
-      </p>
     </section>
   );
 }

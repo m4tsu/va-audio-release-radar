@@ -55,12 +55,19 @@ describe("FollowManager の一覧", () => {
     expect(screen.queryByRole("link", { name: "架空アルファ" })).not.toBeInTheDocument();
   });
 
-  test("このブラウザにしか無いことを添える", async () => {
+  test("このブラウザにしか無いことは、常には出さずヘルプの印の中に置く", async () => {
+    const user = userEvent.setup();
     await readyFollowStore();
     await useFollowStore.getState().follow(ALPHA);
     renderWithLocale(<FollowManager />);
 
-    expect(screen.getByText("このブラウザにのみ保存されます")).toBeInTheDocument();
+    expect(screen.queryByText("このブラウザにのみ保存されます")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "フォローの保存先の説明" }));
+
+    expect(screen.getByRole("dialog", { name: "フォローの保存先の説明" })).toHaveTextContent(
+      "このブラウザにのみ保存されます",
+    );
   });
 
   /**

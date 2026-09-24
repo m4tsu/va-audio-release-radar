@@ -157,12 +157,14 @@ export const en: Translations = {
     storageNote:
       "While subscribed, the voice actors you follow and the delivery address for this browser are stored on the server. They are deleted when you stop alerts.",
     privacyLink: "Privacy Policy",
+    helpLabel: "About new release alerts",
   },
 
   following: {
     metaTitle: "New from the voice actors you follow | {{app}}",
     title: "Following",
     storageNote: "Saved in this browser only",
+    storageHelpLabel: "About where follows are saved",
     manageTitle: {
       one: "{{count}} voice actor followed",
       other: "{{count}} voice actors followed",
