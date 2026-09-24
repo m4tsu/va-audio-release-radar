@@ -21,12 +21,12 @@
   --popover-foreground: oklch(0.145 0 0);
   /*
    * アプリのアクセントカラー。主ボタン (フォロー、送信など) の地に使う。
-   * 色相は紫 (300)。色の付いたバッジの色相 (ストアの DLsite 258・Audible 62・ポケドラ 350、
+   * 色相は青緑 (200)。色の付いたバッジの色相 (ストアの DLsite 258・Audible 62・ポケドラ 350、
    * 新着の 155) と、削除の赤 (27) のどれからも 40 度以上離れた空きに置く。
    * 作品カードでストアのバッジと並んでも、どのストアの色とも取り違えないため。
-   * 文字との対比は WCAG AA (4.5:1) 以上。値の検査は `src/app/accent-color.test.ts`
+   * ダークでも同じ色にする (`.dark` で上書きしない)。白い文字との対比が WCAG AA (4.5:1) を保てる上限の明度
    */
-  --primary: oklch(0.5 0.2 300);
+  --primary: oklch(0.56 0.1 200);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -62,9 +62,6 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  /* 暗い背景では同じ色相のまま明度を上げ、文字を暗い側に入れ替える */
-  --primary: oklch(0.78 0.12 300);
-  --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -118,12 +115,13 @@
 /*
  * カードや行の中で押せる文字の見た目。タッチ端末にはホバーが無いので、色と下線を最初から出す。
  * 下線は薄く引いておき、ホバーで濃く太くして押せる手応えを残す。
- * 行全体を包むリンクの中で名前にだけ付けることがあるので、祖先の <a> のホバーでも反応させる
+ * 行全体を包むリンクの中で名前にだけ付けることがあるので、祖先の <a> のホバーでも反応させる。
+ * 文字色は `--link-tone` で差し替えられる。作品名のように見出しとして読ませたいものは地の文の色で下線だけ残す
  */
 @utility link-text {
-  color: var(--color-link);
+  color: var(--link-tone, var(--color-link));
   text-decoration-line: underline;
-  text-decoration-color: color-mix(in oklab, var(--color-link) 40%, transparent);
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
   text-underline-offset: 3px;
   @media (hover: hover) {
     &:hover,

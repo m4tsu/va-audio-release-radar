@@ -111,7 +111,11 @@ export function WorkCard({
         </div>
 
         <h3 className="font-medium leading-snug">
-          <Link to="/works/$id" params={{ id: work.id }} className="link-text">
+          <Link
+            to="/works/$id"
+            params={{ id: work.id }}
+            className="link-text [--link-tone:var(--color-foreground)]"
+          >
             {work.title}
           </Link>
         </h3>
