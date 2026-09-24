@@ -36,6 +36,7 @@ import { Route as ApiAdminDelistingsRouteImport } from './routes/api/admin/delis
 import { Route as ApiAdminIngestRouteImport } from './routes/api/admin/ingest'
 import { Route as ApiAdminKnownIdsRouteImport } from './routes/api/admin/known-ids'
 import { Route as ApiAdminPushDigestRouteImport } from './routes/api/admin/push-digest'
+import { Route as ApiAdminPushTestRouteImport } from './routes/api/admin/push-test'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -172,6 +173,11 @@ const ApiAdminPushDigestRoute = ApiAdminPushDigestRouteImport.update({
   path: '/api/admin/push-digest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminPushTestRoute = ApiAdminPushTestRouteImport.update({
+  id: '/api/admin/push-test',
+  path: '/api/admin/push-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
   '/api/admin/push-digest': typeof ApiAdminPushDigestRoute
+  '/api/admin/push-test': typeof ApiAdminPushTestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
   '/api/admin/push-digest': typeof ApiAdminPushDigestRoute
+  '/api/admin/push-test': typeof ApiAdminPushTestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/api/admin/ingest': typeof ApiAdminIngestRoute
   '/api/admin/known-ids': typeof ApiAdminKnownIdsRoute
   '/api/admin/push-digest': typeof ApiAdminPushDigestRoute
+  '/api/admin/push-test': typeof ApiAdminPushTestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
     | '/api/admin/push-digest'
+    | '/api/admin/push-test'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
     | '/api/admin/push-digest'
+    | '/api/admin/push-test'
   id:
     | '__root__'
     | '/'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/api/admin/ingest'
     | '/api/admin/known-ids'
     | '/api/admin/push-digest'
+    | '/api/admin/push-test'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -379,6 +391,7 @@ export interface RootRouteChildren {
   ApiAdminIngestRoute: typeof ApiAdminIngestRoute
   ApiAdminKnownIdsRoute: typeof ApiAdminKnownIdsRoute
   ApiAdminPushDigestRoute: typeof ApiAdminPushDigestRoute
+  ApiAdminPushTestRoute: typeof ApiAdminPushTestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -572,6 +585,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAdminPushDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/admin/push-test': {
+      id: '/api/admin/push-test'
+      path: '/api/admin/push-test'
+      fullPath: '/api/admin/push-test'
+      preLoaderRoute: typeof ApiAdminPushTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -603,6 +623,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAdminIngestRoute: ApiAdminIngestRoute,
   ApiAdminKnownIdsRoute: ApiAdminKnownIdsRoute,
   ApiAdminPushDigestRoute: ApiAdminPushDigestRoute,
+  ApiAdminPushTestRoute: ApiAdminPushTestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

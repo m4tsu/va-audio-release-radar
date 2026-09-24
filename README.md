@@ -48,6 +48,8 @@ canonical / og:url / `sitemap.xml` のオリジンは `SITE_URL`。本番の値�
 公開鍵が空なら通知の区画は画面に出ない。秘密鍵か subject が空なら cron は送らずログに残す。
 送信は `wrangler.jsonc` の `triggers` の cron で動き、送る内容は `GET /api/admin/push-digest`
 (Bearer は `ADMIN_TOKEN`。`?at=` で起動時刻を指定できる) で送らずに下見できる。
+新作が無くても送信が届くかは、`POST /api/admin/push-test` (Bearer は `ADMIN_TOKEN`、本文は
+`{"subscriptionId": <push_subscriptions.id>}`) で購読 1 件に試しの通知を送って確かめる。
 鍵の組は Node で作れる (base64url の 2 行が出る):
 
 ```

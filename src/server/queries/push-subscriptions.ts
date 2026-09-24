@@ -100,6 +100,24 @@ export async function getPushSubscription(
   };
 }
 
+/** 送信に要る宛先と鍵と言語を id で引く。管理 API の試し送信が使う */
+export async function getPushTargetById(
+  db: AppDb,
+  id: number,
+): Promise<{ endpoint: string; p256dh: string; auth: string; locale: Locale } | undefined> {
+  const [row] = await db
+    .select({
+      endpoint: pushSubscriptions.endpoint,
+      p256dh: pushSubscriptions.p256dh,
+      auth: pushSubscriptions.auth,
+      locale: pushSubscriptions.locale,
+    })
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.id, id))
+    .limit(1);
+  return row;
+}
+
 /** 声優表にある ID だけを、入力の並びのまま返す */
 async function knownActorIds(db: AppDb, ids: string[]): Promise<string[]> {
   const known = new Set<string>();

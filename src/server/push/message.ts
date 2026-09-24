@@ -47,6 +47,24 @@ export function digestMessage(
       };
 }
 
+/**
+ * 管理 API から送る試しの 1 通。送信の経路 (暗号化・署名・push service・service worker) が
+ * 通るかだけを見るので、新作の有無に関係なく同じ文を出す
+ */
+export function testMessage(locale: Locale): PushMessage {
+  return locale === "en"
+    ? {
+        title: "Test notification",
+        body: "If you can see this, notifications work",
+        url: FOLLOWING_URL,
+      }
+    : {
+        title: "通知のテスト",
+        body: "この通知が見えていれば、通知は届いています",
+        url: FOLLOWING_URL,
+      };
+}
+
 function actorName(actor: DigestActor, locale: Locale): string {
   return locale === "en" && actor.nameEn ? actor.nameEn : actor.canonicalName;
 }
