@@ -52,6 +52,7 @@ describe("affiliateUrlFor の DLsite", () => {
   it("所属が無いか知らない値なら組み立てない", () => {
     expect(affiliateUrlFor(listing({ storeSection: undefined }), ALL_IDS)).toBeUndefined();
     expect(affiliateUrlFor(listing({ storeSection: "maniax" }), ALL_IDS)).toBeUndefined();
+    expect(affiliateUrlFor(listing({ storeSection: "constructor" }), ALL_IDS)).toBeUndefined();
   });
 
   it("ID が空か空白だけなら組み立てない", () => {

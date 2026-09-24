@@ -25,16 +25,16 @@ type Rule = {
  * `site_id`) から引く。`product_url` は検索したフロアで作られ、所属と食い違うので使わない。
  * 出どころは docs/stores/dlsite.md の「アフィリエイトリンク」
  */
-const DLSITE_AFFILIATE_FLOORS: Readonly<Record<string, string>> = {
-  home: "home",
-  girls: "girls",
-  bl: "bl",
-  pro: "pro",
-  soft: "soft",
+const DLSITE_AFFILIATE_FLOORS: ReadonlyMap<string, string> = new Map([
+  ["home", "home"],
+  ["girls", "girls"],
+  ["bl", "bl"],
+  ["pro", "pro"],
+  ["soft", "soft"],
   // `/garumani/` の作品は所属をフロア名ではなく作品の区分で返す
-  bldrama: "garumani",
-  girlsdrama: "garumani",
-};
+  ["bldrama", "garumani"],
+  ["girlsdrama", "garumani"],
+]);
 
 const RULES = {
   dlsite: {
@@ -42,7 +42,8 @@ const RULES = {
     // 所属が分からない作品は、誤ったフロアのリンクで成果を落とすより正規 URL に残す。
     // `t/n` の意味は確かめておらず、管理画面の出力をそのまま写している
     build: (affiliateId, { storeProductId, storeSection }) => {
-      const floor = storeSection ? DLSITE_AFFILIATE_FLOORS[storeSection] : undefined;
+      // 所属は外部由来の値。オブジェクトで引くと `constructor` などの継承された名前に当たる
+      const floor = storeSection ? DLSITE_AFFILIATE_FLOORS.get(storeSection) : undefined;
       if (!floor) return undefined;
       return `https://dlaf.jp/${floor}/dlaf/=/t/n/link/work/aid/${encodeURIComponent(affiliateId)}/id/${encodeURIComponent(storeProductId)}.html`;
     },
