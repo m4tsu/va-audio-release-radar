@@ -121,7 +121,9 @@ describe("取り下げた作品の見え方", () => {
   it("買える作品は一覧にも声優ページにも出る", async () => {
     const db = await setupWork(false);
 
-    expect((await latestWorks(db)).map((item) => item.work.id)).toEqual([WORK_ID]);
+    expect((await latestWorks(db, { storeSlug: "dlsite" })).map((item) => item.work.id)).toEqual([
+      WORK_ID,
+    ]);
     expect((await worksByActor(db, UEDA.id)).map((item) => item.work.id)).toEqual([WORK_ID]);
     expect(await getWorkById(db, WORK_ID)).toBeDefined();
   });
@@ -129,14 +131,14 @@ describe("取り下げた作品の見え方", () => {
   it("取り下げた作品は一覧からも声優ページからも消える", async () => {
     const db = await setupWork(true);
 
-    expect(await latestWorks(db)).toEqual([]);
+    expect(await latestWorks(db, { storeSlug: "dlsite" })).toEqual([]);
     expect(await worksByActor(db, UEDA.id)).toEqual([]);
     expect(await getWorkById(db, WORK_ID)).toBeUndefined();
   });
 
   it("行は残っているので、また買えるようになれば戻る", async () => {
     const db = await setupWork(true);
-    expect(await latestWorks(db)).toEqual([]);
+    expect(await latestWorks(db, { storeSlug: "dlsite" })).toEqual([]);
 
     await ingest(
       db,
@@ -153,7 +155,9 @@ describe("取り下げた作品の見え方", () => {
       LATER,
     );
 
-    expect((await latestWorks(db)).map((item) => item.work.id)).toEqual([WORK_ID]);
+    expect((await latestWorks(db, { storeSlug: "dlsite" })).map((item) => item.work.id)).toEqual([
+      WORK_ID,
+    ]);
   });
 });
 

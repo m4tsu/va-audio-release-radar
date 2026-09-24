@@ -96,9 +96,25 @@ describe("decideCache", () => {
 
   /** 取り込みの大半は既知の作品を取り込み直すだけ。そこで消すと、消す回数の上限をすぐに使い切る */
   it("何も変えなかった書き込みではキャッシュを消さない", () => {
-    expect(decideCache(post("/api/admin/ingest"), json(dataChangedHeaders(false))).purge).toBe(
-      false,
-    );
+    expect(decideCache(post("/api/admin/ingest"), json(dataChangedHeaders(false)))).toEqual({
+      cacheable: false,
+      purge: false,
+    });
+  });
+
+  /**
+   * 既存の行を書き換えただけの書き込み (発売日の補完、credit の解決) では、前のキャッシュは消さず
+   * クエリ結果のキャッシュの世代だけ上げる。上げないと、前のキャッシュが寿命で入れ替わるときに古い結果から作り直す
+   */
+  it("既存の行を書き換えた書き込みでは、クエリ結果の世代だけを上げる", () => {
+    const decision = decideCache(post("/api/admin/ingest"), json(dataChangedHeaders(false, true)));
+
+    expect(decision).toEqual({ cacheable: false, purge: false, refresh: true });
+    expect(
+      applyCacheDecision(json(dataChangedHeaders(false, true)), decision).headers.has(
+        DATA_CHANGED_HEADER,
+      ),
+    ).toBe(false);
   });
 
   /** POST でも読むだけの関数 (フォロー中のフィード) で消すと、消す回数の上限をすぐに使い切る */

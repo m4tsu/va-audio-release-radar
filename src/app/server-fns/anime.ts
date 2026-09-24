@@ -96,12 +96,12 @@ export const searchAnimeFn = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { searchAnime }, { publicQuery }] = await Promise.all([
+    const [{ getDb }, { searchAnime }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
       import("@/server/response-cache"),
     ]);
-    return publicQuery("searchAnime", { q: data.q, limit: data.limit }, () =>
-      searchAnime(getDb(), data.q, data.limit),
-    );
+    // 打鍵ごとに検索語が変わってほぼ当たらないので、クエリ結果のキャッシュには置かない
+    markPublicData();
+    return searchAnime(getDb(), data.q, data.limit);
   });

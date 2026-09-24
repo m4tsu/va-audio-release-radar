@@ -205,7 +205,7 @@ describe("出演者数", () => {
       NOW,
     );
 
-    expect((await latestWorks(db, { now: NOW }))[0]?.castSize).toBe(2);
+    expect((await latestWorks(db, { storeSlug: "dlsite", now: NOW }))[0]?.castSize).toBe(2);
     expect((await feedForActors(db, [UEDA.id], { now: NOW }))[0]?.castSize).toBe(2);
   });
 });
@@ -227,7 +227,7 @@ describe("latestWorks", () => {
       NOW,
     );
 
-    const works = await latestWorks(db, { sinceDays: 30, now: NOW });
+    const works = await latestWorks(db, { storeSlug: "dlsite", sinceDays: 30, now: NOW });
 
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:RECENT"]);
   });
@@ -236,7 +236,7 @@ describe("latestWorks", () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "NODATE" })] }), daysAgo(2));
 
-    const works = await latestWorks(db, { sinceDays: 30, now: NOW });
+    const works = await latestWorks(db, { storeSlug: "dlsite", sinceDays: 30, now: NOW });
 
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:NODATE"]);
   });
@@ -264,7 +264,7 @@ describe("latestWorks", () => {
       daysAgo(3),
     );
 
-    const works = await latestWorks(db, { now: NOW, limit: 2 });
+    const works = await latestWorks(db, { storeSlug: "dlsite", now: NOW, limit: 2 });
 
     // NODATE の日付は初出の 3 日前 (2026-09-15)。D5 より新しい
     expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:D1", "dlsite:NODATE"]);
@@ -284,7 +284,7 @@ describe("latestWorks", () => {
       NOW,
     );
 
-    const works = await latestWorks(db, { now: NOW, limit: 2 });
+    const works = await latestWorks(db, { storeSlug: "dlsite", now: NOW, limit: 2 });
 
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:A", "dlsite:B"]);
   });
@@ -307,14 +307,35 @@ describe("latestWorks", () => {
       );
     }
 
-    const works = await latestWorks(db, { now: NOW, limit: 2, storeSlug: "dlsite" });
+    const works = await latestWorks(db, { storeSlug: "dlsite", now: NOW, limit: 2 });
 
     expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:MID", "dlsite:NEW"]);
   });
 
+  /** 選ぶ規則と最後に並べる規則が同じなので、同じ日に見つかった作品が上限を超えても選び方がずれない */
+  it("同じ日に見つかった発売日の無い作品は、初出の時刻の新しい順に上限まで採る", async () => {
+    const db = await setupDb();
+    for (const [id, hours] of [
+      ["A", 8],
+      ["B", 10],
+      ["C", 12],
+    ] as const) {
+      await ingest(
+        db,
+        payload({ runId: `run-${id}`, works: [rawWork({ storeProductId: id })] }),
+        `2026-09-16T${String(hours).padStart(2, "0")}:00:00.000Z`,
+      );
+    }
+
+    const works = await latestWorks(db, { storeSlug: "dlsite", now: NOW, limit: 2 });
+
+    // 見るのは採った作品。見せる順は段の中の規則 (`compareFeedOrder`) で並べ直される
+    expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:B", "dlsite:C"]);
+  });
+
   /**
    * 発売日のある作品が上限までそろえば、その最後の日付より前に見つかった発売日の無い作品は上位に入らない。
-   * 同じ日付は id で並べるので、その日に見つかった作品は入りうる (下限はその日を含む)
+   * 同じ日付は初出の時刻で並べるので、その日に見つかった作品は入りうる (下限はその日を含む)
    */
   it("発売日の無い作品は、発売日のある側の上限件目の日付以降に見つかったものだけが並びに入る", async () => {
     const db = await setupDb();
@@ -326,9 +347,10 @@ describe("latestWorks", () => {
           rawWork({ storeProductId: "D2", releaseDate: "2026-09-15" }),
         ],
       }),
-      NOW,
+      // D2 の初出 (2026-09-13) を、下の A0 の初出より前にする
+      daysAgo(5),
     );
-    // D2 と同じ日 (2026-09-15) に見つかった作品。id が D2 より前なので D2 より先に並ぶ
+    // D2 の発売日と同じ日 (2026-09-15) に見つかった作品。同じ日付の中では初出の遅い A0 が先に並ぶ
     await ingest(
       db,
       payload({ runId: "run-a", works: [rawWork({ storeProductId: "A0" })] }),
@@ -341,12 +363,12 @@ describe("latestWorks", () => {
       daysAgo(8),
     );
 
-    const works = await latestWorks(db, { now: NOW, limit: 2, storeSlug: "dlsite" });
+    const works = await latestWorks(db, { storeSlug: "dlsite", now: NOW, limit: 2 });
 
     expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:A0", "dlsite:D1"]);
   });
 
-  it("ストアで絞り込める", async () => {
+  it("ストアごとに、そのストアに掲載がある作品だけを返す", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);
     await ingest(
@@ -365,7 +387,8 @@ describe("latestWorks", () => {
       NOW,
     );
 
-    expect((await latestWorks(db, { now: NOW })).map((item) => item.work.id)).toHaveLength(2);
+    const dlsiteOnly = await latestWorks(db, { storeSlug: "dlsite", now: NOW });
+    expect(dlsiteOnly.map((item) => item.work.id)).toEqual(["dlsite:RJ1"]);
     const audibleOnly = await latestWorks(db, { storeSlug: "audible", now: NOW });
     expect(audibleOnly.map((item) => item.work.id)).toEqual(["audible:B0ABC"]);
   });
@@ -380,7 +403,7 @@ describe("latestWorks", () => {
       NOW,
     );
 
-    const [latest] = await latestWorks(db, { now: NOW });
+    const [latest] = await latestWorks(db, { storeSlug: "dlsite", now: NOW });
 
     expect(latest?.actors).toEqual([
       { id: UEDA.id, slug: UEDA.slug, name: "上田麗奈", nameEn: "Reina Ueda" },
@@ -392,7 +415,7 @@ describe("latestWorks", () => {
     const db = await setupDb([UEDA, HANAZAWA]);
     await ingest(db, payload({ works: [rawWork({ creditedNames: ["花澤香菜"] })] }), NOW);
 
-    const [latest] = await latestWorks(db, { now: NOW });
+    const [latest] = await latestWorks(db, { storeSlug: "dlsite", now: NOW });
 
     expect(latest?.actors.map((actor) => actor.id)).toEqual([HANAZAWA.id]);
   });
@@ -692,7 +715,7 @@ describe("latestWorks / worksByActor の段", () => {
       NOW,
     );
 
-    const works = await latestWorks(db, { now: NOW });
+    const works = await latestWorks(db, { storeSlug: "dlsite", now: NOW });
 
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:FUTURE", "dlsite:D3", "dlsite:D40"]);
     expect(freshnessById(works)).toEqual({
@@ -746,7 +769,9 @@ describe("latestWorks / worksByActor の段", () => {
     );
 
     const expected = { "dlsite:INITIAL": "older", "dlsite:FOUND": "recent" };
-    expect(freshnessById(await latestWorks(db, { now: NOW }))).toEqual(expected);
+    expect(freshnessById(await latestWorks(db, { storeSlug: "dlsite", now: NOW }))).toEqual(
+      expected,
+    );
     expect(freshnessById(await worksByActor(db, UEDA.id, { now: NOW }))).toEqual(expected);
     expect((await getWorkById(db, "dlsite:FOUND", NOW))?.freshness).toBe("recent");
   });

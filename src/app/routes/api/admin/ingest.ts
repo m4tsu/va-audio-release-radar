@@ -48,8 +48,11 @@ export const Route = createFileRoute("/api/admin/ingest")({
         }
 
         const result = await ingest(getDb(), parsed.data, new Date().toISOString());
-        // 既知の作品を取り込み直すだけの回が大半なので、新しい listing があったときだけキャッシュを消す
-        return Response.json(result, { headers: dataChangedHeaders(result.new > 0) });
+        // 既知の作品を取り込み直すだけの回が大半なので、前のキャッシュを消すのは新しい listing があったときだけ。
+        // 保存した作品があれば、発売日の補完や credit の解決で中身が変わりうるので、クエリ結果の世代は上げる
+        return Response.json(result, {
+          headers: dataChangedHeaders(result.new > 0, result.upserted > 0),
+        });
       },
     },
   },

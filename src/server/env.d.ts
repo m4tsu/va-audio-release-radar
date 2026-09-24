@@ -80,6 +80,11 @@ interface AppSecrets {
    * 秘匿値ではなく wrangler.jsonc の `vars` に置き、本番の値は package.json の deploy が渡す
    */
   DATA_CACHE?: string;
+  /**
+   * デプロイした版の情報 (wrangler.jsonc の `version_metadata`)。バインディングだが生成側の型に載らないのでここで足す
+   * (`worker-configuration.d.ts` は `DB` だけを持つ)
+   */
+  CF_VERSION_METADATA?: WorkerVersionMetadata;
 }
 
 export {};

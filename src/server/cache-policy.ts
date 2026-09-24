@@ -22,8 +22,11 @@
 /** 公開データのサーバー関数が応答に立てる目印。入口で読んで消す */
 export const PUBLIC_DATA_HEADER = "x-koetrail-cache";
 /**
- * 画面に出るデータを書き換えた書き込み (管理 API・管理画面のサーバー関数) が応答に立てる目印。入口がキャッシュを消す。
- * パスで決めないのは、取り込みの多くは何も変えずに終わるため。そこで消すと、消す回数の上限をすぐに使い切る
+ * 画面に出るデータを書き換えた書き込み (管理 API・管理画面のサーバー関数) が応答に立てる目印。
+ * 値が `purge` (と `markDataChanged` の "1") なら、入口がクエリ結果のキャッシュの世代を上げてから Worker の前の
+ * キャッシュを消す。`refresh` なら世代だけを上げる。
+ * パスで決めないのは、取り込みの多くは何も変えずに終わるため。前のキャッシュを消す API は回数に上限があり、
+ * 変えるたびに消すとすぐに使い切る。世代の書き換えは 1 行の書き込みで上限が無い
  */
 export const DATA_CHANGED_HEADER = "x-koetrail-data-changed";
 
@@ -37,11 +40,15 @@ export const CDN_CACHE_CONTROL = "max-age=3600, stale-while-revalidate=86400";
 const CACHEABLE_FILES = new Set(["/sitemap.xml", "/robots.txt"]);
 
 /**
- * 管理 API が書き込みの結果を返すときに添えるヘッダ。`changed` が true なら入口がキャッシュを消す。
- * サーバー関数からは `markDataChanged` (`response-cache.ts`) を使う
+ * 管理 API が書き込みの結果を返すときに添えるヘッダ。サーバー関数からは `markDataChanged` (`response-cache.ts`) を使う。
+ *
+ * - `changed`: 画面の並びが変わる書き込み (新しい作品など)。入口がすべてのキャッシュを消す
+ * - `touched`: 既存の行を書き換えた書き込み (発売日の補完、credit の解決など)。クエリ結果のキャッシュの世代だけ上げる。
+ *   Worker の前のキャッシュは寿命で入れ替わり、そのときクエリ結果は新しい世代から作り直される
  */
-export function dataChangedHeaders(changed: boolean): Record<string, string> {
-  return changed ? { [DATA_CHANGED_HEADER]: "1" } : {};
+export function dataChangedHeaders(changed: boolean, touched = changed): Record<string, string> {
+  if (changed) return { [DATA_CHANGED_HEADER]: "purge" };
+  return touched ? { [DATA_CHANGED_HEADER]: "refresh" } : {};
 }
 
 export type CacheDecision = {
@@ -49,8 +56,10 @@ export type CacheDecision = {
   cacheable: boolean;
   /** キャッシュ可のときの `Vary`。版を分けないなら undefined */
   vary?: string;
-  /** この応答の後でキャッシュを消すか */
+  /** この応答の後で、クエリ結果のキャッシュの世代を上げてから Worker の前のキャッシュを消すか */
   purge: boolean;
+  /** この応答の後で、クエリ結果のキャッシュの世代だけを上げるか (`purge` のときは含む) */
+  refresh?: boolean;
 };
 
 export function decideCache(request: Request, response: Response): CacheDecision {
@@ -58,7 +67,9 @@ export function decideCache(request: Request, response: Response): CacheDecision
   const readOnly = request.method === "GET" || request.method === "HEAD";
 
   if (!readOnly) {
-    return { cacheable: false, purge: response.ok && response.headers.has(DATA_CHANGED_HEADER) };
+    const mark = response.ok ? response.headers.get(DATA_CHANGED_HEADER) : null;
+    if (mark === "refresh") return { cacheable: false, purge: false, refresh: true };
+    return { cacheable: false, purge: mark !== null };
   }
 
   const notCacheable: CacheDecision = { cacheable: false, purge: false };

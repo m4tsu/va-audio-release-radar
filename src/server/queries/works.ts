@@ -301,49 +301,48 @@ export async function workStatsForActors(
 }
 
 /**
- * 全声優横断の新着。トップで使う。
+ * 全声優横断の新着。トップがストアごとに引く。
  *
- * `storeSlug` を渡すとそのストアに掲載がある作品だけになる。絞ってもカードに出す掲載は
- * 全ストアぶん (`loadListings`) のまま。同じ作品が他のストアにもあることは隠さない。
+ * そのストアに買える掲載がある作品だけを返す。カードに出す掲載は全ストアぶん (`loadListings`) のまま。
+ * 同じ作品が他のストアにもあることは隠さない。
  *
  * 発売日のある作品と無い作品を別々に引いてから合わせる。1 本の問い合わせだと窓の条件が
  * 発売日と初出の `or` になり、索引を使えずに全作品と全 listing を読む。
- * それぞれの上位 `limit` 件を合わせて並べ直せば、全体の上位 `limit` 件と同じになる
+ * どちらも `newestFirst` と同じ規則 (日付の降順、同じ日付は初出の時刻の降順、それも同じなら id の昇順) で
+ * 上位 `limit` 件を選ぶので、合わせて並べ直せば全体の上位 `limit` 件と同じになる
  */
 export async function latestWorks(
   db: AppDb,
-  options: { limit?: number; sinceDays?: number; storeSlug?: StoreSlug; now?: string } = {},
+  options: { storeSlug: StoreSlug; limit?: number; sinceDays?: number; now?: string },
 ): Promise<WorkWithActors[]> {
   const {
+    storeSlug,
     limit = 50,
     sinceDays = FEED_WINDOW_DAYS,
-    storeSlug,
     now = new Date().toISOString(),
   } = options;
 
   const sinceIso = isoDaysAgo(now, sinceDays);
-  // 買える listing だけを見る。`storeSlug` で絞るときに取り下げた listing へ当たると、
-  // 他のストアで買えることを根拠に「そのストアで買える作品」として出てしまう。
+  // 買える listing だけを見る。取り下げた listing へ当たると、他のストアで買えることを根拠に
+  // 「そのストアで買える作品」として出てしまう。
   // ストアの条件の `+` は、作品ごとの listing を引く副問い合わせに (ストア, 初出) の索引を選ばせないため。
   // 選ばれると作品 1 件ごとにそのストアの listing を全部たどる
   const listingOnSale = and(
     isNull(storeListings.delistedAt),
-    storeSlug ? sql`+${storeListings.storeSlug} = ${storeSlug}` : undefined,
+    sql`+${storeListings.storeSlug} = ${storeSlug}`,
   );
+  // 作品のそのストアでの初出。外側の作品は表名を明示して指す。select 句と order by の中では drizzle が
+  // 列を表名なしで出すので、`audio_works.id` が内側の `store_listings.id` を指してしまう
+  const firstSeenInStore = sql<string>`(
+    select min(${storeListings.firstSeenAt}) from ${storeListings}
+    where ${storeListings.audioWorkId} = ${sql.identifier(getTableName(audioWorks))}.${sql.identifier("id")}
+      and ${listingOnSale}
+  )`;
 
-  // 発売日の索引を新しい順にたどり、`limit` 件そろった所で止まる。集約すると止まれないので、
-  // 初出は作品ごとの副問い合わせで取る (並べる件数ぶんしか評価されない)
+  // 発売日の索引を新しい順にたどる。窓の中の発売日のある作品は多くないので、同じ日付の中を初出で
+  // 並べるための副問い合わせを全件で評価しても安い
   const dated = await db
-    .select({
-      ...workColumns,
-      // 外側の作品は表名を明示して指す。select 句の中では drizzle が列を表名なしで出すので、
-      // `audio_works.id` が内側の `store_listings.id` を指してしまう
-      firstSeenAt: sql<string>`(
-        select min(${storeListings.firstSeenAt}) from ${storeListings}
-        where ${storeListings.audioWorkId} = ${sql.identifier(getTableName(audioWorks))}.${sql.identifier("id")}
-          and ${listingOnSale}
-      )`,
-    })
+    .select({ ...workColumns, firstSeenAt: firstSeenInStore })
     .from(audioWorks)
     .where(
       and(
@@ -355,14 +354,10 @@ export async function latestWorks(
         )`,
       ),
     )
-    .orderBy(desc(audioWorks.releaseDate), asc(audioWorks.id))
+    .orderBy(desc(audioWorks.releaseDate), desc(firstSeenInStore), asc(audioWorks.id))
     .limit(limit);
 
-  const undated =
-    storeSlug === undefined
-      ? await undatedAcrossStores(db, sinceIso, limit)
-      : await undatedInStore(db, storeSlug, undatedFloor(sinceIso, dated, limit), limit);
-  // 同着を id で決めるのは、2 つを合わせたときにどちらの上位から採るかを実行ごとに揺らさないため
+  const undated = await undatedInStore(db, storeSlug, undatedFloor(sinceIso, dated, limit), limit);
   const rows = [...dated, ...undated].sort(newestFirst).slice(0, limit);
 
   const workIds = rows.map((row) => row.id);
@@ -522,7 +517,7 @@ function undatedFloor(sinceIso: string, dated: WorkRow[], limit: number): string
  * 作品 ID は「ストア:商品 ID」なので、1 作品が 1 ストアに持つ listing は 1 つだけ (`ingest.ts`)。
  * 作品ごとに集約しなくても、listing の初出がそのまま作品の初出になる。集約をやめると
  * (ストア, 初出) の索引を新しい順にたどって `limit` 件で止まれる。
- * 同じ日付の中は初出の時刻が新しい作品を先に採る (最後に並べ直すときは日付と id で並べる)
+ * 並びは `newestFirst` と同じ (初出の日付の降順、同じ日付は時刻の降順、それも同じなら id の昇順)
  */
 async function undatedInStore(
   db: AppDb,
@@ -545,29 +540,6 @@ async function undatedInStore(
       ),
     )
     .orderBy(desc(storeListings.firstSeenAt), asc(audioWorks.id))
-    .limit(limit);
-}
-
-/**
- * ストアを指定しないときの、発売日の無い作品。作品は複数のストアに listing を持ちうるので、
- * 作品ごとに集約して初出を決める。窓の中の listing を全部読むので、画面からは呼ばない
- * (`fetchLatestWorks` はストアを必須にしている)
- */
-async function undatedAcrossStores(db: AppDb, sinceIso: string, limit: number): Promise<WorkRow[]> {
-  return db
-    .select(workSelection)
-    .from(storeListings)
-    .innerJoin(audioWorks, eq(audioWorks.id, storeListings.audioWorkId))
-    .where(
-      and(
-        gte(storeListings.firstSeenAt, sinceIso),
-        isNull(storeListings.delistedAt),
-        sql`+${audioWorks.releaseDate} is null`,
-        notAdultRated,
-      ),
-    )
-    .groupBy(audioWorks.id)
-    .orderBy(...newestFirstOrder)
     .limit(limit);
 }
 
@@ -777,11 +749,16 @@ function rowSortKey(row: WorkRow): string {
   return row.releaseDate ?? row.firstSeenAt.slice(0, 10);
 }
 
-/** `newestFirstOrder` と同じ並び (日付の降順、同着は id の昇順) を JS 側で作る */
+/**
+ * 新着の上位を選ぶ並び (`latestWorks`)。日付の降順で、同じ日付は初出の時刻の降順、それも同じなら id の昇順。
+ * 声優ページの並び (`newestFirstOrder`) は同じ日付を id で決めるので、それとは違う
+ */
 function newestFirst(a: WorkRow, b: WorkRow): number {
   const keyA = rowSortKey(a);
   const keyB = rowSortKey(b);
   if (keyA !== keyB) return keyA < keyB ? 1 : -1;
+  // 同じ日付の中は初出の時刻の降順。発売日の無い作品を (ストア, 初出) の索引の順に採るのと合わせる
+  if (a.firstSeenAt !== b.firstSeenAt) return a.firstSeenAt < b.firstSeenAt ? 1 : -1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 

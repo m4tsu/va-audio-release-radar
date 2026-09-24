@@ -47,14 +47,14 @@ export const searchActorsFn = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { searchActors }, { publicQuery }] = await Promise.all([
+    const [{ getDb }, { searchActors }, { markPublicData }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
       import("@/server/response-cache"),
     ]);
-    return publicQuery("searchActors", { q: data.q, limit: data.limit }, () =>
-      searchActors(getDb(), data.q, data.limit),
-    );
+    // 打鍵ごとに検索語が変わってほぼ当たらないので、クエリ結果のキャッシュには置かない
+    markPublicData();
+    return searchActors(getDb(), data.q, data.limit);
   });
 
 export const fetchAllActors = createServerFn({ method: "GET" }).handler(async () => {

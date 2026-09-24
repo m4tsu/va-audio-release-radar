@@ -28,42 +28,93 @@ import { getWorkById, latestWorks, worksByActor } from "./queries/works";
 
 describe("cacheKeyUrl", () => {
   it("引数の並びが違っても同じキーになる", () => {
-    const a = cacheKeyUrl("https://koetrail.com", "latestWorks", "g1", "2026-09-24", {
-      limit: 12,
-      storeSlug: "dlsite",
-    });
-    const b = cacheKeyUrl("https://koetrail.com", "latestWorks", "g1", "2026-09-24", {
-      storeSlug: "dlsite",
-      limit: 12,
-    });
+    const a = cacheKeyUrl(
+      "https://koetrail.com",
+      "latestWorks",
+      { version: "v1", generation: "g1", date: "2026-09-24" },
+      {
+        limit: 12,
+        storeSlug: "dlsite",
+      },
+    );
+    const b = cacheKeyUrl(
+      "https://koetrail.com",
+      "latestWorks",
+      { version: "v1", generation: "g1", date: "2026-09-24" },
+      {
+        storeSlug: "dlsite",
+        limit: 12,
+      },
+    );
 
     expect(a).toBe(b);
   });
 
-  it("世代・日付・引数のどれかが違えば別のキーになる", () => {
-    const base = cacheKeyUrl("https://koetrail.com", "q", "g1", "2026-09-24", { id: "a" });
+  it("版・世代・日付・引数のどれかが違えば別のキーになる", () => {
+    const base = cacheKeyUrl(
+      "https://koetrail.com",
+      "q",
+      { version: "v1", generation: "g1", date: "2026-09-24" },
+      { id: "a" },
+    );
 
-    expect(cacheKeyUrl("https://koetrail.com", "q", "g2", "2026-09-24", { id: "a" })).not.toBe(
-      base,
-    );
-    expect(cacheKeyUrl("https://koetrail.com", "q", "g1", "2026-09-25", { id: "a" })).not.toBe(
-      base,
-    );
-    expect(cacheKeyUrl("https://koetrail.com", "q", "g1", "2026-09-24", { id: "b" })).not.toBe(
-      base,
-    );
+    expect(
+      cacheKeyUrl(
+        "https://koetrail.com",
+        "q",
+        { version: "v1", generation: "g2", date: "2026-09-24" },
+        { id: "a" },
+      ),
+    ).not.toBe(base);
+    expect(
+      cacheKeyUrl(
+        "https://koetrail.com",
+        "q",
+        { version: "v1", generation: "g1", date: "2026-09-25" },
+        { id: "a" },
+      ),
+    ).not.toBe(base);
+    expect(
+      cacheKeyUrl(
+        "https://koetrail.com",
+        "q",
+        { version: "v1", generation: "g1", date: "2026-09-24" },
+        { id: "b" },
+      ),
+    ).not.toBe(base);
+    // 結果の形を変えたデプロイの後に、前の版の結果を読まない
+    expect(
+      cacheKeyUrl(
+        "https://koetrail.com",
+        "q",
+        { version: "v2", generation: "g1", date: "2026-09-24" },
+        { id: "a" },
+      ),
+    ).not.toBe(base);
   });
 
   it("値が undefined の引数は無いものとして扱う", () => {
-    expect(cacheKeyUrl("https://koetrail.com", "q", "g", "d", { a: "1", b: undefined })).toBe(
-      cacheKeyUrl("https://koetrail.com", "q", "g", "d", { a: "1" }),
+    expect(
+      cacheKeyUrl(
+        "https://koetrail.com",
+        "q",
+        { version: "v1", generation: "g", date: "d" },
+        { a: "1", b: undefined },
+      ),
+    ).toBe(
+      cacheKeyUrl(
+        "https://koetrail.com",
+        "q",
+        { version: "v1", generation: "g", date: "d" },
+        { a: "1" },
+      ),
     );
   });
 
   it("サイト自身のオリジンの下に置く", () => {
-    expect(cacheKeyUrl("https://koetrail.com", "q", "g", "d", {})).toMatch(
-      /^https:\/\/koetrail\.com\/_data-cache\/q\?/,
-    );
+    expect(
+      cacheKeyUrl("https://koetrail.com", "q", { version: "v1", generation: "g", date: "d" }, {}),
+    ).toMatch(/^https:\/\/koetrail\.com\/_data-cache\/q\?/);
   });
 });
 

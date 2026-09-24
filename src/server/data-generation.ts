@@ -17,11 +17,11 @@ export type QueryArgs = Record<string, string | number | boolean | readonly stri
 export function cacheKeyUrl(
   origin: string,
   name: string,
-  generation: string,
-  date: string,
+  key: { version: string; generation: string; date: string },
   args: QueryArgs,
 ): string {
-  const params = new URLSearchParams({ g: generation, d: date });
+  // 版を入れるのは、結果の形を変えたデプロイの後に前の版の結果を読まないため (デプロイでは世代が上がらない)
+  const params = new URLSearchParams({ v: key.version, g: key.generation, d: key.date });
   for (const field of Object.keys(args).sort()) {
     const value = args[field];
     if (value === undefined) continue;

@@ -49,7 +49,18 @@ export async function cachedQuery<T>(
 
   let key: Request;
   try {
-    key = new Request(cacheKeyUrl(siteOrigin(), name, await currentGeneration(), today(), args));
+    key = new Request(
+      cacheKeyUrl(
+        siteOrigin(),
+        name,
+        {
+          version: env.CF_VERSION_METADATA?.id ?? "unknown",
+          generation: await currentGeneration(),
+          date: today(),
+        },
+        args,
+      ),
+    );
     const hit = await defaultCache().match(key);
     if (hit) return (await hit.json()) as T;
   } catch (error) {

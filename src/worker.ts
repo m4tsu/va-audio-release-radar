@@ -20,6 +20,7 @@ export default {
     const decision = decideCache(request, response);
     // 消すのは応答を返した後でよい。待たせると取り込みの 1 回ごとに往復が 1 つ増える
     if (decision.purge) ctx.waitUntil(invalidateCaches(ctx));
+    else if (decision.refresh) ctx.waitUntil(bumpGeneration());
     return applyCacheDecision(response, decision);
   },
   scheduled: async () => {
@@ -37,6 +38,12 @@ export default {
  * キャッシュに寿命いっぱい残るのを防ぐため。世代を上げられなかったときも、前のキャッシュは消す
  */
 async function invalidateCaches(ctx: ExecutionContext): Promise<void> {
+  await bumpGeneration();
+  await purgeCache(ctx);
+}
+
+/** クエリ結果のキャッシュの世代を上げる。失敗したら記録だけ残す (古さは結果の寿命で止まる) */
+async function bumpGeneration(): Promise<void> {
   try {
     const [{ getDb }, { bumpDataGeneration }] = await Promise.all([
       import("@/server/db/client"),
@@ -46,7 +53,6 @@ async function invalidateCaches(ctx: ExecutionContext): Promise<void> {
   } catch (error) {
     console.warn("クエリ結果のキャッシュの世代を上げられなかった", error);
   }
-  await purgeCache(ctx);
 }
 
 /**
