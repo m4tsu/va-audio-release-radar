@@ -13,6 +13,7 @@ function listing(over: Partial<WorkListing> = {}): WorkListing {
     storeSlug: "dlsite",
     storeProductId: "RJ01000419",
     productUrl: "https://www.dlsite.com/home/work/=/product_id/RJ01000419.html",
+    storeSection: "home",
     titleRaw: "架空のASMR作品",
     firstSeenAt: "2026-09-18T00:00:00.000Z",
     lastSeenAt: "2026-09-18T00:00:00.000Z",
@@ -20,32 +21,60 @@ function listing(over: Partial<WorkListing> = {}): WorkListing {
   };
 }
 
-describe("affiliateUrlFor", () => {
-  it("DLsite は RJ 番号とアフィリエイト ID だけから dlaf.jp の URL を組み立てる", () => {
-    expect(affiliateUrlFor("dlsite", "RJ01000419", ALL_IDS)).toBe(
+describe("affiliateUrlFor の DLsite", () => {
+  it("作品 ID とアフィリエイト ID から dlaf.jp の URL を組み立てる", () => {
+    expect(affiliateUrlFor(listing(), ALL_IDS)).toBe(
       "https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/do65m205lfao7/id/RJ01000419.html",
     );
   });
 
+  /** 管理画面が出したリンクの組。所属と `/home/` で作られた product_url が食い違う作品を含む */
+  it.each([
+    ["girls", "RJ01048863", "girls"],
+    ["soft", "VJ012971", "soft"],
+    ["bldrama", "BJ02911418", "garumani"],
+    ["girlsdrama", "BJ02911418", "garumani"],
+  ])("所属 %s の %s はフロア %s のパスにする", (storeSection, storeProductId, floor) => {
+    const url = affiliateUrlFor(
+      listing({
+        storeProductId,
+        storeSection,
+        productUrl: `https://www.dlsite.com/home/work/=/product_id/${storeProductId}.html`,
+      }),
+      ALL_IDS,
+    );
+
+    expect(url).toBe(
+      `https://dlaf.jp/${floor}/dlaf/=/t/n/link/work/aid/do65m205lfao7/id/${storeProductId}.html`,
+    );
+  });
+
+  it("所属が無いか知らない値なら組み立てない", () => {
+    expect(affiliateUrlFor(listing({ storeSection: undefined }), ALL_IDS)).toBeUndefined();
+    expect(affiliateUrlFor(listing({ storeSection: "maniax" }), ALL_IDS)).toBeUndefined();
+  });
+
   it("ID が空か空白だけなら組み立てない", () => {
-    expect(affiliateUrlFor("dlsite", "RJ01000419", {})).toBeUndefined();
-    expect(affiliateUrlFor("dlsite", "RJ01000419", { DLSITE_AFFILIATE_ID: " " })).toBeUndefined();
+    expect(affiliateUrlFor(listing(), {})).toBeUndefined();
+    expect(affiliateUrlFor(listing(), { DLSITE_AFFILIATE_ID: " " })).toBeUndefined();
   });
 
-  it("組み立て方の無いストアは ID が入っていても組み立てない", () => {
-    expect(affiliateUrlFor("audible", "B0ABC", ALL_IDS)).toBeUndefined();
-    expect(affiliateUrlFor("pokedora", "123", ALL_IDS)).toBeUndefined();
-  });
-
-  it("DLsite の RJ 以外の作品 (`/garumani/` の BJ) は組み立てない", () => {
-    expect(affiliateUrlFor("dlsite", "BJ01234567", ALL_IDS)).toBeUndefined();
-  });
-
-  /** 商品 ID は外部由来の文字列。区切り文字が混ざってもパスの別の位置に効かないようにする */
-  it("ID と商品 ID をパスの 1 区間に閉じ込める", () => {
-    expect(affiliateUrlFor("dlsite", "RJ1/../x", ALL_IDS)).toBe(
+  /** 作品 ID は外部由来の文字列。区切り文字が混ざってもパスの別の位置に効かないようにする */
+  it("ID と作品 ID をパスの 1 区間に閉じ込める", () => {
+    expect(affiliateUrlFor(listing({ storeProductId: "RJ1/../x" }), ALL_IDS)).toBe(
       "https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/do65m205lfao7/id/RJ1%2F..%2Fx.html",
     );
+  });
+});
+
+describe("affiliateUrlFor の組み立て方が無いストア", () => {
+  it("ID が入っていても組み立てない", () => {
+    expect(
+      affiliateUrlFor(listing({ storeSlug: "audible", storeProductId: "B0ABC" }), ALL_IDS),
+    ).toBeUndefined();
+    expect(
+      affiliateUrlFor(listing({ storeSlug: "pokedora", storeProductId: "123" }), ALL_IDS),
+    ).toBeUndefined();
   });
 });
 

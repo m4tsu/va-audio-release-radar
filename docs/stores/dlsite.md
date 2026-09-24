@@ -199,11 +199,24 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 **最終確認日: 2026-09-24。**
 
 - 形の出どころは DLsite アフィリエイトの管理画面が作品ごとに出力するリンク
-- ホストは `dlsite.com` ではなく `dlaf.jp`。パスに入るのはアフィリエイト ID と作品 ID
-  (`store_listings.store_product_id`) だけで、`product_url` もフロアのパスも使わない
+- ホストは `dlsite.com` ではなく `dlaf.jp`。パスに入るのはフロア、アフィリエイト ID、作品 ID
+  (`store_listings.store_product_id`) の 3 つ
 - パスの `t/n` の意味は確かめていない。管理画面の出力をそのまま写している
-- 確かめた作品 ID は `RJ` だけ。`/garumani/` から来る `BJ` の作品に同じ `home` のパスが通じるかは
-  確かめていないので、`BJ` の作品は正規 URL のまま出す (「未確認の項目」)
+- **フロアは作品の所属で決まり、検索したフロアではない。** 管理画面が出したリンクと、
+  その作品の `store_section` (product.json の `site_id`) の組:
+
+  | 作品 | 所属 (`store_section`) | リンクのフロア |
+  |---|---|---|
+  | `RJ01000419` | `home` | `home` |
+  | `RJ01048863` | `girls` (`product_url` は `/home/`) | `girls` |
+  | `VJ012971` | `soft` | `soft` |
+  | `BJ02911418` (`/garumani/` の検索で出た作品) | 未取得 | `garumani` |
+
+  `product_url` は検索したフロアで作られるので、所属が `girls` の作品でも `/home/` になる。
+  フロアには使わない
+- `/garumani/` の作品の所属は `bldrama` / `girlsdrama` で返る (`docs/research/dlsite-female-floors-2026-09-20.md`)。この 2 つは
+  `garumani` にしている。`bl` と `pro` はリンクを確かめておらず、所属と同じ名前のフロアとしている。
+  所属が空か、ほかの値の作品は正規 URL のまま出す
 - アフィリエイト ID は URL に出る公開値。本番の値は `package.json` の `deploy` が渡す
 
 ---
@@ -338,7 +351,7 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, is_reser
   `Sitemap:` 行に `girlspro` と `blpro` もある
 - `sex_category` の値の意味。女性向けの作品が 2 であることは実測した。
   1 が入る作品は `crawler/fixtures/dlsite-product-RJ01698658.json` にあるが、1 が何を指すかは未確認
-- `BJ` の作品のアフィリエイトリンクの形。管理画面で `BJ` の作品のリンクを出して、`home` 以外のパスになるかを見る
+- アフィリエイトリンクのフロアが、所属 `bl` / `pro` の作品でも所属と同じ名前になるか。管理画面でリンクを出して見る
 - `BJ` の商業音声で、女性向けでないもの (`/books/` など他のフロア) を `/home/` が拾えているか
 
 ---

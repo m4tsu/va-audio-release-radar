@@ -763,6 +763,16 @@ describe("getWorkById", () => {
     expect(detail?.listings[0]).not.toHaveProperty("affiliateUrl");
   });
 
+  /** DLsite のアフィリエイト URL は所属からフロアを引く (`@/server/affiliate`) */
+  it("listing にストアの区分を付ける", async () => {
+    const db = await setupDb();
+    await ingest(db, payload({ works: [rawWork({ storeSection: "girls" })] }), NOW);
+
+    const detail = await getWorkById(db, "dlsite:RJ01698658");
+
+    expect(detail?.listings[0]?.storeSection).toBe("girls");
+  });
+
   it("居なければ undefined", async () => {
     const db = await setupDb();
     expect(await getWorkById(db, "dlsite:NOPE")).toBeUndefined();

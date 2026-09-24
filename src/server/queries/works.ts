@@ -80,6 +80,8 @@ export type WorkListing = {
   productUrl: string;
   /** 読むときに組み立てる (`@/server/affiliate`)。`store_listings.affiliate_url` 列は読まない */
   affiliateUrl?: string;
+  /** ストアが名乗る区分 (`StoreListing.storeSection`)。DLsite のアフィリエイト URL がフロアを引く */
+  storeSection?: string;
   titleRaw: string;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -781,6 +783,7 @@ export async function loadListings(
         storeSlug: row.storeSlug,
         storeProductId: row.storeProductId,
         productUrl: row.productUrl,
+        ...(row.storeSection ? { storeSection: row.storeSection } : {}),
         titleRaw: row.titleRaw,
         firstSeenAt: row.firstSeenAt,
         lastSeenAt: row.lastSeenAt,
