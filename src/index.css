@@ -26,7 +26,7 @@
    * 作品カードでストアのバッジと並んでも、どのストアの色とも取り違えないため。
    * ダークでも同じ色にする (`.dark` で上書きしない)。白い文字との対比が WCAG AA (4.5:1) を保てる上限の明度
    */
-  --primary: oklch(0.56 0.1 200);
+  --primary: oklch(0.54 0.1 200);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
