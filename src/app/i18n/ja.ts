@@ -64,12 +64,6 @@ export const ja = {
     bodyHint: "{{max}} 文字まで",
     /** 作品ページ・声優ページから訂正を申し出るリンクの文字列 (`components/correction-link.tsx`) */
     correctionLink: "掲載内容の誤りを知らせる",
-    /**
-     * 訂正の種別を選んだときだけ本文の近くに出す注記。
-     * 根拠として認めるものは docs/product.md の「別名義」と揃える
-     */
-    correctionEvidenceHint:
-      "別名義の申し出には根拠を書いてください。本人・事務所の公表、ストアが同一人物として扱っている事実など、確かめられるものに限ります。声質や活動時期からの推測では紐付けられません。",
     contactLabel: "連絡先 (任意)",
     contactHint: "返信が必要なときだけ、メールアドレスや SNS のアカウントを書いてください。",
     submit: "送信する",
@@ -89,9 +83,8 @@ export const ja = {
     /** 送信できない環境。設定が無いので入力しても送れないことを先に言う */
     unavailable: "現在この画面からは送信できません。",
     unavailableAlternative: "次の窓口へご連絡ください。",
-    /** 入力欄の近くに置く注記。保存されることと bot 対策を読み込むことを送信前に伝える */
+    /** 入力欄の近くに置く注記。保存されることを送信前に伝える */
     storageNote: "送信した内容はサーバーに保存されます。",
-    turnstileNote: "この画面は Cloudflare の bot 対策を読み込みます。",
     privacyLink: "プライバシーポリシー",
   },
 

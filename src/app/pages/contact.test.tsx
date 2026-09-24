@@ -49,7 +49,6 @@ describe("ContactPage", () => {
 
     expect(screen.getByLabelText("種別")).toHaveValue("request");
     expect(screen.getByLabelText("本文")).toHaveValue("");
-    expect(screen.queryByText(/別名義の申し出には根拠を書いてください/)).not.toBeInTheDocument();
   });
 
   test("訂正の申し出として開くと、種別が選ばれ本文の先頭に対象の URL が入る", () => {
@@ -66,7 +65,6 @@ describe("ContactPage", () => {
     expect(screen.getByLabelText("本文")).toHaveValue(
       "https://example.test/voice-actors/alpha\n\n",
     );
-    expect(screen.getByText(/別名義の申し出には根拠を書いてください/)).toBeInTheDocument();
   });
 
   /**

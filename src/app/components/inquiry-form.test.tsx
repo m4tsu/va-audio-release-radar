@@ -71,20 +71,33 @@ describe("InquiryForm の入力欄", () => {
   });
 
   /**
-   * 根拠が要るのは訂正の申し出だけ。どの種別でも出すと、要望や不具合の報告でも
-   * 何かを証明しないと送れないように読める
+   * 本文の説明は種別で変わらない。訂正の申し出にだけ根拠を求めると、
+   * 知らせる側に確かめる側の負担を渡すことになる
    */
-  test("訂正を選んだときだけ、根拠が要ることを本文の説明に足す", async () => {
+  test("訂正を選んでも、本文の説明は文字数の上限だけ", async () => {
     const user = userEvent.setup();
     await renderReady();
-    const hint = "別名義の申し出には根拠を書いてください。";
-
-    expect(screen.queryByText(new RegExp(hint))).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("種別"), "correction");
 
-    const evidence = screen.getByText(new RegExp(hint));
-    expect(body().getAttribute("aria-describedby")).toContain(evidence.id);
+    expect(body()).toHaveAccessibleDescription(`${INQUIRY_BODY_MAX_LENGTH} 文字まで`);
+  });
+
+  test("訂正の申し出として開いても、本文の説明は文字数の上限だけ", async () => {
+    await renderCorrection();
+
+    expect(body()).toHaveAccessibleDescription(`${INQUIRY_BODY_MAX_LENGTH} 文字まで`);
+  });
+
+  /** 送信前に伝えるのは保存されることと、その扱いの在りかだけ */
+  test("送信ボタンの前に、保存されることとプライバシーポリシーへのリンクだけを出す", async () => {
+    await renderReady();
+
+    const link = screen.getByRole("link", { name: "プライバシーポリシー" });
+    expect(link).toHaveAttribute("href", "/privacy");
+    expect(link.parentElement).toHaveTextContent(
+      /^送信した内容はサーバーに保存されます。 プライバシーポリシー$/,
+    );
   });
 
   test("英語表示では入力欄の名前も英語になる", async () => {

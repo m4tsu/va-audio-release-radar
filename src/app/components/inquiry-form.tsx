@@ -57,7 +57,6 @@ export function InquiryForm({
   const kindId = useId();
   const bodyId = useId();
   const bodyHintId = useId();
-  const evidenceHintId = useId();
   const contactId = useId();
   const contactHintId = useId();
 
@@ -68,9 +67,6 @@ export function InquiryForm({
   const [body, setBody] = useState(initialBody);
   const [contact, setContact] = useState("");
   const [state, setState] = useState<SubmitState>({ phase: "idle" });
-  // 根拠が要るのは訂正の申し出だけ。どの種別でも出すと、要望や不具合の報告でも
-  // 何かを証明しないと送れないように読める
-  const needsEvidence = kind === "correction";
 
   const turnstile = useTurnstile(turnstileSiteKey);
   const sendable = turnstileSiteKey !== null;
@@ -141,16 +137,11 @@ export function InquiryForm({
           value={body}
           rows={8}
           onChange={(event) => setBody(event.target.value)}
-          aria-describedby={needsEvidence ? `${bodyHintId} ${evidenceHintId}` : bodyHintId}
+          aria-describedby={bodyHintId}
         />
         <p id={bodyHintId} className="text-muted-foreground text-xs">
           {t("contact.bodyHint", { max: INQUIRY_BODY_MAX_LENGTH })}
         </p>
-        {needsEvidence ? (
-          <p id={evidenceHintId} className="text-muted-foreground text-xs">
-            {t("contact.correctionEvidenceHint")}
-          </p>
-        ) : null}
       </div>
 
       <div className="space-y-1">
@@ -171,7 +162,7 @@ export function InquiryForm({
       {turnstileSiteKey === null ? null : <div ref={turnstile.containerRef} />}
 
       <p className="text-muted-foreground text-xs">
-        {t("contact.storageNote")} {t("contact.turnstileNote")}{" "}
+        {t("contact.storageNote")}{" "}
         <Link to="/privacy" className="underline underline-offset-2">
           {t("contact.privacyLink")}
         </Link>

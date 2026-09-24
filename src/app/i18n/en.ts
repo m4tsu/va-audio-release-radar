@@ -58,8 +58,6 @@ export const en: Translations = {
     bodyLabel: "Message",
     bodyHint: "Up to {{max}} characters",
     correctionLink: "Report incorrect information",
-    correctionEvidenceHint:
-      "Requests about alternate names need evidence: an announcement by the voice actor or their agency, or a store treating the names as the same person. Guesses from voice or activity period are not enough to link them.",
     contactLabel: "How to reach you (optional)",
     contactHint: "Leave an email address or social account only if you need a reply.",
     submit: "Send",
@@ -75,7 +73,6 @@ export const en: Translations = {
     unavailable: "Messages cannot be sent from this page at the moment.",
     unavailableAlternative: "Please use the following contact point.",
     storageNote: "What you send is stored on the server.",
-    turnstileNote: "This page loads Cloudflare's bot protection.",
     privacyLink: "Privacy Policy",
   },
 
