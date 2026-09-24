@@ -75,6 +75,11 @@ interface AppSecrets {
   POKEDORA_VC_PID?: string;
   /** Audible の無料体験のテキストリンクの広告スペース ID (`pid`)。同じく `VALUECOMMERCE_SID` と揃ったときだけ出す */
   AUDIBLE_TRIAL_VC_PID?: string;
+  /**
+   * クエリ結果のキャッシュ (`@/server/data-cache`) を使うか。`"1"` のときだけ使う。
+   * 秘匿値ではなく wrangler.jsonc の `vars` に置き、本番の値は package.json の deploy が渡す
+   */
+  DATA_CACHE?: string;
 }
 
 export {};

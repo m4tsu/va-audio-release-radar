@@ -12,13 +12,14 @@ import { z } from "zod";
 export const fetchActorBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getActorBySlug }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { getActorBySlug }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return (await getActorBySlug(getDb(), data.slug)) ?? null;
+    return publicQuery("actorBySlug", { slug: data.slug }, async () => {
+      return (await getActorBySlug(getDb(), data.slug)) ?? null;
+    });
   });
 
 /**
@@ -28,13 +29,14 @@ export const fetchActorBySlug = createServerFn({ method: "GET" })
 export const fetchActorStoreCoverage = createServerFn({ method: "GET" })
   .validator(z.object({ voiceActorId: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getActorStoreCoverage }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { getActorStoreCoverage }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return getActorStoreCoverage(getDb(), data.voiceActorId);
+    return publicQuery("actorStoreCoverage", { voiceActorId: data.voiceActorId }, () =>
+      getActorStoreCoverage(getDb(), data.voiceActorId),
+    );
   });
 
 export const searchActorsFn = createServerFn({ method: "GET" })
@@ -45,21 +47,21 @@ export const searchActorsFn = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { searchActors }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { searchActors }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/actors"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return searchActors(getDb(), data.q, data.limit);
+    return publicQuery("searchActors", { q: data.q, limit: data.limit }, () =>
+      searchActors(getDb(), data.q, data.limit),
+    );
   });
 
 export const fetchAllActors = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ getDb }, { listActors }, { markPublicData }] = await Promise.all([
+  const [{ getDb }, { listActors }, { publicQuery }] = await Promise.all([
     import("@/server/db/client"),
     import("@/server/queries/actors"),
     import("@/server/response-cache"),
   ]);
-  markPublicData();
-  return listActors(getDb());
+  return publicQuery("allActors", {}, () => listActors(getDb()));
 });

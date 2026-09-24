@@ -117,7 +117,7 @@ service worker で、ページの資産をキャッシュしない) だけ。画
 失効で消える。宛先は利用者の識別に使わない (`src/server/db/schema.ts` の `push_subscriptions`)。
 声優ページとアニメのページは、音声作品があればインデックス対象、無ければ noindex で
 sitemap にも出さない。声優は音声作品も出演アニメも無ければ 404、アニメは出演が無ければ 404。
-フォロー一覧はブラウザごとに違うので noindex。Worker の前のキャッシュ (Workers Cache) に載せるのは誰が見ても同じ応答だけで、既定は載せず、Worker を通ってデータを変えた書き込みの後はすべて消す (`src/server/cache-policy.ts`。D1 へ直接流した変更では消えない)。
+フォロー一覧はブラウザごとに違うので noindex。Worker の前のキャッシュ (Workers Cache) に載せるのは誰が見ても同じ応答だけで、既定は載せず、Worker を通ってデータを変えた書き込みの後はすべて消す (`src/server/cache-policy.ts`。D1 へ直接流した変更では消えない)。公開データのクエリ結果は HTML とは別に Worker の Cache API にも置く (本番だけ)。無効化はデータの世代の 1 行で、同じ書き込みの後に世代を上げてから前のキャッシュを消す (`src/server/data-cache.ts`)。
 
 画面は 3 層に分かれ、依存は ルート (`src/app/routes/`) → ページ (`src/app/pages/`) → 部品 (`src/app/components/`)
 の一方向。ルートは loader と head だけを持ち、画面を描かない。ページはデータを props で受け取る。

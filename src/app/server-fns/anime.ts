@@ -20,48 +20,52 @@ const seasonInput = z.object({
 export const fetchSeasonAnime = createServerFn({ method: "GET" })
   .validator(seasonInput)
   .handler(async ({ data }) => {
-    const [{ getDb }, { listSeasonAnime }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { listSeasonAnime }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return listSeasonAnime(getDb(), data.seasonYear, data.season, data.limit);
+    return publicQuery(
+      "seasonAnime",
+      { seasonYear: data.seasonYear, season: data.season, limit: data.limit },
+      () => listSeasonAnime(getDb(), data.seasonYear, data.season, data.limit),
+    );
   });
 
 export const fetchAnimeBySlug = createServerFn({ method: "GET" })
   .validator(z.object({ slug: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getAnimeBySlug }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { getAnimeBySlug }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return (await getAnimeBySlug(getDb(), data.slug)) ?? null;
+    return publicQuery("animeBySlug", { slug: data.slug }, async () => {
+      return (await getAnimeBySlug(getDb(), data.slug)) ?? null;
+    });
   });
 
 export const fetchAnimeByActor = createServerFn({ method: "GET" })
   .validator(z.object({ voiceActorId: z.string().min(1), limit: z.number().int().min(1).max(50) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { animeByActor }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { animeByActor }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return animeByActor(getDb(), data.voiceActorId, data.limit);
+    return publicQuery("animeByActor", { voiceActorId: data.voiceActorId, limit: data.limit }, () =>
+      animeByActor(getDb(), data.voiceActorId, data.limit),
+    );
   });
 
 /** 出せる作品があるシーズン。`/anime` の索引と、シーズン一覧の前後の導線が使う */
 export const fetchAnimeSeasons = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ getDb }, { listSeasonsWithAnime }, { markPublicData }] = await Promise.all([
+  const [{ getDb }, { listSeasonsWithAnime }, { publicQuery }] = await Promise.all([
     import("@/server/db/client"),
     import("@/server/queries/anime"),
     import("@/server/response-cache"),
   ]);
-  markPublicData();
-  return listSeasonsWithAnime(getDb());
+  return publicQuery("animeSeasons", {}, () => listSeasonsWithAnime(getDb()));
 });
 
 /**
@@ -92,11 +96,12 @@ export const searchAnimeFn = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { searchAnime }, { markPublicData }] = await Promise.all([
+    const [{ getDb }, { searchAnime }, { publicQuery }] = await Promise.all([
       import("@/server/db/client"),
       import("@/server/queries/anime"),
       import("@/server/response-cache"),
     ]);
-    markPublicData();
-    return searchAnime(getDb(), data.q, data.limit);
+    return publicQuery("searchAnime", { q: data.q, limit: data.limit }, () =>
+      searchAnime(getDb(), data.q, data.limit),
+    );
   });

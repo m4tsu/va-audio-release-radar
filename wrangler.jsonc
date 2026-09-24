@@ -42,6 +42,8 @@
   // VALUECOMMERCE_SID はバリューコマースのサイト ID で、*_VC_PID (広告スペース ID) と組で使う。
   // 空文字ならそのストアへは正規 URL で送る。本番の値は package.json の deploy が --var で渡す。
   // ここに入れると dev と E2E で踏んだリンクまで成果の計測に混ざる
+  // DATA_CACHE はクエリ結果のキャッシュ (src/server/data-cache.ts) を使う印。"1" のときだけ使い、本番の値は deploy が渡す。
+  // dev と E2E はシードを D1 に直接流すのでキャッシュの世代が変わらず、古い結果が返る。ここは空のままにする
   "vars": {
     "SITE_URL": "",
     "CONTACT_URL": "",
@@ -53,7 +55,8 @@
     "AUDIBLE_AFFILIATE_ID": "",
     "VALUECOMMERCE_SID": "",
     "POKEDORA_VC_PID": "",
-    "AUDIBLE_TRIAL_VC_PID": ""
+    "AUDIBLE_TRIAL_VC_PID": "",
+    "DATA_CACHE": ""
   },
   "d1_databases": [
     {

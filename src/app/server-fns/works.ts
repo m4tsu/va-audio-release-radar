@@ -22,7 +22,7 @@ export const fetchWork = createServerFn({ method: "GET" })
       { env },
       { getDb },
       { getWorkById },
-      { markPublicData },
+      { publicQuery },
       { audibleTrialLinkFor, withAffiliateUrls },
     ] = await Promise.all([
       import("cloudflare:workers"),
@@ -31,8 +31,9 @@ export const fetchWork = createServerFn({ method: "GET" })
       import("@/server/response-cache"),
       import("@/server/affiliate"),
     ]);
-    markPublicData();
-    const detail = await getWorkById(getDb(), data.id);
+    const detail = await publicQuery("workById", { id: data.id }, async () => {
+      return (await getWorkById(getDb(), data.id)) ?? null;
+    });
     if (!detail) return null;
     const audibleTrial = audibleTrialLinkFor(detail.listings, env);
     return { ...withAffiliateUrls(detail, env), ...(audibleTrial ? { audibleTrial } : {}) };
@@ -46,7 +47,7 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ env }, { getDb }, { worksByActor }, { markPublicData }, { withAffiliateUrls }] =
+    const [{ env }, { getDb }, { worksByActor }, { publicQuery }, { withAffiliateUrls }] =
       await Promise.all([
         import("cloudflare:workers"),
         import("@/server/db/client"),
@@ -54,8 +55,11 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
         import("@/server/response-cache"),
         import("@/server/affiliate"),
       ]);
-    markPublicData();
-    const works = await worksByActor(getDb(), data.voiceActorId, { limit: data.limit });
+    const works = await publicQuery(
+      "worksByActor",
+      { voiceActorId: data.voiceActorId, limit: data.limit },
+      () => worksByActor(getDb(), data.voiceActorId, { limit: data.limit }),
+    );
     return works.map((item) => withAffiliateUrls(item, env));
   });
 
@@ -77,10 +81,11 @@ export const fetchWorkStatsForActors = createServerFn({ method: "POST" })
 
 export const fetchLatestWorks = createServerFn({ method: "GET" })
   .validator(
-    periodSchema.extend({ storeSlug: z.enum(STORE_SLUGS).optional() }).default(PERIOD_DEFAULTS),
+    // ストアは必須。指定なしの新着は窓の中の listing を全部読むので、外から呼ばせない (`latestWorks`)
+    periodSchema.extend({ storeSlug: z.enum(STORE_SLUGS) }),
   )
   .handler(async ({ data }) => {
-    const [{ env }, { getDb }, { latestWorks }, { markPublicData }, { withAffiliateUrls }] =
+    const [{ env }, { getDb }, { latestWorks }, { publicQuery }, { withAffiliateUrls }] =
       await Promise.all([
         import("cloudflare:workers"),
         import("@/server/db/client"),
@@ -88,12 +93,16 @@ export const fetchLatestWorks = createServerFn({ method: "GET" })
         import("@/server/response-cache"),
         import("@/server/affiliate"),
       ]);
-    markPublicData();
-    const works = await latestWorks(getDb(), {
-      limit: data.limit,
-      sinceDays: data.sinceDays,
-      ...(data.storeSlug ? { storeSlug: data.storeSlug } : {}),
-    });
+    const works = await publicQuery(
+      "latestWorks",
+      { limit: data.limit, sinceDays: data.sinceDays, storeSlug: data.storeSlug },
+      () =>
+        latestWorks(getDb(), {
+          limit: data.limit,
+          sinceDays: data.sinceDays,
+          storeSlug: data.storeSlug,
+        }),
+    );
     return works.map((item) => withAffiliateUrls(item, env));
   });
 

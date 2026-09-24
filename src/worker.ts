@@ -19,7 +19,7 @@ export default {
     const response = await start.fetch(request, env, ctx);
     const decision = decideCache(request, response);
     // 消すのは応答を返した後でよい。待たせると取り込みの 1 回ごとに往復が 1 つ増える
-    if (decision.purge) ctx.waitUntil(purgeCache(ctx));
+    if (decision.purge) ctx.waitUntil(invalidateCaches(ctx));
     return applyCacheDecision(response, decision);
   },
   scheduled: async () => {
@@ -29,6 +29,25 @@ export default {
     await runScheduledDigest();
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * データを変えた書き込みの後に、クエリ結果のキャッシュの世代を新しくしてから、Worker の前のキャッシュを消す。
+ *
+ * 順番を守るのは、消した直後の描き直しが古い世代のクエリ結果から HTML を作り、それが Worker の前の
+ * キャッシュに寿命いっぱい残るのを防ぐため。世代を上げられなかったときも、前のキャッシュは消す
+ */
+async function invalidateCaches(ctx: ExecutionContext): Promise<void> {
+  try {
+    const [{ getDb }, { bumpDataGeneration }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/data-generation"),
+    ]);
+    await bumpDataGeneration(getDb());
+  } catch (error) {
+    console.warn("クエリ結果のキャッシュの世代を上げられなかった", error);
+  }
+  await purgeCache(ctx);
+}
 
 /**
  * キャッシュをすべて消す。キャッシュに載るのはどれもデータから作った応答なので、分けて消す意味が無い。
