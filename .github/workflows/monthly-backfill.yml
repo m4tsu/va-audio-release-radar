@@ -66,7 +66,7 @@ jobs:
       - run: npm ci
       - name: 引き直し
         # 既知作品の詳細は引き直さない (--no-skip-known を付けない)。
-        # 販売終了に気づく役目は後続の「取り下げ」ジョブが持つ
+        # 販売終了に気づく役目は後続の delist ジョブが持つ
         env:
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           INGEST_URL: ${{ secrets.INGEST_URL }}
@@ -78,7 +78,7 @@ jobs:
   # 台帳の DLsite 作品を 1 件ずつ引き直し、買えなくなったものを取り下げる。
   # 2026-09-23 時点で 992 件 × 10 秒 = 約 2.8 時間。
   # 上の巡回と同じホストなので、並べずに後ろに置く (needs)
-  取り下げ:
+  delist:
     name: DLsite の販売終了を取り下げる
     needs: [dlsite]
     # 引き直しが失敗しても取り下げは走らせる。別のことを見ているので、
@@ -129,9 +129,9 @@ jobs:
           node crawler/run.ts --base-url "$INGEST_URL" \
             --store "$STORE" --with-works --no-snapshot
 
-  失敗を知らせる:
+  notify-failure:
     name: 失敗を Issue に出す
-    needs: [dlsite, 取り下げ, others]
+    needs: [dlsite, delist, others]
     if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: ubuntu-latest
     steps:
