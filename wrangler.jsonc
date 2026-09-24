@@ -38,13 +38,19 @@
   // 空文字なら通知の案内を画面に出さない。
   // VAPID_SUBJECT は送信時に push service へ名乗る連絡先 ("mailto:..." か "https://...")。
   // 秘密鍵と subject のどちらかが欠けていれば送信は行わずログに残す
+  // *_AFFILIATE_ID はストアごとのアフィリエイト ID (src/server/affiliate.ts)。URL に出る公開値。
+  // 空文字ならそのストアへは正規 URL で送る。本番の値は package.json の deploy が --var で渡す。
+  // ここに入れると dev と E2E で踏んだリンクまで成果の計測に混ざる
   "vars": {
     "SITE_URL": "",
     "CONTACT_URL": "",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFBGLIGwb4Ee8mIj",
     "ALLOW_INDEXING": "",
     "VAPID_PUBLIC_KEY": "BL3MZJQ11GPIF5CNA5L9uL57ph7dfiSywYOTEokZ_pMetWMYPOL1a-KKThN5xdihFbf2ya4M6PAWUmshOp2pwzE",
-    "VAPID_SUBJECT": "https://koetrail.com"
+    "VAPID_SUBJECT": "https://koetrail.com",
+    "DLSITE_AFFILIATE_ID": "",
+    "AUDIBLE_AFFILIATE_ID": "",
+    "POKEDORA_AFFILIATE_ID": ""
   },
   "d1_databases": [
     {

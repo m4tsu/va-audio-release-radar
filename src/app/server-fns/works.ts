@@ -18,13 +18,17 @@ const periodSchema = z.object({
 export const fetchWork = createServerFn({ method: "GET" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ getDb }, { getWorkById }, { markPublicData }] = await Promise.all([
-      import("@/server/db/client"),
-      import("@/server/queries/works"),
-      import("@/server/response-cache"),
-    ]);
+    const [{ env }, { getDb }, { getWorkById }, { markPublicData }, { withAffiliateUrls }] =
+      await Promise.all([
+        import("cloudflare:workers"),
+        import("@/server/db/client"),
+        import("@/server/queries/works"),
+        import("@/server/response-cache"),
+        import("@/server/affiliate"),
+      ]);
     markPublicData();
-    return (await getWorkById(getDb(), data.id)) ?? null;
+    const detail = await getWorkById(getDb(), data.id);
+    return detail ? withAffiliateUrls(detail, env) : null;
   });
 
 export const fetchWorksByActor = createServerFn({ method: "GET" })
@@ -35,13 +39,17 @@ export const fetchWorksByActor = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { worksByActor }, { markPublicData }] = await Promise.all([
-      import("@/server/db/client"),
-      import("@/server/queries/works"),
-      import("@/server/response-cache"),
-    ]);
+    const [{ env }, { getDb }, { worksByActor }, { markPublicData }, { withAffiliateUrls }] =
+      await Promise.all([
+        import("cloudflare:workers"),
+        import("@/server/db/client"),
+        import("@/server/queries/works"),
+        import("@/server/response-cache"),
+        import("@/server/affiliate"),
+      ]);
     markPublicData();
-    return worksByActor(getDb(), data.voiceActorId, { limit: data.limit });
+    const works = await worksByActor(getDb(), data.voiceActorId, { limit: data.limit });
+    return works.map((item) => withAffiliateUrls(item, env));
   });
 
 /**
@@ -65,17 +73,21 @@ export const fetchLatestWorks = createServerFn({ method: "GET" })
     periodSchema.extend({ storeSlug: z.enum(STORE_SLUGS).optional() }).default(PERIOD_DEFAULTS),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { latestWorks }, { markPublicData }] = await Promise.all([
-      import("@/server/db/client"),
-      import("@/server/queries/works"),
-      import("@/server/response-cache"),
-    ]);
+    const [{ env }, { getDb }, { latestWorks }, { markPublicData }, { withAffiliateUrls }] =
+      await Promise.all([
+        import("cloudflare:workers"),
+        import("@/server/db/client"),
+        import("@/server/queries/works"),
+        import("@/server/response-cache"),
+        import("@/server/affiliate"),
+      ]);
     markPublicData();
-    return latestWorks(getDb(), {
+    const works = await latestWorks(getDb(), {
       limit: data.limit,
       sinceDays: data.sinceDays,
       ...(data.storeSlug ? { storeSlug: data.storeSlug } : {}),
     });
+    return works.map((item) => withAffiliateUrls(item, env));
   });
 
 /**
@@ -91,12 +103,15 @@ export const fetchFeed = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => {
-    const [{ getDb }, { feedForActors }] = await Promise.all([
+    const [{ env }, { getDb }, { feedForActors }, { withAffiliateUrls }] = await Promise.all([
+      import("cloudflare:workers"),
       import("@/server/db/client"),
       import("@/server/queries/works"),
+      import("@/server/affiliate"),
     ]);
-    return feedForActors(getDb(), data.voiceActorIds, {
+    const works = await feedForActors(getDb(), data.voiceActorIds, {
       limit: data.limit,
       sinceDays: data.sinceDays,
     });
+    return works.map((item) => withAffiliateUrls(item, env));
   });

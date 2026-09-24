@@ -193,6 +193,17 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 全件発見の調査 (`docs/research/discovery-spike-2026-09-18.md`) で使ったが、**対象声優を AniList 単独で
 定義した時点で不要になった** (`docs/decisions/0002-actor-first-crawling.md`)。実装は `crawler/discovery/dlsite-sitemap.ts` に残してある。
 
+### アフィリエイトリンク
+
+クローラーは使わない。作品ページの「DLsite で見る」の送り先で、組み立ては `src/server/affiliate.ts`。
+**最終確認日: 2026-09-24。**
+
+- 形の出どころは DLsite アフィリエイトの管理画面が作品ごとに出力するリンク
+- ホストは `dlsite.com` ではなく `dlaf.jp`。パスに入るのはアフィリエイト ID と作品 ID
+  (`store_listings.store_product_id`) だけで、`product_url` もフロアのパスも使わない
+- パスの `t/n` の意味は確かめていない。管理画面の出力をそのまま写している
+- アフィリエイト ID は URL に出る公開値。本番の値は `package.json` の `deploy` が渡す
+
 ---
 
 ## 4. 使ってはいけない URL
@@ -207,6 +218,7 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 | `/hana/`、`/booksl/`、`/pro2/` 配下 | robots が名指しで禁じている |
 | `/maniax/` の検索 | robots は禁じていない (`/maniax/` を名指しした行は無く、Cookie も年齢確認も不要で 200 が返る)。**禁止ではなく方針として使わない**。R18 は載せない (`docs/decisions/0003-no-r18-keep-bl.md`) |
 | `/girls/`、`/bl/` の検索 | 同上。R18 を含むフロアなので方針として使わない。`age_category[0]/general` を足せば全年齢だけになるが、測定した範囲では結果が `/home/` と重なり新しい作品が出なかった (`docs/research/dlsite-female-floors-2026-09-20.md`) |
+| 作品ページの「リンクをコピー」で得られる `dlsite.com` の URL (`utm_*` だけが付く) | アフィリエイト ID が入らず成果が付かない。リンクは「アフィリエイトリンク」の形で組み立てる |
 
 
 ---

@@ -63,6 +63,13 @@ interface AppSecrets {
    * **既定は載せない。** 公開前の URL が検索から拾われないようにするため
    */
   ALLOW_INDEXING?: string;
+  /**
+   * ストアごとのアフィリエイト ID (`@/server/affiliate`)。URL に出る公開値なので wrangler.jsonc の `vars` に置く。
+   * 空文字なら未設定として、そのストアへは正規 URL で送る
+   */
+  DLSITE_AFFILIATE_ID?: string;
+  AUDIBLE_AFFILIATE_ID?: string;
+  POKEDORA_AFFILIATE_ID?: string;
 }
 
 export {};

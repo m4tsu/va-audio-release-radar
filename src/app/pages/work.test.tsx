@@ -13,7 +13,7 @@ const DETAIL = workDetail({
   }),
   listings: [
     workListing({
-      affiliateUrl: "https://www.dlsite.com/home/dlaf/=/link/work/aid/example/id/RJ1.html",
+      affiliateUrl: "https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/example/id/RJ1.html",
     }),
   ],
   credits: [

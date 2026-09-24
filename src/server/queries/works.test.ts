@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { audioWorks } from "../db/schema";
+import { audioWorks, storeListings } from "../db/schema";
 import { ingest } from "./ingest";
 import { daysAgo, HANAZAWA, NOW, payload, rawWork, setupDb, UEDA } from "./test-fixtures";
 import {
@@ -750,6 +750,17 @@ describe("getWorkById", () => {
     expect(resolved?.voiceActorSlug).toBe(UEDA.slug);
     const unresolved = detail?.credits.find((credit) => credit.creditedName === "知らない人");
     expect(unresolved?.voiceActorSlug).toBeUndefined();
+  });
+
+  /** アフィリエイト URL は server function が ID から組み立てる (`@/server/affiliate`)。列に残った古い値を出さない */
+  it("store_listings.affiliate_url 列の値を返さない", async () => {
+    const db = await setupDb();
+    await ingest(db, payload(), NOW);
+    await db.update(storeListings).set({ affiliateUrl: "https://example.com/stale" });
+
+    const detail = await getWorkById(db, "dlsite:RJ01698658");
+
+    expect(detail?.listings[0]).not.toHaveProperty("affiliateUrl");
   });
 
   it("居なければ undefined", async () => {

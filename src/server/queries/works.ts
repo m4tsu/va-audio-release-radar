@@ -78,6 +78,7 @@ export type WorkListing = {
   storeSlug: StoreSlug;
   storeProductId: string;
   productUrl: string;
+  /** 読むときに組み立てる (`@/server/affiliate`)。`store_listings.affiliate_url` 列は読まない */
   affiliateUrl?: string;
   titleRaw: string;
   firstSeenAt: string;
@@ -780,7 +781,6 @@ export async function loadListings(
         storeSlug: row.storeSlug,
         storeProductId: row.storeProductId,
         productUrl: row.productUrl,
-        ...(row.affiliateUrl ? { affiliateUrl: row.affiliateUrl } : {}),
         titleRaw: row.titleRaw,
         firstSeenAt: row.firstSeenAt,
         lastSeenAt: row.lastSeenAt,
