@@ -98,11 +98,7 @@ function CastCard({ member }: { member: AnimeCastMember }) {
           </span>
         </div>
         <p className="text-sm">
-          <Link
-            to="/voice-actors/$slug"
-            params={{ slug: member.actor.slug }}
-            className="hover:underline"
-          >
+          <Link to="/voice-actors/$slug" params={{ slug: member.actor.slug }} className="link-text">
             {actorDisplayName(member.actor, locale)}
           </Link>
         </p>

@@ -139,7 +139,7 @@ function CreditName({ credit }: { credit: WorkCredit }) {
       <Link
         to="/voice-actors/$slug"
         params={{ slug: credit.voiceActorSlug }}
-        className="font-medium hover:underline"
+        className="link-text font-medium"
       >
         {actorDisplayName({ canonicalName: credit.voiceActorName ?? credit.creditedName }, locale)}
       </Link>
