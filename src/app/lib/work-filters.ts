@@ -16,8 +16,8 @@ import { STORE_SLUGS, type StoreSlug, WORK_CATEGORIES, type WorkCategory } from 
  * 選べなくなり、同じ軸が声優によって現れたり消えたりする。
  *
  * 絞るのは一覧に並んでいる作品だけなので、0 件は「この声優にその条件の作品が無い」
- * ではなく「並べた範囲に無い」。一覧を上限で切ったことは画面が注記で言う
- * (`pages/voice-actor.tsx` の `listLimited`)
+ * ではなく「並べた範囲に無い」。一覧を上限で切ったときは、画面が並び順 (新着順) を注記し、
+ * 見出しの作品数と並んだ件数の差で切ったことが読める (`pages/voice-actor.tsx` の `listLimited`)
  */
 
 export const STORE_FILTERS = ["all", ...STORE_SLUGS] as const;

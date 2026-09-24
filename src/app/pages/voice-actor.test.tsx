@@ -539,6 +539,39 @@ describe("VoiceActorPage のフォロー直後の通知の案内", () => {
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument();
   });
 
+  /** 声優から声優へ移ってもページは作り直されない。押したのは前の声優 */
+  test("フォローを押した後、フォロー済みの別の声優のページへ移ると出さない", async () => {
+    const user = userEvent.setup();
+    const BETA = actorDetail({ id: "va_beta", slug: "beta", canonicalName: "架空ベータ" });
+    usePushStore.setState({ status: "unsubscribed" });
+    await readyFollowStore();
+    await useFollowStore.getState().follow({
+      voiceActorId: BETA.id,
+      slug: BETA.slug,
+      canonicalName: BETA.canonicalName,
+    });
+    const { rerender } = render({ vapidPublicKey: KEY });
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    expect(screen.getByText(PROMPT)).toBeInTheDocument();
+
+    rerender(
+      <VoiceActorPage
+        actor={BETA}
+        works={WORKS}
+        stats={{ ...STATS, voiceActorId: BETA.id }}
+        anime={[]}
+        coverage={[]}
+        filters={DEFAULT_WORK_FILTERS}
+        onFiltersChange={() => {}}
+        vapidPublicKey={KEY}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument();
+  });
+
   test("公開鍵が無い環境では出さない", async () => {
     const user = userEvent.setup();
     usePushStore.setState({ status: "unsubscribed" });

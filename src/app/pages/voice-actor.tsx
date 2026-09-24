@@ -98,8 +98,9 @@ export function VoiceActorPage({
   const t = useT();
   const locale = useLocale();
   const name = actorDisplayName(actor, locale);
-  // このページでフォローを押したか。開いた時点でフォロー済みの人には通知の案内を出さない
-  const [followedHere, setFollowedHere] = useState(false);
+  // このページでフォローを押した声優。開いた時点でフォロー済みの人には通知の案内を出さない。
+  // 真偽値にしないのは、声優から声優へ移ってもページが作り直されず、状態が次の声優に残るため
+  const [followedHereId, setFollowedHereId] = useState<string | null>(null);
   const following = useIsFollowing(actor.id);
   // 取り切れていないストア。取り切れたストアと、走行の記録が無いストアは入らない
   const partialStores = coverage.filter((entry) => !entry.complete).map((entry) => entry.storeSlug);
@@ -123,12 +124,14 @@ export function VoiceActorPage({
               canonicalName: actor.canonicalName,
               ...(actor.nameEn ? { nameEn: actor.nameEn } : {}),
             }}
-            onFollow={() => setFollowedHere(true)}
+            onFollow={() => setFollowedHereId(actor.id)}
           />
         }
       />
 
-      {followedHere && following ? <PushFollowPrompt vapidPublicKey={vapidPublicKey} /> : null}
+      {followedHereId === actor.id && following ? (
+        <PushFollowPrompt vapidPublicKey={vapidPublicKey} />
+      ) : null}
 
       {hasAnyWork(works) ? (
         <WorkSection
