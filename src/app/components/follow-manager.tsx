@@ -47,11 +47,7 @@ export function FollowManager() {
               key={actor.voiceActorId}
               className="inline-flex items-center gap-1 rounded-full border bg-background py-1 pr-1 pl-3 text-sm"
             >
-              <Link
-                to="/voice-actors/$slug"
-                params={{ slug: actor.slug }}
-                className="hover:underline"
-              >
+              <Link to="/voice-actors/$slug" params={{ slug: actor.slug }} className="link-text">
                 {name}
               </Link>
               {latest ? (

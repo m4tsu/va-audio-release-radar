@@ -103,12 +103,8 @@ function SearchResults({
     <ul aria-label={t("search.resultsLabel")} className="divide-y rounded-xl border bg-card">
       {results.map((actor) => (
         <li key={actor.id} className="flex items-center justify-between gap-3 px-4 py-3">
-          <Link
-            to="/voice-actors/$slug"
-            params={{ slug: actor.slug }}
-            className="min-w-0 hover:underline"
-          >
-            <span className="font-medium">{actorDisplayName(actor, locale)}</span>
+          <Link to="/voice-actors/$slug" params={{ slug: actor.slug }} className="min-w-0">
+            <span className="link-text font-medium">{actorDisplayName(actor, locale)}</span>
             {actor.nameKana ? (
               <span className="ml-2 text-muted-foreground text-xs">{actor.nameKana}</span>
             ) : null}

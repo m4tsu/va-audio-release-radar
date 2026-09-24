@@ -47,6 +47,11 @@
   --store-pokedora: oklch(0.47 0.19 350);
   --highlight: oklch(0.45 0.14 155);
   --highlight-foreground: oklch(0.985 0 0);
+  /*
+   * カードや行の中で一部だけが押せるときの文字色。ストアのバッジ (DLsite の青) と取り違えないよう色相をずらす。
+   * 白の地で 4.5:1 を超える明度に置く
+   */
+  --link: oklch(0.5 0.19 275);
 }
 
 .dark {
@@ -76,6 +81,7 @@
   --store-pokedora: oklch(0.8 0.14 350);
   --highlight: oklch(0.8 0.15 155);
   --highlight-foreground: oklch(0.205 0 0);
+  --link: oklch(0.78 0.13 275);
 }
 
 @theme inline {
@@ -106,6 +112,26 @@
   --color-store-pokedora: var(--store-pokedora);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
+  --color-link: var(--link);
+}
+
+/*
+ * カードや行の中で押せる文字の見た目。タッチ端末にはホバーが無いので、色と下線を最初から出す。
+ * 下線は薄く引いておき、ホバーで濃く太くして押せる手応えを残す。
+ * 行全体を包むリンクの中で名前にだけ付けることがあるので、祖先の <a> のホバーでも反応させる
+ */
+@utility link-text {
+  color: var(--color-link);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-link) 40%, transparent);
+  text-underline-offset: 3px;
+  @media (hover: hover) {
+    &:hover,
+    :where(a:hover) & {
+      text-decoration-color: currentColor;
+      text-decoration-thickness: 2px;
+    }
+  }
 }
 
 @layer base {

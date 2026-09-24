@@ -106,9 +106,9 @@ function SearchResults({
           <Link
             to="/anime/$slug"
             params={{ slug: anime.slug }}
-            className="flex flex-wrap items-baseline gap-x-2 px-4 py-3 hover:underline"
+            className="flex flex-wrap items-baseline gap-x-2 px-4 py-3"
           >
-            <span className="font-medium">{animeDisplayTitle(anime, locale)}</span>
+            <span className="link-text font-medium">{animeDisplayTitle(anime, locale)}</span>
             <span className="text-muted-foreground text-xs">
               {seasonLabel(anime.seasonYear, anime.season, locale)}
             </span>

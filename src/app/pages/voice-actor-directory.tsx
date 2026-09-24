@@ -320,12 +320,8 @@ function ActorList({
           key={actor.id}
           className="flex min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2"
         >
-          <Link
-            to="/voice-actors/$slug"
-            params={{ slug: actor.slug }}
-            className="min-w-0 hover:underline"
-          >
-            <span className="block truncate font-medium text-sm">
+          <Link to="/voice-actors/$slug" params={{ slug: actor.slug }} className="min-w-0">
+            <span className="link-text block truncate font-medium text-sm">
               {actorDisplayName(actor, locale)}
             </span>
             <span className="text-muted-foreground text-xs">

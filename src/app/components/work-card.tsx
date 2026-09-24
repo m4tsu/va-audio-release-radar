@@ -111,7 +111,7 @@ export function WorkCard({
         </div>
 
         <h3 className="font-medium leading-snug">
-          <Link to="/works/$id" params={{ id: work.id }} className="hover:underline">
+          <Link to="/works/$id" params={{ id: work.id }} className="link-text">
             {work.title}
           </Link>
         </h3>
@@ -123,7 +123,7 @@ export function WorkCard({
                 key={actor.id}
                 to="/voice-actors/$slug"
                 params={{ slug: actor.slug }}
-                className="text-muted-foreground hover:text-foreground hover:underline"
+                className="link-text"
               >
                 {actorDisplayName(
                   { canonicalName: actor.name, ...(actor.nameEn ? { nameEn: actor.nameEn } : {}) },
