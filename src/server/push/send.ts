@@ -32,6 +32,9 @@ export type SendOutcome =
  */
 const TTL_SECONDS = 7 * 24 * 60 * 60;
 
+/** 失敗時に残す応答本文の上限 (文字数) */
+const ERROR_BODY_LIMIT = 300;
+
 export type PushSender = (target: PushTarget, message: PushMessage) => Promise<SendOutcome>;
 
 /** `fetch` を差し替えられるようにしてあるのは、テストで push service に出ないため */
@@ -55,7 +58,11 @@ export function createPushSender(vapid: VapidKeys, fetchFn: typeof fetch = fetch
       }
       // 429 は混雑。それ以外の 4xx は要求そのものが拒まれたので、送り直しても通らない
       const permanent = response.status >= 400 && response.status < 500 && response.status !== 429;
-      return { kind: "failed", permanent, status: response.status };
+      // 拒んだ理由は本文にしか無い (Apple は {"reason": ...} を返す)。ログに収まる長さで切る
+      const reason = (await response.text().catch(() => "")).slice(0, ERROR_BODY_LIMIT);
+      return reason
+        ? { kind: "failed", permanent, status: response.status, error: reason }
+        : { kind: "failed", permanent, status: response.status };
     } catch (error) {
       return {
         kind: "failed",

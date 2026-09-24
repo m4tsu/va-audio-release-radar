@@ -90,6 +90,19 @@ describe("createPushSender", () => {
     }
   });
 
+  it("拒まれたときは応答本文を理由として返す", async () => {
+    const fetchFn = vi.fn(
+      async () => new Response(JSON.stringify({ reason: "BadJwtToken" }), { status: 403 }),
+    );
+    const send = createPushSender(vapid, fetchFn as unknown as typeof fetch);
+    expect(await send(target, MESSAGE)).toEqual({
+      kind: "failed",
+      permanent: true,
+      status: 403,
+      error: '{"reason":"BadJwtToken"}',
+    });
+  });
+
   it("通信そのものが失敗しても投げずに、一時的な失敗として返す", async () => {
     const fetchFn = vi.fn(async () => {
       throw new Error("network down");
