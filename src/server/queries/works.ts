@@ -80,6 +80,8 @@ export type WorkListing = {
   productUrl: string;
   /** 読むときに組み立てる (`@/server/affiliate`)。`store_listings.affiliate_url` 列は読まない */
   affiliateUrl?: string;
+  /** アフィリエイト URL と一緒に出す成果計測の画像。同じく `@/server/affiliate` が付ける */
+  affiliateBeaconUrl?: string;
   /** ストアが名乗る区分 (`StoreListing.storeSection`)。DLsite のアフィリエイト URL がフロアを引く */
   storeSection?: string;
   titleRaw: string;

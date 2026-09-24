@@ -38,7 +38,8 @@
   // 空文字なら通知の案内を画面に出さない。
   // VAPID_SUBJECT は送信時に push service へ名乗る連絡先 ("mailto:..." か "https://...")。
   // 秘密鍵と subject のどちらかが欠けていれば送信は行わずログに残す
-  // *_AFFILIATE_ID はストアごとのアフィリエイト ID (src/server/affiliate.ts)。URL に出る公開値。
+  // *_AFFILIATE_ID と POKEDORA_VC_* はストアごとのアフィリエイト ID (src/server/affiliate.ts)。URL に出る公開値。
+  // POKEDORA_VC_SID / POKEDORA_VC_PID はバリューコマースのサイト ID と広告スペース ID。
   // 空文字ならそのストアへは正規 URL で送る。本番の値は package.json の deploy が --var で渡す。
   // ここに入れると dev と E2E で踏んだリンクまで成果の計測に混ざる
   "vars": {
@@ -50,7 +51,8 @@
     "VAPID_SUBJECT": "https://koetrail.com",
     "DLSITE_AFFILIATE_ID": "",
     "AUDIBLE_AFFILIATE_ID": "",
-    "POKEDORA_AFFILIATE_ID": ""
+    "POKEDORA_VC_SID": "",
+    "POKEDORA_VC_PID": ""
   },
   "d1_databases": [
     {

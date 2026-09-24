@@ -69,7 +69,9 @@ interface AppSecrets {
    */
   DLSITE_AFFILIATE_ID?: string;
   AUDIBLE_AFFILIATE_ID?: string;
-  POKEDORA_AFFILIATE_ID?: string;
+  /** ポケドラはバリューコマースのサイト ID (`sid`) と広告スペース ID (`pid`)。両方揃ったときだけ組み立てる */
+  POKEDORA_VC_SID?: string;
+  POKEDORA_VC_PID?: string;
 }
 
 export {};

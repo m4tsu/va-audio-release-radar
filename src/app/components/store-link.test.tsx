@@ -31,3 +31,48 @@ describe("StoreLink の送り先", () => {
     );
   });
 });
+
+describe("StoreLink の成果計測の画像", () => {
+  const POKEDORA_URL = "https://pokedora.com/products/detail.php?product_id=101749";
+  const BEACON_URL = "https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?sid=1&pid=2";
+
+  /** alt="" の画像は読み上げ名を持たず role で取れないので、リンクの中を直接見る */
+  test("アフィリエイト URL へ送るときは、配られた広告コードのとおりの画像をリンクの中に出す", () => {
+    renderWithLocale(
+      <StoreLink
+        listing={workListing({
+          storeSlug: "pokedora",
+          productUrl: POKEDORA_URL,
+          affiliateUrl: `https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=1&pid=2&vc_url=${encodeURIComponent(POKEDORA_URL)}`,
+          affiliateBeaconUrl: BEACON_URL,
+        })}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "ポケドラで聴く" });
+    expect(link).toHaveAttribute("rel", "noopener nofollow sponsored");
+    const beacon = link.querySelector("img");
+    expect(beacon).toHaveAttribute("src", BEACON_URL);
+    expect(beacon).toHaveAttribute("alt", "");
+    expect(beacon).toHaveAttribute("width", "0");
+    expect(beacon).toHaveAttribute("height", "1");
+    expect(beacon).toHaveAttribute("border", "0");
+  });
+
+  test("正規 URL に落ちたリンクには画像を出さない", () => {
+    renderWithLocale(
+      <StoreLink
+        listing={workListing({
+          storeSlug: "pokedora",
+          productUrl: POKEDORA_URL,
+          affiliateUrl: "http://ck.jp.ap.valuecommerce.com/servlet/referral",
+          affiliateBeaconUrl: BEACON_URL,
+        })}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "ポケドラで聴く" });
+    expect(link).toHaveAttribute("href", POKEDORA_URL);
+    expect(link.querySelector("img")).toBeNull();
+  });
+});
