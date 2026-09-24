@@ -11,12 +11,13 @@ import type { LocalizedLegalDocument } from "./index";
  *   `src/app/store/push-store.ts` (通知の購読。宛先・鍵・言語・フォロー中の声優 ID を `push_subscriptions` に保存する)
  * - 通知を購読したブラウザが通信する外部のもの: ブラウザの提供元の push service (`public/sw.js` が受ける)
  * - お問い合わせ画面が読み込む外部のもの: `src/app/hooks/use-turnstile.ts` (Cloudflare Turnstile)
- * - 外部サーバーから読むもの: `src/app/components/work-card.tsx` の表紙画像
+ * - 外部サーバーから読むもの: `src/app/components/work-card.tsx` の表紙画像、
+ *   ストアへのリンクに含まれるアフィリエイトの成果計測の画像 (アフィリエイトサービスプロバイダが配る広告コードの一部)
  * - アクセスログ: `wrangler.jsonc` の `observability`
  */
 export const privacy: LocalizedLegalDocument = {
   ja: {
-    effectiveDate: "2026-09-22",
+    effectiveDate: "2026-09-24",
     sections: [
       {
         id: "overview",
@@ -79,9 +80,10 @@ export const privacy: LocalizedLegalDocument = {
             items: [
               "作品の表紙画像は、各販売サイト (DLsite、Audible、ポケットドラマCD) のサーバーから直接読み込みます。そのため、ページを表示すると利用者のブラウザから各販売サイトのサーバーへ通信が発生し、IP アドレスなどが各販売サイトに送られます。各販売サイトにおける取り扱いは、それぞれのプライバシーポリシーに従います。",
               "作品ページからのリンクは各販売サイトへ移動します。リンクにはアフィリエイト用の識別子が含まれることがあり、その場合、移動先の販売サイトが本サービスから移動したことを記録します。",
+              "アフィリエイトの成果を計測するため、作品ページは、アフィリエイトサービスプロバイダ (バリューコマース株式会社) のサーバーから 1 ピクセルの画像を読み込みます。そのため、作品ページを表示すると利用者のブラウザから同社のサーバーへ通信が発生し、IP アドレスや参照元のページなどが同社に送られます。この画像は画面には表示されません。同社における取り扱いは同社のプライバシーポリシーに従います。",
               "お問い合わせ画面は、自動化された送信を防ぐために Cloudflare, Inc. の bot 対策 (Cloudflare Turnstile) を利用者のブラウザに読み込みます。この画面を開くと利用者のブラウザから Cloudflare のサーバーへ通信が発生し、IP アドレスなどが Cloudflare に送られます。Cloudflare における取り扱いは Cloudflare のプライバシーポリシーに従います。この読み込みはお問い合わせ画面でのみ行われます。",
               "新作のブラウザ通知は、利用者のブラウザの提供元 (Google、Apple、Mozilla など) が運営する通知配信サーバーを経由して届きます。通知を有効にすると、利用者のブラウザがその配信サーバーと通信します。通知の本文は暗号化されており、配信サーバーは内容を読めません。各提供元における取り扱いは、それぞれのプライバシーポリシーに従います。",
-              "本サービスは、アクセス解析ツールや広告配信のためのタグ、SNS の埋め込みを使用していません。",
+              "本サービスは広告を表示しません。上記のアフィリエイトの成果計測を除き、アクセス解析ツールや広告配信のためのタグ、SNS の埋め込みを使用していません。",
             ],
           },
         ],
@@ -125,7 +127,7 @@ export const privacy: LocalizedLegalDocument = {
   },
 
   en: {
-    effectiveDate: "2026-09-22",
+    effectiveDate: "2026-09-24",
     sections: [
       {
         id: "overview",
@@ -188,9 +190,10 @@ export const privacy: LocalizedLegalDocument = {
             items: [
               "Cover images are loaded directly from the servers of each store (DLsite, Audible, Pocket Drama CD). Displaying a page therefore causes your browser to connect to those servers, which receive your IP address and similar details. Each store's handling of this data is governed by its own privacy policy.",
               "Links on work pages lead to the stores. A link may include an affiliate identifier, in which case the store records that you arrived from the Service.",
+              "To measure affiliate referrals, work pages load a one-pixel image from the servers of the affiliate service provider (ValueCommerce Co., Ltd.). Displaying a work page therefore causes your browser to connect to those servers, which receive your IP address, the referring page and similar details. The image is not visible on screen. ValueCommerce's handling of this data is governed by its own privacy policy.",
               "The contact page loads Cloudflare Turnstile, a bot protection service operated by Cloudflare, Inc., to prevent automated submissions. Opening that page therefore causes your browser to connect to Cloudflare's servers, which receive your IP address and similar details. Cloudflare's handling of this data is governed by Cloudflare's privacy policy. No other page loads it.",
               "Browser notifications for new releases are delivered through the push service run by your browser's vendor (such as Google, Apple or Mozilla). When you turn notifications on, your browser connects to that service. The content of each notification is encrypted and cannot be read by the push service. Each vendor's handling of this data is governed by its own privacy policy.",
-              "The Service does not use analytics tools, advertising tags or social media embeds.",
+              "The Service does not display advertising. Apart from the affiliate measurement described above, it does not use analytics tools, advertising tags or social media embeds.",
             ],
           },
         ],
