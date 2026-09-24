@@ -17,7 +17,7 @@ type AffiliateTarget = Pick<
   "storeSlug" | "storeProductId" | "storeSection" | "productUrl"
 >;
 
-type AffiliateLink = {
+export type AffiliateLink = {
   url: string;
   /** 広告コードに含まれる成果計測の画像。消すと広告コードの改変になるので、リンクと一緒に出す */
   beaconUrl?: string;
@@ -64,24 +64,53 @@ const RULES = {
   audible: { envKeys: ["AUDIBLE_AFFILIATE_ID"] },
   // バリューコマースの MyLink。出どころは docs/stores/pokedora.md の「アフィリエイトリンク」
   pokedora: {
-    envKeys: ["POKEDORA_VC_SID", "POKEDORA_VC_PID"],
+    envKeys: ["VALUECOMMERCE_SID", "POKEDORA_VC_PID"],
     build: ([sid = "", pid = ""], { productUrl }) => {
       // 管理画面は作品ページの URL をそのまま `vc_url` に入れる。https でない URL へは送らない
       if (!isHttpsUrl(productUrl)) return undefined;
-      const account = `sid=${encodeURIComponent(sid)}&pid=${encodeURIComponent(pid)}`;
-      // 管理画面の出力はプロトコル相対。画面は https の URL しか出さないので https を明示する
-      return {
-        url: `https://ck.jp.ap.valuecommerce.com/servlet/referral?${account}&vc_url=${encodeURIComponent(productUrl)}`,
-        beaconUrl: `https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?${account}`,
-      };
+      return valueCommerceLink(sid, pid, productUrl);
     },
   },
 } as const satisfies Record<StoreSlug, Rule>;
 
+/**
+ * Audible の無料体験のテキストリンクの広告スペース ID。作品ごとのリンクではないので `RULES` に入れない。
+ * 出どころは docs/stores/audible.md の「アフィリエイト」
+ */
+const AUDIBLE_TRIAL_ENV_KEY = "AUDIBLE_TRIAL_VC_PID";
+
 /** `vars` のうちアフィリエイト ID を持つもの。空文字は未設定として扱う */
 export type AffiliateEnv = {
-  [K in (typeof RULES)[StoreSlug]["envKeys"][number]]?: string;
+  [K in (typeof RULES)[StoreSlug]["envKeys"][number] | typeof AUDIBLE_TRIAL_ENV_KEY]?: string;
 };
+
+/**
+ * バリューコマースの広告コードの形。`sid` (サイト ID) はバリューコマースのアカウントに 1 つで、
+ * 広告ごとに変わるのは `pid` (広告スペース ID) だけ。管理画面の出力はプロトコル相対だが、
+ * 画面は https の URL しか出さないので https を明示する
+ */
+function valueCommerceLink(sid: string, pid: string, vcUrl?: string): AffiliateLink {
+  const account = `sid=${encodeURIComponent(sid)}&pid=${encodeURIComponent(pid)}`;
+  return {
+    url: `https://ck.jp.ap.valuecommerce.com/servlet/referral?${account}${vcUrl ? `&vc_url=${encodeURIComponent(vcUrl)}` : ""}`,
+    beaconUrl: `https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?${account}`,
+  };
+}
+
+/**
+ * Audible の無料体験への登録の導線。Audible の listing を持つ作品にだけ出す。
+ * リンク先は広告主が決めていて `vc_url` を持たない。ID が 1 つでも空なら出さない
+ */
+export function audibleTrialLinkFor(
+  listings: Pick<WorkListing, "storeSlug">[],
+  env: AffiliateEnv,
+): AffiliateLink | undefined {
+  if (!listings.some((listing) => listing.storeSlug === "audible")) return undefined;
+  const sid = env.VALUECOMMERCE_SID?.trim();
+  const pid = env[AUDIBLE_TRIAL_ENV_KEY]?.trim();
+  if (!sid || !pid) return undefined;
+  return valueCommerceLink(sid, pid);
+}
 
 function isHttpsUrl(value: string): boolean {
   try {

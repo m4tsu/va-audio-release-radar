@@ -109,7 +109,7 @@ crawler  →  src/domain
 ルートは `src/app/routes/` のファイル構成が正。画面データは server functions で取り、HTML 以外を外に出すのは
 `/api/health`、`/api/crawler-freshness`、`/api/admin/*`、`sitemap.xml`、`robots.txt`、`manifest.webmanifest`
 (ホーム画面用。言語 cookie で中身が変わる) と、`public/` の静的ファイル (`sw.js` は通知を表示するだけの
-service worker で、ページの資産をキャッシュしない) だけ。画面が利用者のブラウザに外から読み込ませるのは、ストアの表紙画像、お問い合わせ画面の Cloudflare Turnstile、作品ページのストアへのリンクに入るアフィリエイトの計測画像 (バリューコマース) だけで、どれも `src/app/legal/privacy.ts` の外部通信の記述と揃える。
+service worker で、ページの資産をキャッシュしない) だけ。画面が利用者のブラウザに外から読み込ませるのは、ストアの表紙画像、お問い合わせ画面の Cloudflare Turnstile、作品ページのアフィリエイトのリンク (ストアへのリンクと Audible の無料体験) に入る計測画像 (バリューコマース) だけで、どれも `src/app/legal/privacy.ts` の外部通信の記述と揃える。
 このうち認証が要るのは `/api/admin/*` だけで、鮮度の判定は外形監視から見えるように開けてある。
 利用者から受け取る経路は 2 つ。お問い合わせ (`/contact`) は認可の代わりに bot 対策 (Cloudflare Turnstile)
 の検証を通す。検証の失敗と鍵の未設定を応答で分ける。フォロー情報は添えない。もう 1 つは通知の購読 (`/following` の server functions) で、ブラウザが push service

@@ -157,6 +157,47 @@ describe("WorkPage のストアへの導線", () => {
   });
 });
 
+describe("WorkPage の Audible の無料体験", () => {
+  const TRIAL = {
+    url: "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=1&pid=2",
+    beaconUrl: "https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?sid=1&pid=2",
+  };
+  const TRIAL_NAME = "Amazon のオーディオブックサービス Audible の無料体験に登録する";
+
+  /** ストアへのリンクは正規 URL のまま、その下に登録の導線を置く */
+  test("Audible の区画の中、ストアへのリンクの下に出す", () => {
+    const detail = workDetail({
+      listings: [
+        workListing({ storeSlug: "dlsite" }),
+        workListing({
+          storeSlug: "audible",
+          storeProductId: "B0ABC",
+          productUrl: "https://www.audible.co.jp/pd/B0ABC",
+        }),
+      ],
+      audibleTrial: TRIAL,
+    });
+    renderWithLocale(<WorkPage detail={detail} />);
+
+    const trial = screen.getByRole("link", { name: TRIAL_NAME });
+    expect(trial).toHaveAttribute("href", TRIAL.url);
+    const store = screen.getByRole("link", { name: "Audible で聴く" });
+    expect(store).toHaveAttribute("href", "https://www.audible.co.jp/pd/B0ABC");
+    // 同じ区画に入り、ストアへのリンクより後に並ぶ
+    expect(store.parentElement).toBe(trial.parentElement);
+    expect(store.compareDocumentPosition(trial) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("導線を受け取らなければ出さない", () => {
+    const detail = workDetail({
+      listings: [workListing({ storeSlug: "audible", storeProductId: "B0ABC" })],
+    });
+    renderWithLocale(<WorkPage detail={detail} />);
+
+    expect(screen.queryByRole("link", { name: TRIAL_NAME })).toBeNull();
+  });
+});
+
 describe("WorkPage の訂正の申し出", () => {
   /** 気づいた人が作品名や URL を書き写さずに済むよう、対象をリンクに載せる */
   test("この作品を対象にした問い合わせへ送る", () => {

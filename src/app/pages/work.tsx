@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AppearanceBadge } from "@/app/components/appearance-badge";
+import { AudibleTrialLink } from "@/app/components/audible-trial-link";
 import { CorrectionLink } from "@/app/components/correction-link";
 import { StoreBadge, storeLabel } from "@/app/components/store-badge";
 import { StoreLink } from "@/app/components/store-link";
@@ -110,7 +111,11 @@ export function WorkPage({ detail }: { detail: WorkDetail }) {
         <h2 className="font-semibold text-xl tracking-tight">{t("work.purchaseTitle")}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {listings.map((listing) => (
-            <ListingCard key={listing.storeSlug} listing={listing} />
+            <ListingCard
+              key={listing.storeSlug}
+              listing={listing}
+              audibleTrial={listing.storeSlug === "audible" ? detail.audibleTrial : undefined}
+            />
           ))}
         </div>
         {/* ストアの枚数だけ繰り返さないよう、区画に 1 度だけ添える */}
@@ -148,12 +153,19 @@ function CreditName({ credit }: { credit: WorkCredit }) {
  * ストア 1 つぶんの導線。価格と販売状況は出さない。
  * このサイトは価格を持たず、正はストアの側にある (docs/decisions/0008-no-price-no-availability.md)
  */
-function ListingCard({ listing }: { listing: WorkListing }) {
+function ListingCard({
+  listing,
+  audibleTrial,
+}: {
+  listing: WorkListing;
+  audibleTrial: WorkDetail["audibleTrial"];
+}) {
   return (
     <div className="space-y-3 rounded-xl border bg-card p-4 text-card-foreground shadow-sm">
       <p className="font-medium">{storeLabel(listing.storeSlug)}</p>
 
       <StoreLink listing={listing} className="w-full" />
+      {audibleTrial ? <AudibleTrialLink link={audibleTrial} /> : null}
     </div>
   );
 }

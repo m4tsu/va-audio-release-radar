@@ -312,6 +312,8 @@ export const ja = {
     castMore: "他 {{count}} 名",
     purchaseTitle: "購入",
     checkAtStore: "価格と販売状況はストアでご確認ください。",
+    /** Audible が Amazon のサービスだと分かるように書く。作品が無料で聴けるとは読めないようにする */
+    audibleTrial: "Amazon のオーディオブックサービス Audible の無料体験に登録する",
     /** 新着の印。両言語とも短い方が並びが崩れないので英語のまま */
     badgeNew: "NEW",
     /** 発売日を持たない作品の新着の印。出たのではなく見つけたので、NEW と語を分ける */

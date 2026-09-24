@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { affiliateLinkFor, withAffiliateUrls } from "./affiliate";
+import { affiliateLinkFor, audibleTrialLinkFor, withAffiliateUrls } from "./affiliate";
 import type { WorkListing } from "./queries/works";
 
 const ALL_IDS = {
   DLSITE_AFFILIATE_ID: "do65m205lfao7",
   AUDIBLE_AFFILIATE_ID: "audible-id",
-  POKEDORA_VC_SID: "3782466",
+  VALUECOMMERCE_SID: "3782466",
   POKEDORA_VC_PID: "892711118",
+  AUDIBLE_TRIAL_VC_PID: "892711155",
 };
 
 function listing(over: Partial<WorkListing> = {}): WorkListing {
@@ -91,9 +92,9 @@ describe("affiliateLinkFor のポケドラ", () => {
   });
 
   it("sid と pid のどちらかが空なら組み立てない", () => {
-    expect(affiliateLinkFor(pokedora(), { POKEDORA_VC_SID: "3782466" })).toBeUndefined();
+    expect(affiliateLinkFor(pokedora(), { VALUECOMMERCE_SID: "3782466" })).toBeUndefined();
     expect(
-      affiliateLinkFor(pokedora(), { POKEDORA_VC_SID: " ", POKEDORA_VC_PID: "892711118" }),
+      affiliateLinkFor(pokedora(), { VALUECOMMERCE_SID: " ", POKEDORA_VC_PID: "892711118" }),
     ).toBeUndefined();
   });
 
@@ -137,5 +138,28 @@ describe("withAffiliateUrls", () => {
       "https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?sid=3782466&pid=892711118",
     );
     expect(item.listings[2]).not.toHaveProperty("affiliateUrl");
+  });
+});
+
+describe("audibleTrialLinkFor", () => {
+  const audible = listing({ storeSlug: "audible", storeProductId: "B0ABC" });
+
+  /** リンク先は広告主が決めるので vc_url を付けない。sid はポケドラと同じ値を使う */
+  it("Audible の listing があれば、無料体験のテキストリンクと計測画像を組み立てる", () => {
+    expect(audibleTrialLinkFor([listing(), audible], ALL_IDS)).toEqual({
+      url: "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=3782466&pid=892711155",
+      beaconUrl: "https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?sid=3782466&pid=892711155",
+    });
+  });
+
+  it("Audible の listing が無い作品には出さない", () => {
+    expect(audibleTrialLinkFor([listing(), pokedora()], ALL_IDS)).toBeUndefined();
+  });
+
+  it("sid と pid のどちらかが空なら出さない", () => {
+    expect(
+      audibleTrialLinkFor([audible], { ...ALL_IDS, AUDIBLE_TRIAL_VC_PID: "" }),
+    ).toBeUndefined();
+    expect(audibleTrialLinkFor([audible], { ...ALL_IDS, VALUECOMMERCE_SID: " " })).toBeUndefined();
   });
 });

@@ -69,9 +69,12 @@ interface AppSecrets {
    */
   DLSITE_AFFILIATE_ID?: string;
   AUDIBLE_AFFILIATE_ID?: string;
-  /** ポケドラはバリューコマースのサイト ID (`sid`) と広告スペース ID (`pid`)。両方揃ったときだけ組み立てる */
-  POKEDORA_VC_SID?: string;
+  /** バリューコマースのサイト ID (`sid`)。バリューコマース経由の広告 (ポケドラ、Audible の無料体験) で共通 */
+  VALUECOMMERCE_SID?: string;
+  /** ポケドラの作品リンク (MyLink) の広告スペース ID (`pid`)。`VALUECOMMERCE_SID` と揃ったときだけ組み立てる */
   POKEDORA_VC_PID?: string;
+  /** Audible の無料体験のテキストリンクの広告スペース ID (`pid`)。同じく `VALUECOMMERCE_SID` と揃ったときだけ出す */
+  AUDIBLE_TRIAL_VC_PID?: string;
 }
 
 export {};

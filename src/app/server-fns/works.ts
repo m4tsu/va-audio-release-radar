@@ -18,17 +18,24 @@ const periodSchema = z.object({
 export const fetchWork = createServerFn({ method: "GET" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const [{ env }, { getDb }, { getWorkById }, { markPublicData }, { withAffiliateUrls }] =
-      await Promise.all([
-        import("cloudflare:workers"),
-        import("@/server/db/client"),
-        import("@/server/queries/works"),
-        import("@/server/response-cache"),
-        import("@/server/affiliate"),
-      ]);
+    const [
+      { env },
+      { getDb },
+      { getWorkById },
+      { markPublicData },
+      { audibleTrialLinkFor, withAffiliateUrls },
+    ] = await Promise.all([
+      import("cloudflare:workers"),
+      import("@/server/db/client"),
+      import("@/server/queries/works"),
+      import("@/server/response-cache"),
+      import("@/server/affiliate"),
+    ]);
     markPublicData();
     const detail = await getWorkById(getDb(), data.id);
-    return detail ? withAffiliateUrls(detail, env) : null;
+    if (!detail) return null;
+    const audibleTrial = audibleTrialLinkFor(detail.listings, env);
+    return { ...withAffiliateUrls(detail, env), ...(audibleTrial ? { audibleTrial } : {}) };
   });
 
 export const fetchWorksByActor = createServerFn({ method: "GET" })

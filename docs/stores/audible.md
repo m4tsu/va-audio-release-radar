@@ -173,6 +173,24 @@ Allow: /coming-soon?page=
 
 - `/coming-soon` は `$` が無いので `page=` が無制限に許可されている。`/newreleases` より緩い
 
+### アフィリエイト
+
+クローラーは使わない。作品ページの Audible の区画に出す無料体験への登録の導線で、
+組み立ては `src/server/affiliate.ts` の `audibleTrialLinkFor`、画面は `src/app/components/audible-trial-link.tsx`。
+**最終確認日: 2026-09-24。**
+
+- 作品ページ単位のアフィリエイトリンクは作れない。報酬になるのは Audible の会員の新規登録だけで、
+  作品へのリンク (`productUrl`) は正規 URL のまま出す
+- 経路はバリューコマースのテキストリンク。報酬は 1 件の新規登録につき 1,650 円 (税込)。
+  いずれもバリューコマースの管理画面の表示による
+- リンク先は広告主が固定していて `vc_url` を持たない。`sid` はポケドラと共通の値で、
+  変わるのは `pid` (広告スペース ID) だけ。本番の値は `package.json` の `deploy` が渡す
+- 管理画面の出力はプロトコル相対。画面は `https:` の URL しか出さないので `https:` を付けている
+- コードには 1x1 の計測画像が `<a>` の中に入っている。広告コードの改変の制約は
+  [`pokedora.md`](./pokedora.md) の「アフィリエイトリンク」と同じで、画像は消さずに `alt=""` だけを足している
+- 文言は Audible が Amazon のサービスだと分かるように書き、作品が無料で聴けるとは読めないようにしている。
+  このサイトはその作品が聴き放題の対象かを知らない (`docs/decisions/0008-no-price-no-availability.md`)
+
 ---
 
 ## 4. 使ってはいけない URL

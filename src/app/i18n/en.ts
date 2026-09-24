@@ -242,6 +242,7 @@ export const en: Translations = {
     castMore: "+{{count}} more",
     purchaseTitle: "Where to buy",
     checkAtStore: "Check the store for the price and availability.",
+    audibleTrial: "Start a free trial of Audible, Amazon's audiobook service",
     badgeNew: "NEW",
     badgeListed: "LISTED",
     badgeUpcoming: "Releases {{date}}",
