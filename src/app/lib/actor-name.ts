@@ -17,3 +17,18 @@ export function actorDisplayName(
   if (locale === "en" && actor.nameEn) return actor.nameEn;
   return actor.canonicalName;
 }
+
+/**
+ * クレジット 1 件の表示名。名寄せ済みなら声優の表示名、未解決ならストア上の表記のまま
+ * (確証の無い同一視をしない)。作品ページの本文と meta description で同じ名前を出すために 1 つにしている
+ */
+export function creditDisplayName(
+  credit: { creditedName: string; voiceActorName?: string; voiceActorNameEn?: string },
+  locale: Locale,
+): string {
+  if (!credit.voiceActorName) return credit.creditedName;
+  return actorDisplayName(
+    { canonicalName: credit.voiceActorName, nameEn: credit.voiceActorNameEn },
+    locale,
+  );
+}

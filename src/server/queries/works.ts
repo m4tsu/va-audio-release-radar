@@ -117,6 +117,8 @@ export type WorkCredit = {
   /** 名寄せ済みなら声優ページへリンクできる */
   voiceActorSlug?: string;
   voiceActorName?: string;
+  /** 名寄せ先の声優のローマ字表記。英語表示の名前に使う */
+  voiceActorNameEn?: string;
 };
 
 export type WorkDetail = WorkWithListings & { credits: WorkCredit[] };
@@ -178,6 +180,7 @@ export async function getWorkById(
         voiceActorId: audioCredits.voiceActorId,
         voiceActorSlug: voiceActors.slug,
         voiceActorName: voiceActors.canonicalName,
+        voiceActorNameEn: voiceActors.nameEn,
       })
       .from(audioCredits)
       .leftJoin(voiceActors, eq(voiceActors.id, audioCredits.voiceActorId))
@@ -205,6 +208,7 @@ export async function getWorkById(
       ...(credit.voiceActorId ? { voiceActorId: credit.voiceActorId } : {}),
       ...(credit.voiceActorSlug ? { voiceActorSlug: credit.voiceActorSlug } : {}),
       ...(credit.voiceActorName ? { voiceActorName: credit.voiceActorName } : {}),
+      ...(credit.voiceActorNameEn ? { voiceActorNameEn: credit.voiceActorNameEn } : {}),
     })),
   };
 }

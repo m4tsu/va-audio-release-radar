@@ -7,7 +7,7 @@ import { StoreLink } from "@/app/components/store-link";
 import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
 import { useLocale, useT } from "@/app/i18n";
-import { actorDisplayName } from "@/app/lib/actor-name";
+import { creditDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
 import {
   categoryLabel,
@@ -141,7 +141,7 @@ function CreditName({ credit }: { credit: WorkCredit }) {
         params={{ slug: credit.voiceActorSlug }}
         className="link-text font-medium"
       >
-        {actorDisplayName({ canonicalName: credit.voiceActorName ?? credit.creditedName }, locale)}
+        {creditDisplayName(credit, locale)}
       </Link>
     );
   }

@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { storeLabel } from "@/app/components/store-badge";
 import { createTranslator, type Locale } from "@/app/i18n";
+import { creditDisplayName } from "@/app/lib/actor-name";
 import { dedupeCredits } from "@/app/lib/dedupe-credits";
 import { categoryLabel } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
@@ -70,9 +71,7 @@ function pageTitle(detail: WorkDetail, locale: Locale): string {
 function pageDescription(detail: WorkDetail, locale: Locale): string {
   const t = createTranslator(locale);
   // 表記違いによる重複を description にも出さないよう、本文と同じ dedupeCredits を通す
-  const names = dedupeCredits(detail.credits).map(
-    (credit) => credit.voiceActorName ?? credit.creditedName,
-  );
+  const names = dedupeCredits(detail.credits).map((credit) => creditDisplayName(credit, locale));
   const cast =
     names.length > 0
       ? t("work.metaCast", { names: names.slice(0, 4).join(t("common.listSeparator")) })

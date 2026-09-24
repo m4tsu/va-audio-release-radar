@@ -27,6 +27,19 @@ test("locale=en の cookie があれば title も meta も英語になる", asyn
   expect(html).toMatch(new RegExp(`<meta name="description" content="[^"]*from ${ENGLISH} with`));
 });
 
+/** 作品の meta description に並ぶ出演声優も、cookie の言語に合わせた表記になる */
+test("locale=en の cookie があれば作品の meta に声優のローマ字表記を並べる", async ({
+  request,
+}) => {
+  const path = "/works/dlsite%3ARJ90000001";
+  const native = await (await request.get(path)).text();
+  expect(native).toMatch(/<meta name="description" content="[^"]*テスト声優アルファ/);
+
+  const english = await (await request.get(path, { headers: { cookie: "locale=en" } })).text();
+  expect(english).toMatch(/<meta name="description" content="Featuring [^"]*E2E Actor Alpha/);
+  expect(english).not.toMatch(/<meta name="description" content="[^"]*テスト声優アルファ/);
+});
+
 test("locale=en の cookie は本文と lang 属性にも効く", async ({ page, context, baseURL }) => {
   await context.addCookies([{ name: "locale", value: "en", url: baseURL ?? "" }]);
   await page.goto("/voice-actors");

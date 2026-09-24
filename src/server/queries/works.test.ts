@@ -834,6 +834,22 @@ describe("getWorkById", () => {
     expect(unresolved?.voiceActorSlug).toBeUndefined();
   });
 
+  it("ローマ字表記を持つ声優の credit には voiceActorNameEn を添える", async () => {
+    const db = await setupDb([{ ...UEDA, nameEn: "Reina Ueda" }, HANAZAWA]);
+    await ingest(
+      db,
+      payload({ works: [rawWork({ creditedNames: ["上田麗奈", "花澤香菜"] })] }),
+      NOW,
+    );
+
+    const detail = await getWorkById(db, "dlsite:RJ01698658");
+
+    const ueda = detail?.credits.find((credit) => credit.creditedName === "上田麗奈");
+    expect(ueda?.voiceActorNameEn).toBe("Reina Ueda");
+    const hanazawa = detail?.credits.find((credit) => credit.creditedName === "花澤香菜");
+    expect(hanazawa).not.toHaveProperty("voiceActorNameEn");
+  });
+
   /** アフィリエイト URL は server function が ID から組み立てる (`@/server/affiliate`)。列に残った古い値を出さない */
   it("store_listings.affiliate_url 列の値を返さない", async () => {
     const db = await setupDb();

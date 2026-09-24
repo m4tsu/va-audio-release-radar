@@ -101,6 +101,18 @@ describe("WorkPage のクレジット", () => {
     expect(screen.queryByRole("link", { name: "架空の未解決表記" })).not.toBeInTheDocument();
   });
 
+  test("英語表示では名寄せ済みの声優名をローマ字で出す", () => {
+    const detail = workDetail({
+      credits: [workCredit({ voiceActorNameEn: "Kakuu Alpha" })],
+    });
+    renderWithLocale(<WorkPage detail={detail} />, "en");
+
+    expect(screen.getByRole("link", { name: "Kakuu Alpha" })).toHaveAttribute(
+      "href",
+      "/voice-actors/alpha",
+    );
+  });
+
   test("役が付いていれば名前に添える", () => {
     renderWithLocale(<WorkPage detail={DETAIL} />);
 
