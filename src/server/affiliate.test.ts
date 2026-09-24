@@ -37,6 +37,10 @@ describe("affiliateUrlFor", () => {
     expect(affiliateUrlFor("pokedora", "123", ALL_IDS)).toBeUndefined();
   });
 
+  it("DLsite の RJ 以外の作品 (`/garumani/` の BJ) は組み立てない", () => {
+    expect(affiliateUrlFor("dlsite", "BJ01234567", ALL_IDS)).toBeUndefined();
+  });
+
   /** 商品 ID は外部由来の文字列。区切り文字が混ざってもパスの別の位置に効かないようにする */
   it("ID と商品 ID をパスの 1 区間に閉じ込める", () => {
     expect(affiliateUrlFor("dlsite", "RJ1/../x", ALL_IDS)).toBe(

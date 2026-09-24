@@ -202,6 +202,8 @@ robots.txt の `Sitemap:` 行に載っているので許可されている。
 - ホストは `dlsite.com` ではなく `dlaf.jp`。パスに入るのはアフィリエイト ID と作品 ID
   (`store_listings.store_product_id`) だけで、`product_url` もフロアのパスも使わない
 - パスの `t/n` の意味は確かめていない。管理画面の出力をそのまま写している
+- 確かめた作品 ID は `RJ` だけ。`/garumani/` から来る `BJ` の作品に同じ `home` のパスが通じるかは
+  確かめていないので、`BJ` の作品は正規 URL のまま出す (「未確認の項目」)
 - アフィリエイト ID は URL に出る公開値。本番の値は `package.json` の `deploy` が渡す
 
 ---
@@ -336,6 +338,7 @@ image_main.file_name, creaters.voice_by[].name, genres[].name, on_sale, is_reser
   `Sitemap:` 行に `girlspro` と `blpro` もある
 - `sex_category` の値の意味。女性向けの作品が 2 であることは実測した。
   1 が入る作品は `crawler/fixtures/dlsite-product-RJ01698658.json` にあるが、1 が何を指すかは未確認
+- `BJ` の作品のアフィリエイトリンクの形。管理画面で `BJ` の作品のリンクを出して、`home` 以外のパスになるかを見る
 - `BJ` の商業音声で、女性向けでないもの (`/books/` など他のフロア) を `/home/` が拾えているか
 
 ---

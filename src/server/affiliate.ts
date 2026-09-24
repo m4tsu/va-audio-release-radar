@@ -14,17 +14,20 @@ import type { WorkListing } from "./queries/works";
 
 type Rule = {
   envKey: string;
-  /** 無いストアは ID が入っていても正規 URL のまま出す */
-  build?: (affiliateId: string, storeProductId: string) => string;
+  /** 無いストアと、undefined を返した作品は ID が入っていても正規 URL のまま出す */
+  build?: (affiliateId: string, storeProductId: string) => string | undefined;
 };
 
 const RULES = {
   // 出どころは docs/stores/dlsite.md の「アフィリエイトリンク」
   dlsite: {
     envKey: "DLSITE_AFFILIATE_ID",
-    // `t/n` の意味は確かめていない。管理画面が出力する形をそのまま写している
+    // 形を確かめたのは `RJ` の作品だけ。`/garumani/` から来る `BJ` の作品に `home` のパスが
+    // 通じるかは分からないので、正規 URL に残す。`t/n` の意味も確かめておらず、管理画面の出力をそのまま写している
     build: (affiliateId, storeProductId) =>
-      `https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/${encodeURIComponent(affiliateId)}/id/${encodeURIComponent(storeProductId)}.html`,
+      storeProductId.startsWith("RJ")
+        ? `https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/${encodeURIComponent(affiliateId)}/id/${encodeURIComponent(storeProductId)}.html`
+        : undefined,
   },
   audible: { envKey: "AUDIBLE_AFFILIATE_ID" },
   pokedora: { envKey: "POKEDORA_AFFILIATE_ID" },
