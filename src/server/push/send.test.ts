@@ -63,7 +63,8 @@ describe("createPushSender", () => {
     expect(headers.authorization).toMatch(/^vapid t=.+, k=.+/);
     expect(headers["content-encoding"]).toBe("aes128gcm");
     expect(headers.ttl).toBe(String(7 * 24 * 60 * 60));
-    expect(headers.topic).toBe("weekly-digest");
+    // Apple の push service は Topic ヘッダがあると拒む
+    expect(headers.topic).toBeUndefined();
     // 本文は暗号化されている。平文の題名が入っていないことを見る
     expect(Buffer.from(init?.body as Uint8Array).toString("utf8")).not.toContain(MESSAGE.title);
   });

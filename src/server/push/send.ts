@@ -42,8 +42,9 @@ export function createPushSender(vapid: VapidKeys, fetchFn: typeof fetch = fetch
   return async (target, message) => {
     try {
       const payload = await buildPushPayload(
-        // 同じ週の通知が 2 つ並ばないよう topic で束ねる。値は push service が求める形 (URL-safe、32 字以内)
-        { data: message, options: { ttl: TTL_SECONDS, topic: "weekly-digest", urgency: "normal" } },
+        // topic は付けない。Apple の push service は Topic ヘッダ付きの要求を 400 (BadWebPushTopic) で拒む。
+        // 表示された通知は service worker が tag で束ねるので、同じ週の通知は並ばない
+        { data: message, options: { ttl: TTL_SECONDS, urgency: "normal" } },
         {
           endpoint: target.endpoint,
           expirationTime: null,
