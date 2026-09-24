@@ -155,6 +155,20 @@
       "when": 1790177658052,
       "tag": "0021_voice_actors_canonical_name_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1790245951264,
+      "tag": "0022_cast_size_and_data_generation",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790245957193,
+      "tag": "0023_cast_size_triggers",
+      "breakpoints": true
     }
   ]
 }

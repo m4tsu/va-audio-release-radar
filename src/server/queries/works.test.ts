@@ -289,6 +289,63 @@ describe("latestWorks", () => {
     expect(works.map((item) => item.work.id)).toEqual(["dlsite:A", "dlsite:B"]);
   });
 
+  /**
+   * ストアを指定したときは、発売日の無い作品を (ストア, 初出) の索引で新しい順にたどって上限で止める
+   * (`latestWorks` の `undatedInStore`)。同じ日付の中では初出の時刻が新しい作品を先に採る
+   */
+  it("ストアで絞った新着は、発売日の無い作品を初出の新しい順に上限まで出す", async () => {
+    const db = await setupDb();
+    for (const [id, days] of [
+      ["OLD", 5],
+      ["MID", 3],
+      ["NEW", 1],
+    ] as const) {
+      await ingest(
+        db,
+        payload({ runId: `run-${id}`, works: [rawWork({ storeProductId: id })] }),
+        daysAgo(days),
+      );
+    }
+
+    const works = await latestWorks(db, { now: NOW, limit: 2, storeSlug: "dlsite" });
+
+    expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:MID", "dlsite:NEW"]);
+  });
+
+  /**
+   * 発売日のある作品が上限までそろえば、その最後の日付より前に見つかった発売日の無い作品は上位に入らない。
+   * 同じ日付は id で並べるので、その日に見つかった作品は入りうる (下限はその日を含む)
+   */
+  it("発売日の無い作品は、発売日のある側の上限件目の日付以降に見つかったものだけが並びに入る", async () => {
+    const db = await setupDb();
+    await ingest(
+      db,
+      payload({
+        works: [
+          rawWork({ storeProductId: "D1", releaseDate: "2026-09-17" }),
+          rawWork({ storeProductId: "D2", releaseDate: "2026-09-15" }),
+        ],
+      }),
+      NOW,
+    );
+    // D2 と同じ日 (2026-09-15) に見つかった作品。id が D2 より前なので D2 より先に並ぶ
+    await ingest(
+      db,
+      payload({ runId: "run-a", works: [rawWork({ storeProductId: "A0" })] }),
+      daysAgo(3),
+    );
+    // D2 より前の日に見つかった作品。上位に入らない
+    await ingest(
+      db,
+      payload({ runId: "run-b", works: [rawWork({ storeProductId: "A1" })] }),
+      daysAgo(8),
+    );
+
+    const works = await latestWorks(db, { now: NOW, limit: 2, storeSlug: "dlsite" });
+
+    expect(works.map((item) => item.work.id).sort()).toEqual(["dlsite:A0", "dlsite:D1"]);
+  });
+
   it("ストアで絞り込める", async () => {
     const db = await setupDb();
     await ingest(db, payload({ works: [rawWork({ storeProductId: "RJ1" })] }), NOW);

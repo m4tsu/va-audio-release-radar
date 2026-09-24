@@ -97,7 +97,13 @@ export type WorkWithListings = {
   isNew: boolean;
   /**
    * 出演者の数。画面はこの数だけで出演形態 (単独 / 少人数 / 大人数) を決める
-   * (`@/app/lib/appearance`)。クレジットが 1 件も取れていない作品は 0
+   * (`@/app/lib/appearance`)。クレジットが 1 件も取れていない作品は 0。
+   *
+   * 数え方は画面の重複排除 (`@/app/lib/dedupe-credits`) と同じ。`audio_credits` は
+   * (作品, 表記, ストア) で一意なので、同じ人が 2 ストアに載っていれば行が 2 つできる。
+   * 名寄せ済みは声優 ID、未解決の表記はその表記そのものを「誰か」とみなして数える。
+   * 値は作品の行 (`audio_works.cast_size`) をトリガーが保つ (`migrations/0023_cast_size_triggers.sql`)。
+   * 数え方を変えるときはトリガーも作り直す
    */
   castSize: number;
 };
@@ -161,7 +167,7 @@ export async function getWorkById(
     .limit(1);
   if (!row) return undefined;
 
-  const [listings, creditRows, castSizes] = await Promise.all([
+  const [listings, creditRows] = await Promise.all([
     loadListings(db, [id]),
     db
       .select({
@@ -177,7 +183,6 @@ export async function getWorkById(
       .leftJoin(voiceActors, eq(voiceActors.id, audioCredits.voiceActorId))
       .where(eq(audioCredits.audioWorkId, id))
       .orderBy(asc(audioCredits.creditedName)),
-    loadCastSizes(db, [id]),
   ]);
 
   const workListings = listings.get(id) ?? [];
@@ -191,7 +196,7 @@ export async function getWorkById(
     work: toWorkSummary(row),
     listings: workListings,
     ...classifyWork(row.releaseDate, workListings, actorIds, baselines, now),
-    castSize: castSizes.get(id) ?? 0,
+    castSize: row.castSize,
     credits: creditRows.map((credit) => ({
       creditedName: credit.creditedName,
       ...(credit.role ? { role: credit.role } : {}),
@@ -225,13 +230,11 @@ export async function worksByActor(
     .orderBy(...newestFirstOrder)
     .limit(limit);
 
-  // この一覧はこの声優のページなので、発売日が無い作品のベースラインもこの声優のものだけ見る。
-  // 出演者数は作品ごとに引かず、並べる作品ぶんをまとめて 1 回で数える
+  // この一覧はこの声優のページなので、発売日が無い作品のベースラインもこの声優のものだけ見る
   const workIds = rows.map((row) => row.id);
-  const [listings, baselines, castSizes] = await Promise.all([
+  const [listings, baselines] = await Promise.all([
     loadListings(db, workIds),
     loadCrawlBaselines(db, rows.some((row) => row.releaseDate === null) ? [voiceActorId] : []),
-    loadCastSizes(db, workIds),
   ]);
 
   return rows.map((row) => {
@@ -240,7 +243,7 @@ export async function worksByActor(
       work: toWorkSummary(row),
       listings: workListings,
       ...classifyWork(row.releaseDate, workListings, [voiceActorId], baselines, now),
-      castSize: castSizes.get(row.id) ?? 0,
+      castSize: row.castSize,
     };
   });
 }
@@ -320,65 +323,52 @@ export async function latestWorks(
 
   const sinceIso = isoDaysAgo(now, sinceDays);
   // 買える listing だけを見る。`storeSlug` で絞るときに取り下げた listing へ当たると、
-  // 他のストアで買えることを根拠に「そのストアで買える作品」として出てしまう
+  // 他のストアで買えることを根拠に「そのストアで買える作品」として出てしまう。
+  // ストアの条件の `+` は、作品ごとの listing を引く副問い合わせに (ストア, 初出) の索引を選ばせないため。
+  // 選ばれると作品 1 件ごとにそのストアの listing を全部たどる
   const listingOnSale = and(
     isNull(storeListings.delistedAt),
-    storeSlug ? eq(storeListings.storeSlug, storeSlug) : undefined,
+    storeSlug ? sql`+${storeListings.storeSlug} = ${storeSlug}` : undefined,
   );
 
-  const [dated, undated] = await Promise.all([
-    // 発売日の索引を新しい順にたどり、`limit` 件そろった所で止まる。集約すると止まれないので、
-    // 初出は作品ごとの副問い合わせで取る (並べる件数ぶんしか評価されない)
-    db
-      .select({
-        ...workColumns,
-        // 外側の作品は表名を明示して指す。select 句の中では drizzle が列を表名なしで出すので、
-        // `audio_works.id` が内側の `store_listings.id` を指してしまう
-        firstSeenAt: sql<string>`(
-          select min(${storeListings.firstSeenAt}) from ${storeListings}
-          where ${storeListings.audioWorkId} = ${sql.identifier(getTableName(audioWorks))}.${sql.identifier("id")}
-            and ${listingOnSale}
+  // 発売日の索引を新しい順にたどり、`limit` 件そろった所で止まる。集約すると止まれないので、
+  // 初出は作品ごとの副問い合わせで取る (並べる件数ぶんしか評価されない)
+  const dated = await db
+    .select({
+      ...workColumns,
+      // 外側の作品は表名を明示して指す。select 句の中では drizzle が列を表名なしで出すので、
+      // `audio_works.id` が内側の `store_listings.id` を指してしまう
+      firstSeenAt: sql<string>`(
+        select min(${storeListings.firstSeenAt}) from ${storeListings}
+        where ${storeListings.audioWorkId} = ${sql.identifier(getTableName(audioWorks))}.${sql.identifier("id")}
+          and ${listingOnSale}
+      )`,
+    })
+    .from(audioWorks)
+    .where(
+      and(
+        gte(audioWorks.releaseDate, sinceIso.slice(0, 10)),
+        notAdultRated,
+        sql`exists (
+          select 1 from ${storeListings}
+          where ${storeListings.audioWorkId} = ${audioWorks.id} and ${listingOnSale}
         )`,
-      })
-      .from(audioWorks)
-      .where(
-        and(
-          gte(audioWorks.releaseDate, sinceIso.slice(0, 10)),
-          notAdultRated,
-          sql`exists (
-            select 1 from ${storeListings}
-            where ${storeListings.audioWorkId} = ${audioWorks.id} and ${listingOnSale}
-          )`,
-        ),
-      )
-      .orderBy(desc(audioWorks.releaseDate), asc(audioWorks.id))
-      .limit(limit),
-    // 初出の索引で窓の中の listing だけを読む。発売日の条件の前の `+` は、発売日の索引
-    // (発売日が無い作品を全部たどる) を選ばせないため
-    db
-      .select(workSelection)
-      .from(storeListings)
-      .innerJoin(audioWorks, eq(audioWorks.id, storeListings.audioWorkId))
-      .where(
-        and(
-          gte(storeListings.firstSeenAt, sinceIso),
-          listingOnSale,
-          sql`+${audioWorks.releaseDate} is null`,
-          notAdultRated,
-        ),
-      )
-      .groupBy(audioWorks.id)
-      .orderBy(...newestFirstOrder)
-      .limit(limit),
-  ]);
+      ),
+    )
+    .orderBy(desc(audioWorks.releaseDate), asc(audioWorks.id))
+    .limit(limit);
+
+  const undated =
+    storeSlug === undefined
+      ? await undatedAcrossStores(db, sinceIso, limit)
+      : await undatedInStore(db, storeSlug, undatedFloor(sinceIso, dated, limit), limit);
   // 同着を id で決めるのは、2 つを合わせたときにどちらの上位から採るかを実行ごとに揺らさないため
   const rows = [...dated, ...undated].sort(newestFirst).slice(0, limit);
 
   const workIds = rows.map((row) => row.id);
-  const [listings, actorsByWork, castSizes] = await Promise.all([
+  const [listings, actorsByWork] = await Promise.all([
     loadListings(db, workIds),
     loadWorkActors(db, workIds),
-    loadCastSizes(db, workIds),
   ]);
   const baselines = await loadCrawlBaselines(db, undatedActorIds(rows, actorsByWork));
 
@@ -389,7 +379,7 @@ export async function latestWorks(
       row,
       listings: workListings,
       actors,
-      castSize: castSizes.get(row.id) ?? 0,
+      castSize: row.castSize,
       ...classifyWork(
         row.releaseDate,
         workListings,
@@ -445,10 +435,9 @@ export async function feedForActors(
   // 引く行数も limit のままで、それ以上フォローしたときだけ一時的に増える
   const rows = [...collected.values()];
   const workIds = rows.map((row) => row.id);
-  const [listings, actorsByWork, castSizes] = await Promise.all([
+  const [listings, actorsByWork] = await Promise.all([
     loadListings(db, workIds),
     loadWorkActors(db, workIds, voiceActorIds),
-    loadCastSizes(db, workIds),
   ]);
   const baselines = await loadCrawlBaselines(db, undatedActorIds(rows, actorsByWork));
 
@@ -459,7 +448,7 @@ export async function feedForActors(
       row,
       listings: workListings,
       actors,
-      castSize: castSizes.get(row.id) ?? 0,
+      castSize: row.castSize,
       ...classifyWork(
         row.releaseDate,
         workListings,
@@ -514,6 +503,73 @@ export async function sitemapEntries(db: AppDb): Promise<SitemapEntries> {
 }
 
 // --- 内部 ----------------------------------------------------------------
+
+/**
+ * 発売日の無い作品を読み始める初出の下限。
+ *
+ * 発売日のある作品が `limit` 件そろっていれば、並びの上位に入る発売日の無い作品は、その `limit` 件目の日付以降に
+ * 見つかったものだけ (並びは日付の降順で、同じ日付は id で決める。日付の同じ作品は入りうるので、その日を含める)。
+ * 文字列の比較で済むのは、発売日 ("YYYY-MM-DD") が初出 (ISO 8601) の先頭と同じ形だから
+ */
+function undatedFloor(sinceIso: string, dated: WorkRow[], limit: number): string {
+  const last = dated.length === limit ? dated[limit - 1]?.releaseDate : undefined;
+  return last !== undefined && last !== null && last > sinceIso ? last : sinceIso;
+}
+
+/**
+ * 1 つのストアの、発売日の無い作品。初出の新しい順に `limit` 件。
+ *
+ * 作品 ID は「ストア:商品 ID」なので、1 作品が 1 ストアに持つ listing は 1 つだけ (`ingest.ts`)。
+ * 作品ごとに集約しなくても、listing の初出がそのまま作品の初出になる。集約をやめると
+ * (ストア, 初出) の索引を新しい順にたどって `limit` 件で止まれる。
+ * 同じ日付の中は初出の時刻が新しい作品を先に採る (最後に並べ直すときは日付と id で並べる)
+ */
+async function undatedInStore(
+  db: AppDb,
+  storeSlug: StoreSlug,
+  floor: string,
+  limit: number,
+): Promise<WorkRow[]> {
+  return db
+    .select({ ...workColumns, firstSeenAt: storeListings.firstSeenAt })
+    .from(storeListings)
+    .innerJoin(audioWorks, eq(audioWorks.id, storeListings.audioWorkId))
+    .where(
+      and(
+        eq(storeListings.storeSlug, storeSlug),
+        gte(storeListings.firstSeenAt, floor),
+        isNull(storeListings.delistedAt),
+        // `+` は発売日の索引 (発売日が無い作品を全部たどる) を選ばせないため
+        sql`+${audioWorks.releaseDate} is null`,
+        notAdultRated,
+      ),
+    )
+    .orderBy(desc(storeListings.firstSeenAt), asc(audioWorks.id))
+    .limit(limit);
+}
+
+/**
+ * ストアを指定しないときの、発売日の無い作品。作品は複数のストアに listing を持ちうるので、
+ * 作品ごとに集約して初出を決める。窓の中の listing を全部読むので、画面からは呼ばない
+ * (`fetchLatestWorks` はストアを必須にしている)
+ */
+async function undatedAcrossStores(db: AppDb, sinceIso: string, limit: number): Promise<WorkRow[]> {
+  return db
+    .select(workSelection)
+    .from(storeListings)
+    .innerJoin(audioWorks, eq(audioWorks.id, storeListings.audioWorkId))
+    .where(
+      and(
+        gte(storeListings.firstSeenAt, sinceIso),
+        isNull(storeListings.delistedAt),
+        sql`+${audioWorks.releaseDate} is null`,
+        notAdultRated,
+      ),
+    )
+    .groupBy(audioWorks.id)
+    .orderBy(...newestFirstOrder)
+    .limit(limit);
+}
 
 /**
  * フィードに載せる範囲。新着は発売日基準なので、発売日があるものは
@@ -677,6 +733,7 @@ const workColumns = {
   coverImageUrl: audioWorks.coverImageUrl,
   durationSeconds: audioWorks.durationSeconds,
   makerName: audioWorks.makerName,
+  castSize: audioWorks.castSize,
 };
 
 /** listing を繋いで作品ごとに集約する問い合わせの select。初出は繋いだ listing の最小 */
@@ -690,6 +747,7 @@ type WorkRow = {
   coverImageUrl: string | null;
   durationSeconds: number | null;
   makerName: string | null;
+  castSize: number;
   firstSeenAt: string;
 };
 
@@ -794,38 +852,6 @@ export async function loadListings(
       if (list) list.push(listing);
       else byWork.set(row.audioWorkId, [listing]);
     }
-  }
-  return byWork;
-}
-
-/**
- * 作品ごとの出演者数。画面はこの数だけで出演形態を決める (`@/app/lib/appearance`)。
- *
- * 数え方は画面の重複排除 (`@/app/lib/dedupe-credits`) と同じにする。`audio_credits` は
- * (作品, 表記, ストア) で一意なので、同じ人が 2 ストアに載っていれば行が 2 つできる。
- * 名寄せ済みは声優 ID、未解決の表記はその表記そのものを「誰か」とみなして数える。
- * 前置きを付けて数えるのは、声優 ID と表記が同じ文字列でも別物として扱うため。
- *
- * 作品 1 件ごとに引くと一覧で作品数ぶんのクエリになるので、まとめて数える
- */
-async function loadCastSizes(db: AppDb, workIds: string[]): Promise<Map<string, number>> {
-  const byWork = new Map<string, number>();
-  if (workIds.length === 0) return byWork;
-
-  for (const ids of chunked(workIds)) {
-    const rows = await db
-      .select({
-        audioWorkId: audioCredits.audioWorkId,
-        castSize: sql<number>`count(distinct coalesce(
-          'actor:' || ${audioCredits.voiceActorId},
-          'name:' || ${audioCredits.creditedName}
-        ))`,
-      })
-      .from(audioCredits)
-      .where(inArray(audioCredits.audioWorkId, ids))
-      .groupBy(audioCredits.audioWorkId);
-
-    for (const row of rows) byWork.set(row.audioWorkId, row.castSize);
   }
   return byWork;
 }

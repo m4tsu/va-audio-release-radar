@@ -173,6 +173,13 @@ export const audioWorks = sqliteTable(
      */
     ageRating: text("age_rating", { enum: AGE_RATINGS }).notNull().default("unknown"),
     makerName: text("maker_name"),
+    /**
+     * 出演者の数。画面はこの数だけで出演形態を決める (`@/app/lib/appearance`)。
+     * 数え方は `works.ts` の `WorkWithListings` の `castSize` の説明と同じで、値はトリガーが保つ
+     * (`migrations/0023_cast_size_triggers.sql`)。表示のたびに credit を数え直すと、
+     * 新着 1 回で並べる作品の credit を全部読むことになる
+     */
+    castSize: integer("cast_size").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -212,6 +219,8 @@ export const storeListings = sqliteTable(
     index("store_listings_audio_work_id_idx").on(t.audioWorkId),
     // 新着が窓の中の listing だけを読むため (`latestWorks`)。無いと全作品を読んでから窓で落とす
     index("store_listings_first_seen_at_idx").on(t.firstSeenAt),
+    // トップの新着はストアごとに引く。ストアで絞ってから初出の新しい順にたどり、必要な件数で止まるため
+    index("store_listings_store_first_seen_idx").on(t.storeSlug, t.firstSeenAt),
   ],
 );
 
@@ -616,3 +625,16 @@ export const pushDigestRuns = sqliteTable(
   // 新しい順の一覧と、同じ予定時刻の走行を束ねる読み取りのための索引
   (t) => [index("push_digest_runs_scheduled_started_idx").on(t.digestScheduledAt, t.startedAt)],
 );
+
+/**
+ * 画面に出るデータの世代。1 行だけ持つ。
+ *
+ * クエリ結果のキャッシュ (`src/server/data-cache.ts`) はキーにこの値を入れる (`data-generation.ts`)。データを変えた書き込みの後に
+ * Worker の入口が値を新しくするので、古い世代のキャッシュは以後読まれない。Cache API の消去は
+ * データセンター単位でしか届かないため、消す代わりに世代で読まなくする
+ */
+export const dataGeneration = sqliteTable("data_generation", {
+  id: integer("id").primaryKey(),
+  generation: text("generation").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
