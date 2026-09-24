@@ -17,7 +17,7 @@
     "check:layers": "node --no-warnings scripts/check-app-layers.mjs",
     "check": "npm run check:migrations && npm run check:docs && npm run check:layers && npm run typecheck && npm run lint && npm run test",
     "test:e2e": "playwright test",
-    "deploy": "npm run build && wrangler deploy --var SITE_URL:https://koetrail.com --var DLSITE_AFFILIATE_ID:do65m205lfao7 --var VALUECOMMERCE_SID:3782466 --var POKEDORA_VC_PID:892711118 --var AUDIBLE_TRIAL_VC_PID:892711155 --var DATA_CACHE:1",
+    "deploy": "npm run build && wrangler deploy --var SITE_URL:https://koetrail.com --var DLSITE_AFFILIATE_ID:do65m205lfao7 --var VALUECOMMERCE_SID:3782466 --var AUDIBLE_TRIAL_VC_PID:892711155 --var DATA_CACHE:1",
     "radar": "node crawler/cli.ts",
     "radar:crawl": "node crawler/run.ts",
     "radar:daily": "node crawler/daily.ts",
