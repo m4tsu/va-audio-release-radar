@@ -1,8 +1,10 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { DEFAULT_WORK_FILTERS } from "@/app/lib/work-filters";
 import { VoiceActorPage } from "@/app/pages/voice-actor";
+import { useFollowStore } from "@/app/store/follow-store";
+import { resetPushStoreForTest, usePushStore } from "@/app/store/push-store";
 import {
   actorAnimeAppearance,
   actorDetail,
@@ -58,6 +60,7 @@ function render(over: Partial<Parameters<typeof VoiceActorPage>[0]> = {}, locale
       coverage={[]}
       filters={DEFAULT_WORK_FILTERS}
       onFiltersChange={() => {}}
+      vapidPublicKey={null}
       {...over}
     />,
     locale,
@@ -153,16 +156,16 @@ describe("VoiceActorPage の作品一覧", () => {
  * 「このストアには無い」と読める 0 件が出うる。切ったことを画面が言う
  */
 describe("VoiceActorPage の打ち切り", () => {
-  test("上限で切っているときは、並べた件数を注記で出す", () => {
+  test("上限で切っているときは、新着順と注記する", () => {
     render({ stats: { ...STATS, workCount: 42 } });
 
-    expect(screen.getByText("新しい順に 3 作品まで載せています。")).toBeInTheDocument();
+    expect(screen.getByText("新着順")).toBeInTheDocument();
   });
 
   test("全件が並んでいるなら注記を出さない", () => {
     render();
 
-    expect(screen.queryByText(/載せています/)).not.toBeInTheDocument();
+    expect(screen.queryByText("新着順")).not.toBeInTheDocument();
   });
 
   /** 分母を声優の作品数にすると、「42 作品中 1 作品」が「このストアに 1 作品」と読める */
@@ -403,13 +406,15 @@ describe("VoiceActorPage の出演アニメ", () => {
   test("1 件も無ければ節ごと出さない", () => {
     render();
 
-    expect(screen.queryByRole("heading", { level: 2, name: "出演アニメ" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "直近出演アニメ" }),
+    ).not.toBeInTheDocument();
   });
 
   test("役名・役種・シーズンを添えてアニメのページへ結ぶ", () => {
     render({ anime: [actorAnimeAppearance({ slug: "kakuu-no-anime" })] });
 
-    expect(screen.getByRole("heading", { level: 2, name: "出演アニメ" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "直近出演アニメ" })).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /架空のアニメ/ });
     expect(link).toHaveAttribute("href", "/anime/kakuu-no-anime");
     expect(link).toHaveTextContent("架空キャラ");
@@ -446,5 +451,102 @@ describe("VoiceActorPage の訂正の申し出", () => {
       "href",
       "/contact?kind=correction&about=%2Fvoice-actors%2Falpha",
     );
+  });
+});
+
+/** 作品一覧が長いと、その後ろの出演アニメが視界に入らない */
+describe("VoiceActorPage の出演アニメへのページ内リンク", () => {
+  test("作品と出演アニメの両方があれば、見出しの下から出演アニメの見出しへ飛べる", () => {
+    render({ anime: [actorAnimeAppearance()] });
+
+    const link = screen.getByRole("link", { name: "直近出演アニメへ" });
+    const heading = screen.getByRole("heading", { level: 2, name: "直近出演アニメ" });
+    expect(link).toHaveAttribute("href", `#${heading.id}`);
+  });
+
+  test("出演アニメが無ければリンクを出さない", () => {
+    render();
+
+    expect(screen.queryByRole("link", { name: "直近出演アニメへ" })).not.toBeInTheDocument();
+  });
+
+  /** 作品が無ければ出演アニメは案内のすぐ下にある */
+  test("作品が無ければリンクを出さない", () => {
+    render({
+      works: [],
+      stats: { voiceActorId: ACTOR.id, workCount: 0 },
+      anime: [actorAnimeAppearance()],
+    });
+
+    expect(screen.queryByRole("link", { name: "直近出演アニメへ" })).not.toBeInTheDocument();
+  });
+
+  test("英語表示でも出る", () => {
+    render({ anime: [actorAnimeAppearance()] }, "en");
+
+    expect(screen.getByRole("link", { name: "Recent anime appearances" })).toBeInTheDocument();
+  });
+});
+
+/**
+ * 通知の設定はフォロー中ページにしか無い。声優ページからフォローした人が通知に気づけるよう、
+ * このページで押した直後にだけ案内する。案内の中身の出し分けは push-follow-prompt.test.tsx が見る
+ */
+describe("VoiceActorPage のフォロー直後の通知の案内", () => {
+  const KEY = "BExampleKey";
+  const PROMPT = "フォローした声優の新作が出たら、このブラウザに通知できます。";
+
+  afterEach(async () => {
+    await resetPushStoreForTest();
+  });
+
+  test("未購読のブラウザでフォローを押すと、通知を受け取る操作が出る", async () => {
+    const user = userEvent.setup();
+    usePushStore.setState({ status: "unsubscribed" });
+    await readyFollowStore();
+    render({ vapidPublicKey: KEY });
+
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+
+    expect(screen.getByText(PROMPT)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新作の通知を受け取る" })).toBeInTheDocument();
+  });
+
+  test("開いた時点でフォロー済みなら、押していないので出さない", async () => {
+    usePushStore.setState({ status: "unsubscribed" });
+    await readyFollowStore();
+    await useFollowStore.getState().follow({
+      voiceActorId: ACTOR.id,
+      slug: ACTOR.slug,
+      canonicalName: ACTOR.canonicalName,
+    });
+    render({ vapidPublicKey: KEY });
+
+    expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument();
+  });
+
+  test("フォローを外すと案内も消える", async () => {
+    const user = userEvent.setup();
+    usePushStore.setState({ status: "unsubscribed" });
+    await readyFollowStore();
+    render({ vapidPublicKey: KEY });
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    await user.click(screen.getByRole("button", { name: "フォロー中" }));
+
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument();
+  });
+
+  test("公開鍵が無い環境では出さない", async () => {
+    const user = userEvent.setup();
+    usePushStore.setState({ status: "unsubscribed" });
+    await readyFollowStore();
+    render();
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument();
   });
 });

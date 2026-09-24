@@ -6,7 +6,8 @@ import { useT } from "@/app/i18n";
 import { usePushStore } from "@/app/store/push-store";
 
 /**
- * 新作のブラウザ通知を購読する区画。フォロー一覧に置く。
+ * 新作のブラウザ通知を購読する区画。フォロー中ページの見出しの操作の位置に置く。
+ * 枠付きの区画として見出しの下に置くと、狭い画面では全幅を取って作品の一覧を押し下げる。
  *
  * 状態と操作は `store/push-store.ts` が持ち、ここは状態ごとの文言とボタンを描くだけ。
  * ブラウザから直接サーバーへ送る経路 (store 経由) を持つので、ページではなく部品に置く。
@@ -15,7 +16,7 @@ import { usePushStore } from "@/app/store/push-store";
  * 押しても成立しない操作を見せないため。
  *
  * 常に出すのは状態と操作と、操作に要る案内 (非対応・ブロック・エラー) だけ。
- * 何をする通知か、サーバーに何を保存するかは見出しの隣のヘルプの印に入れ、作品の一覧を上に寄せる
+ * 何をする通知か、サーバーに何を保存するかは見出しの隣のヘルプの印に入れる
  */
 export function PushSubscriptionCard({ vapidPublicKey }: { vapidPublicKey: string | null }) {
   const t = useT();
@@ -31,61 +32,77 @@ export function PushSubscriptionCard({ vapidPublicKey }: { vapidPublicKey: strin
   if (vapidPublicKey === null || status === "idle") return null;
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3 rounded-xl border bg-card p-4">
-      {/* 見出しと操作を 1 行に並べる。狭い画面では操作が次の行へ折り返す */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+    <section aria-labelledby={headingId} className="max-w-sm space-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex items-center gap-1">
           <h2 id={headingId} className="font-medium text-sm">
             {t("push.title")}
           </h2>
-          <HelpPopover label={t("push.helpLabel")}>
-            <p>{t("push.description")}</p>
-            <p className="text-muted-foreground text-xs">
-              {t("push.storageNote")}{" "}
-              <Link to="/privacy" className="underline underline-offset-2">
-                {t("push.privacyLink")}
-              </Link>
-            </p>
-          </HelpPopover>
+          <PushHelp />
         </div>
 
         {status === "unsubscribed" ? (
-          <Button type="button" disabled={busy} onClick={() => void subscribe(vapidPublicKey)}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy}
+            onClick={() => void subscribe(vapidPublicKey)}
+          >
             {busy ? t("push.enabling") : t("push.enable")}
           </Button>
         ) : null}
 
         {status === "subscribed" ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p role="status" className="text-sm">
-              {t("push.enabled")}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => void unsubscribe()}
-            >
-              {busy ? t("push.disabling") : t("push.disable")}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => void unsubscribe()}
+          >
+            {busy ? t("push.disabling") : t("push.disable")}
+          </Button>
         ) : null}
       </div>
 
+      {status === "subscribed" ? (
+        <p role="status" className="text-muted-foreground text-xs">
+          {t("push.enabled")}
+        </p>
+      ) : null}
+
       {status === "unsupported" ? (
-        <p className="text-sm">
+        <p className="text-muted-foreground text-xs">
           {t("push.unsupported")}
           {guidance === "ios-add-to-home" ? ` ${t("push.iosGuide")}` : null}
         </p>
       ) : null}
 
-      {status === "denied" ? <p className="text-sm">{t("push.denied")}</p> : null}
+      {status === "denied" ? (
+        <p className="text-muted-foreground text-xs">{t("push.denied")}</p>
+      ) : null}
 
       {error ? (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive text-xs">
           {t("push.errorFailed")}
         </p>
       ) : null}
     </section>
+  );
+}
+
+/** 何をする通知か、購読すると何がサーバーに渡るか。購読の操作を置く場所ではどこでも添える */
+export function PushHelp() {
+  const t = useT();
+  return (
+    <HelpPopover label={t("push.helpLabel")}>
+      <p>{t("push.description")}</p>
+      <p className="text-muted-foreground text-xs">
+        {t("push.storageNote")}{" "}
+        <Link to="/privacy" className="underline underline-offset-2">
+          {t("push.privacyLink")}
+        </Link>
+      </p>
+    </HelpPopover>
   );
 }

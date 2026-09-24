@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { ExternalLink, Store, Tag, Users } from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowDown, ExternalLink, Store, Tag, Users } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { CorrectionLink } from "@/app/components/correction-link";
 import { EmptyState } from "@/app/components/empty-state";
 import { FollowButton } from "@/app/components/follow-button";
 import { PageHeader } from "@/app/components/page-header";
+import { PushFollowPrompt } from "@/app/components/push-follow-prompt";
 import { storeLabel } from "@/app/components/store-badge";
 import {
   Select,
@@ -38,7 +39,11 @@ import {
   STORE_FILTERS,
   type WorkFilters,
 } from "@/app/lib/work-filters";
+import { useIsFollowing } from "@/app/store/follow-store";
 import type { StoreSlug } from "@/domain/types";
+
+/** 出演アニメの見出しの id。見出しの下のページ内リンクの飛び先 */
+const ANIME_SECTION_ID = "recent-anime";
 
 /**
  * 音声作品が 1 件でもあるか。ルートはこれを見て `robots` の指定を決めるので、
@@ -61,7 +66,8 @@ export function hasAnyWork(works: readonly WorkWithListings[]): boolean {
  * 受けるためで、そのときは一覧も絞り込みも実績も出さず、まだ見つかっていないことを 1 つ出す
  * (`docs/decisions/0012-follow-actors-without-works.md`)。
  *
- * クライアントでしか決まらないのはフォローボタンの状態だけ。絞り込みは URL の検索文字列に
+ * クライアントでしか決まらないのはフォローボタンの状態と、フォローした直後に出す通知の案内だけ。
+ * 絞り込みは URL の検索文字列に
  * 置く (ルートが読む)。ページ内の状態にすると、絞った画面を共有も再読み込みもできず、
  * SSR が返す HTML と食い違う
  */
@@ -73,6 +79,7 @@ export function VoiceActorPage({
   coverage,
   filters,
   onFiltersChange,
+  vapidPublicKey,
 }: {
   actor: ActorDetail;
   /** 発売日の新しい順。上限で切ってあるので、件数は `stats` の方が正しい */
@@ -85,10 +92,15 @@ export function VoiceActorPage({
   /** 絞り込み。URL から来る */
   filters: WorkFilters;
   onFiltersChange: (next: WorkFilters) => void;
+  /** 新作の通知の公開鍵。無い環境ではフォロー直後の案内を出さない */
+  vapidPublicKey: string | null;
 }) {
   const t = useT();
   const locale = useLocale();
   const name = actorDisplayName(actor, locale);
+  // このページでフォローを押したか。開いた時点でフォロー済みの人には通知の案内を出さない
+  const [followedHere, setFollowedHere] = useState(false);
+  const following = useIsFollowing(actor.id);
   // 取り切れていないストア。取り切れたストアと、走行の記録が無いストアは入らない
   const partialStores = coverage.filter((entry) => !entry.complete).map((entry) => entry.storeSlug);
 
@@ -99,7 +111,7 @@ export function VoiceActorPage({
         // 読み仮名も実績も無ければ副題そのものを出さない (空の行が見出しの下に開く)
         description={
           actor.nameKana || stats.workCount > 0 ? (
-            <ActorSubtitle actor={actor} stats={stats} />
+            <ActorSubtitle actor={actor} stats={stats} jumpToAnime={anime.length > 0} />
           ) : undefined
         }
         actions={
@@ -111,9 +123,12 @@ export function VoiceActorPage({
               canonicalName: actor.canonicalName,
               ...(actor.nameEn ? { nameEn: actor.nameEn } : {}),
             }}
+            onFollow={() => setFollowedHere(true)}
           />
         }
       />
+
+      {followedHere && following ? <PushFollowPrompt vapidPublicKey={vapidPublicKey} /> : null}
 
       {hasAnyWork(works) ? (
         <WorkSection
@@ -140,9 +155,21 @@ export function VoiceActorPage({
  * 見出しの下。読み仮名と、フォローを押す前に知りたい実績 (作品数と最新リリース) を出す。
  *
  * 作品が 1 件も無い声優には実績を出さない。「0 作品」は数えた結果ではなく、
- * まだ見つかっていないという状態で、それは一覧の側が 1 枚の案内として言う
+ * まだ見つかっていないという状態で、それは一覧の側が 1 枚の案内として言う。
+ *
+ * 出演アニメは作品一覧の後ろにあり、作品が多いと視界に入らないので、ここから飛ぶリンクを置く。
+ * 作品が無ければ出演アニメは案内のすぐ下にあるので置かない
  */
-function ActorSubtitle({ actor, stats }: { actor: ActorDetail; stats: ActorWorkStats }) {
+function ActorSubtitle({
+  actor,
+  stats,
+  jumpToAnime,
+}: {
+  actor: ActorDetail;
+  stats: ActorWorkStats;
+  /** 出演アニメがあるか */
+  jumpToAnime: boolean;
+}) {
   const t = useT();
   const locale = useLocale();
   if (stats.workCount === 0) return actor.nameKana ?? null;
@@ -158,6 +185,15 @@ function ActorSubtitle({ actor, stats }: { actor: ActorDetail; stats: ActorWorkS
     <>
       {actor.nameKana ? <span className="block">{actor.nameKana}</span> : null}
       <span className="block">{facts.join(t("common.slashSeparator"))}</span>
+      {jumpToAnime ? (
+        <a
+          href={`#${ANIME_SECTION_ID}`}
+          className="mt-1 inline-flex items-center gap-1 underline underline-offset-4 hover:text-foreground"
+        >
+          <ArrowDown className="size-3.5" aria-hidden="true" />
+          {t("actor.jumpToAnime")}
+        </a>
+      ) : null}
     </>
   );
 }
@@ -186,7 +222,7 @@ function WorkSection({
   // (`routes/voice-actors.$slug.tsx`)、その先にある該当作品は出ない。
   // 上限は新着を追うための打ち切りなので、絞り込みのたびに動かさない
   const shown = filterWorks(works, filters);
-  // 上限で切ったかどうか。切ったことは注記で言う。絞り込みの件数と混ぜると、
+  // 上限で切ったかどうか。切ったときは並び順を注記で言う。絞り込みの件数と混ぜると、
   // 「200 作品中 2 作品」が「このストアに 2 作品しか無い」と読めてしまう
   const truncated = works.length < total;
 
@@ -235,14 +271,12 @@ function WorkSection({
 
       {/* 区画が無くなっても、取り切れていないストアの注記は一覧の手前に残す
           (`docs/decisions/0010-back-catalog-is-what-was-fetched.md`)。
-          上限で切ったことも同じ場所で言う。切った先の作品は絞り込みにも当たらないので、
-          これが無いと「このストアには無い」と読める 0 件が出る */}
+          上限で切ったときは並び順 (新着順) を同じ場所で言う。見出しの作品数と並んだ件数が
+          違う理由が、新しい方から載せていることで読める */}
       {partialStores.length > 0 || truncated ? (
         <div className="space-y-1">
           {truncated ? (
-            <p className="text-muted-foreground text-sm">
-              {t("actor.listLimited", { count: works.length })}
-            </p>
+            <p className="text-muted-foreground text-sm">{t("actor.listLimited")}</p>
           ) : null}
           {partialStores.map((storeSlug) => (
             <PartialCoverageNote key={storeSlug} storeSlug={storeSlug} actor={actor} />
@@ -386,15 +420,18 @@ function StoreSearchLink({ storeSlug, actor }: { storeSlug: StoreSlug; actor: Ac
 }
 
 /**
- * 出演アニメ。本人を特定するための手がかりとして出すので、役名と作品名だけに留める。
- * あらすじも話数も持たない (docs/product.md の「作らないもの」)
+ * 直近出演アニメ。本人を特定するための手がかりとして出すので、役名と作品名だけに留める。
+ * あらすじも話数も持たない (docs/product.md の「作らないもの」)。
+ * 並ぶのは新しいシーズンから上限件数までなので、見出しで直近と言う
  */
 function AnimeSection({ items }: { items: ActorAnimeAppearance[] }) {
   const t = useT();
   const locale = useLocale();
   return (
     <section className="space-y-3">
-      <h2 className="font-semibold text-xl tracking-tight">{t("actor.animeTitle")}</h2>
+      <h2 id={ANIME_SECTION_ID} className="font-semibold text-xl tracking-tight">
+        {t("actor.animeTitle")}
+      </h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((item) => (
           <Link

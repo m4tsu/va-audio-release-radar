@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { FollowButton } from "@/app/components/follow-button";
 import { useFollowStore } from "@/app/store/follow-store";
 import { readyFollowStore } from "@/app/test/follow";
@@ -61,5 +61,19 @@ describe("FollowButton", () => {
     renderWithLocale(<FollowButton actor={ALPHA} />, "en");
 
     expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument();
+  });
+
+  /** フォローの直後にだけ出す案内の合図。解除で呼ぶと、外した直後に案内が出る */
+  test("押してフォローしたときだけ onFollow を呼び、解除では呼ばない", async () => {
+    const user = userEvent.setup();
+    const onFollow = vi.fn();
+    await readyFollowStore();
+    renderWithLocale(<FollowButton actor={ALPHA} onFollow={onFollow} />);
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    expect(onFollow).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "フォロー中" }));
+    expect(onFollow).toHaveBeenCalledTimes(1);
   });
 });

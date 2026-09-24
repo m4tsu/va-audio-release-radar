@@ -14,10 +14,13 @@ export function FollowButton({
   actor,
   size = "sm",
   className,
+  onFollow,
 }: {
   actor: FollowTarget;
   size?: "sm" | "default";
   className?: string;
+  /** 押してフォローしたとき (解除では呼ばない)。フォローの直後にだけ出す案内のため */
+  onFollow?: () => void;
 }) {
   const t = useT();
   const status = useFollowStore((state) => state.status);
@@ -35,7 +38,10 @@ export function FollowButton({
       className={className}
       onClick={() => {
         if (following) void unfollow(actor.voiceActorId);
-        else void follow(actor);
+        else {
+          void follow(actor);
+          onFollow?.();
+        }
       }}
     >
       {following ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}

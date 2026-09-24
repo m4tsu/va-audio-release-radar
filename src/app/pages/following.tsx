@@ -17,7 +17,8 @@ import { useFollowStore } from "@/app/store/follow-store";
  * SSR では枠だけを返し、中身はマウント後に描く。読み込み前を「0 件」と見せないよう status で分ける。
  * 出演アニメを作品の後ろに置くのは、フォローした人を思い出す手がかりであって主役ではないため。
  *
- * 新作の通知の区画はフォローが 0 件でも出す。先に購読しておいて後からフォローする順でも成立する
+ * 新作の通知の区画はフォローが 0 件でも出す。先に購読しておいて後からフォローする順でも成立する。
+ * 置き場所は見出しの操作の位置。見出しの下に全幅の区画を開くと、作品の一覧が押し下げられる
  */
 export function FollowingPage({ vapidPublicKey }: { vapidPublicKey: string | null }) {
   const t = useT();
@@ -26,7 +27,12 @@ export function FollowingPage({ vapidPublicKey }: { vapidPublicKey: string | nul
 
   return (
     <div>
-      <PageHeader title={t("following.title")} />
+      <PageHeader
+        title={t("following.title")}
+        actions={
+          status === "ready" ? <PushSubscriptionCard vapidPublicKey={vapidPublicKey} /> : undefined
+        }
+      />
 
       {status !== "ready" ? (
         <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
@@ -34,8 +40,6 @@ export function FollowingPage({ vapidPublicKey }: { vapidPublicKey: string | nul
 
       {status === "ready" ? (
         <div className="space-y-8">
-          <PushSubscriptionCard vapidPublicKey={vapidPublicKey} />
-
           {follows.length === 0 ? (
             <EmptyState
               title={t("following.emptyTitle")}

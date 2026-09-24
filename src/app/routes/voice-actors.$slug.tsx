@@ -7,6 +7,7 @@ import { readWorkFilters, type WorkFilters, workFilterSearch } from "@/app/lib/w
 import { hasAnyWork, VoiceActorPage } from "@/app/pages/voice-actor";
 import { fetchActorBySlug, fetchActorStoreCoverage } from "@/app/server-fns/actors";
 import { fetchAnimeByActor } from "@/app/server-fns/anime";
+import { fetchPushConfig } from "@/app/server-fns/push";
 import { siteOriginForLoader } from "@/app/server-fns/site";
 import { fetchWorkStatsForActors, fetchWorksByActor } from "@/app/server-fns/works";
 
@@ -45,11 +46,13 @@ export const Route = createFileRoute("/voice-actors/$slug")({
     ]);
     if (!actor) throw notFound();
 
-    const [works, statsRows, anime, coverage] = await Promise.all([
+    const [works, statsRows, anime, coverage, { vapidPublicKey }] = await Promise.all([
       fetchWorksByActor({ data: { voiceActorId: actor.id, limit: WORKS_PER_ACTOR } }),
       fetchWorkStatsForActors({ data: { voiceActorIds: [actor.id] } }),
       fetchAnimeByActor({ data: { voiceActorId: actor.id, limit: ANIME_PER_ACTOR } }),
       fetchActorStoreCoverage({ data: { voiceActorId: actor.id } }),
+      // フォローした直後に通知の案内を出すための公開鍵 (`routes/following.tsx` と同じ)
+      fetchPushConfig(),
     ]);
     // 作品を 1 件も持たない声優は行が返らない
     const stats = statsRows[0] ?? { voiceActorId: actor.id, workCount: 0 };
@@ -58,7 +61,7 @@ export const Route = createFileRoute("/voice-actors/$slug")({
     // ページになるので 404 にする。声優そのものは `getActorBySlug` が返し続ける (管理用)
     if (!hasAnyWork(works) && anime.length === 0) throw notFound();
 
-    return { actor, works, stats, anime, coverage, origin };
+    return { actor, works, stats, anime, coverage, origin, vapidPublicKey };
   },
   head: ({ loaderData, params, match }) => {
     const actor = loaderData?.actor;
@@ -134,7 +137,7 @@ function absoluteUrl(origin: string | undefined, path: string): string {
 }
 
 function RouteComponent() {
-  const { actor, works, stats, anime, coverage } = Route.useLoaderData();
+  const { actor, works, stats, anime, coverage, vapidPublicKey } = Route.useLoaderData();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   // 親のルートが素通しした値がここまで来る。型は絞り込みの値でも、中身は URL の文字列そのもの
@@ -147,6 +150,7 @@ function RouteComponent() {
       stats={stats}
       anime={anime}
       coverage={coverage}
+      vapidPublicKey={vapidPublicKey}
       filters={filters}
       onFiltersChange={(next) => {
         // 絞り込みの変更で履歴を積むと、戻るボタンが選び直した回数だけ必要になる。

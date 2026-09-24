@@ -158,6 +158,7 @@ export const en: Translations = {
       "While subscribed, the voice actors you follow and the delivery address for this browser are stored on the server. They are deleted when you stop alerts.",
     privacyLink: "Privacy Policy",
     helpLabel: "About new release alerts",
+    afterFollow: "When a voice actor you follow has a new release, this browser can notify you.",
   },
 
   following: {
@@ -221,11 +222,12 @@ export const en: Translations = {
     storeFilterName: "Store",
     categoryFilterName: "Category",
     shownOfListed: "{{count}} of {{total}} works",
-    listLimited: "Only the newest {{count}} works are listed here.",
+    listLimited: "Newest first",
     filteredEmptyTitle: "No works match these filters",
     partialCoverage: "Only part of this actor's works on {{store}} are listed here.",
     partialCoverageLink: "See all works on {{store}}",
-    animeTitle: "Anime appearances",
+    animeTitle: "Recent anime appearances",
+    jumpToAnime: "Recent anime appearances",
   },
 
   work: {
