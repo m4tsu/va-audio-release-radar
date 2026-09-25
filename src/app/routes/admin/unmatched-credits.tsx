@@ -4,7 +4,7 @@ import { createTranslator } from "@/app/i18n";
 import { handleAdminTokenQuery } from "@/app/lib/admin-token";
 import { UnmatchedCreditsPage } from "@/app/pages/admin/unmatched-credits";
 import { fetchAllActors } from "@/app/server-fns/actors";
-import { fetchUnmatchedCredits } from "@/app/server-fns/admin";
+import { fetchExcludedCreditNames, fetchUnmatchedCredits } from "@/app/server-fns/admin";
 import { fetchAdminSession } from "@/app/server-fns/admin-session";
 
 /**
@@ -29,11 +29,12 @@ export const Route = createFileRoute("/admin/unmatched-credits")({
     const session = await fetchAdminSession();
     if (!session.authorized) return { authorized: false as const, configured: session.configured };
 
-    const [groups, actors] = await Promise.all([
+    const [groups, actors, excluded] = await Promise.all([
       fetchUnmatchedCredits({ data: { limit: GROUPS_PER_PAGE } }),
       fetchAllActors(),
+      fetchExcludedCreditNames(),
     ]);
-    return { authorized: true as const, groups, actors };
+    return { authorized: true as const, groups, actors, excluded };
   },
   head: ({ match }) => ({
     meta: [

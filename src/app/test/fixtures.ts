@@ -8,6 +8,7 @@ import type {
   AnimeSummary,
   CrawlerHealth,
   CrawlerHealthEntry,
+  ExcludedCreditName,
   FeedItem,
   LatestWork,
   SeasonAnime,
@@ -173,6 +174,15 @@ export function unmatchedCreditGroup(
     sourceStoreSlug: "dlsite",
     count: 3,
     sampleWorks: [{ id: "dlsite:RJ1", title: "架空のASMR作品" }],
+    ...over,
+  };
+}
+
+export function excludedCreditName(over: Partial<ExcludedCreditName> = {}): ExcludedCreditName {
+  return {
+    creditedName: "架空の対象外表記",
+    sourceStoreSlug: "dlsite",
+    createdAt: NOW,
     ...over,
   };
 }

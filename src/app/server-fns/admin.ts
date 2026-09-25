@@ -61,6 +61,47 @@ export const assignCreditFn = createServerFn({ method: "POST" })
     return result;
   });
 
+/** 対象外の印は名前 × ストアで付く。付けるのも外すのも同じ組で指す */
+const creditNameSchema = z.object({
+  creditedName: z.string().min(1),
+  sourceStoreSlug: z.enum(STORE_SLUGS),
+});
+
+/**
+ * 印は管理画面の未解決キューにしか効かない。公開画面が読む credit は変わらないので、
+ * 割り当てと違って応答キャッシュを捨てない
+ */
+export const excludeCreditNameFn = createServerFn({ method: "POST" })
+  .validator(creditNameSchema)
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const [{ getDb }, { excludeCreditName }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/admin"),
+    ]);
+    await excludeCreditName(getDb(), data);
+  });
+
+export const unexcludeCreditNameFn = createServerFn({ method: "POST" })
+  .validator(creditNameSchema)
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const [{ getDb }, { unexcludeCreditName }] = await Promise.all([
+      import("@/server/db/client"),
+      import("@/server/queries/admin"),
+    ]);
+    await unexcludeCreditName(getDb(), data);
+  });
+
+export const fetchExcludedCreditNames = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  const [{ getDb }, { listExcludedCreditNames }] = await Promise.all([
+    import("@/server/db/client"),
+    import("@/server/queries/admin"),
+  ]);
+  return listExcludedCreditNames(getDb());
+});
+
 export const fetchCrawlerHealth = createServerFn({ method: "GET" }).handler(async () => {
   await requireAdmin();
   const [{ getDb }, { crawlerHealth }] = await Promise.all([

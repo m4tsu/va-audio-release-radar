@@ -468,6 +468,17 @@ export const ja = {
     unmatchedSaving: "割り当て中…",
     unmatchedSubmit: "{{count}} 件を割り当てる",
     unmatchedError: "割り当てに失敗した",
+    /** 対象声優ではない表記に付ける印。付けるとキューから外れ、下の一覧に移る */
+    unmatchedExclude: "対象外にする",
+    unmatchedExcluding: "対象外にしています…",
+    unmatchedExcludeError: "対象外にできなかった",
+    excludedTitle: "対象外にした表記",
+    excludedSummary: "{{count}} 件。印を外すと未解決キューに戻る。",
+    excludedEmpty: "対象外にした表記はない。",
+    excludedSince: "{{date}} に対象外にした",
+    excludedRestore: "印を外す",
+    excludedRestoring: "印を外しています…",
+    excludedRestoreError: "印を外せなかった",
 
     inquiriesMetaTitle: "問い合わせ | 管理",
     inquiriesTitle: "問い合わせ",

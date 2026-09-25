@@ -3,7 +3,11 @@ import type {
   fetchActorStoreCoverage,
   fetchAllActors,
 } from "@/app/server-fns/actors";
-import type { fetchCrawlerHealth, fetchUnmatchedCredits } from "@/app/server-fns/admin";
+import type {
+  fetchCrawlerHealth,
+  fetchExcludedCreditNames,
+  fetchUnmatchedCredits,
+} from "@/app/server-fns/admin";
 import type {
   fetchAnimeByActor,
   fetchAnimeBySlug,
@@ -45,6 +49,7 @@ export type ActorDetail = NonNullable<Awaited<ReturnType<typeof fetchActorBySlug
 export type ActorStoreCoverage = Awaited<ReturnType<typeof fetchActorStoreCoverage>>[number];
 
 export type UnmatchedCreditGroup = Awaited<ReturnType<typeof fetchUnmatchedCredits>>[number];
+export type ExcludedCreditName = Awaited<ReturnType<typeof fetchExcludedCreditNames>>[number];
 export type CrawlerHealth = Awaited<ReturnType<typeof fetchCrawlerHealth>>;
 export type CrawlerHealthEntry = CrawlerHealth["entries"][number];
 
