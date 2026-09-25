@@ -1,5 +1,4 @@
 import { and, desc, eq, inArray, notExists, sql } from "drizzle-orm";
-import { resolveCredit } from "@/domain/identity";
 import { normalizeName } from "@/domain/normalize";
 import type { StoreSlug } from "@/domain/types";
 import { chunked } from "../db/chunked";
@@ -252,97 +251,6 @@ export async function listExcludedCreditNames(
     ...(row.note === null ? {} : { note: row.note }),
     createdAt: row.createdAt,
   }));
-}
-
-export type ReresolvedGroup = {
-  creditedName: string;
-  sourceStoreSlug: StoreSlug;
-  count: number;
-  voiceActorId: string;
-  canonicalName: string;
-};
-
-export type ReresolveResult = {
-  /** 走査した未解決グループ (表記 × ストア) の数 */
-  scannedGroups: number;
-  /** 走査した未解決の行数 */
-  scannedCredits: number;
-  /** verified に変えた行数 */
-  resolvedCredits: number;
-  /** 解決したグループ。件数の多い順 */
-  groups: ReresolvedGroup[];
-};
-
-/**
- * 未解決クレジットを今の名寄せ規則で解決し直す。
- *
- * `normalizeName` を変えたとき (異体字の畳み込みなど) や、後から声優が登録されたときに、
- * 過去の `unmatched` が解けるようになる。ingest は取り込み時点の規則で判定して終わりなので、
- * 遡って直す入口がここに要る。
- *
- * **`confidence = 'unmatched'` の行しか触らない。** 手で割り当てた行 (`assignCredit` が
- * verified にしたもの) や、取り込み時に解決済みの行は対象外なので、実行しても剥がれない。
- * **対象声優でないと印を付けた表記も触らない** (`excludeCreditName`)。
- * 解決できなかった行はそのまま残るだけなので、何度実行しても結果は同じ (冪等)
- */
-export async function reresolveUnmatchedCredits(db: AppDb): Promise<ReresolveResult> {
-  const groups = await db
-    .select({
-      creditedName: audioCredits.creditedName,
-      sourceStoreSlug: audioCredits.sourceStoreSlug,
-      count: sql<number>`count(*)`,
-    })
-    .from(audioCredits)
-    // 対象声優でないと印を付けた表記は解決し直さない。人が「この人ではない」と決めた表記を
-    // 後から自動で結ぶと、実在の人物に出演していない作品を並べることになる
-    // (`docs/product.md` の「別名義」)
-    .where(and(eq(audioCredits.confidence, "unmatched"), notExcluded(db)))
-    .groupBy(audioCredits.creditedName, audioCredits.sourceStoreSlug);
-
-  const scannedCredits = groups.reduce((sum, group) => sum + Number(group.count), 0);
-  if (groups.length === 0) {
-    return { scannedGroups: 0, scannedCredits: 0, resolvedCredits: 0, groups: [] };
-  }
-
-  const { actors, aliases } = await loadActorIndex(db);
-  const byId = new Map(actors.map((actor) => [actor.id, actor]));
-
-  const resolved: ReresolvedGroup[] = [];
-  for (const group of groups) {
-    const { voiceActorId } = resolveCredit(group.creditedName, actors, aliases);
-    const actor = voiceActorId === undefined ? undefined : byId.get(voiceActorId);
-    if (!actor) continue;
-    resolved.push({
-      creditedName: group.creditedName,
-      sourceStoreSlug: group.sourceStoreSlug,
-      count: Number(group.count),
-      voiceActorId: actor.id,
-      canonicalName: actor.canonicalName,
-    });
-  }
-
-  // 更新は解決できたグループだけ。1 文ずつ投げるのは、対象が数十グループに収まるうえ、
-  // 同じ条件を `assignCredit` と揃えておきたいため
-  for (const group of resolved) {
-    await db
-      .update(audioCredits)
-      .set({ voiceActorId: group.voiceActorId, confidence: "verified" })
-      .where(
-        and(
-          eq(audioCredits.creditedName, group.creditedName),
-          eq(audioCredits.sourceStoreSlug, group.sourceStoreSlug),
-          eq(audioCredits.confidence, "unmatched"),
-        ),
-      );
-  }
-
-  resolved.sort((a, b) => b.count - a.count || a.creditedName.localeCompare(b.creditedName));
-  return {
-    scannedGroups: groups.length,
-    scannedCredits,
-    resolvedCredits: resolved.reduce((sum, group) => sum + group.count, 0),
-    groups: resolved,
-  };
 }
 
 /**
