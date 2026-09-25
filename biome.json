@@ -85,6 +85,57 @@
       }
     },
     {
+      "includes": ["crawler/**", "!crawler/lib/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "外部アクセスは crawler/lib/fetch.ts を通す (UA・間隔・スナップショット・リトライがそこにある)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/app/lib/**",
+        "src/app/hooks/**",
+        "src/app/store/**",
+        "src/app/i18n/**",
+        "src/app/legal/**",
+        "src/app/server-fns/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "@/app/routes",
+                      "@/app/routes/**",
+                      "@/app/pages",
+                      "@/app/pages/**",
+                      "@/app/components",
+                      "@/app/components/**"
+                    ],
+                    "message": "画面の 3 層 (ルート・ページ・部品) の下で使う補助は、3 層に依存してはならない"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["src/domain/**"],
       "linter": {
         "rules": {

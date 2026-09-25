@@ -18,11 +18,12 @@ on:
   workflow_dispatch:
     inputs:
       store:
-        description: "対象ストア (空なら 3 ストアすべて)"
+        description: "対象ストア (all なら 3 ストアすべて)"
         required: false
         type: choice
+        default: all
         options:
-          - ""
+          - all
           - dlsite
           - audible
           - pokedora
@@ -44,7 +45,7 @@ jobs:
   # フロアの数と間隔は docs/stores/dlsite.md
   dlsite:
     name: DLsite で作品を引き直す (${{ matrix.shard }})
-    if: ${{ inputs.store == '' || inputs.store == 'dlsite' }}
+    if: ${{ inputs.store == '' || inputs.store == 'all' || inputs.store == 'dlsite' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -104,7 +105,7 @@ jobs:
   # (docs/stores/ の各ファイル)、作品の引き直しだけを行う
   others:
     name: ${{ matrix.store }} を引き直す
-    if: ${{ inputs.store == '' || inputs.store == 'audible' || inputs.store == 'pokedora' }}
+    if: ${{ inputs.store == '' || inputs.store == 'all' || inputs.store == 'audible' || inputs.store == 'pokedora' }}
     runs-on: ubuntu-latest
     # 1,161 人 × 1 回 × 6 秒 (Audible) で約 2 時間。ポケドラは辞書に載る人だけなので短い
     timeout-minutes: 240
@@ -120,7 +121,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: 引き直し
-        if: ${{ inputs.store == '' || inputs.store == matrix.store }}
+        if: ${{ inputs.store == '' || inputs.store == 'all' || inputs.store == matrix.store }}
         env:
           INGEST_TOKEN: ${{ secrets.INGEST_TOKEN }}
           INGEST_URL: ${{ secrets.INGEST_URL }}
@@ -141,7 +142,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh label create crawl-failure --color b60205 --description "日次のクロールが失敗した" --force
+          gh label create crawl-failure --color b60205 --description "定期のクロールか取り込みが失敗した" --force
           existing="$(gh issue list --label crawl-failure --state open --limit 1 --json number --jq '.[0].number')"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "月次の補完巡回が失敗した: $RUN_URL"

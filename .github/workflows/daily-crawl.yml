@@ -13,11 +13,12 @@ on:
   workflow_dispatch:
     inputs:
       store:
-        description: "対象ストア (空なら新着一覧を持つストアすべて)"
+        description: "対象ストア (all なら新着一覧を持つストアすべて)"
         required: false
         type: choice
+        default: all
         options:
-          - ""
+          - all
           - dlsite
           - audible
           - pokedora
@@ -67,7 +68,7 @@ jobs:
           STORE: ${{ inputs.store }}
         run: |
           args=()
-          if [ -n "$STORE" ]; then args+=(--store "$STORE"); fi
+          if [ -n "$STORE" ] && [ "$STORE" != all ]; then args+=(--store "$STORE"); fi
           node crawler/daily.ts --base-url "$INGEST_URL" "${args[@]}"
       - name: 取得した生データを残す
         # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる
@@ -93,7 +94,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # ラベルが無いと gh issue create が落ちる。--force は既にあっても失敗しない
-          gh label create crawl-failure --color b60205 --description "日次のクロールが失敗した" --force
+          gh label create crawl-failure --color b60205 --description "定期のクロールか取り込みが失敗した" --force
           # 同じ理由の Issue を毎日増やさない。開いているものがあれば追記だけする
           existing="$(gh issue list --label crawl-failure --state open --limit 1 --json number --jq '.[0].number')"
           if [ -n "$existing" ]; then

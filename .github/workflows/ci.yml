@@ -22,6 +22,11 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
+      - name: ワークフローの検査
+        # cron だけで動くワークフローは、壊れていても次の実行日まで表に出ない。push の時点で落とす
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
 
   e2e:
     name: E2E (Playwright)

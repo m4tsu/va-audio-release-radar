@@ -19,11 +19,12 @@ on:
       store:
         # ポケドラは声優タグ辞書 (crawler/pokedora-tags.generated.json) を見て引く。
         # 辞書に無い声優は引かない
-        description: "対象ストア (空なら 3 ストアすべて)"
+        description: "対象ストア (all なら 3 ストアすべて)"
         required: false
         type: choice
+        default: all
         options:
-          - ""
+          - all
           - dlsite
           - audible
           - pokedora
@@ -66,7 +67,7 @@ jobs:
         run: |
           args=()
           if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
-          if [ -n "$STORE" ]; then args+=(--store "$STORE"); fi
+          if [ -n "$STORE" ] && [ "$STORE" != all ]; then args+=(--store "$STORE"); fi
           node crawler/run.ts --base-url "$INGEST_URL" "${args[@]}"
       - name: 取得した生データを残す
         # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる

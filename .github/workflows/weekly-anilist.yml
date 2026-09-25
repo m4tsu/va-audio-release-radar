@@ -117,7 +117,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh label create crawl-failure --color b60205 --description "日次のクロールが失敗した" --force
+          gh label create crawl-failure --color b60205 --description "定期のクロールか取り込みが失敗した" --force
           existing="$(gh issue list --label crawl-failure --state open --limit 1 --json number --jq '.[0].number')"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "週次の AniList 取り込みが失敗した: $RUN_URL"

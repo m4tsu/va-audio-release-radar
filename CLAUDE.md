@@ -34,10 +34,16 @@ E2E に書くのは SSR の応答・ハイドレーション・ブラウザ保�
 
 ## 外部サイトへのアクセス
 
-- **`crawler/` を触る前に [`docs/stores/`](docs/stores/) の該当ファイルを読む**
-- クローラーの外部アクセスは **`crawler/lib/fetch.ts` の 1 箇所を必ず通す**。adapter から素の `fetch` を呼ばない
-- ホストごとの最小間隔は `crawler/lib/fetch.ts` の `rateLimitFor()` が持つ。根拠は `docs/stores/` 該当ファイルの「レート間隔」
-- **レートリミッタはプロセス単位**。同じホストに 2 プロセスから同時にアクセスしない
+`crawler/` を触る前に [`docs/stores/`](docs/stores/) の該当ファイルを読む。手順は `crawler/` を触ると読み込まれる
+[`.claude/rules/crawler.md`](.claude/rules/crawler.md)。コードを触らずにクローラーを走らせるときも、
+**レートリミッタはプロセス単位**なので、同じホストに 2 プロセスから同時にアクセスしない。
+
+## 本番に触る操作
+
+`npm run deploy`、`npm run db:migrate:remote`、`npm run db:import:remote`、`wrangler ... --remote`、
+`wrangler secret` など本番の Worker と D1 を変える操作は、ユーザーの指示が無い限り実行しない。
+必要になったら、実行するコマンドと理由を示してユーザーに確認を取る。
+permissions では禁止していない (ユーザーが指示して実行させることがあるため)。
 
 ## コミットしてはいけないもの
 
@@ -51,6 +57,8 @@ E2E に書くのは SSR の応答・ハイドレーション・ブラウザ保�
 一続きで行う。手順と、node_modules / ローカル D1 の複製方法は `.claude/skills/issue-task/SKILL.md`。
 `/issue-batch` は `ready` ラベルの issue を集め、issue ごとに Agent を起動して同じ手順を並列に回す司令塔。
 手順は `.claude/skills/issue-batch/SKILL.md`。
+ユーザー側のスキル `task-workflow` と `codex-review` は `.claude/settings.json` の `skillOverrides` で切ってある。
+実装とレビューの手順が issue-task と二重になり、前者は npm ではなく bun のコマンドを使うため。
 
 ## コマンド
 

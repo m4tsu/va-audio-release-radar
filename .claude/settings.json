@@ -51,6 +51,10 @@
   "worktree": {
     "baseRef": "head"
   },
+  "skillOverrides": {
+    "task-workflow": "off",
+    "codex-review": "off"
+  },
   "enabledPlugins": {
     "pstack@pstack-claude": true
   }
