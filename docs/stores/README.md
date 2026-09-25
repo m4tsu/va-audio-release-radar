@@ -20,6 +20,9 @@
 | AniList (ストアではなく声優の供給元) | [`anilist.md`](./anilist.md) |
 | ステラプレイヤー | [`stellaplayer.md`](./stellaplayer.md) |
 | Wikimedia (ストアではなく声優のかなの入手元) | [`wikimedia.md`](./wikimedia.md) |
+| HoYoverse の公式サイト (ストアではなくゲームのキャストの供給元) | [`hoyoverse.md`](./hoyoverse.md) |
+| ゲームの公式サイト (HoYoverse 以外。ゲームのキャストの供給元) | [`game-official-sites.md`](./game-official-sites.md) |
+| GameWith (ストアではなく鳴潮のキャストの供給元) | [`gamewith.md`](./gamewith.md) |
 | audiobook.jp | ファイルなし。利用規約が「事前の許可なく情報解析をする行為」を禁じており、運営元への照会が済むまで着手しない |
 
 クローラーを触るときの手順 (robots.txt の確認、レート間隔の変え方、プロセス単位のレートリミッタ) は

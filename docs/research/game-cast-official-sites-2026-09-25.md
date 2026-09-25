@@ -53,10 +53,18 @@ SPA で、ページが呼ぶ HoYoverse のコンテンツ API (`sg-public-api-st
 | GameWith | 61 | 60 |
 | アルテマ | 未取得 | 23 (「現在声優が判明していません」の行を含む) |
 
-攻略サイトの robots.txt と規約は、GameWith と Game8 を
-[`game-cast-wikipedia-2026-09-23.md`](./game-cast-wikipedia-2026-09-23.md) と同じ日に読んでいる。2026-09-25 に取り直した
-robots.txt は、Game8 が `User-agent: *` のグループを持たず収集系のボット約 40 種を名指しで `Disallow: /` にしている点、
-GameWith が `Sitemap:` の 1 行だけである点で変わっていない。
+鳴潮の 2 サイトは、表の行から「キャラ名と声優名」の対を抜き出し、抜いた声優名だけで数え直した。
+
+| サイト | 対の行数 | 異なり声優 | うち台帳 | 抽出の形 |
+|---|---:|---:|---:|---|
+| GameWith | 62 | 55 | 52 | 1 行 = キャラ名のリンク、声優名 (複数は「、」区切り) とそのかな、代表作 |
+| Game8 | 52 | 52 | 48 | キャラごとの見出しと表。声優名は代表作の前の区切り線の手前 |
+
+GameWith で台帳に一致しなかった声優名は `Lynn`、`白熊寬嗣` (「寛」でなく「寬」)、`伊吹誓乃`。
+
+2026-09-25 の robots.txt は、Game8 が `User-agent: *` のグループを持たず収集系のボット約 40 種を名指しで
+`Disallow: /` にしている。GameWith は `Sitemap:` の 1 行だけ。規約はどちらも商業目的の利用を禁じる条項を持つ
+(GameWith の引用は [`docs/stores/gamewith.md`](../stores/gamewith.md))。Game8 は商業利用の問い合わせ窓口を規約に置いている。
 
 ## 2. HoYoverse の他のタイトル
 
@@ -70,9 +78,13 @@ GameWith が `Sitemap:` の 1 行だけである点で変わっていない。
 
 `genshin.hoyoverse.com` / `hsr.hoyoverse.com` / `houkai3rd.hoyoverse.com` / `zenless.hoyoverse.com` と
 API のホストの robots.txt はいずれも 404。原神・崩壊:スターレイル・ゼンレスゾーンゼロの利用規約は、どれも
-「本サービス」をゲームとそれに関連して提供する一切のサービスと定め、禁止事項に次の 1 行を置く。
+「本サービス」をゲームとそれに関連して提供する一切のサービスと定め、禁止事項に次の 2 行を置く。
 
 > 当社の承認を得ずに行われる、営利を目的とする行為。
+
+> 外部ツール(BOT)もしくはCOGNOSPHERE PTE. LTD. から公式に提供していないプログラムを使用し、自分が有利にゲーム進行し、もしくは正常なサービス利用を妨げる行為。
+
+条項の全体は [`docs/stores/hoyoverse.md`](../stores/hoyoverse.md)。
 
 ## 3. タイトルごとの一覧
 
