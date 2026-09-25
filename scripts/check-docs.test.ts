@@ -123,6 +123,18 @@ describe("findDanglingReferences", () => {
     ).toEqual([]);
   });
 
+  it("Markdown の相対リンクの先も見る。外部 URL とアンカーは見ない", () => {
+    const cwd = makeRepo({ "docs/stores/x.md": "" });
+    const text = [
+      "[ok](../../docs/stores/x.md#robots)",
+      "[ng](../../docs/stores/gone.md)",
+      "[web](https://example.com/a.md)",
+      "[anchor](#見出し)",
+    ].join("\n");
+    const found = findDanglingReferences(".claude/rules/a.md", text, { cwd, scripts: new Set() });
+    expect(found.map((f) => f.excerpt)).toEqual(["../../docs/stores/gone.md"]);
+  });
+
   it(".json を .js で切らず、.tsx を .ts で切らない", () => {
     const cwd = makeRepo({ "src/a.tsx": "", "crawler/b.json": "" });
     const text = "`src/a.tsx` と `crawler/b.json`";

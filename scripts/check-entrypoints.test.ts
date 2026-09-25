@@ -67,11 +67,12 @@ describe("run", () => {
     const cwd = makeRepo({
       "package.json": JSON.stringify({ scripts: {} }),
       "README.md": "node scripts/once.mjs で一度だけ流す\n",
+      ".claude/rules/x.md": "`scripts/once.mjs` は使わない\n",
       "scripts/once.mjs": "console.log(1);\n",
     });
     const result = run({ cwd });
     expect(result.code).toBe(1);
-    // README に書いてあるだけでは実行の経路とみなさない
+    // README や規則の文書に名前が出てくるだけでは実行の経路とみなさない
     expect(result.unreferenced).toEqual(["scripts/once.mjs"]);
   });
 });

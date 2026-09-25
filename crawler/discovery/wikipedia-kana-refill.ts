@@ -62,7 +62,7 @@ export async function refillActorKana(
     return {
       canonicalName,
       status: "failed",
-      reason: "引き直す記事名が結果に無い",
+      reason: "1 段目の結果に記事名が無く、引き直す記事が決まらない",
       fetchedAt: new Date().toISOString(),
     };
   }

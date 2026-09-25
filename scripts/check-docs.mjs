@@ -99,6 +99,9 @@ const PATH_CHECK_SKIPPED_PREFIXES = ["crawler/.cache/", "work/", ".claude/worktr
 /** docs/research/ は日付つきの記録で、当時あったファイルを指したまま書き換えない */
 const PATH_CHECK_SKIPPED_DOCS = ["docs/research/"];
 
+/** Markdown のリンク先。外部 URL とページ内のアンカーだけのものは除いて相対パスとして解決する */
+const MARKDOWN_LINK = /\]\((?!https?:|mailto:|#)([^)\s#]+)(?:#[^)]*)?\)/g;
+
 const NPM_RUN = /npm run ([\w:-]+)/g;
 
 function isExcluded(relative) {
@@ -210,6 +213,17 @@ export function findDanglingReferences(relative, text, { cwd, scripts }) {
         excerpt: target,
       });
     }
+    for (const match of text.matchAll(MARKDOWN_LINK)) {
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(relative), match[1]));
+      if (PATH_CHECK_SKIPPED_PREFIXES.some((prefix) => target.startsWith(prefix))) continue;
+      if (existsSync(path.join(cwd, target))) continue;
+      findings.push({
+        file: relative,
+        line: lineOf(text, match.index),
+        label: "存在しないリンク先",
+        excerpt: match[1],
+      });
+    }
   }
   for (const match of text.matchAll(NPM_RUN)) {
     if (scripts.has(match[1])) continue;
@@ -234,8 +248,10 @@ export function findBrokenHeadingReferences(relative, text, { cwd }) {
   if (PATH_CHECK_SKIPPED_DOCS.some((prefix) => relative.startsWith(prefix))) return [];
   const findings = [];
   for (const match of text.matchAll(HEADING_REFERENCE)) {
+    // パスを付けない README はどこから書いても直下のものを指す。書く場所で指す先が変わると、
+    // 同じ文字列が文書ごとに別の README を意味してしまう。下の README はパスで書く
     const target =
-      match[1] === "README"
+      match[1] === "README" || match[1] === "README.md"
         ? "README.md"
         : (match[1] ??
           path.posix.normalize(path.posix.join(path.posix.dirname(relative), match[2])));

@@ -1,7 +1,8 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { normalizeName } from "../../src/domain/normalize.ts";
 import type { ObservedActorRef, StoreActorRef } from "../adapters/types.ts";
+import { writeJsonAtomic } from "../lib/json-file.ts";
 import { CACHE_DIR, CRAWLER_DIR } from "../lib/paths.ts";
 
 /**
@@ -172,7 +173,7 @@ export function mergeActorRefs(
  * 影響する版上げを伴う。また観測した tag_id に 2 つ以上の表記を持つものが無く、別名義の根拠にも
  * ならない。入れるなら (store_slug, external_id) が一意な別の表にする。`voice_actor_aliases` は
  * 名寄せの索引なので、名前でない文字列を混ぜない。
- * 一時ファイルに書いてから rename するのは、長いクロールの途中で中断されても
+ * 書き込みは `writeJsonAtomic` で、長いクロールの途中で中断されても
  * JSON が壊れないようにするため
  */
 export async function appendActorRefs(
@@ -192,9 +193,6 @@ export async function appendActorRefs(
 
   const records = mergeActorRefs(existing, observed, now);
   const cache: PokedoraActorRefsCache = { updatedAt: now, records };
-  await mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(cache, null, 2)}\n`, "utf8");
-  await rename(temporary, file);
+  await writeJsonAtomic(file, cache);
   return records.length;
 }

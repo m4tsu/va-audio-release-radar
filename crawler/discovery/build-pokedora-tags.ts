@@ -1,8 +1,9 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { asString } from "../lib/cli.ts";
+import { writeJsonAtomic } from "../lib/json-file.ts";
 import { CACHE_DIR } from "../lib/paths.ts";
 import {
   hasTargetWorks,
@@ -155,10 +156,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 1;
   }
 
-  // 中断で壊れた出力を残さない。書き出しは同じディレクトリの一時ファイル経由にする
-  const temporary = `${outFile}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
-  await rename(temporary, outFile);
+  await writeJsonAtomic(outFile, entries);
   process.stdout.write(`\n書き出した: ${outFile}\n`);
   return 0;
 }

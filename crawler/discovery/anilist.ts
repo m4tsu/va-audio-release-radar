@@ -6,6 +6,7 @@ import {
   ANIME_SEASONS,
   type AnimeFormat,
   type AnimeSeason,
+  seasonOrder as domainSeasonOrder,
   seasonAt,
   type VoiceActorGender,
 } from "../../src/domain/index.ts";
@@ -39,9 +40,9 @@ export function seasonLabel(key: SeasonKey): string {
   return `${key.year} ${key.season}`;
 }
 
-/** 新旧を比べるための順序値。年 × 4 + シーズン番号 */
+/** 新旧を比べるための順序値。計算は画面と共通の domain の seasonOrder が持つ */
 export function seasonOrder(key: SeasonKey): number {
-  return key.year * 4 + ANILIST_SEASONS.indexOf(key.season);
+  return domainSeasonOrder({ seasonYear: key.year, season: key.season });
 }
 
 /** その日時が属するシーズン。判定の規則 (日本時間の暦日) は画面と共通の `seasonAt` が持つ */

@@ -87,7 +87,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   const startedAt = new Date().toISOString();
-  const baseDate = asString(values["base-date"]) ?? startedAt.slice(0, 10);
+  // 既定は日付に切らず時刻ごと渡す。シーズンは日本時間の暦日で決まり、UTC の日付に切ると境目の日にずれる
+  const baseDate = asString(values["base-date"]) ?? startedAt;
   let seasons: ReturnType<typeof recentSeasons>;
   try {
     seasons = recentSeasons(baseDate, seasonCount);

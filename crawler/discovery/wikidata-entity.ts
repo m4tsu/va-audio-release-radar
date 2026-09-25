@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 /**
  * Wikidata の項目 HTML から、声優のかなに要る事実だけを取り出す純粋関数。
  *
- * ここは fetch も fs も触らない。取得と再開は `wikipedia-kana-refill.ts` が持つ。
+ * ここは fetch も fs も触らない。取得は `wikipedia-kana-refill.ts` が持つ。
  * 項目 JSON (`Special:EntityData`) と SPARQL は robots.txt で禁じられているので、
  * 引けるのは `/wiki/<Q id>` の HTML だけ (`docs/stores/wikimedia.md` の「robots.txt」)。
  * 項目 id は記事 HTML の `wgWikibaseItemId` からしか得られない

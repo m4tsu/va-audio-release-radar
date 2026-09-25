@@ -271,20 +271,9 @@ function displayWidth(value: string): number {
 // --- シード ----------------------------------------------------------------
 
 /**
- * 対象声優を台帳から引く。
- *
- * 検索に使う空白入りの表記は保存された別名義だけを読み、残りは `buildSearchNames` が
- * 日本語表記から作る。当てずっぽうの切り方を辞書に溜めると、名寄せがその表記でも当たるようになる
- */
-export async function loadCrawlActors(
-  client: AdminApiClient,
-  options: { neverCrawled?: boolean; withWorks?: boolean } = {},
-): Promise<CrawlActor[]> {
-  return client.listActors(options);
-}
-
-/**
- * Audible 向けの検索候補。DLsite adapter はこの配列を無視して canonicalName の完全一致検索だけを行う。
+ * Audible 向けの検索候補。台帳からは保存された別名義だけを読み、空白入りの表記はここで
+ * 日本語表記から作る。当てずっぽうの切り方を辞書に溜めると、名寄せがその表記でも当たるようになる。
+ * DLsite adapter はこの配列を無視して canonicalName の完全一致検索だけを行う。
  *
  * 順番は 検証済みの空白入り別名義 → canonicalName → 機械的に切った空白入りの候補。
  *
@@ -453,7 +442,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stderr.write("--never-crawled と --with-works は同時に指定できない\n");
     return 1;
   }
-  const all = await loadCrawlActors(client, { neverCrawled, withWorks });
+  const all = await client.listActors({ neverCrawled, withWorks });
   const what = neverCrawled ? "一度も引いていない声優" : withWorks ? "作品を持つ声優" : "対象声優";
   process.stdout.write(`${what}を台帳から読んだ: ${all.length} 人\n`);
   if ((neverCrawled || withWorks) && all.length === 0) {

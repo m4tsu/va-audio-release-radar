@@ -12,7 +12,6 @@ import { loadPokedoraDirectory, lookupActor } from "./discovery/pokedora-directo
 import { AdminApiClient, type CrawlActor, spacedVerifiedAliasNames } from "./lib/ingest.ts";
 import { STORE_LABELS } from "./lib/labels.ts";
 import { LAST_RESULT_DIR, safeFileName } from "./lib/paths.ts";
-import { loadCrawlActors } from "./run.ts";
 
 /**
  * 調査用 CLI。
@@ -72,7 +71,7 @@ const OPTION_SPEC = {
  */
 async function buildActorQuery(actorName: string, client?: AdminApiClient): Promise<ActorQuery> {
   const seeds =
-    client === undefined ? [] : await loadCrawlActors(client).catch(() => [] as CrawlActor[]);
+    client === undefined ? [] : await client.listActors().catch(() => [] as CrawlActor[]);
   const matched = seeds.find(
     (seed) =>
       seed.canonicalName === actorName ||

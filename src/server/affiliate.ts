@@ -36,8 +36,7 @@ type Rule = {
  * DLsite のアフィリエイト URL の先頭のパスは、作品が所属するフロア。`store_section` (product.json の
  * `site_id`) から引く。`product_url` は検索したフロアで作られ、所属と食い違うので使わない。
  * 出どころは docs/stores/dlsite.md の「アフィリエイトリンク」。
- * home / girls / soft / garumani は管理画面の出力で確かめた (2026-09-24)。bl / pro は確かめておらず、
- * 所属と同じ名前のフロアとしている
+ * bl / pro は管理画面が出すリンクの形を確かめておらず、所属と同じ名前のフロアとしている
  */
 const DLSITE_AFFILIATE_FLOORS: ReadonlyMap<string, string> = new Map([
   ["home", "home"],

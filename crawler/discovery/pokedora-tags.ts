@@ -1,9 +1,10 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { gunzipSync } from "node:zlib";
 import { fetchText } from "../lib/fetch.ts";
+import { writeJsonAtomic } from "../lib/json-file.ts";
 import { CACHE_DIR } from "../lib/paths.ts";
 
 /**
@@ -184,17 +185,6 @@ export function summarizeRecords(records: readonly PokedoraTagRecord[]): {
 }
 
 // --- 入出力 ----------------------------------------------------------------
-
-/**
- * 一時ファイルに書いてから rename する。4.4 時間のバッチの途中で中断されても
- * JSON が壊れていないことを保証するため (壊れると再開できず全部やり直しになる)
- */
-async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  const temporary = `${filePath}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  await rename(temporary, filePath);
-}
 
 async function readCache(filePath: string): Promise<PokedoraTagsCache | undefined> {
   try {

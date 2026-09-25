@@ -4,7 +4,7 @@ import { toStoredKana } from "./kana-text.ts";
 /**
  * 日本語版 Wikipedia の記事 HTML から、声優のかなに要る事実だけを取り出す純粋関数。
  *
- * ここは fetch も fs も触らない。取得と再開は `wikipedia-kana.ts` が持つ。
+ * ここは fetch も fs も触らない。取得は `wikipedia-kana.ts`、誰を引くかは `crawler/kana.ts` が決める。
  * 取ってよい記事の条件 (要求した記事名と着地した記事名の一致 / 声優のカテゴリ /
  * 曖昧さ回避でないこと) は
  * `docs/research/actor-kana-sources-2026-09-20.md` の「同名の別人を取り違えない条件」に従う。

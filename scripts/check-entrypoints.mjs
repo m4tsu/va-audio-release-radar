@@ -3,7 +3,7 @@
 // 直接実行するファイルが、どこから実行されるかを持っているかを検査する。
 // 一度きりの調査や修復のために書いたスクリプトは、使い終わっても「いつかまた使うかもしれない」で残り、
 // 何のために・いつ流すものかを誰も言えないまま増えていく。実行する経路
-// (`package.json` の scripts、`.github/` のワークフロー、`.claude/` の hook とスキル) のどこにも
+// (`package.json` の scripts、`.github/` のワークフロー、`.claude/` の設定・hook・スキル) のどこにも
 // 名前が無いものは、再利用の条件が無いとみなして落とす。
 // 残すなら `package.json` に名前を付けて載せる (README の「コマンド」への記載は `check:docs` が求める)。
 // 使い捨てなら `work/` に置く (.claude/rules/docs.md の「`work/` の寿命」)。
@@ -20,8 +20,17 @@ import { pathToFileURL } from "node:url";
 const ENTRY_ROOTS = ["scripts", "crawler", "e2e"];
 const ENTRY_EXTENSIONS = new Set([".mjs", ".ts", ".sh"]);
 
-/** 実行する経路。ここに相対パスが書かれていれば、実行の仕方が決まっているとみなす */
-const RUNNER_ROOTS = ["package.json", ".github", ".claude"];
+/**
+ * 実行する経路。ここに相対パスが書かれていれば、実行の仕方が決まっているとみなす。
+ * `.claude/rules/` のような規則の文書は名前に触れるだけで実行しないので含めない
+ */
+const RUNNER_ROOTS = [
+  "package.json",
+  ".github",
+  ".claude/settings.json",
+  ".claude/hooks",
+  ".claude/skills",
+];
 const RUNNER_EXTENSIONS = new Set([".json", ".yml", ".yaml", ".sh", ".mjs", ".md"]);
 
 /** import されているかを探す範囲 */
