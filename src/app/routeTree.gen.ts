@@ -23,6 +23,7 @@ import { Route as AdminUnmatchedCreditsRouteImport } from './routes/admin/unmatc
 import { Route as AnimeIndexRouteImport } from './routes/anime.index'
 import { Route as AnimeSlugRouteImport } from './routes/anime.$slug'
 import { Route as ApiCrawlerFreshnessRouteImport } from './routes/api/crawler-freshness'
+import { Route as ApiEventRouteImport } from './routes/api/event'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as VoiceActorsIndexRouteImport } from './routes/voice-actors.index'
 import { Route as VoiceActorsSlugRouteImport } from './routes/voice-actors.$slug'
@@ -106,6 +107,11 @@ const AnimeSlugRoute = AnimeSlugRouteImport.update({
 const ApiCrawlerFreshnessRoute = ApiCrawlerFreshnessRouteImport.update({
   id: '/api/crawler-freshness',
   path: '/api/crawler-freshness',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEventRoute = ApiEventRouteImport.update({
+  id: '/api/event',
+  path: '/api/event',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
   '/api/crawler-freshness': typeof ApiCrawlerFreshnessRoute
+  '/api/event': typeof ApiEventRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
   '/api/crawler-freshness': typeof ApiCrawlerFreshnessRoute
+  '/api/event': typeof ApiEventRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/admin/unmatched-credits': typeof AdminUnmatchedCreditsRoute
   '/anime/$slug': typeof AnimeSlugRoute
   '/api/crawler-freshness': typeof ApiCrawlerFreshnessRoute
+  '/api/event': typeof ApiEventRoute
   '/api/health': typeof ApiHealthRoute
   '/voice-actors/$slug': typeof VoiceActorsSlugRoute
   '/works/$id': typeof WorksIdRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/admin/unmatched-credits'
     | '/anime/$slug'
     | '/api/crawler-freshness'
+    | '/api/event'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
     | '/admin/unmatched-credits'
     | '/anime/$slug'
     | '/api/crawler-freshness'
+    | '/api/event'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/admin/unmatched-credits'
     | '/anime/$slug'
     | '/api/crawler-freshness'
+    | '/api/event'
     | '/api/health'
     | '/voice-actors/$slug'
     | '/works/$id'
@@ -377,6 +389,7 @@ export interface RootRouteChildren {
   AdminUnmatchedCreditsRoute: typeof AdminUnmatchedCreditsRoute
   AnimeSlugRoute: typeof AnimeSlugRoute
   ApiCrawlerFreshnessRoute: typeof ApiCrawlerFreshnessRoute
+  ApiEventRoute: typeof ApiEventRoute
   ApiHealthRoute: typeof ApiHealthRoute
   VoiceActorsSlugRoute: typeof VoiceActorsSlugRoute
   WorksIdRoute: typeof WorksIdRoute
@@ -494,6 +507,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrawlerFreshnessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/event': {
+      id: '/api/event'
+      path: '/api/event'
+      fullPath: '/api/event'
+      preLoaderRoute: typeof ApiEventRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -609,6 +629,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminUnmatchedCreditsRoute: AdminUnmatchedCreditsRoute,
   AnimeSlugRoute: AnimeSlugRoute,
   ApiCrawlerFreshnessRoute: ApiCrawlerFreshnessRoute,
+  ApiEventRoute: ApiEventRoute,
   ApiHealthRoute: ApiHealthRoute,
   VoiceActorsSlugRoute: VoiceActorsSlugRoute,
   WorksIdRoute: WorksIdRoute,

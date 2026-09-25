@@ -24,6 +24,7 @@ import { categoryLabel, formatYearMonth } from "@/app/lib/format";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
 import { seasonLabel } from "@/app/lib/season";
 import { storeActorSearchUrl } from "@/app/lib/store-search";
+import { sendUsageEvent } from "@/app/lib/usage-events";
 import type {
   ActorAnimeAppearance,
   ActorDetail,
@@ -124,7 +125,11 @@ export function VoiceActorPage({
               canonicalName: actor.canonicalName,
               ...(actor.nameEn ? { nameEn: actor.nameEn } : {}),
             }}
-            onFollow={() => setFollowedHereId(actor.id)}
+            onFollow={() => {
+              setFollowedHereId(actor.id);
+              // 声優ページ → フォローの転換率の分子。誰をフォローしたかは送らない
+              sendUsageEvent({ type: "follow" });
+            }}
           />
         }
       />

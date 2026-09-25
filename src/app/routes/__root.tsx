@@ -7,6 +7,8 @@ import {
 import type { ReactNode } from "react";
 import { AppShell, ErrorScreen, NotFoundScreen } from "@/app/components/app-shell";
 import { createTranslator, LocaleContext } from "@/app/i18n";
+import { webAnalyticsScripts } from "@/app/lib/usage-events";
+import { fetchWebAnalyticsToken } from "@/app/server-fns/analytics";
 import { resolveLocaleForRoute } from "@/app/server-fns/locale";
 import appCss from "@/index.css?url";
 
@@ -34,7 +36,11 @@ export const Route = createRootRoute({
    * ここで返した値だけだからで、子ルートの `head()` でも title を言語に追従させるのに要る
    */
   beforeLoad: async () => ({ locale: await resolveLocaleForRoute() }),
-  head: ({ match }) => {
+  // 計測のトークンは設定 (`vars.WEB_ANALYTICS_TOKEN`) で、デプロイの間は変わらない。
+  // SSR で取った値がハイドレーションに引き継がれるので、画面遷移のたびに取り直さない
+  loader: async () => ({ webAnalyticsToken: await fetchWebAnalyticsToken() }),
+  staleTime: Number.POSITIVE_INFINITY,
+  head: ({ match, loaderData }) => {
     const t = createTranslator(match.context.locale);
     return {
       meta: [
@@ -51,7 +57,10 @@ export const Route = createRootRoute({
         { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
         { rel: "stylesheet", href: appCss },
       ],
-      scripts: [{ children: themeScript }],
+      scripts: [
+        { children: themeScript },
+        ...webAnalyticsScripts(loaderData?.webAnalyticsToken ?? null),
+      ],
     };
   },
   shellComponent: RootDocument,

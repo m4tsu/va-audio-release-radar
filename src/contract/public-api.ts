@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { INQUIRY_KINDS, LOCALES } from "../domain/index.ts";
+import { INQUIRY_KINDS, LOCALES, STORE_SLUGS } from "../domain/index.ts";
 import { httpsUrlSchema } from "./primitives.ts";
 
 /**
- * ブラウザから届く本文 (問い合わせの送信と Web Push の購読) の形。
+ * ブラウザから届く本文 (問い合わせの送信、Web Push の購読、操作の計測) の形。
  * 画面の入力欄とサーバーの検証が同じ上限を読む
  */
 
@@ -83,3 +83,23 @@ export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
 export const pushUnsubscribeSchema = z.object({
   endpoint: httpsUrlSchema.pipe(z.string().max(2048)),
 });
+
+// --- 操作の計測 ------------------------------------------------------------
+
+/**
+ * 画面から数える操作 (`POST /api/event`)。`docs/product.md` の「製品」の分子になる。
+ *
+ * 持つのは操作の種類とストアの別だけ。声優 ID やフォローの一覧を足すと、フォローの状態が
+ * ブラウザの外に出る (`docs/decisions/0016-count-actions-in-analytics-engine.md`)。
+ * 知らない項目が付いた本文は受け付けない (strict)。送る側の誤りで余計な値を保存しないため
+ */
+export const usageEventSchema = z.discriminatedUnion("type", [
+  /** 声優ページでフォローを付けた */
+  z.strictObject({ type: z.literal("follow") }),
+  /** 作品ページからストアの作品ページへ移るリンクを押した */
+  z.strictObject({ type: z.literal("store_click"), store: z.enum(STORE_SLUGS) }),
+  /** 作品ページから Audible の無料体験の登録へ移るリンクを押した */
+  z.strictObject({ type: z.literal("audible_trial_click") }),
+]);
+
+export type UsageEvent = z.infer<typeof usageEventSchema>;

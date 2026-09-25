@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { useT } from "@/app/i18n";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
+import { countedLinkHandlers } from "@/app/lib/usage-events";
 import type { WorkDetail } from "@/app/lib/view-types";
 
 /**
@@ -11,6 +12,7 @@ import type { WorkDetail } from "@/app/lib/view-types";
  *   このサイトは価格も聴き放題の対象かも持たない (docs/decisions/0008-no-price-no-availability.md)
  * - 広告コードに入っている計測画像をリンクの中に出す。描画した時点でブラウザから計測のサーバーへ通信が出る
  *   (プライバシーポリシーの外部通信の節、`src/app/legal/privacy.ts`)
+ * - 押したら数える。作品ごとのストアへのリンクとは別の操作として数える (`@/app/lib/usage-events`)
  */
 export function AudibleTrialLink({ link }: { link: NonNullable<WorkDetail["audibleTrial"]> }) {
   const t = useT();
@@ -23,6 +25,7 @@ export function AudibleTrialLink({ link }: { link: NonNullable<WorkDetail["audib
       href={href}
       target="_blank"
       rel="noopener nofollow sponsored"
+      {...countedLinkHandlers({ type: "audible_trial_click" })}
       className="inline-flex items-center gap-1 text-sm underline underline-offset-4 hover:text-foreground"
     >
       {beaconUrl ? (

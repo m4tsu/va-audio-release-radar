@@ -1,8 +1,10 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { StoreLink } from "@/app/components/store-link";
 import { workListing } from "@/app/test/fixtures";
 import { renderWithLocale } from "@/app/test/render";
+import { captureUsageEvents } from "@/app/test/usage-events";
 
 const PRODUCT_URL = "https://www.dlsite.com/home/work/=/product_id/RJ1.html";
 
@@ -74,5 +76,33 @@ describe("StoreLink の成果計測の画像", () => {
     const link = screen.getByRole("link", { name: "ポケドラで聴く" });
     expect(link).toHaveAttribute("href", POKEDORA_URL);
     expect(link.querySelector("img")).toBeNull();
+  });
+});
+
+describe("StoreLink の送客の計測", () => {
+  test("押すとストアの別を添えて数える", async () => {
+    const user = userEvent.setup();
+    const events = captureUsageEvents();
+    renderWithLocale(
+      <StoreLink listing={workListing({ storeSlug: "dlsite", productUrl: PRODUCT_URL })} />,
+    );
+
+    await user.click(screen.getByRole("link", { name: "DLsite で見る" }));
+
+    expect(await events.sent()).toEqual([{ type: "store_click", store: "dlsite" }]);
+  });
+
+  /** 新しいタブに開く中ボタンは click を起こさない */
+  test("中ボタンで開いても数え、右ボタンでは数えない", async () => {
+    const events = captureUsageEvents();
+    renderWithLocale(
+      <StoreLink listing={workListing({ storeSlug: "dlsite", productUrl: PRODUCT_URL })} />,
+    );
+    const link = screen.getByRole("link", { name: "DLsite で見る" });
+
+    fireEvent(link, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    fireEvent(link, new MouseEvent("auxclick", { bubbles: true, button: 2 }));
+
+    expect(await events.sent()).toEqual([{ type: "store_click", store: "dlsite" }]);
   });
 });

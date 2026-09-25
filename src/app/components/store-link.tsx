@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { type TKey, useT } from "@/app/i18n";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
+import { countedLinkHandlers } from "@/app/lib/usage-events";
 import type { WorkListing } from "@/app/lib/view-types";
 import type { StoreSlug } from "@/domain/types";
 
@@ -21,6 +22,7 @@ const CALL_TO_ACTION = {
  *   (プライバシーポリシーの外部通信の節、`src/app/legal/privacy.ts`)
  * - `rel` に `sponsored` を付けるのは報酬が発生しうるリンクだから。`nofollow` で
  *   評価を渡さず、`noopener` で遷移先から元タブを触れないようにする
+ * - 押したらストアの別を添えて数える (`@/app/lib/usage-events`)。送客の指標の分子になる
  * - URL は https のものしか出さない。`javascript:` などがそのまま href に出ると、
  *   ストアのページを踏んだつもりのクリックがスクリプト実行になる
  */
@@ -38,7 +40,12 @@ export function StoreLink({ listing, className }: { listing: WorkListing; classN
 
   return (
     <Button asChild className={className}>
-      <a href={href} target="_blank" rel="noopener nofollow sponsored">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener nofollow sponsored"
+        {...countedLinkHandlers({ type: "store_click", store: listing.storeSlug })}
+      >
         {beaconUrl ? (
           // 広告コードの画像をそのまま写す。改変にあたらないとされる変更は alt の追加などに限られるので、
           // 大きさと border も配られたコードのとおりにする (docs/stores/pokedora.md の「アフィリエイト」)

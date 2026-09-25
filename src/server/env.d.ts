@@ -81,10 +81,17 @@ interface AppSecrets {
    */
   DATA_CACHE?: string;
   /**
+   * Cloudflare Web Analytics のサイトのトークン (`@/server/usage-events`)。HTML に出る公開値なので
+   * wrangler.jsonc の `vars` に置く。空文字なら計測しない (ページビューも操作も数えない)
+   */
+  WEB_ANALYTICS_TOKEN?: string;
+  /**
    * デプロイした版の情報 (wrangler.jsonc の `version_metadata`)。バインディングだが生成側の型に載らないのでここで足す
    * (`worker-configuration.d.ts` は `DB` だけを持つ)
    */
   CF_VERSION_METADATA?: WorkerVersionMetadata;
+  /** 画面の操作を書く Workers Analytics Engine (wrangler.jsonc の `analytics_engine_datasets`)。同じく生成側の型に載らない */
+  EVENTS?: AnalyticsEngineDataset;
 }
 
 export {};

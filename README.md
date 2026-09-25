@@ -141,6 +141,32 @@ Free プランの D1 は 1 日に書ける行数に上限があり、索引へ�
 > 止まればワークフローが動かないので Issue も立たない。外形監視はこの場合にも鳴る。
 > 再開は Actions の画面から手で行う。
 
+## 計測
+
+`docs/product.md` の「製品」の 2 つの率を、分母と分子で別々に数える
+(決定は [`docs/decisions/0016-count-actions-in-analytics-engine.md`](./docs/decisions/0016-count-actions-in-analytics-engine.md))。
+
+| 数えるもの | どこで数えるか | どこで見るか |
+|---|---|---|
+| 声優ページ・作品ページのページビュー (分母) | Cloudflare Web Analytics | ダッシュボードの Web Analytics。パスで絞る |
+| フォロー・ストアへの送客の操作 (分子) | `/api/event` → Workers Analytics Engine (`src/server/usage-events.ts`) | 下の SQL API |
+
+**`vars.WEB_ANALYTICS_TOKEN` が空ならどちらも数えない。** ダッシュボードの Web Analytics でサイトを足し
+(JS スニペットを使う手動の設定)、表示されたトークンを package.json の `deploy` に `--var WEB_ANALYTICS_TOKEN:<トークン>`
+で足す。`wrangler.jsonc` に書くと dev と E2E の操作まで数字に混ざる。
+
+操作の数は Analytics Engine の SQL API で読む。トークンには `Account Analytics Read` の権限が要る。
+データセット名は `wrangler.jsonc` の `analytics_engine_datasets`、列の割り当ては `src/server/usage-events.ts`。
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/<アカウント ID>/analytics_engine/sql" \
+  --header "Authorization: Bearer <API トークン>" \
+  --data "SELECT blob1 AS action, blob2 AS store, SUM(_sample_interval) AS count
+          FROM voice_actor_audio_release_radar_events
+          WHERE timestamp > NOW() - INTERVAL '7' DAY
+          GROUP BY action, store"
+```
+
 ## ディレクトリ構成
 
 依存方向と、それを守らせている仕組みは [`docs/architecture.md`](./docs/architecture.md)。

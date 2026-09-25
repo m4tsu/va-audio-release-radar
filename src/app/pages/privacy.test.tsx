@@ -10,7 +10,7 @@ describe("PrivacyPage", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "プライバシーポリシー" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("制定日: 2026年9月24日")).toBeInTheDocument();
+    expect(screen.getByText("制定日: 2026年9月25日")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "1. 基本方針" })).toBeInTheDocument();
   });
 

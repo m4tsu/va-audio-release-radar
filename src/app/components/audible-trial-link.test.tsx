@@ -1,7 +1,9 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { AudibleTrialLink } from "@/app/components/audible-trial-link";
 import { renderWithLocale } from "@/app/test/render";
+import { captureUsageEvents } from "@/app/test/usage-events";
 
 const LINK = {
   url: "https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=1&pid=2",
@@ -36,5 +38,18 @@ describe("AudibleTrialLink", () => {
     renderWithLocale(<AudibleTrialLink link={{ ...LINK, url: "http://example.com" }} />);
 
     expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("AudibleTrialLink の送客の計測", () => {
+  /** 作品ごとのストアへのリンクとは別の操作として数える。報酬になる経路が違う */
+  test("押すと無料体験への送客として数える", async () => {
+    const user = userEvent.setup();
+    const events = captureUsageEvents();
+    renderWithLocale(<AudibleTrialLink link={LINK} />);
+
+    await user.click(screen.getByRole("link"));
+
+    expect(await events.sent()).toEqual([{ type: "audible_trial_click" }]);
   });
 });

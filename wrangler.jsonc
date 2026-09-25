@@ -44,6 +44,9 @@
   // ここに入れると dev と E2E で踏んだリンクまで成果の計測に混ざる
   // DATA_CACHE はクエリ結果のキャッシュ (src/server/data-cache.ts) を使う印。"1" のときだけ使い、本番の値は deploy が渡す。
   // dev と E2E はシードを D1 に直接流すのでキャッシュの世代が変わらず、古い結果が返る。ここは空のままにする
+  // WEB_ANALYTICS_TOKEN は Cloudflare Web Analytics のサイトのトークン。HTML に出る公開値なので vars に置く。
+  // 空文字なら計測しない (Web Analytics を読み込まず、/api/event も EVENTS に書かない。src/server/usage-events.ts)。
+  // 本番の値は package.json の deploy が --var で渡す。ここに入れると dev と E2E の操作まで数字に混ざる
   "vars": {
     "SITE_URL": "",
     "CONTACT_URL": "",
@@ -56,11 +59,17 @@
     "VALUECOMMERCE_SID": "",
     "POKEDORA_VC_PID": "",
     "AUDIBLE_TRIAL_VC_PID": "",
-    "DATA_CACHE": ""
+    "DATA_CACHE": "",
+    "WEB_ANALYTICS_TOKEN": ""
   },
   // デプロイした版の ID。クエリ結果のキャッシュ (src/server/data-cache.ts) がキーに入れ、結果の形を変えたデプロイの後に
   // 前の版の結果を読まないようにする
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
+  // 画面の操作 (フォロー、ストアへの送客) の数。書くのは /api/event だけ (src/server/usage-events.ts)。
+  // 読み方は README の「計測」
+  "analytics_engine_datasets": [
+    { "binding": "EVENTS", "dataset": "voice_actor_audio_release_radar_events" }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

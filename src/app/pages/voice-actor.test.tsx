@@ -14,6 +14,7 @@ import {
 } from "@/app/test/fixtures";
 import { readyFollowStore } from "@/app/test/follow";
 import { renderWithLocale } from "@/app/test/render";
+import { captureUsageEvents } from "@/app/test/usage-events";
 
 const ACTOR = actorDetail({
   slug: "alpha",
@@ -432,6 +433,19 @@ describe("VoiceActorPage のフォロー", () => {
     await user.click(screen.getByRole("button", { name: "フォロー" }));
 
     expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
+  });
+
+  /** 転換率の分子。誰をフォローしたかは送らない */
+  test("フォローを押すと、声優を添えずに 1 回数える。外すときは数えない", async () => {
+    const user = userEvent.setup();
+    const events = captureUsageEvents();
+    await readyFollowStore();
+    render();
+
+    await user.click(screen.getByRole("button", { name: "フォロー" }));
+    await user.click(screen.getByRole("button", { name: "フォロー中" }));
+
+    expect(await events.sent()).toEqual([{ type: "follow" }]);
   });
 
   /** 読み込みが済むまで押せると、直後に届いた保存済みの状態で操作が消える */

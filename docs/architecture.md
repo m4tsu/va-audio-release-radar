@@ -113,12 +113,13 @@ crawler  ─────────────────→  src/contract  �
 `/api/health`、`/api/crawler-freshness`、`/api/admin/*`、`sitemap.xml`、`robots.txt`、`manifest.webmanifest`
 (ホーム画面用。言語 cookie で中身が変わる) と、`public/` の静的ファイル (`sw.js` は通知を表示するだけの
 service worker で、ページの資産をキャッシュしない) だけ。画面が利用者のブラウザに外から読み込ませるもの
-(表紙画像、bot 対策、アフィリエイトの計測画像) は `src/app/legal/privacy.ts` の外部通信の記述と揃える。
+(解析、表紙画像、bot 対策、アフィリエイトの計測画像) は `src/app/legal/privacy.ts` の外部通信の記述と揃える。
 このうち認証が要るのは `/api/admin/*` だけで、鮮度の判定は外形監視から見えるように開けてある。
-利用者から受け取る経路は 2 つ。お問い合わせ (`/contact`) は認可の代わりに bot 対策 (Cloudflare Turnstile)
-の検証を通す。検証の失敗と鍵の未設定を応答で分ける。フォロー情報は添えない。もう 1 つは通知の購読 (`/following` の server functions) で、ブラウザが push service
+利用者から受け取る経路は 3 つ。お問い合わせ (`/contact`) は認可の代わりに bot 対策の検証を通し、
+検証の失敗と鍵の未設定を応答で分ける。フォロー情報は添えない。2 つ目は通知の購読 (`/following` の server functions) で、ブラウザが push service
 から受け取った宛先とフォロー中の声優 ID を保存する。認可は無く、Zod で形と件数を絞り、偽の宛先は送信時の
-失効で消える。宛先は利用者の識別に使わない (`src/server/db/schema.ts` の `push_subscriptions`)。
+失効で消える。宛先は利用者の識別に使わない (表 `push_subscriptions`)。
+3 つ目の `/api/event` は操作の種類とストアだけを受ける (`decisions/0016`)。
 声優ページとアニメのページは、音声作品があればインデックス対象、無ければ noindex で
 sitemap にも出さない。声優は音声作品も出演アニメも無ければ 404、アニメは出演が無ければ 404。
 フォロー一覧はブラウザごとに違うので noindex。
