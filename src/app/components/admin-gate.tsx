@@ -22,8 +22,8 @@ export function AdminUnauthorized({ configured }: { configured: boolean }) {
 }
 
 /**
- * 管理画面どうしの行き来。画面が増えるたびに各ページが互いへのリンクを持つと
- * 組み合わせの数だけ書き足すことになるので、行き先の一覧をここ 1 か所に置く
+ * 管理画面どうしの行き来。各ページが互いへのリンクを持つと、画面が増えるたびに
+ * 組み合わせの数だけ書き足すことになるため、行き先の一覧から作る
  */
 const ADMIN_PAGES = [
   { key: "health", to: "/admin/crawler-health", label: "admin.toHealth" },

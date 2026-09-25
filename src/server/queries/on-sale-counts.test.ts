@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { animeTitles, audioCredits, audioWorks, storeListings, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -14,6 +14,7 @@ import {
   setupDb,
   UEDA,
 } from "./test-fixtures";
+import { notAdultRated, onSaleSomewhere } from "./works";
 
 /**
  * 声優とアニメの行に持たせた「買える作品の数」が、書き込みのたびに追従すること。
@@ -167,5 +168,51 @@ describe("買える作品の数", () => {
       LATER,
     );
     expect(await animeActorCount(db)).toBe(0);
+  });
+});
+
+describe("トリガーの数え方と画面の絞り込みの一致", () => {
+  async function countByQuery(db: AppDb, voiceActorId: string): Promise<number> {
+    const [row] = await db
+      .select({ count: sql<number>`count(distinct ${audioWorks.id})` })
+      .from(audioCredits)
+      .innerJoin(audioWorks, eq(audioWorks.id, audioCredits.audioWorkId))
+      .where(and(eq(audioCredits.voiceActorId, voiceActorId), notAdultRated, onSaleSomewhere));
+    return Number(row?.count ?? 0);
+  }
+
+  it("取り下げと成人向けが混ざっても、列の数は notAdultRated と onSaleSomewhere で数えた数と同じ", async () => {
+    const db = await setupDb([UEDA, HANAZAWA]);
+    const work = (storeProductId: string, creditedNames: string[]) =>
+      rawWork({
+        storeProductId,
+        creditedNames,
+        productUrl: `https://www.dlsite.com/home/work/=/product_id/${storeProductId}.html`,
+      });
+    await ingest(
+      db,
+      payload({
+        works: [
+          work("RJ01000001", [UEDA.canonicalName]),
+          work("RJ01000002", [UEDA.canonicalName, HANAZAWA.canonicalName]),
+          work("RJ01000003", [HANAZAWA.canonicalName]),
+          work("RJ01000004", [UEDA.canonicalName]),
+        ],
+      }),
+      NOW,
+    );
+    await recordDelistings(
+      db,
+      [{ storeSlug: "dlsite", storeProductId: "RJ01000002", delisted: true }],
+      LATER,
+    );
+    await db
+      .update(audioWorks)
+      .set({ ageRating: "r18" })
+      .where(eq(audioWorks.id, "dlsite:RJ01000004"));
+
+    for (const actor of [UEDA, HANAZAWA]) {
+      expect((await actorCounts(db, actor.id))?.count).toBe(await countByQuery(db, actor.id));
+    }
   });
 });

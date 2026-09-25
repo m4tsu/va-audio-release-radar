@@ -56,7 +56,7 @@ export const notAdultRated = ne(audioWorks.ageRating, "r18");
  * 1 つのストアで終わっても他で買えるなら出す。listing を 1 件も持たない作品は出さない。
  *
  * 声優とアニメの行に持たせた「買える作品の数」は、トリガーがこれと `notAdultRated` と同じ条件で数える
- * (`migrations/0020_on_sale_counts_triggers.sql`)。条件を変えるときはトリガーも作り直す
+ * (`migrations/0020_on_sale_counts_triggers.sql`、一致は `on-sale-counts.test.ts`)
  */
 export const onSaleSomewhere: SQL = sql`exists (
   select 1 from ${storeListings}
@@ -102,8 +102,7 @@ export type WorkWithListings = {
    * 数え方は画面の重複排除 (`@/app/lib/dedupe-credits`) と同じ。`audio_credits` は
    * (作品, 表記, ストア) で一意なので、同じ人が 2 ストアに載っていれば行が 2 つできる。
    * 名寄せ済みは声優 ID、未解決の表記はその表記そのものを「誰か」とみなして数える。
-   * 値は作品の行 (`audio_works.cast_size`) をトリガーが保つ (`migrations/0023_cast_size_triggers.sql`)。
-   * 数え方を変えるときはトリガーも作り直す
+   * 値は作品の行 (`audio_works.cast_size`) をトリガーが保つ (`migrations/0023_cast_size_triggers.sql`)
    */
   castSize: number;
 };

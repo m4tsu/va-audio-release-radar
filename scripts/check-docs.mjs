@@ -275,8 +275,7 @@ export function findBrokenHeadingReferences(relative, text, { cwd }) {
 }
 
 /**
- * README.md の「コマンド」節が package.json の scripts を全部載せているか。
- * 一覧を手で写す以上、スクリプトを足したときの載せ忘れは黙って残る
+ * README.md の「コマンド」節が package.json の scripts を全部載せているか
  */
 export function findUnlistedScripts(readme, scripts) {
   const section = /^## コマンド\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(readme);

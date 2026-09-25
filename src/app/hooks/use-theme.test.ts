@@ -1,6 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { readStoredTheme, THEME_STORAGE_KEY, useTheme, writeStoredTheme } from "./use-theme";
+import {
+  readStoredTheme,
+  THEME_INIT_SCRIPT,
+  THEME_STORAGE_KEY,
+  useTheme,
+  writeStoredTheme,
+} from "./use-theme";
 
 /**
  * jsdom には matchMedia が無いので、OS の設定を差し替えられる形で立てる。
@@ -129,4 +135,31 @@ describe("useTheme", () => {
     expect(result.current.theme).toBe("system");
     expect(result.current.resolved).toBe("light");
   });
+});
+
+describe("THEME_INIT_SCRIPT", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.classList.remove("dark");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // head の中で React より先に動くスクリプトが、フックと同じ保存を読んで同じ配色に解決すること
+  test.each([
+    { stored: "dark", prefersDark: false, dark: true },
+    { stored: "light", prefersDark: true, dark: false },
+    { stored: undefined, prefersDark: true, dark: true },
+    { stored: undefined, prefersDark: false, dark: false },
+  ] as const)(
+    "保存 $stored・OS ダーク $prefersDark → .dark $dark",
+    ({ stored, prefersDark, dark }) => {
+      stubMatchMedia(prefersDark);
+      if (stored) writeStoredTheme(stored);
+      new Function(THEME_INIT_SCRIPT)();
+      expect(document.documentElement.classList.contains("dark")).toBe(dark);
+    },
+  );
 });

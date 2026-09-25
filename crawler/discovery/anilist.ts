@@ -40,12 +40,12 @@ export function seasonLabel(key: SeasonKey): string {
   return `${key.year} ${key.season}`;
 }
 
-/** 新旧を比べるための順序値。計算は画面と共通の domain の seasonOrder が持つ */
+/** 新旧を比べるための順序値 */
 export function seasonOrder(key: SeasonKey): number {
   return domainSeasonOrder({ seasonYear: key.year, season: key.season });
 }
 
-/** その日時が属するシーズン。判定の規則 (日本時間の暦日) は画面と共通の `seasonAt` が持つ */
+/** その日時が属するシーズン */
 export function seasonOfDate(isoDate: string): SeasonKey {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) throw new Error(`日付として読めない: ${isoDate}`);

@@ -18,7 +18,6 @@ D1_DIR=".wrangler/state/v3/d1"
 LIB_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 
 # ローカル D1 の crawl_runs.started_at の最大値を出す。無ければ空文字。
-# sqlite の選び方と読み方は scripts/local-d1.mjs の 1 か所に置く
 last_crawl_started() {
   node --no-warnings "$LIB_REPO_ROOT/scripts/local-d1.mjs" last-crawl "$1"
 }

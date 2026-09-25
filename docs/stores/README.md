@@ -9,7 +9,7 @@
 実測で分かった落とし穴) を、ストアごとに 1 ファイルに集めてある。
 
 使う URL の形、取れる項目、セレクタ、間隔の秒数はここに書かない。adapter のコード
-(`crawler/adapters/`、`crawler/discovery/`、`crawler/lib/fetch.ts`) が持ち、書くと片方だけ古くなる。
+(`crawler/adapters/`、`crawler/discovery/`、`crawler/lib/fetch.ts`) が持つ。
 実装されているかどうかも `crawler/` を見れば分かるので、この表には持たない。
 
 | 相手 | ファイル |

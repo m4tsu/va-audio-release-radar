@@ -95,7 +95,7 @@ export function actorInitial(actor: Pick<DirectoryActor, "nameEn">, locale: Loca
  * 頭文字より前に効く絞り込み (ストアと性別)。
  *
  * 押せる頭文字を数えるときと、一覧を絞るときの両方から呼ぶ。
- * 片方だけを直すと「押した結果が 0 人になる頭文字」が出る
+ * 別々に絞ると「押した結果が 0 人になる頭文字」が出る
  */
 function narrow<T extends DirectoryActor>(
   actors: readonly T[],
@@ -128,7 +128,7 @@ function nameSortKeyEn(nameEn: string): string {
  * 並べ替え。日本語表示の "name" は受け取った順 (`listActors` の canonical_name 順) をそのまま使う。
  *
  * ここで日本語の名前を並べ直すと、SQLite のコードポイント順と `localeCompare` の結果がずれ、
- * ハイドレーションの前後で並びが入れ替わって見える。日本語の名前順の正はサーバーに置く。
+ * ハイドレーションの前後で並びが入れ替わって見える。日本語の名前順はサーバーが決めた順を使う。
  *
  * 英語表示の "name" はローマ字の姓から並べる。漢字表記の内部順序は英語話者の手がかりにならない
  */

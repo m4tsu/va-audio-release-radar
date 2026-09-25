@@ -13,10 +13,7 @@ import type { IngestResponse, ingestPayloadSchema } from "./ingest.ts";
 import { dateSchema } from "./primitives.ts";
 
 /**
- * Worker の管理 API (`/api/admin/*`) のうち、クローラーが叩くものの入出力。
- *
- * 送り手 (crawler) と受け手 (`src/app/routes/api/admin/`) が同じ定義を読む。
- * 片方だけが形を変えると、両方の型検査が落ちる
+ * Worker の管理 API (`/api/admin/*`) のうち、クローラーが叩くものの入出力
  */
 
 // --- AniList の取り込み (`POST /api/admin/anilist`) -------------------------

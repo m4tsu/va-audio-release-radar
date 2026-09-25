@@ -8,12 +8,8 @@ import { type Dictionary, ja } from "./ja";
  *
  * i18next は使わない。対応は 2 言語だけで、言語は SSR で確定させてから描くので、
  * 非同期の初期化とハイドレーションの辻褄合わせを抱える価値がない (設計の決定)。
- *
- * キー構造の正は `ja.ts`。`en.ts` は下の `Translations` 型で同じ形を強制されるので、
- * ja にキーを足して en を直し忘れるとコンパイルが落ちる
  */
 
-// 値の正は domain。DB の列 (購読の表示言語) と同じ配列を見るため、ここでは再定義しない
 export { LOCALES, type Locale } from "@/domain/types";
 /** cookie が無く Accept-Language も読めないときの言語。SEO の対象が日本語クエリなので日本語 */
 export const DEFAULT_LOCALE: Locale = "ja";

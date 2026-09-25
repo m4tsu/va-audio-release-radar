@@ -1,8 +1,8 @@
 /**
- * 表紙画像を持たないページが og:image に出すサイト共通の画像。
- * 画像は `scripts/generate-icons.mjs` が作り、`public/` に置いてある。大きさはそこで決めた値と揃える
+ * 表紙画像を持たないページが og:image に出すサイト共通の画像。`npm run icons` がこの大きさで作る。
+ * 1200x630 は X と Facebook が大きい画像として扱う比率
  */
-const SITE_IMAGE = { path: "/og-image.png", width: 1200, height: 630 } as const;
+export const SITE_IMAGE = { path: "/og-image.png", width: 1200, height: 630 } as const;
 
 /**
  * og:image は絶対 URL でないと SNS のクローラーが読まない。オリジンは loader が

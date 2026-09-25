@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-/**
- * 配色の設定。`__root.tsx` の head に埋めたインラインスクリプトと同じ値をここでも読み書きする。
- *
- * キーと値の形を変えるときは、必ず `__root.tsx` の `themeScript` も揃えること。
- * 片方だけ変えると、初回描画だけ別の配色になってちらつく
- */
+/** 配色の設定。保存先は localStorage */
 export const THEME_STORAGE_KEY = "theme";
 
 export const THEME_PREFERENCES = ["light", "dark", "system"] as const;
@@ -20,6 +15,21 @@ export type ResolvedTheme = "light" | "dark";
 export const DEFAULT_THEME: ThemePreference = "system";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+/**
+ * 配色の初期適用。SSR された HTML を受け取ったブラウザが最初のペイントをする前に
+ * html へ .dark を付けるため、`__root.tsx` が head の中でインラインに実行する
+ * (後から付けると白→黒のちらつきが出る)。React より先に動くので、保存の読み方をここで文字列にする
+ */
+export const THEME_INIT_SCRIPT = `(function () {
+  try {
+    var theme = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)}) || ${JSON.stringify(DEFAULT_THEME)};
+    var isDark =
+      theme === "dark" ||
+      (theme === "system" && window.matchMedia(${JSON.stringify(DARK_QUERY)}).matches);
+    if (isDark) document.documentElement.classList.add("dark");
+  } catch (e) {}
+})();`;
 
 export function isThemePreference(value: unknown): value is ThemePreference {
   return typeof value === "string" && (THEME_PREFERENCES as readonly string[]).includes(value);

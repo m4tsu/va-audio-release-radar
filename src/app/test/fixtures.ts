@@ -24,8 +24,7 @@ import type { Inquiry } from "@/domain/types";
 /**
  * 画面のテストが使うデータ。
  *
- * 型の正は `@/app/lib/view-types` (= server function の戻り値) なので、サーバーが返す形が
- * 変われば、ここがコンパイルエラーになる。各関数は「最低限そろっている 1 件」を返し、
+ * 各関数は「最低限そろっている 1 件」を返し、
  * テストは見たい欄だけを上書きする。名前は E2E の固定データ (`e2e/fixtures/seed.sql`) とは
  * 別物にしてある。どちらを直しているのか取り違えないため
  */
@@ -222,7 +221,7 @@ export function crawlerHealth(over: Partial<CrawlerHealth> = {}): CrawlerHealth 
 }
 
 /**
- * 届いた問い合わせ 1 件。型の正は `@/domain/types` (表と送信の検証が同じ形を共有する)。
+ * 届いた問い合わせ 1 件。
  * 連絡先は任意なので、未記入の行を作るテストは `contact` を上書きで消す
  */
 export function inquiry(over: Partial<Inquiry> = {}): Inquiry {

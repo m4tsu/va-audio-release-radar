@@ -11,6 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { SITE_IMAGE } from "../src/app/lib/site-image.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
 const source = readFileSync(path.join(root, "public/favicon.svg"));
@@ -31,11 +32,8 @@ for (const [name, size] of targets) {
   console.log(`${name} (${size}px)`);
 }
 
-// 大きさは `src/app/lib/site-image.ts` が og:image:width / height に出す値と揃える。
-// 1200x630 は X と Facebook が大きい画像として扱う比率。
 // 文字は英字だけにする。画像は日本語と英語のページで共有し、描画する環境に和文フォントがあるとは限らない
-const OG_WIDTH = 1200;
-const OG_HEIGHT = 630;
+const { width: OG_WIDTH, height: OG_HEIGHT } = SITE_IMAGE;
 const ICON_SIZE = 200;
 
 const ogBackground = `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}">
@@ -48,5 +46,5 @@ const og = await sharp(Buffer.from(ogBackground))
   .composite([{ input: ogIcon, left: (OG_WIDTH - ICON_SIZE) / 2, top: 110 }])
   .png()
   .toBuffer();
-writeFileSync(path.join(root, "public/og-image.png"), og);
+writeFileSync(path.join(root, "public", SITE_IMAGE.path), og);
 console.log(`og-image.png (${OG_WIDTH}x${OG_HEIGHT})`);

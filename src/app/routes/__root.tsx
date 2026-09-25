@@ -6,27 +6,12 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { AppShell, ErrorScreen, NotFoundScreen } from "@/app/components/app-shell";
+import { THEME_INIT_SCRIPT } from "@/app/hooks/use-theme";
 import { createTranslator, LocaleContext } from "@/app/i18n";
 import { webAnalyticsScripts } from "@/app/lib/usage-events";
 import { fetchWebAnalyticsToken } from "@/app/server-fns/analytics";
 import { resolveLocaleForRoute } from "@/app/server-fns/locale";
 import appCss from "@/index.css?url";
-
-/**
- * 配色の初期適用。SSR された HTML を受け取ったブラウザが最初のペイントをする前に
- * html へ .dark を付けるため、head の中でインラインに実行する (後から付けると白→黒のちらつきが出る)。
- * 保存値は localStorage の "theme" ("light" | "dark" | "system")。未設定なら OS の設定に従う。
- * キーと値の形は `hooks/use-theme.ts` と揃えること
- */
-const themeScript = `(function () {
-  try {
-    var theme = localStorage.getItem("theme") || "system";
-    var isDark =
-      theme === "dark" ||
-      (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    if (isDark) document.documentElement.classList.add("dark");
-  } catch (e) {}
-})();`;
 
 export const Route = createRootRoute({
   /**
@@ -58,7 +43,7 @@ export const Route = createRootRoute({
         { rel: "stylesheet", href: appCss },
       ],
       scripts: [
-        { children: themeScript },
+        { children: THEME_INIT_SCRIPT },
         ...webAnalyticsScripts(loaderData?.webAnalyticsToken ?? null),
       ],
     };
