@@ -50,5 +50,8 @@
   },
   "worktree": {
     "baseRef": "head"
+  },
+  "enabledPlugins": {
+    "pstack@pstack-claude": true
   }
 }
