@@ -4,7 +4,7 @@
 更新: 供給元の選び方か、規約の読みを変えたら superseded にして新しい決定を書く
 削除: superseded になっても消さない
 
-状態: accepted (2026-09-25)。[`0016`](./0016-games-as-entry-to-actors.md) のタイトルの選び方と供給元を決める
+状態: accepted (2026-09-25)。[`0017`](./0017-games-as-entry-to-actors.md) のタイトルの選び方と供給元を決める
 
 ## 状況
 

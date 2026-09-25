@@ -4,14 +4,14 @@
 更新: robots.txt と利用規約を取り直したら (差分が無くても最終確認日を更新する)。タイトルを足したり外したりしたら
 削除: ゲームのキャストを公式サイトから取らなくなったら
 
-**ストアではない。** ゲームのキャラクターと日本語の声優の対の供給元。取り込みは未実装。
+**ストアではない。** ゲームのキャラクターと日本語の声優の対の供給元。
 HoYoverse の 3 タイトルは [`hoyoverse.md`](./hoyoverse.md)、鳴潮は [`gamewith.md`](./gamewith.md)。
 どのタイトルを載せ、どの供給元から取るかは
-[`docs/decisions/0017-game-cast-from-official-sites.md`](../decisions/0017-game-cast-from-official-sites.md)、
+[`docs/decisions/0018-game-cast-from-official-sites.md`](../decisions/0018-game-cast-from-official-sites.md)、
 測定は [`docs/research/game-cast-official-sites-2026-09-25.md`](../research/game-cast-official-sites-2026-09-25.md)。
 共通の原則は [`README.md`](./README.md)。
 
-ここに載せるのは、`0017` で使うと決めたタイトルの公式サイトだけ。調べて使わないと決めたサイトの記録は
+ここに載せるのは、`0018` で使うと決めたタイトルの公式サイトだけ。調べて使わないと決めたサイトの記録は
 研究ノートの「タイトルごとの一覧」にある。
 
 ---
@@ -42,12 +42,12 @@ HoYoverse の 3 タイトルは [`hoyoverse.md`](./hoyoverse.md)、鳴潮は [`g
 
 ### 利用規約 (最終確認日 2026-09-25)
 
-条項の読みは [`0017`](../decisions/0017-game-cast-from-official-sites.md) が決めている。キャラ名と声優名の対は事実で
+条項の読みは [`0018`](../decisions/0018-game-cast-from-official-sites.md) が決めている。キャラ名と声優名の対は事実で
 あり、複製・転載の条項の対象 (画像・文章などの著作物) として取らない。ゲームの規約の営利の禁止はゲームの利用者に
 向けた条項と読む。画像・説明文・ボイスは取らず、載せない。
 
 自動取得・スクレイピング・クローラ・データマイニングを名指しする条項は、下のどのサイトにも無い
-(名指しする 3 サイトは `0017` で除いた)。
+(名指しする 3 サイトは `0018` で除いた)。
 
 - **ウマ娘** (`https://umamusume.jp/aboutsite/`)
   > 法令により許される場合を除き、事前に当社の許諾を得ることなく、無断で転載、複製、改変、公衆送信、翻訳、販売等をすることはできません。

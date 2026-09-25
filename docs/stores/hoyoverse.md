@@ -4,8 +4,8 @@
 更新: robots.txt と利用規約を取り直したら (差分が無くても最終確認日を更新する)。キャラクターのページの作りが変わったと分かったら
 削除: HoYoverse のタイトルをゲームのキャストの供給元から外したら
 
-**ストアではない。** ゲームのキャラクターと日本語の声優の対の供給元。取り込みは未実装。
-採否は [`docs/decisions/0017-game-cast-from-official-sites.md`](../decisions/0017-game-cast-from-official-sites.md)、
+**ストアではない。** ゲームのキャラクターと日本語の声優の対の供給元。
+採否は [`docs/decisions/0018-game-cast-from-official-sites.md`](../decisions/0018-game-cast-from-official-sites.md)、
 測定は [`docs/research/game-cast-official-sites-2026-09-25.md`](../research/game-cast-official-sites-2026-09-25.md)。
 共通の原則は [`README.md`](./README.md)。
 
@@ -44,7 +44,7 @@
 BOT を名指しするのは 20) だけで、その対象は「自分が有利にゲーム進行し、もしくは正常なサービス利用を妨げる」行為に
 限られている。スクレイピング・クローラ・データの抽出を名指しする条項は無い。
 
-この規約をどう読んで取得するかは [`0017`](../decisions/0017-game-cast-from-official-sites.md) が決めている。
+この規約をどう読んで取得するかは [`0018`](../decisions/0018-game-cast-from-official-sites.md) が決めている。
 キャラ名と声優名の対は事実であり、著作権の対象として取らない。11) はゲームの利用者に向けた条項と読む。
 12) の「不正な方法」と 20) の「正常なサービス利用を妨げる」に当たらないよう、公開ページが自分で呼ぶ URL だけを、
 ページと同じ形で、月に 1 回だけ引く。

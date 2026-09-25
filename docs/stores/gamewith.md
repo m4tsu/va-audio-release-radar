@@ -6,9 +6,9 @@
 
 **ストアではない。** ゲームの攻略サイト。鳴潮のキャラクターと日本語の声優の対だけをここから取る。
 公式サイトが声優を文字で載せていないため ([`game-cast-official-sites-2026-09-25.md`](../research/game-cast-official-sites-2026-09-25.md)
-の「ゼンレスゾーンゼロと鳴潮」)。他のタイトルには使わない。取り込みは未実装。
+の「ゼンレスゾーンゼロと鳴潮」)。他のタイトルには使わない。
 採否と、Game8・アルテマでなくこのサイトを選んだ理由は
-[`docs/decisions/0017-game-cast-from-official-sites.md`](../decisions/0017-game-cast-from-official-sites.md)。
+[`docs/decisions/0018-game-cast-from-official-sites.md`](../decisions/0018-game-cast-from-official-sites.md)。
 共通の原則は [`README.md`](./README.md)。
 
 ---
@@ -40,7 +40,7 @@ Sitemap: https://gamewith.jp/sitemap.xml
 
 自動取得・スクレイピング・クローラを名指しする条項は無い。
 
-この規約をどう読んで取得するかは [`0017`](../decisions/0017-game-cast-from-official-sites.md) が決めている。
+この規約をどう読んで取得するかは [`0018`](../decisions/0018-game-cast-from-official-sites.md) が決めている。
 キャラ名と声優名の対は事実であり、(17) の対象の「機能」にも著作物にも当たらないと読む。(19) は本サービス
 (記事・機能) そのものを商業目的で使う行為を指すと読み、事実の対を取ることは含まないと読む。
 記事の文章・代表作の欄・画像は取らず、載せない。(14) に当たらないよう、1 ページを月に 1 回だけ引く。
