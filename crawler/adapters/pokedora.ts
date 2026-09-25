@@ -45,7 +45,10 @@ const STORE_SLUG = "pokedora" as const;
 export const POKEDORA_SECTIONS = ["men", "bl"] as const;
 export type PokedoraSection = (typeof POKEDORA_SECTIONS)[number];
 
-/** 声優を表す tag_type。1=声優 / 2=シリーズ / 3=レーベル / 4=原作者等 (調査済み) */
+/**
+ * 声優を表す tag_type。1=声優 / 2=シリーズ / 3=レーベル / 4=原作者等 (調査済み)。
+ * シリーズ (2) は取らない。RawWork に置く場所が無く、genres に混ぜるとジャンルでない語が入る
+ */
 const VOICE_ACTOR_TAG_TYPE = 1;
 /** レーベルの tag_type。makerName に入れる */
 const LABEL_TAG_TYPE = 3;
@@ -77,7 +80,7 @@ export const FEED_DISP_NUMBER = 30;
 
 /**
  * ストア全体の新着一覧。`order=1` が新着順
- * (`docs/stores/pokedora.md` の「ストア全体の新着一覧」)。
+ * (`docs/stores/pokedora.md` の「既知の落とし穴」)。
  * 日次で引くのは 1 ページ目だけなので `pageno` は 1 に固定する。
  * `disp_number` を明示するのは、省いたときの既定が変わっても窓の広さを動かさないため
  */
@@ -179,7 +182,7 @@ export function parseSearchHtml(html: string, fetchedAt: string): ParsedWorks {
  *
  * 同じ `span.product_catgory_el` に `NEW` / `割引` / `特典あり` のバッジが混ざる。
  * バッジには `product_catgory_el-new` のような修飾クラスが付き、しかも**カテゴリより先に**
- * 並ぶので、除かないと先頭がバッジの語になる (`docs/stores/pokedora.md` の「新着一覧」)
+ * 並ぶので、除かないと先頭がバッジの語になる (`docs/stores/pokedora.md` の「既知の落とし穴」)
  */
 function productCategories($: cheerio.CheerioAPI, item: ReturnType<cheerio.CheerioAPI>): string[] {
   return item

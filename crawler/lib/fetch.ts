@@ -206,6 +206,8 @@ async function attempt(rawUrl: string, options: FetchOptions): Promise<Attempt> 
       ...(options.body === undefined ? {} : { body: options.body }),
       headers: {
         "User-Agent": userAgentFor(rawUrl),
+        // Accept-Encoding は付けない。Wikimedia の Robot policy が求める gzip は、
+        // Node の fetch が既定で送る `gzip, deflate` に含まれている
         "Accept-Language": "ja-JP,ja;q=0.9",
         Accept:
           options.kind === "json"

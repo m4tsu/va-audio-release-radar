@@ -28,281 +28,98 @@ npm run db:migrate:local   # ローカル D1 にスキーマを作る
 npm run dev                # ポートは vite.config.ts の server.port
 ```
 
-手元の D1 の位置づけと作り直し方は「本番 D1」。
-
-秘匿値が要る機能 (取り込み・管理画面・お問い合わせ) を触るときは `.dev.vars.example` を `.dev.vars` にコピーして値を入れる。
-canonical / og:url / `sitemap.xml` のオリジンは `SITE_URL`。本番の値は `package.json` の `deploy` が
-`wrangler deploy --var` で渡す。`wrangler.jsonc` では空にしておき、dev と E2E ではリクエストのオリジンを使う
-(E2E は canonical が `baseURL` を指すことを確かめている)。
-利用規約・プライバシーポリシーに載せる外部の問い合わせ窓口は `vars.CONTACT_URL` (`https://...` か `mailto:...`)。
-未設定なら外部窓口の案内は出ない (サイト内の `/contact` への案内は常に出る)。
-`/contact` から送信できるようにするには、bot 対策 (Cloudflare Turnstile) の鍵を 2 つとも入れる。
-画面側は `vars.TURNSTILE_SITE_KEY`、検証側は秘匿値の `TURNSTILE_SECRET_KEY`。
-どちらかが欠けていると画面が送信できない旨を出し、サーバーは 503 を返す。
+秘匿値が要る機能 (取り込み・管理画面・お問い合わせ・Web Push) を触るときは `.dev.vars.example` を
+`.dev.vars` にコピーして値を入れる。各変数の意味と、空のときにどうなるかは `.dev.vars.example` と
+`wrangler.jsonc` の `vars` のコメントが持つ。
 
 ### Web Push
 
-フォロー一覧 (`/following`) のブラウザ通知には VAPID の鍵の組が要る。公開鍵は `vars.VAPID_PUBLIC_KEY`
-(ローカルでは `.dev.vars` に書いて上書きしてよい)、秘密鍵は秘匿値の `VAPID_PRIVATE_KEY`。
-送信時に push service へ名乗る連絡先は `vars.VAPID_SUBJECT` (`mailto:...` か `https://...`)。
-公開鍵が空なら通知の区画は画面に出ない。秘密鍵か subject が空なら cron は送らずログに残す。
-送信は `wrangler.jsonc` の `triggers` の cron で動き、送る内容は `GET /api/admin/push-digest`
-(Bearer は `ADMIN_TOKEN`。`?at=` で起動時刻を指定できる) で送らずに下見できる。
-新作が無くても送信が届くかは、`POST /api/admin/push-test` (Bearer は `ADMIN_TOKEN`、本文は
-`{"subscriptionId": <push_subscriptions.id>}`) で購読 1 件に試しの通知を送って確かめる。
-鍵の組は Node で作れる (base64url の 2 行が出る):
+VAPID 鍵の組は Node で作れる (base64url の 2 行が出る):
 
 ```
 node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});const pub=publicKey.export({format:'jwk'});const b=s=>Buffer.from(s,'base64url');console.log('VAPID_PUBLIC_KEY='+Buffer.concat([Buffer.from([4]),b(pub.x),b(pub.y)]).toString('base64url'));console.log('VAPID_PRIVATE_KEY='+privateKey.export({format:'jwk'}).d)"
 ```
 
-ホーム画面用のアイコン (`public/icons/`) と、表紙画像を持たないページの og:image (`public/og-image.png`) は
-`public/favicon.svg` から `node scripts/generate-icons.mjs` で作る。
+送る内容は `GET /api/admin/push-digest` で送らずに下見でき、`POST /api/admin/push-test` で購読 1 件に
+試しの通知を送れる (どちらも Bearer は `ADMIN_TOKEN`。引数は各ルートのファイルが持つ)。
 
 ## コマンド
 
-| コマンド | 何をするか |
+`package.json` の scripts はすべてここに載せる (`check:docs` が照合する)。
+本番に触るもの (★) は `CLAUDE.md` の「本番に触る操作」に従う。
+
+| コマンド | いつ使うか |
 |---|---|
 | `npm run dev` | 開発サーバー (SSR) |
-| `npm run check` | マイグレーション未適用の検出、文書とコメントの検査、画面の層の検査、型、lint、単体テスト。コミット前に通す |
-| `npm run build` | 本番ビルド |
-| `npm run preview` | ビルド成果物を Workers ランタイムで確認 |
-| `npm run deploy` | build + wrangler deploy |
-| `npm run test:e2e` | Playwright。E2E 専用の D1 を作り直して実行する。走らせるかの判定は `scripts/needs-e2e.sh` |
-| `npm run db:generate` | スキーマの差分から `migrations/*.sql` を生成する。続けて適用まで行う |
-| `npm run db:migrate:local` / `db:migrate:remote` | ローカル / 本番 D1 に適用 |
-| `npm run db:export:local` | 手元の D1 の中身を本番に流し込める SQL に書き出す (既定で Audible を除く。理由は「本番 D1」) |
-| `npm run db:import:remote -- <file>` / `db:import:local -- <file>` | 書き出した SQL を本番 / 手元の D1 に流し込む |
-| `npm run db:restore:local -- --file <file> --yes` | 書き出した SQL から手元の D1 を作り直す (「本番 D1」)。中身はすべて入れ替わる |
+| `npm run check` | コミット前に必ず。下の `check:*`、型、lint、単体テストを順に流す |
+| `npm run check:migrations` | ローカル D1 にマイグレーションの適用漏れが無いか |
+| `npm run check:docs` | 文書とコメントの規則 (`.claude/rules/docs.md`) |
+| `npm run check:layers` | 画面の 3 層の分担 (`.claude/rules/frontend.md`) |
+| `npm run check:entrypoints` | 実行ファイルがどこから実行されるかを持っているか |
+| `npm run typecheck` / `lint` / `lint:fix` | 型 / Biome の検査 / Biome の自動修正 |
+| `npm run test` / `test:watch` | 単体テスト / その監視実行 |
+| `npm run test:e2e` | Playwright。走らせるかの判定は `scripts/needs-e2e.sh` |
+| `npm run e2e:prepare` | E2E 専用 D1 を作り直す。`test:e2e` が先に呼ぶ |
+| `npm run db:reset:e2e` / `db:migrate:e2e` / `db:seed:e2e` | E2E 専用 D1 の作り直し・スキーマ・固定データを個別に行う |
+| `npm run build` / `preview` | 本番ビルド / ビルド成果物を Workers ランタイムで確認 |
+| `npm run deploy` | ★ build して本番へ出す |
+| `npm run db:generate` | `schema.ts` の差分から `migrations/*.sql` を作る。適用は別に行う |
+| `npm run db:migrate:local` / `db:migrate:remote` | ローカル / ★ 本番の D1 にマイグレーションを当てる |
+| `npm run db:export:local` | 手元の D1 の中身を本番に流し込める SQL に書き出す (`--help`) |
+| `npm run db:import:local -- <file>` / `db:import:remote -- <file>` | 書き出した SQL を手元 / ★ 本番の D1 に流し込む |
+| `npm run db:restore:local -- --file <file> --yes` | 本番のバックアップから手元の D1 を作り直す。中身はすべて入れ替わる |
 | `npm run db:counts -- --local` / `--remote` | 表ごとの件数。流し込みの照合に使う |
-| `npm run radar:crawl` | 声優起点のクローラー。オプションは `node crawler/run.ts --help` |
-| `npm run radar:daily` | 新着一覧から日次で取り込む。オプションは `node crawler/daily.ts --help` |
-| `npm run radar:anilist` | AniList から対象声優とアニメを週次で取り込む。オプションは `node crawler/anilist.ts --help` |
-| `npm run radar:kana` | まだ引いていない声優のかなを取って台帳に入れる。オプションは `node crawler/kana.ts --help` |
-| `npm run radar:delist` | 台帳の DLsite 作品を引き直し、買えなくなったものを取り下げる。オプションは `node crawler/delist.ts --help` |
-| `npm run radar` | 1 人ぶんを調べる CLI。`node crawler/cli.ts --help` |
+| `npm run db:check-name-variants` | `src/domain/normalize.ts` の異体字の対を足したら、手元の D1 の声優で別人が同じ鍵にならないかを数える |
+| `npm run radar:daily` | 新着一覧から取り込む (日次のワークフローと同じ) |
+| `npm run radar:crawl` | 声優起点のクロール (初期構築・月次・週次の新規声優) |
+| `npm run radar:anilist` | AniList から対象声優とアニメを台帳に足す (週次と同じ) |
+| `npm run radar:kana` | まだ引いていない声優のかなを取って台帳に入れる (週次と同じ) |
+| `npm run radar:delist` | 台帳の DLsite 作品を引き直し、買えなくなったものを取り下げる (月次と同じ) |
+| `npm run radar` | 1 人ぶんを調べる CLI |
+| `npm run radar:pokedora-tags` | ポケドラの全タグページを引き直して声優タグの記録を作る。辞書に無い声優を足したいとき |
+| `npm run radar:pokedora-tags:build` | 上の記録から `crawler/pokedora-tags.generated.json` を作り直す。ネットワークに出ない |
 | `npm run radar:test` / `radar:typecheck` | crawler だけのテスト / 型検査 |
-| `npm run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
+| `npm run cf-typegen` | `wrangler.jsonc` を変えたら `worker-configuration.d.ts` を作り直す |
+| `npm run icons` | `public/favicon.svg` を変えたら `public/icons/` の PNG と `public/og-image.png` を作り直す |
+
+クローラーのオプションは各ファイルの `--help` (`node crawler/run.ts --help` など)。
+手元で流すときは dev サーバーを起動し、`INGEST_TOKEN=dev npm run radar:daily -- --base-url http://localhost:5199`
+のように取り込み先を渡す。`--dry-run` なら送らずに結果だけ見られる。
+
+## クローラーの運用
+
+どの走行をいつ流すかは [`docs/architecture.md`](./docs/architecture.md) の「取得の周期」、
+定期実行はそれぞれのワークフロー (`.github/workflows/daily-crawl.yml`、`weekly-anilist.yml`、
+`monthly-backfill.yml`) と先頭のコメント。声優起点の `crawl.yml` は手動実行だけで、止めてある理由と戻す条件は
+ファイル先頭のコメント。外部サイトの制約は [`docs/stores/`](./docs/stores/)。
+
+手で直したい値 (かな、表示用ローマ字、公開状態) は `POST /api/admin/actor-attributes` に出どころ `editorial` で送る。
+取り込みは自分の出どころの行しか書かないので、送った値は次の取り込みで消えない。
+Wikipedia の記事が後からできた声優のかなを引き直すときは、`voice_actors.name_kana_checked_at` を消してから
+`radar:kana` を走らせる。
 
 ## 本番 D1
 
-正のデータと手元の D1 の位置づけは [`docs/architecture.md`](./docs/architecture.md) の「ローカル環境」。
-Cloudflare の D1 は Workers Free プランでは Time Travel で 7 日しか遡れない (Paid は 30 日) ので、
 `.github/workflows/d1-backup.yml` が週に 1 回スキーマ抜きで書き出して artifact に 90 日残す。
+Workers Free プランの Time Travel は 7 日しか遡れないため (Paid は 30 日)。
 必要な GitHub Secrets は `CLOUDFLARE_API_TOKEN` (権限は Account の D1 の Edit だけ) と `CLOUDFLARE_ACCOUNT_ID`。
-手元への復元は `npm run db:restore:local -- --file <artifact の sql> --yes`。マイグレーションを当てたうえで、
-データの表への INSERT だけを親の表から順に流し込む (`scripts/d1-restore-local.mjs`)。
+手元への復元は `db:restore:local` で、手元の D1 の位置づけは `docs/architecture.md` の「ローカル環境」。
 
-### 手元のデータを本番へ移す (初回だけ)
-
-本番 D1 への書き込みは人が実行する。スキーマはマイグレーションで当て、データは書き出したものを流す。
-書き出しにスキーマと `d1_migrations` の行は含めず、表は外部キーの親から順に並ぶ (`scripts/d1-data.mjs`)。
-
-**2 日に分けて流す。** Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数えるので、
-手元の全件は 1 日に収まらない (2026-09-20 の見積もりは
-[`docs/research/d1-migration-write-rows-2026-09-20.md`](./docs/research/d1-migration-write-rows-2026-09-20.md))。
-`npm run db:export:local` が書き出しのたびに見積もりを出すので、その「合計」が
-Cloudflare の料金ページの D1 の欄の上限に収まることを確かめてから流す。
-見積もりには、声優とアニメの行の「買える作品の数」をトリガーが数え直す分 (`migrations/0020_on_sale_counts_triggers.sql`)
-が入っていない。流し込みでは書き込みが見積もりより増え、読み取りも 1 日の上限に届く量になりうる
-(2026-09-24 の測定は [`docs/research/d1-read-rows-2026-09-24.md`](./docs/research/d1-read-rows-2026-09-24.md))。
-
-1 日目 (声優と作品)
-
-```bash
-npx wrangler whoami                      # ログイン済みか。無ければ npx wrangler login
-npm run db:counts -- --remote            # 本番が空であることを見る
-npm run db:migrate:remote                # スキーマ
-npm run db:export:local -- --output work/d1-export/day1.sql \
-  --table voice_actors --table voice_actor_aliases --table audio_works \
-  --table store_listings --table audio_credits --table crawl_runs
-npm run db:import:remote -- work/d1-export/day1.sql
-npm run db:counts -- --remote            # 書き出し時に出た件数と一致することを見る
-```
-
-2 日目 (アニメ)
-
-```bash
-npm run db:export:local -- --output work/d1-export/day2.sql \
-  --table anime_titles --table anime_title_synonyms --table anime_appearances
-npm run db:import:remote -- work/d1-export/day2.sql
-npm run db:counts -- --remote
-```
-
-- 書き出しは既定で Audible の行を除く。listing と credit と取り込みの記録に加え、作品も除く
-  (作品 ID がストアを含むため。判定は `scripts/d1-data.mjs` の `isExcludedRow`)。手元の Audible のデータには、
-  2026-09-19 より前に robots.txt が禁じる並び順付き URL で取った分が混じっているため
-  (`docs/stores/audible.md` の robots.txt の節)。手元との件数の差はこの除外ぶん
-- 本番の Audible は初期構築 (対象声優の全員を声優起点で 1 回引く) で入れ直す
-  ([`docs/decisions/0007-daily-crawl-from-store-feeds.md`](./docs/decisions/0007-daily-crawl-from-store-feeds.md))。
-  それまでは Audible にしか作品が無い声優のページが出ない。月次の補完巡回は作品を持つ声優だけが対象なので、
-  この層は月次では戻らない
-- 流し込みは wrangler が 1 つの取り込みとして行い、途中で失敗すれば元の状態に戻る (wrangler がその旨を表示する)。
-  失敗したら原因を直して同じファイルを流し直す
-
-### 生成物に入っていた値を台帳へ移す (1 回だけ)
-
-かな・性別は、かつて `crawler/` の生成物と手書きの訂正に入っていた。置き場を DB に一本化した
-([`docs/decisions/0015`](./docs/decisions/0015-db-is-the-ledger.md)) ので、その中身を
-`migrations/0016_backfill_actor_attributes.sql` に写してある。**マイグレーションなので、
-適用すれば入る。**手元は `npm run db:migrate:local`、本番は `npm run db:migrate:remote`。
-
-移すのは 2 種類だけ。別名義とアニメは投入済みで、どちらの DB にも既に入っている。
-
-| 移すもの | 行き先 | 件数 |
-|---|---|---|
-| 手で書いたかな | 付加情報の表に出どころ `editorial` | 35 |
-| 取得したかな (手で書いた人を除く) | 付加情報の表に出どころ `wikipedia` | 1,806 |
-| 性別 | `voice_actors.gender` が「不明」の行にだけ | 最大 2,400 件を照合し、不明だったぶんだけ入る |
-
-適用の前後で数を照合する。かなの行が増え、性別の「不明」が減る。
-
-```bash
-npx wrangler d1 execute DB --remote --command \
-  "select source, count(*) n from voice_actor_attributes where attribute = 'nameKana' group by source"
-npx wrangler d1 execute DB --remote --command \
-  "select sum(gender = 'unknown') unknown from voice_actors"
-```
-
-手元で適用したときは、かなが 1,841 件 (編集 35 + Wikipedia 1,806) 入り、性別の「不明」が
-330 件から 169 件に減った。かなの旧列はこの後の `0017` で消えるので、
-`0016` と `0017` は続けて適用してよい (`0016` が旧列を読み終えてから `0017` が消す)。
-
-### プランの確認
-
-Cloudflare ダッシュボードの Workers & Pages → Plans で Free か Paid かを見る。Time Travel の保持日数が
-変わるだけで、手順は同じ。
-
-## クローラー
-
-声優ごとにストアを巡回し、`POST /api/admin/ingest` で取り込む。相手サイトのレート制限は
-`crawler/lib/fetch.ts` の 1 箇所で守る。外部サイトの制約は [`docs/stores/`](./docs/stores/)。
-
-対象声優とアニメは AniList から週次で台帳 (DB) に足す。**生成物のファイルは介さない**
-([`docs/decisions/0015`](./docs/decisions/0015-db-is-the-ledger.md))。対象シーズンは実行日から決め、
-1 作品あたりの出演者はページを送って全員取る。範囲から外れた声優・作品・出演は消さない。
-
-```bash
-# 週次と同じことを手元で行う (--dry-run なら送らずに件数だけ見る)
-INGEST_TOKEN=dev node crawler/anilist.ts --base-url http://localhost:5199 \
-  --new-actors-out work/new-actors.txt
-
-# まだ引いていない声優を古い順に 3 ストアで 1 回ずつ引く
-INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
-  --never-crawled --limit 120
-```
-
-自動では `.github/workflows/weekly-anilist.yml` が同じ 2 つを順に実行する。日次のクロールと
-同じ秘匿値 (`INGEST_URL` / `INGEST_TOKEN`) を使い、同時には走らない。
-
-ストア巡回を「今回増えた人」ではなく「一度も引いていない人」で選ぶのは、1 回に収まらなかったぶんが
-次の週には新規でなくなって永久に引かれなくなるため。打ち切っても残りは次の週に出てくる。
-
-**月に 1 回、作品を持つ声優を引き直す** (`.github/workflows/monthly-backfill.yml`)。日次の新着一覧が
-取りこぼした作品を埋め、検索の上限に当たった声優を数える。
-
-```bash
-# 月次と同じことを手元で行う (ストアごとに分ける。DLsite は組にも分ける)
-INGEST_TOKEN=dev node crawler/run.ts --base-url http://localhost:5199 \
-  --store dlsite --with-works --shard 1/3
-```
-
-**同じ月次で、台帳の DLsite 作品を引き直して取り下げる。**これを声優起点でやらない理由がある。
-ストアの検索結果には売っている作品しか出ないので、買えなくなった作品は検索から消え、
-上の走行では詳細を引き直す機会そのものが無い (測定は
-[`docs/research/dlsite-on-sale-2026-09-23.md`](./docs/research/dlsite-on-sale-2026-09-23.md))。
-だから台帳が持っている商品 ID を起点にする。取り下げた listing は行を消さず、読むときに落とす
-([`docs/decisions/0008`](./docs/decisions/0008-no-price-no-availability.md))。
-
-```bash
-# 台帳の DLsite 作品を引き直す (--dry-run で送らずに結果だけ見られる)
-INGEST_TOKEN=dev node crawler/delist.ts --base-url http://localhost:5199 --limit 50
-```
-
-買えるかどうかを読めなかった作品は送らない。送ると「買える」という主張になり、
-前に付いた取り下げを取り消してしまう。
-
-声優起点の走行も、かなの取得も、誰を調べるかを台帳から引く。リストのファイルは読まない。
-性別は出演者と一緒に AniList から返るので、週次の取り込みが入れる。
-
-**かなも週次で取る。**対象は「かなを持っていない人」ではなく「まだ引いていない人」。記事が無い
-声優は引いても取れないので、持っていないことを条件にすると毎週引き直すことになる。取れても
-取れなくても結果を送り、送った相手には引いた印が付く (`voice_actors.name_kana_checked_at`)。
-記事から読みが取れない人は、導入部と Wikidata の P1814 を見る経路に回る。
-
-```bash
-# まだ引いていない人のかなを取って台帳に入れる (--dry-run で対象だけ見られる)
-INGEST_TOKEN=dev node crawler/kana.ts --base-url http://localhost:5199 --limit 50
-```
-
-それでもかなが付かない人は、手で入れる。手で直したい値 (かな、表示用ローマ字、公開状態) は
-`POST /api/admin/actor-attributes` に出どころ `editorial` で送る。取り込みは自分の出どころの行しか
-書かないので、送った値は次の取り込みで消えない。
-
-記事が後からできた人を引き直すときは、引いた印を消してから走らせる。外部サイトの制約は
-[`docs/stores/wikimedia.md`](./docs/stores/wikimedia.md)。
-
-```bash
-npx wrangler d1 execute DB --local --command \
-  "update voice_actors set name_kana_checked_at = null where name_kana_checked_at < '2026-01-01'"
-```
-
-ポケドラは名前で検索できない (声優はタグで、一覧の URL に `tag_id` が要る) ので、声優タグ辞書
-`crawler/pokedora-tags.generated.json` を経由して引く。辞書に無い声優はポケドラを引かない。
-載っているのは一般 + BL に作品がある声優だけで、人数はこのファイルの要素数が正。
-
-辞書は `crawler/discovery/pokedora-tags.ts` が全タグページを引いて `crawler/.cache/discovery/pokedora-tags.json`
-に残した記録を切り詰めた生成物。切り詰めはネットワークに出ない。
-
-```bash
-# .cache の記録から辞書を作り直す
-node crawler/discovery/build-pokedora-tags.ts
-```
-
-`.cache` の記録が無い環境では作り直せない。記録から取り直すところまで戻すなら
-`node crawler/discovery/pokedora-tags.ts --resume` で、所要は
-[`docs/stores/pokedora.md`](./docs/stores/pokedora.md) の「全件クロールのコスト」。
-
-走行は 2 つある。**日次**はストアの新着一覧を引いて新作だけを取り込み、**声優起点**は初期構築と
-月次の補完に使う (`docs/decisions/0007-daily-crawl-from-store-feeds.md`)。
-
-GitHub Actions では日次が `.github/workflows/daily-crawl.yml` の cron で動く。声優起点の
-`.github/workflows/crawl.yml` は手動実行だけで、定期実行は止めてある
-(理由と戻す条件はワークフロー先頭のコメント)。
-
-```bash
-# 日次: 新着一覧から取り込む (dev サーバーを起動しておく)
-INGEST_TOKEN=dev npm run radar:daily -- --base-url http://localhost:5199
-
-# 声優起点: 取り込みまで通す
-INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199
-
-# 一部の声優・1 つのストアだけ
-INGEST_TOKEN=dev npm run radar:crawl -- --base-url http://localhost:5199 --only 上田麗奈,鬼頭明里 --store dlsite
-
-# 取得だけ試す (DB へ送らない)
-npm run radar:crawl -- --dry-run --only 上田麗奈
-```
+手元から本番へ流すときは、スキーマはマイグレーションで当て、データは `db:export:local` の書き出しを流す。
+Free プランの D1 は 1 日に書ける行数に上限があり、索引への書き込みも数える。書き出しのたびに出る見積もりの
+「合計」が Cloudflare の料金ページの上限に収まるかを確かめ、収まらなければ `--table` で表を分けて日を分ける
+(2026-09-20 の見積もりは [`d1-migration-write-rows-2026-09-20.md`](./docs/research/d1-migration-write-rows-2026-09-20.md))。
 
 ## 公開前の扱い
 
 **画面に認証を掛けていない。** デプロイした時点で、URL を知っていれば誰でも見られる。
-画面に出るのはストアと AniList の公開情報だけで、利用者の情報は持たない
-(フォローはブラウザ内にしか無い。[`docs/decisions/0005-follow-state-in-browser.md`](./docs/decisions/0005-follow-state-in-browser.md))。
-
 塞いでいるのは検索からの流入だけで、`robots.txt` が `Disallow: /` を返す。
 公開するときに `wrangler.jsonc` の `vars.ALLOW_INDEXING` を `"1"` にして入れ替える
 (判定は `src/server/robots.ts`)。
 
-```bash
-curl https://<本番の URL>/robots.txt
-# 公開前:  User-agent: * / Disallow: /
-# 公開後:  Disallow: /admin/ と /api/ だけ + Sitemap 行
-```
-
 > **Cloudflare Access (Zero Trust) を Worker の全体に掛けるとクローラーが通らない。**
-> クローラーは `POST /api/admin/ingest` に書き込む経路しか持たず、送るのは Bearer トークンだけで、
-> Access のログイン画面は解釈できない。外形監視 (`/api/crawler-freshness`) も同じ理由で通らなくなる。
+> クローラーは Bearer トークンしか送れず、Access のログイン画面は解釈できない。
+> 外形監視 (`/api/crawler-freshness`) も同じ理由で通らなくなる。
 
 ## 外形監視
 
@@ -314,39 +131,33 @@ curl https://<本番の URL>/robots.txt
 | **cron が起動しなかった** | 外形監視。ワークフローが動かないので Issue も立たない |
 
 2 つ目のために `GET /api/crawler-freshness` がある。ストアごとに日次の走行が成功した時刻を見て、
-新しければ 2xx、古ければ 5xx を返す。認証は要らない。
-監視サービスにはこの URL を登録し、**5xx で通知が飛ぶようにする**。本文を読む設定は要らない。
-返す状態と判定の幅は `src/server/queries/freshness.ts` と
-`src/app/routes/api/crawler-freshness.ts` が持つ。
-
-```bash
-curl -i https://<本番の URL>/api/crawler-freshness
-```
+新しければ 2xx、古ければ 5xx を返す。認証は要らない。監視サービスにはこの URL を登録し、
+**5xx で通知が飛ぶようにする**。判定の幅は `src/server/queries/freshness.ts` が持つ。
 
 **`/api/health` は使わない。** あちらは DB に触らない契約で、クロールが何日止まっていても
 200 を返す。デプロイ後の疎通と E2E の起動待ち専用。
 
 > **公開リポジトリの cron は、一定期間コミットが無いと GitHub が自動で止める。**
-> 止まればワークフローが動かないので、上の Issue も立たない。
-> 外形監視はこの場合にも鳴る経路になる。再開は Actions の画面から手で行う。
-> (GitHub 側の挙動なので、通知の有無も期間もリポジトリからは確かめられない)
+> 止まればワークフローが動かないので Issue も立たない。外形監視はこの場合にも鳴る。
+> 再開は Actions の画面から手で行う。
 
 ## ディレクトリ構成
 
+依存方向と、それを守らせている仕組みは [`docs/architecture.md`](./docs/architecture.md)。
+
 ```
-crawler/         # Node スクリプト。src/domain にだけ依存する
+crawler/         # Node スクリプト。src/contract と src/domain にだけ依存する
 ├── adapters/    # ストアごとの取得と解析
-├── discovery/   # 対象声優の発見と生成 (AniList / ポケドラの声優タグ辞書 / Wikipedia のかな)
+├── discovery/   # 対象声優とかなの入手 (AniList / ポケドラの声優タグ辞書 / Wikipedia)
 ├── fixtures/    # パーサーのテスト用に切り詰めた実 HTML / JSON
-└── lib/         # fetch ラッパー、ingest クライアント
+└── lib/         # fetch ラッパー、管理 API のクライアント
 migrations/      # drizzle-kit が生成する SQL
 e2e/             # Playwright
 docs/            # ドキュメント (入口は docs/README.md)
-scripts/         # npm run check から呼ぶ検査
+scripts/         # npm run check から呼ぶ検査と、D1 の運用
 src/
 ├── domain/      # 純粋な型・正規化・名寄せ・カテゴリ判定 (React / DB / fetch に依存しない)
+├── contract/    # クローラー・画面と Worker の間でやり取りする形 (Zod スキーマと応答の型)
 ├── server/      # Worker 側でだけ動くコード (D1 アクセス。クライアントから import 不可)
 └── app/         # React (routes / pages / components / server-fns / store / lib / i18n / test)
 ```
-
-依存方向と、それを守らせている仕組みは [`docs/architecture.md`](./docs/architecture.md)。

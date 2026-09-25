@@ -10,7 +10,7 @@
 
 各ストアの検索は取れる件数に上限を置いている。DLsite は robots.txt の意図に従って検索を 1 ページ目に固定し
 ([`dlsite.md`](../stores/dlsite.md) の「既知の落とし穴」)、Audible は同姓の別人の作品で往復が無駄になるのを避けて
-ページ数の上限をこちらで置いている ([`audible.md`](../stores/audible.md) の「2 ページ目以降」)。
+ページ数の上限をこちらで置いている ([`audible.md`](../stores/audible.md) の「robots.txt」)。
 上限を超える作品数の声優では back catalog が欠ける。
 
 ## 決定

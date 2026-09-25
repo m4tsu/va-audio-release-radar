@@ -28,7 +28,8 @@ export function StoreLink({ listing, className }: { listing: WorkListing; classN
   const t = useT();
   const affiliateUrl = safeHttpsUrl(listing.affiliateUrl);
   const href = affiliateUrl ?? safeHttpsUrl(listing.productUrl);
-  // 計測画像はアフィリエイト URL へ送るときだけ出す。正規 URL に落ちたリンクに付けても成果は付かない
+  // 計測画像はアフィリエイト URL へ送るときだけ出す。正規 URL に落ちたリンクに付けても成果は付かない。
+  // この部品を使うのは作品ページだけで、一覧にはストアへのリンクが無いので画像も出ない
   const beaconUrl = affiliateUrl ? safeHttpsUrl(listing.affiliateBeaconUrl) : undefined;
   if (!href) {
     // リンク先が無いので押せるものは出さない。ストア名は呼び出し側が既に出している
@@ -40,7 +41,7 @@ export function StoreLink({ listing, className }: { listing: WorkListing; classN
       <a href={href} target="_blank" rel="noopener nofollow sponsored">
         {beaconUrl ? (
           // 広告コードの画像をそのまま写す。改変にあたらないとされる変更は alt の追加などに限られるので、
-          // 大きさと border も配られたコードのとおりにする (docs/stores/pokedora.md の「アフィリエイトリンク」)
+          // 大きさと border も配られたコードのとおりにする (docs/stores/pokedora.md の「アフィリエイト」)
           <img src={beaconUrl} alt="" height={1} width={0} {...{ border: "0" }} />
         ) : null}
         {t(CALL_TO_ACTION[listing.storeSlug])}

@@ -35,7 +35,9 @@ type Rule = {
 /**
  * DLsite のアフィリエイト URL の先頭のパスは、作品が所属するフロア。`store_section` (product.json の
  * `site_id`) から引く。`product_url` は検索したフロアで作られ、所属と食い違うので使わない。
- * 出どころは docs/stores/dlsite.md の「アフィリエイトリンク」
+ * 出どころは docs/stores/dlsite.md の「アフィリエイトリンク」。
+ * home / girls / soft / garumani は管理画面の出力で確かめた (2026-09-24)。bl / pro は確かめておらず、
+ * 所属と同じ名前のフロアとしている
  */
 const DLSITE_AFFILIATE_FLOORS: ReadonlyMap<string, string> = new Map([
   ["home", "home"],
@@ -62,7 +64,7 @@ const RULES = {
     },
   },
   audible: { envKeys: ["AUDIBLE_AFFILIATE_ID"] },
-  // バリューコマースの MyLink。出どころは docs/stores/pokedora.md の「アフィリエイトリンク」
+  // バリューコマースの MyLink。出どころは docs/stores/pokedora.md の「アフィリエイト」
   pokedora: {
     envKeys: ["VALUECOMMERCE_SID", "POKEDORA_VC_PID"],
     build: ([sid = "", pid = ""], { productUrl }) => {
@@ -75,7 +77,7 @@ const RULES = {
 
 /**
  * Audible の無料体験のテキストリンクの広告スペース ID。作品ごとのリンクではないので `RULES` に入れない。
- * 出どころは docs/stores/audible.md の「アフィリエイト」
+ * 出どころは docs/stores/audible.md の「既知の落とし穴」
  */
 const AUDIBLE_TRIAL_ENV_KEY = "AUDIBLE_TRIAL_VC_PID";
 

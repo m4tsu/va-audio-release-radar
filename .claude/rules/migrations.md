@@ -30,4 +30,4 @@ npm run db:migrate:local
 - 同じ検査が hook からも走る (`.claude/settings.json` / `.claude/hooks/migrations-guard.mjs`)。
   ターンを終える前 (Stop)、`migrations/*.sql` か `schema.ts` を編集した直後、`db:generate` を実行した直後
 - 検査はローカル D1 の sqlite を読み取り専用で開くだけで、クロール中でも安全
-- **remote (本番 D1) には勝手に適用しない**。`npm run db:migrate:remote` はユーザーが実行する
+- remote (本番 D1) への適用は `CLAUDE.md` の「本番に触る操作」に従う

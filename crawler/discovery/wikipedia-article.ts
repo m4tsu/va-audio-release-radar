@@ -56,7 +56,7 @@ export function articleTitles(canonicalName: string): string[] {
 }
 
 /**
- * 記事の URL。クエリパラメータを付けない (docs/stores/wikimedia.md の「使う URL」)。
+ * 記事の URL。クエリパラメータを付けない (docs/stores/wikimedia.md の「使ってはいけない URL」)。
  * `encodeURIComponent` は `_` と `(` `)` をそのまま残すので、記事名の形が URL に出る
  */
 export function articleUrl(title: string): string {

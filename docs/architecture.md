@@ -12,7 +12,7 @@
 |---|---|---|
 | Worker | Cloudflare Workers + TanStack Start (SSR) + D1 | 画面、server functions、管理 API。**D1 に触るのはここだけ** |
 | クローラー | Node.js (`crawler/`)。GitHub Actions か手元で動く | ストアを取得して正規化し、Worker の管理 API に HTTP で送る。周期は下の「取得の周期」 |
-| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は新作の通知 (Web Push) を購読したブラウザで、購読の宛先とその追う声優をサーバーに送り、フォローが変わるたびに送り直す (`src/app/store/push-store.ts` → `src/server/db/schema.ts` の `push_subscriptions` / `push_subscription_actors`)。決定は [`decisions/0013`](./decisions/0013-push-subscription-holds-follows-on-server.md) |
+| ブラウザ | React + IndexedDB (`src/app/store/`) | フォロー状態と既読の日時。アカウントが無いのでサーバーは知らない。例外は通知 (Web Push) を購読したブラウザで、宛先と追う声優をサーバーに送り、フォローが変わるたびに送り直す ([`decisions/0013`](./decisions/0013-push-subscription-holds-follows-on-server.md)) |
 | 外部 | DLsite / Audible / ポケットドラマ CD / AniList | 制約は [`stores/`](./stores/) |
 | push service | ブラウザの提供元が運営する通知の配信サーバー | Worker が週 1 回の cron でダイジェストを送る相手。宛先は購読時にブラウザが告げる。Worker から外へ出る通信はこれとお問い合わせの bot 対策の 2 つ |
 
@@ -51,21 +51,24 @@ push service が失効を返した購読はその場で消す。走行ごとの�
 ## 依存方向
 
 ```
-src/app  →  src/server  →  src/domain
-crawler  →  src/domain
+src/app  →  src/server  →  src/contract  →  src/domain
+crawler  ─────────────────→  src/contract  →  src/domain
 ```
 
-- `src/domain` は React / DB / fetch を知らない純粋な型と関数
+- `src/domain` は React / DB / fetch / Zod を知らない純粋な型と関数
+- `src/contract` はコンポーネントの間を行き来する形 (Zod スキーマと応答の型) だけを持つ。
+  送る側と受ける側が同じ定義を import するので、片側だけ形を変えると型検査で落ちる
 - `crawler` は `src/app` と `src/server` を import しない。Biome の `noRestrictedImports` で止める
 - `src/server` はクライアントバンドルに入らない。TanStack Start の import protection (`vite.config.ts`) で止める
 - 列挙の値配列 (`src/domain/types.ts`) を DB スキーマの enum にそのまま渡す。DB 側で選択肢を再定義しない
 
 ## クローラーと Worker の契約
 
-- 経路は `src/app/routes/api/admin/` の 5 つ (ingest / anilist / actors / actor-attributes / known-ids)。すべて Bearer トークン
+- 経路と、送る形・返る形は `src/contract/admin-api.ts` の `AdminApi` が持つ。クローラーはそこに無い経路を
+  呼べない。すべて Bearer トークン
 - **声優の ID と slug を決めるのは Worker。** 取り込みが受け取るのは供給元が言っている値だけで、slug の衝突は
   今ある全員と突き合わせて解く。誰を調べるかもクローラーは Worker に聞く (台帳は DB にしかない)
-- 境界の検証は Zod。URL は `https:` のみ受け付ける (値はそのまま `<a href>` / `<img src>` に出るため)
+- 境界の検証は `src/contract` の Zod スキーマ。URL は `https:` のみ受け付ける (値はそのまま `<a href>` / `<img src>` に出るため)
 - **ペイロードに版 (`INGEST_PROTOCOL_VERSION`) を持つ。** 不一致なら Worker は 409 を返し、クローラーは残りを
   回さず止まる。クローラーは数時間走り、その間に Worker は差し替わりうるため
 - **取得に失敗しても必ず送る。** 保存に失敗したら作品を外した最小ペイロードを送り直し、`crawl_runs` に残す。
@@ -98,18 +101,19 @@ crawler  →  src/domain
 
 ## 外部アクセスの不変条件
 
-- 外部への fetch は `crawler/lib/fetch.ts` の 1 箇所を通す。UA、ホストごとの間隔、スナップショット、タイムアウト、リトライをそこに集約する
+- 外部への fetch は `crawler/lib/fetch.ts` の 1 箇所を通す。UA、ホストごとの間隔、スナップショット、タイムアウト、リトライをそこに集約する。
+  `crawler/lib/` の外で素の `fetch` を呼ぶと Biome が落とす
 - レートリミッタはプロセス内の状態。同じホストに 2 プロセスから同時にアクセスしない。走行主体が複数になったら、
   ホストごとの実行権を Worker から取ってから走る (「取得の周期」)
-- 取得方法を変えるときは robots.txt を取り直し、引用を `stores/<store>.md` に残す
-- ネットワークに出るテストは書かない。パーサーは `crawler/fixtures/` の固定データに対してテストする
+- 取得方法の変え方とテストの書き方は `.claude/rules/crawler.md`
 
 ## 画面と公開 API
 
 ルートは `src/app/routes/` のファイル構成が正。画面データは server functions で取り、HTML 以外を外に出すのは
 `/api/health`、`/api/crawler-freshness`、`/api/admin/*`、`sitemap.xml`、`robots.txt`、`manifest.webmanifest`
 (ホーム画面用。言語 cookie で中身が変わる) と、`public/` の静的ファイル (`sw.js` は通知を表示するだけの
-service worker で、ページの資産をキャッシュしない) だけ。画面が利用者のブラウザに外から読み込ませるのは、ストアの表紙画像、お問い合わせ画面の Cloudflare Turnstile、作品ページのアフィリエイトのリンク (ストアへのリンクと Audible の無料体験) に入る計測画像 (バリューコマース) だけで、どれも `src/app/legal/privacy.ts` の外部通信の記述と揃える。
+service worker で、ページの資産をキャッシュしない) だけ。画面が利用者のブラウザに外から読み込ませるもの
+(表紙画像、bot 対策、アフィリエイトの計測画像) は `src/app/legal/privacy.ts` の外部通信の記述と揃える。
 このうち認証が要るのは `/api/admin/*` だけで、鮮度の判定は外形監視から見えるように開けてある。
 利用者から受け取る経路は 2 つ。お問い合わせ (`/contact`) は認可の代わりに bot 対策 (Cloudflare Turnstile)
 の検証を通す。検証の失敗と鍵の未設定を応答で分ける。フォロー情報は添えない。もう 1 つは通知の購読 (`/following` の server functions) で、ブラウザが push service
@@ -117,7 +121,10 @@ service worker で、ページの資産をキャッシュしない) だけ。画
 失効で消える。宛先は利用者の識別に使わない (`src/server/db/schema.ts` の `push_subscriptions`)。
 声優ページとアニメのページは、音声作品があればインデックス対象、無ければ noindex で
 sitemap にも出さない。声優は音声作品も出演アニメも無ければ 404、アニメは出演が無ければ 404。
-フォロー一覧はブラウザごとに違うので noindex。Worker の前のキャッシュ (Workers Cache) に載せるのは誰が見ても同じ応答だけで、既定は載せず、Worker を通ってデータを変えた書き込みの後はすべて消す (`src/server/cache-policy.ts`。D1 へ直接流した変更では消えない)。公開データのクエリ結果は HTML とは別に Worker の Cache API にも置く (本番だけ)。無効化はデータの世代の 1 行で、同じ書き込みの後に世代を上げてから前のキャッシュを消す (`src/server/data-cache.ts`)。
+フォロー一覧はブラウザごとに違うので noindex。
+Worker の前のキャッシュに載せるのは誰が見ても同じ応答だけで、既定は載せない。Worker を通ってデータを変えた
+書き込みの後はすべて消す (D1 へ直接流した変更では消えない)。公開データのクエリ結果も本番では Cache API に置き、
+同じ書き込みの後にデータの世代を上げてから消す (`src/server/cache-policy.ts`、`src/server/data-cache.ts`)。
 
 画面は 3 層に分かれ、依存は ルート (`src/app/routes/`) → ページ (`src/app/pages/`) → 部品 (`src/app/components/`)
 の一方向。ルートは loader と head だけを持ち、画面を描かない。ページはデータを props で受け取る。
@@ -127,13 +134,9 @@ sitemap にも出さない。声優は音声作品も出演アニメも無けれ
 
 ## 秘匿値
 
-`INGEST_TOKEN` (クローラー → 管理 API)、`ADMIN_TOKEN` (管理画面)、`TURNSTILE_SECRET_KEY`
-(お問い合わせの bot 対策の検証)、`VAPID_PRIVATE_KEY` (Web Push の署名。送信側だけが使う) を
-wrangler secret で持つ。未設定なら該当機能は 503 を返し、トークン違いや検証の失敗と区別できるようにする。
-ローカルは `.dev.vars`。
-公開してよい設定 (`SITE_URL`、`CONTACT_URL`、`TURNSTILE_SITE_KEY`、`VAPID_PUBLIC_KEY`、`VAPID_SUBJECT`) は
-`wrangler.jsonc` の `vars`。`VAPID_PUBLIC_KEY` が空なら通知の区画を画面に出さない。秘密鍵か `VAPID_SUBJECT`
-が空なら cron は送らずログに残す。
+秘匿値は wrangler secret で持ち、一覧と用途は `.dev.vars.example` (ローカルは `.dev.vars`)。
+未設定なら該当機能は 503 を返し、トークン違いや検証の失敗と区別できるようにする。
+公開してよい設定は `wrangler.jsonc` の `vars` で、空のときの振る舞いはそのコメントが持つ。
 
 ## ローカル環境
 
@@ -144,6 +147,6 @@ wrangler secret で持つ。未設定なら該当機能は 503 を返し、ト�
 
 ## 未実装
 
-- ログイン時のフォロー同期。Worker の本番デプロイ (本番 D1 へのデータの移行手順は README にある)
+- ログイン時のフォロー同期
 - 「取得の周期」の実行権の貸し出し。日次・週次・月次は動いている
 - 対象外の印を人が付ける経路。印を持つ表と、キューや解決し直しから外す側は入っているが、管理画面の操作がまだ無い

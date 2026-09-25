@@ -27,7 +27,7 @@ export function AudibleTrialLink({ link }: { link: NonNullable<WorkDetail["audib
     >
       {beaconUrl ? (
         // 広告コードの画像をそのまま写す。改変にあたらないとされる変更は alt の追加などに限られるので、
-        // 大きさと border も配られたコードのとおりにする (docs/stores/audible.md の「アフィリエイト」)
+        // 大きさと border も配られたコードのとおりにする (docs/stores/audible.md の「既知の落とし穴」)
         <img src={beaconUrl} alt="" height={1} width={1} {...{ border: "0" }} />
       ) : null}
       {t("work.audibleTrial")}

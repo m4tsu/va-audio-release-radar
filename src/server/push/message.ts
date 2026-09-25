@@ -7,7 +7,7 @@ import type { Locale } from "@/domain/types";
  * (依存の向きは src/app → src/server)。通知に載る文はこの 2 文だけなので、辞書と同じ仕組みは要らない。
  *
  * 作品名は入れない。声優名と件数で「見に行く価値があるか」は伝わり、作品名は長くて切れる。
- * ストアへの直リンクも入れない。送客はサイトの作品ページ経由で数える (`docs/product.md` の「指標」)
+ * ストアへの直リンクも入れない。送客はサイトの作品ページ経由で数える (`docs/product.md` の「製品」にある指標)
  */
 
 export type PushMessage = {

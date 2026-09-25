@@ -115,7 +115,7 @@ describe("parseSearchHtml (新着一覧)", () => {
 
   it("出演者が一覧から取れない作品がある", () => {
     // 代表 1 名すら出ない作品があるので、新着一覧では全件 product.json が要る
-    // (docs/stores/dlsite.md の「新着一覧」)
+    // (docs/stores/dlsite.md の「一覧と検索」)
     const parsed = parseSearchHtml(feedHtml.home, FETCHED_AT);
     expect(parsed.works.some((work) => work.creditedNames.length === 0)).toBe(true);
   });

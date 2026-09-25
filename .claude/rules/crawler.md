@@ -10,12 +10,12 @@ paths:
 
 | 触るもの | 先に読むもの |
 |---|---|
-| `crawler/adapters/dlsite.ts`、`discovery/dlsite-sitemap.ts` | [`docs/stores/dlsite.md`](../../docs/stores/dlsite.md) |
+| `crawler/adapters/dlsite.ts` | [`docs/stores/dlsite.md`](../../docs/stores/dlsite.md) |
 | `crawler/adapters/audible.ts` | [`docs/stores/audible.md`](../../docs/stores/audible.md) |
 | `crawler/adapters/pokedora.ts`、`discovery/pokedora-*.ts` | [`docs/stores/pokedora.md`](../../docs/stores/pokedora.md) |
 | `crawler/anilist.ts`、`crawler/discovery/anilist*.ts` | [`docs/stores/anilist.md`](../../docs/stores/anilist.md) |
 | `crawler/discovery/wikipedia-*.ts` | [`docs/stores/wikimedia.md`](../../docs/stores/wikimedia.md) |
-| `crawler/lib/fetch.ts` | [`docs/stores/README.md`](../../docs/stores/README.md) |
+| `crawler/lib/fetch.ts` | [`docs/stores/README.md`](../../docs/stores/README.md) と、変える相手のファイル |
 
 ## 取得する URL の形を変えるなら、robots.txt を確認して引用を残す
 
@@ -41,7 +41,10 @@ URL・パラメータ・ページングを変えるときは、次の順で行�
 
 - ネットワークに出るテストは書かない。パーサーのテストは `crawler/fixtures/` の固定 HTML / JSON に対して書く
 - 新しいフィクスチャが要るときだけ実サイトを引き、取ったものを切り詰めて `fixtures/` に置く
-- 外部への `fetch` は `crawler/lib/fetch.ts` の 1 箇所を必ず通す。adapter から素の `fetch` を呼ばない
+- 外部への `fetch` は `crawler/lib/fetch.ts` の 1 箇所を必ず通す。UA・間隔・スナップショット・タイムアウト・
+  リトライをそこに集めているため。素の `fetch` は biome の `noRestrictedGlobals` が `crawler/lib/` の外で落とす
+- UA の要求は相手によって逆になる (ブラウザ相当を求める相手と、ブラウザを名乗るのを禁じる相手がいる)。
+  新しい相手を足す前に、その相手の `docs/stores/<store>.md` で UA の要求を読み、`fetch.ts` の `userAgentFor()` に振り分ける
 
 ## 同じホストを 2 つのプロセスから叩かない
 

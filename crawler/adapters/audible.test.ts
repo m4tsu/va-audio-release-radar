@@ -809,7 +809,7 @@ describe("fetchByActor", () => {
 describe("AUDIBLE_FEED_URLS", () => {
   /**
    * robots.txt は `/newreleases` を Disallow したうえで、許可する形を 1 本ずつ `$` 終端で
-   * 列挙している (docs/stores/audible.md の「新着一覧」)。組み立て直すと字面から外れるので、
+   * 列挙している (docs/stores/audible.md の「`/newreleases` と `/coming-soon`」)。組み立て直すと字面から外れるので、
    * 定数がその列挙の形と一致していることをここで固定する
    */
   it("robots.txt が列挙している形と一致する", () => {

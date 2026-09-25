@@ -423,7 +423,7 @@ describe("parseSearchHtml (新着一覧)", () => {
 
   /**
    * NEW / 割引 / 特典あり のバッジが商品カテゴリと同じ class で、しかもカテゴリより先に並ぶ。
-   * 除かないと storeCategory が "NEW" になる (docs/stores/pokedora.md の「新着一覧」)
+   * 除かないと storeCategory が "NEW" になる (docs/stores/pokedora.md の「既知の落とし穴」)
    */
   it("NEW などのバッジを商品カテゴリに混ぜない", () => {
     const parsed = parseSearchHtml(feedHtml.men, FETCHED_AT);

@@ -127,7 +127,7 @@ export function buildSearchUrl(narratorName: string, page: number = FIRST_PAGE):
  * 新着一覧の URL。**文字列をそのまま持ち、組み立て直さない。**
  *
  * robots.txt は `/newreleases` を一度 `Disallow` したうえで、許可する形を 1 本ずつ
- * `$` 終端で列挙している (`docs/stores/audible.md` の「新着一覧」)。`$` 終端なので
+ * `$` 終端で列挙している (`docs/stores/audible.md` の「`/newreleases` と `/coming-soon`」)。`$` 終端なので
  * パラメータの順序も末尾も 1 文字違えば禁止側に落ちる。組み立てる関数にすると、
  * 引数の組み合わせ次第で列挙に無い URL を作ってしまう。
  *

@@ -26,7 +26,7 @@ export function storeActorSearchUrl(
   switch (storeSlug) {
     case "dlsite": {
       // 作者名での検索。名前をダブルクォートで囲むと完全一致になり、部分一致の別人を拾わない。
-      // 表記揺れの影響を受けないので canonicalName で引く (`docs/stores/dlsite.md` の「声優名の検索」)。
+      // 表記揺れの影響を受けないので canonicalName で引く (`docs/stores/dlsite.md` の「一覧と検索」)。
       // フロアは全年齢の同人 (`/home/`) を指す。商業の女性向け (`/garumani/`) はこの結果に出ないが、
       // DLsite の検索結果に他フロアへの切り替えリンクがある (同ファイルの「フロア」)
       const keyword = encodeURIComponent(`"${actor.canonicalName}"`);

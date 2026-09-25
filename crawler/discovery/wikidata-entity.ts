@@ -5,14 +5,14 @@ import * as cheerio from "cheerio";
  *
  * ここは fetch も fs も触らない。取得と再開は `wikipedia-kana-refill.ts` が持つ。
  * 項目 JSON (`Special:EntityData`) と SPARQL は robots.txt で禁じられているので、
- * 引けるのは `/wiki/<Q id>` の HTML だけ (`docs/stores/wikimedia.md` の「使う URL」)。
+ * 引けるのは `/wiki/<Q id>` の HTML だけ (`docs/stores/wikimedia.md` の「robots.txt」)。
  * 項目 id は記事 HTML の `wgWikibaseItemId` からしか得られない
  */
 
 /** name in kana。読みを持つプロパティ */
 const NAME_IN_KANA = "P1814";
 
-/** 項目の URL。クエリパラメータを付けない (docs/stores/wikimedia.md の「使う URL」) */
+/** 項目の URL。クエリパラメータを付けない (docs/stores/wikimedia.md の「使ってはいけない URL」) */
 export function entityUrl(itemId: string): string {
   return `https://www.wikidata.org/wiki/${encodeURIComponent(itemId)}`;
 }

@@ -6,7 +6,19 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { findForbidden, findMissingHeader, findOverLimit, run } from "./check-docs.mjs";
+import {
+  CHAR_LIMITS,
+  DECISION_HEADINGS,
+  findBrokenHeadingReferences,
+  findDanglingReferences,
+  findForbidden,
+  findMissingHeader,
+  findOverLimit,
+  findShapeViolations,
+  findUnlistedScripts,
+  run,
+  STORE_HEADINGS,
+} from "./check-docs.mjs";
 
 let tempDir: string | undefined;
 
@@ -65,10 +77,95 @@ describe("findMissingHeader", () => {
 });
 
 describe("findOverLimit", () => {
-  it("上限のある文書だけ行数を見る", () => {
-    const long = Array.from({ length: 151 }, () => "x").join("\n");
-    expect(findOverLimit("docs/architecture.md", long)).toHaveLength(1);
-    expect(findOverLimit("docs/stores/dlsite.md", long)).toEqual([]);
+  it("上限のある文書だけ文字数を見る。行を長くしても逃げられない", () => {
+    const oneLongLine = "あ".repeat(CHAR_LIMITS["docs/architecture.md"] + 1);
+    expect(findOverLimit("docs/architecture.md", oneLongLine)).toHaveLength(1);
+    expect(findOverLimit("docs/stores/dlsite.md", oneLongLine)).toEqual([]);
+  });
+});
+
+const STORE_BODY = `# 店\n\n${HEADER}${STORE_HEADINGS.map((h) => `## ${h}\n\n本文\n`).join("\n")}`;
+const DECISION_BODY = `# 決定\n\n${HEADER}状態: accepted (2026-09-20)\n\n${DECISION_HEADINGS.map((h) => `## ${h}\n\n本文\n`).join("\n")}`;
+
+describe("findShapeViolations", () => {
+  it("stores の見出しが型どおりなら通す。README は見ない", () => {
+    expect(findShapeViolations("docs/stores/x.md", STORE_BODY)).toEqual([]);
+    expect(findShapeViolations("docs/stores/README.md", "## 何でも")).toEqual([]);
+  });
+
+  it("stores に型に無い見出し (使う URL など) があれば拾う", () => {
+    const text = STORE_BODY.replace("## 既知の落とし穴", "## 使う URL\n\n本文\n\n## 既知の落とし穴");
+    expect(findShapeViolations("docs/stores/x.md", text)).toHaveLength(1);
+  });
+
+  it("決定の見出しと状態行を見る", () => {
+    expect(findShapeViolations("docs/decisions/0001-x.md", DECISION_BODY)).toEqual([]);
+    const noStatus = DECISION_BODY.replace("状態: accepted (2026-09-20)", "状態: 帰結だけ置き換えた");
+    expect(findShapeViolations("docs/decisions/0001-x.md", noStatus).map((f) => f.label)).toEqual([
+      "決定の状態行",
+    ]);
+  });
+});
+
+describe("findDanglingReferences", () => {
+  it("存在しないファイルと npm run のスクリプトを拾う。research と git 管理外の置き場は見ない", () => {
+    const cwd = makeRepo({ "scripts/a.mjs": "" });
+    const scripts = new Set(["check"]);
+    const text = [
+      "`scripts/a.mjs` と `scripts/gone.mjs`",
+      "`npm run check` と `npm run gone`",
+      "`crawler/.cache/x.json`",
+    ].join("\n");
+    const found = findDanglingReferences("README.md", text, { cwd, scripts });
+    expect(found.map((f) => f.excerpt)).toEqual(["scripts/gone.mjs", "npm run gone"]);
+    expect(
+      findDanglingReferences("docs/research/x-2026-09-20.md", "`scripts/gone.mjs`", { cwd, scripts }),
+    ).toEqual([]);
+  });
+
+  it(".json を .js で切らず、.tsx を .ts で切らない", () => {
+    const cwd = makeRepo({ "src/a.tsx": "", "crawler/b.json": "" });
+    const text = "`src/a.tsx` と `crawler/b.json`";
+    expect(findDanglingReferences("README.md", text, { cwd, scripts: new Set() })).toEqual([]);
+  });
+});
+
+describe("findBrokenHeadingReferences", () => {
+  it("パスと見出し語で指した先に見出しか太字の見出し語が無ければ拾う", () => {
+    const cwd = makeRepo({
+      "docs/stores/x.md": "# 店\n\n## 既知の落とし穴\n\n- **新着**: 本文\n",
+      "docs/decisions/0001-a.md": "# 決定\n",
+    });
+    const text = [
+      "// `docs/stores/x.md` の「既知の落とし穴」",
+      "// docs/stores/x.md の「新着」",
+      "// docs/stores/x.md の「使う URL」",
+    ].join("\n");
+    const found = findBrokenHeadingReferences("crawler/a.ts", text, { cwd });
+    expect(found.map((f) => f.line)).toEqual([3]);
+  });
+
+  it("文書からの相対リンクも解決する", () => {
+    const cwd = makeRepo({ "docs/stores/x.md": "# 店\n\n## robots.txt\n" });
+    const ok = "[`x.md`](../stores/x.md) の「robots.txt」";
+    const ng = "[`x.md`](../stores/x.md) の「2 ページ目以降」";
+    expect(findBrokenHeadingReferences("docs/decisions/0001-a.md", ok, { cwd })).toEqual([]);
+    expect(findBrokenHeadingReferences("docs/decisions/0001-a.md", ng, { cwd })).toHaveLength(1);
+  });
+});
+
+describe("findUnlistedScripts", () => {
+  it("README の「コマンド」節に無いスクリプトを拾う。1 行に並べた書き方も数える", () => {
+    const readme = [
+      "# x",
+      "## コマンド",
+      "| `npm run dev` | 開発 |",
+      "| `npm run db:migrate:local` / `db:migrate:remote` | 適用 |",
+      "## 次の節",
+      "`npm run test`",
+    ].join("\n");
+    const scripts = new Set(["dev", "db:migrate:local", "db:migrate:remote", "test"]);
+    expect(findUnlistedScripts(readme, scripts).map((f) => f.excerpt)).toEqual(["npm run test"]);
   });
 });
 

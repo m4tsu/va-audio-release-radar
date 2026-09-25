@@ -61,7 +61,9 @@ export const DLSITE_FLOORS = ["home", "garumani"] as const;
 export type DlsiteFloor = (typeof DLSITE_FLOORS)[number];
 
 /**
- * 検索 URL。robots.txt が 2 ページ目以降を禁じているので 1 ページ目に固定する。
+ * 検索 URL。1 ページ目に固定する。`per_page` を含まないこの形は robots.txt の字面ではどのページも
+ * `Disallow` に一致しないが、`per_page` 付きの 2 ページ目以降を禁じている意図に合わせ、
+ * かつ 1 ページ目で足りるため。
  * `work_type_category[0]/audio` で音声作品に絞る。
  * 名前をダブルクォートで囲むと完全一致になり、部分一致の別人を拾わない。
  * フロアはパスの先頭だけが違う。どちらのフロアも全体が全年齢なので `age_category` は付けない
@@ -80,8 +82,10 @@ export function buildSearchUrl(
 
 /**
  * 新着一覧の URL。検索 URL から `keyword_creater` を外しただけの形で、発売日の新しい順に
- * 30 件返る (`docs/stores/dlsite.md` の「新着一覧」)。
- * `per_page` を含まないので robots.txt の `Disallow` に一致しない
+ * 30 件返る (`docs/stores/dlsite.md` の「一覧と検索」)。
+ * `per_page` を含まないので robots.txt の `Disallow` に一致しない。
+ * 1 ページ目だけを引き、並び順違いで補わない。1 ページ目が新作の数日ぶんを覆うので、
+ * 日次で引く限り足りる (`docs/research/new-release-feeds-2026-09-19.md`)
  */
 export function buildFeedUrl(floor: DlsiteFloor = "home"): string {
   return (
@@ -636,7 +640,9 @@ async function fetchNewReleases(options: FetchNewReleasesOptions = {}): Promise<
   let invalidCount = 0;
   let pages = 0;
 
-  // フロアをまたいで ID で畳む。作品 ID は DLsite 全体で 1 つの体系
+  // フロアをまたいで ID で畳む。作品 ID は DLsite 全体で 1 つの体系。
+  // 一覧の出演者は代表 1 名だけで、それすら空の作品があるので、一覧から誰の作品かは決めない。
+  // 新規 ID は全件 product.json を引き、対象声優かどうかは取り込み側が決める
   const listed = new Map<string, RawWork>();
 
   for (const floor of DLSITE_FLOORS) {
