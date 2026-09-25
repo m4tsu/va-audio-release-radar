@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
+import { actorAttributesRequestSchema } from "@/contract";
 import { requireBearer } from "@/server/auth";
 import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
-import { actorAttributeSeedSchema, writeActorAttributes } from "@/server/queries/actor-attributes";
+import { writeActorAttributes } from "@/server/queries/actor-attributes";
 import { summarizeIssues } from "@/server/validation";
 
 /**
@@ -13,8 +13,6 @@ import { summarizeIssues } from "@/server/validation";
  * 出どころごとの行を書くので、かなを取る走行と人の訂正が同じ声優の同じ属性を
  * 書いても互いを消さない。ingest と同じ Bearer トークンを使う
  */
-
-const requestSchema = z.array(actorAttributeSeedSchema).min(1);
 
 export const Route = createFileRoute("/api/admin/actor-attributes")({
   server: {
@@ -30,7 +28,7 @@ export const Route = createFileRoute("/api/admin/actor-attributes")({
           return Response.json({ error: "JSON として読めない本文" }, { status: 400 });
         }
 
-        const parsed = requestSchema.safeParse(body);
+        const parsed = actorAttributesRequestSchema.safeParse(body);
         if (!parsed.success) {
           return Response.json(
             { error: "付加情報が不正", issues: summarizeIssues(parsed.error) },

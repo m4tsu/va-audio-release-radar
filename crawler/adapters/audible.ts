@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
-import { normalizeName, type RawWork } from "../../src/domain/index.ts";
+import type { RawWork } from "../../src/contract/index.ts";
+import { normalizeName } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { buildCoverage } from "./coverage.ts";
 import { validateRawWorks } from "./raw-work.ts";

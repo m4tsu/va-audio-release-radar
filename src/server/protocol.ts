@@ -1,4 +1,4 @@
-import { INGEST_PROTOCOL_VERSION, readProtocolVersion } from "@/domain/types";
+import { INGEST_PROTOCOL_VERSION, readProtocolVersion } from "@/contract";
 
 /**
  * クローラーとサーバーの payload 形式が揃っているかの検査。

@@ -1,8 +1,9 @@
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import type { Delisting } from "../src/contract/index.ts";
 import { buildProductJsonUrl, isDelisted, parseProductJson } from "./adapters/dlsite.ts";
 import { fetchText } from "./lib/fetch.ts";
-import { AdminApiClient, type Delisting } from "./lib/ingest.ts";
+import { AdminApiClient } from "./lib/ingest.ts";
 
 /**
  * 台帳が持っている DLsite の作品を引き直し、もう買えないものを取り下げる。

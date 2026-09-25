@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { IngestPayload, RawWork, StoreSlug } from "../src/domain/index.ts";
+import type { IngestPayload, IngestResponse, RawWork } from "../src/contract/index.ts";
+import type { StoreSlug } from "../src/domain/index.ts";
 import type { FeedResult, SourceAdapter } from "./adapters/types.ts";
 import { type FeedOutcome, formatOutcome, type IngestTarget, runStore } from "./daily.ts";
-import { AdminApiError, type IngestResponse } from "./lib/ingest.ts";
+import { AdminApiError } from "./lib/ingest.ts";
 
 function outcome(partial: Partial<FeedOutcome>): FeedOutcome {
   return {

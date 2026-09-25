@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
-import type { Locale, PushSubscriptionInput } from "@/domain/types";
+import type { PushSubscriptionInput } from "@/contract";
+import type { Locale } from "@/domain/types";
 import { chunked, SQL_IN_CHUNK_SIZE } from "../db/chunked";
 import { pushSubscriptionActors, pushSubscriptions, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";

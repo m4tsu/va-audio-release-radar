@@ -1,14 +1,10 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
+import { actorKanaRequestSchema } from "@/contract";
 import { requireBearer } from "@/server/auth";
 import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
-import {
-  actorKanaResultSchema,
-  listActorsNeedingKana,
-  writeActorKana,
-} from "@/server/queries/actor-attributes";
+import { listActorsNeedingKana, writeActorKana } from "@/server/queries/actor-attributes";
 import { summarizeIssues } from "@/server/validation";
 
 /**
@@ -23,8 +19,6 @@ import { summarizeIssues } from "@/server/validation";
 /** 1 回に返す人数の既定。走行の時間に収まる数を呼び出し側が決める */
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
-
-const requestSchema = z.array(actorKanaResultSchema).min(1);
 
 export const Route = createFileRoute("/api/admin/actor-kana")({
   server: {
@@ -55,7 +49,7 @@ export const Route = createFileRoute("/api/admin/actor-kana")({
           return Response.json({ error: "JSON として読めない本文" }, { status: 400 });
         }
 
-        const parsed = requestSchema.safeParse(body);
+        const parsed = actorKanaRequestSchema.safeParse(body);
         if (!parsed.success) {
           return Response.json(
             { error: "取得結果が不正", issues: summarizeIssues(parsed.error) },

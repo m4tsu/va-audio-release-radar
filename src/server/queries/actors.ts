@@ -1,13 +1,7 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
-import { z } from "zod";
+import type { ActorDictionaryEntry, ActorSeed, UpsertActorsResponse } from "@/contract";
 import { normalizeName } from "@/domain/normalize";
-import {
-  STORE_SLUGS,
-  type StoreSlug,
-  VOICE_ACTOR_GENDERS,
-  type VoiceActor,
-  type VoiceActorAlias,
-} from "@/domain/types";
+import { STORE_SLUGS, type StoreSlug, type VoiceActor, type VoiceActorAlias } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { stripLikeWildcards } from "../db/like";
 import {
@@ -44,47 +38,6 @@ export type ActorSummary = {
 
 export type ActorDetail = VoiceActor & { aliases: VoiceActorAlias[] };
 
-/** クローラーへ配る辞書の 1 件 (`GET /api/admin/actors`) */
-export type ActorDictionaryEntry = {
-  id: string;
-  slug: string;
-  canonicalName: string;
-  /** ローマ字表記。1 語の名義かどうかの判定に使う (空白入りの検索候補を作るかが変わる) */
-  nameEn?: string;
-  aliases: Array<{ name: string; verified: boolean }>;
-};
-
-const aliasSourceSchema = z.enum(["manual", "anilist", "store"]);
-
-/**
- * `POST /api/admin/actors` が受け取るシードの 1 件。
- *
- * 知らない欄は黙って落とさずに断る (`strict`)。かなと表示用ローマ字はここでは受け取らず、
- * 付加情報の表に入れるので、落とすだけにすると「送ったのに入らない値」ができる
- */
-export const actorSeedSchema = z.strictObject({
-  id: z.string().min(1),
-  slug: z.string().min(1),
-  canonicalName: z.string().min(1),
-  // 声優を一意に指す鍵 (同一性)。DB の制約と合わせて必須
-  anilistStaffId: z.number().int(),
-  imageUrl: z.string().optional(),
-  status: z.enum(["active", "inactive", "unknown"]).default("unknown"),
-  // 既定を置くのは、性別を送らない既存のシードがそのまま通るようにするため
-  gender: z.enum(VOICE_ACTOR_GENDERS).default("unknown"),
-  aliases: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        source: aliasSourceSchema,
-        verified: z.boolean().default(false),
-      }),
-    )
-    .optional(),
-});
-
-export type ActorSeed = z.infer<typeof actorSeedSchema>;
-
 /**
  * シードからの投入。slug / id は入力をそのまま使う (URL に出るので自動採番にしない)。
  *
@@ -98,7 +51,7 @@ export async function upsertActors(
   db: AppDb,
   actors: ActorSeed[],
   now: string = new Date().toISOString(),
-): Promise<{ actors: number; aliases: number; clearedScreened: number }> {
+): Promise<UpsertActorsResponse> {
   let aliasCount = 0;
   // 「対象声優が居ない」の判断は辞書に対するもの。増えたかどうかを入れる前に数える
   const before = await dictionarySize(db);

@@ -1,9 +1,10 @@
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import type { ActorKanaResult, KanaTarget } from "../src/contract/index.ts";
 import type { ActorKanaRecord } from "./discovery/actor-kana.ts";
 import { fetchActorKana, stopReasonFor } from "./discovery/wikipedia-kana.ts";
 import { NO_KANA_REASON, refillActorKana } from "./discovery/wikipedia-kana-refill.ts";
-import { type ActorKanaResult, AdminApiClient, type KanaTarget } from "./lib/ingest.ts";
+import { AdminApiClient } from "./lib/ingest.ts";
 
 /**
  * まだかなを引いていない声優のかなを取り、台帳に入れる。

@@ -1,5 +1,4 @@
-import { INGEST_PROTOCOL_VERSION } from "../../src/domain/index.ts";
-import type { AniListIngestPayload } from "../lib/ingest.ts";
+import { type AniListIngestPayload, INGEST_PROTOCOL_VERSION } from "../../src/contract/index.ts";
 import { type SeasonCredit, type SeasonKey, type SeasonMedia, seasonOrder } from "./anilist.ts";
 import {
   type AnimeSlugCollision,

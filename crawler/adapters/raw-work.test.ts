@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RawWork } from "../../src/domain/index.ts";
+import type { RawWork } from "../../src/contract/index.ts";
 import { validateRawWorks } from "./raw-work.ts";
 
 const VALID: RawWork = {

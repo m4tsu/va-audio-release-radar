@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RawWork } from "../../src/domain/index.ts";
+import type { RawWork } from "../../src/contract/index.ts";
 import type { FetchResult } from "../lib/fetch.ts";
 import { FIXTURES_DIR } from "../lib/paths.ts";
 import {

@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
+import { actorSeedsRequestSchema } from "@/contract";
 import { requireBearer } from "@/server/auth";
 import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
-import { actorSeedSchema, listActorDictionary, upsertActors } from "@/server/queries/actors";
+import { listActorDictionary, upsertActors } from "@/server/queries/actors";
 import { summarizeIssues } from "@/server/validation";
 
 /**
@@ -15,8 +15,6 @@ import { summarizeIssues } from "@/server/validation";
  * POST は ID と slug を送り手が決めるシード投入で、AniList からの取り込みは
  * ID と slug をサーバーが決める `POST /api/admin/anilist` を使う
  */
-
-const requestSchema = z.array(actorSeedSchema).min(1);
 
 export const Route = createFileRoute("/api/admin/actors")({
   server: {
@@ -51,7 +49,7 @@ export const Route = createFileRoute("/api/admin/actors")({
           return Response.json({ error: "JSON として読めない本文" }, { status: 400 });
         }
 
-        const parsed = requestSchema.safeParse(body);
+        const parsed = actorSeedsRequestSchema.safeParse(body);
         if (!parsed.success) {
           return Response.json(
             { error: "シードが不正", issues: summarizeIssues(parsed.error) },

@@ -1,11 +1,16 @@
 import { count, eq, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
+import type {
+  AniListActorInput,
+  AniListIngestPayload,
+  AniListIngestResponse,
+  NewActor,
+} from "@/contract";
 import { slugWithStaffId, toActorId, toActorNameEn, toActorSlug } from "@/domain/actor-slug";
-import { ANIME_SEASONS, type AnimeSeason, seasonOrder, VOICE_ACTOR_GENDERS } from "@/domain/types";
+import { type AnimeSeason, seasonOrder } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { anilistIngestRuns, animeAppearances, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
-import { type AnimeSeed, animeSeedSchema, upsertAnime } from "./anime";
+import { type AnimeSeed, upsertAnime } from "./anime";
 import { clearScreened } from "./screened";
 
 /**
@@ -19,102 +24,13 @@ import { clearScreened } from "./screened";
  * 同一性 (id / slug / 初めて見た日時) と、別表にある付加情報・別名義の行には触らない
  */
 
-// --- 入力 ------------------------------------------------------------------
-
-const seasonSchema = z.object({
-  year: z.number().int(),
-  season: z.enum(ANIME_SEASONS),
-});
-
-/**
- * 出演者 1 人。AniList が言っている値だけを受け取る。
- * 声優の ID と slug はこちらが決めるので、送り手は持たない
- */
-const anilistActorSchema = z.object({
-  anilistStaffId: z.number().int(),
-  /**
-   * 日本語表記。ストアとの突き合わせに使う唯一の鍵なので、
-   * 空白を詰めて何も残らない名前は入口で弾く (空の名前で入るとどのストアにも当たらなくなる)
-   */
-  nativeName: z.string().trim().min(1),
-  /** "Reina Ueda"。slug の元であり、英語表示に出す名前 */
-  fullName: z.string().optional(),
-  gender: z.enum(VOICE_ACTOR_GENDERS).optional(),
-  imageUrl: z.string().optional(),
-  /** この声優の出演を確認した、今回の取得で一番新しいシーズン */
-  latestSeason: seasonSchema.optional(),
-});
-
-export type AniListActorInput = z.infer<typeof anilistActorSchema>;
-
-/**
- * 作品 1 件。出演は声優の ID ではなく staff id で指す。
- * ID を決めるのはこちら側なので、送り手はまだ知らない
- */
-const anilistAnimeSchema = animeSeedSchema.omit({ appearances: true }).extend({
-  appearances: z
-    .array(
-      z.object({
-        anilistStaffId: z.number().int(),
-        characterId: z.string().min(1),
-        characterNameNative: z.string().optional(),
-        characterNameFull: z.string().optional(),
-        characterImageUrl: z.string().optional(),
-        role: animeSeedSchema.shape.appearances.element.shape.role,
-      }),
-    )
-    .min(1),
-});
-
-export const anilistIngestPayloadSchema = z.object({
-  protocolVersion: z.number().int(),
-  runId: z.string().min(1),
-  startedAt: z.string().min(1),
-  /** 今回の取得が対象にしたシーズン。古い順。取れた作品が 0 件でも記録に残す */
-  seasons: z.array(seasonSchema).min(1),
-  actors: z.array(anilistActorSchema),
-  anime: z.array(anilistAnimeSchema),
-});
-
-export type AniListIngestPayload = z.infer<typeof anilistIngestPayloadSchema>;
-
-// --- 結果 ------------------------------------------------------------------
-
-/** 今回はじめて台帳に入った声優。後続のかな取得と声優名での検索がこれを使う */
-export type NewActor = {
-  id: string;
-  slug: string;
-  canonicalName: string;
-  anilistStaffId: number;
-};
-
-export type AniListIngestResult = {
-  runId: string;
-  /** 送られた声優の数 */
-  actors: number;
-  newActors: NewActor[];
-  /** ローマ字が無く slug を作れないので足さなかった声優の数 */
-  skippedActors: number;
-  anime: number;
-  /** 保存した出演の数 (更新も含む) */
-  appearances: number;
-  /** そのうち今回はじめて入ったもの */
-  newAppearances: number;
-  /** 声優を引き当てられずに落とした出演の数 */
-  droppedAppearances: number;
-  /** 保存した別名タイトルの数 */
-  synonyms: number;
-  /** 声優が増えたので捨てた「対象声優が居ない」の判断の数 */
-  clearedScreened: number;
-};
-
 // --- 本体 ------------------------------------------------------------------
 
 export async function ingestAniList(
   db: AppDb,
   payload: AniListIngestPayload,
   now: string = new Date().toISOString(),
-): Promise<AniListIngestResult> {
+): Promise<AniListIngestResponse> {
   const { actorIdByStaffId, newActors, skippedActors } = await upsertAniListActors(
     db,
     payload.actors,

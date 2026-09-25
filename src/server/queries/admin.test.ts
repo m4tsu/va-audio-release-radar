@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import type { ActorSeed } from "@/contract";
 import { audioCredits, crawlRuns, voiceActorAliases } from "../db/schema";
-import { type ActorSeed, upsertActors } from "./actors";
+import { upsertActors } from "./actors";
 import {
   assignCredit,
   crawlerHealth,

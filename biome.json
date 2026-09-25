@@ -108,6 +108,42 @@
                   {
                     "group": ["@/server", "@/server/**"],
                     "message": "domain は @/server に依存してはならない"
+                  },
+                  {
+                    "group": ["@/contract", "@/contract/**", "../contract", "../contract/**"],
+                    "message": "domain は contract に依存してはならない (依存は contract → domain の一方向)"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/contract/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "contract は react に依存してはならない",
+                  "react-dom": "contract は react-dom に依存してはならない",
+                  "zustand": "contract は zustand に依存してはならない",
+                  "dexie": "contract は dexie に依存してはならない",
+                  "drizzle-orm": "contract は drizzle-orm に依存してはならない",
+                  "cheerio": "contract は cheerio に依存してはならない"
+                },
+                "patterns": [
+                  {
+                    "group": ["@/app", "@/app/**", "../app/**"],
+                    "message": "contract は @/app に依存してはならない"
+                  },
+                  {
+                    "group": ["@/server", "@/server/**", "../server/**"],
+                    "message": "contract は @/server に依存してはならない"
                   }
                 ]
               }

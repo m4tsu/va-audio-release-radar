@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { z } from "zod";
-import { STORE_SLUGS, type StoreSlug } from "@/domain/types";
+import type { Delisting, RecordDelistingsResponse } from "@/contract";
+import type { StoreSlug } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { storeListings } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -14,25 +14,6 @@ import type { AppDb } from "../db/types";
  * だから台帳が持っている商品 ID を起点に引き直し、その結果だけをここへ送る
  */
 
-/** 1 件ぶんの判定。分からなかった作品は送らない (送ると今ある値を動かすことになる) */
-export const delistingSchema = z.object({
-  storeSlug: z.enum(STORE_SLUGS),
-  storeProductId: z.string().min(1),
-  /** true なら取り下げ、false なら取り下げを取り消す (また買えるようになった) */
-  delisted: z.boolean(),
-});
-
-export type Delisting = z.infer<typeof delistingSchema>;
-
-export type RecordDelistingsResult = {
-  /** 新しく取り下げた listing の数 */
-  delisted: number;
-  /** 取り下げを取り消した listing の数 */
-  relisted: number;
-  /** 台帳に無くて何もしなかった数 */
-  unknown: number;
-};
-
 /**
  * 判定を台帳に書く。行は消さない。
  *
@@ -43,8 +24,8 @@ export async function recordDelistings(
   db: AppDb,
   items: readonly Delisting[],
   now: string = new Date().toISOString(),
-): Promise<RecordDelistingsResult> {
-  const result: RecordDelistingsResult = { delisted: 0, relisted: 0, unknown: 0 };
+): Promise<RecordDelistingsResponse> {
+  const result: RecordDelistingsResponse = { delisted: 0, relisted: 0, unknown: 0 };
   if (items.length === 0) return result;
 
   const byStore = new Map<StoreSlug, Delisting[]>();

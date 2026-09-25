@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { INGEST_PROTOCOL_VERSION, type StoreSlug } from "../src/domain/index.ts";
+import { INGEST_PROTOCOL_VERSION } from "../src/contract/index.ts";
+import type { StoreSlug } from "../src/domain/index.ts";
 import type { AdapterResult, AdapterStatus } from "./adapters/types.ts";
 import { AdminApiClient, type CrawlActor, IngestProtocolMismatchError } from "./lib/ingest.ts";
 import {
@@ -316,7 +317,7 @@ describe("buildSearchNames", () => {
         id: "va_iwami-manaka",
         slug: "iwami-manaka",
         canonicalName: "石見舞菜香",
-        aliases: [{ name: "石見 舞菜香", source: "manual", verified: true }],
+        aliases: [{ name: "石見 舞菜香", verified: true }],
       }),
     ).toEqual(["石見 舞菜香", "石見舞菜香"]);
   });
@@ -349,7 +350,7 @@ describe("buildSearchNames", () => {
     expect(
       buildSearchNames({
         ...UEDA,
-        aliases: [{ name: "上田 麗奈", source: "manual", verified: false }],
+        aliases: [{ name: "上田 麗奈", verified: false }],
       }),
     ).toEqual(["上田麗奈", "上田 麗奈"]);
   });
@@ -359,8 +360,8 @@ describe("buildSearchNames", () => {
       buildSearchNames({
         ...UEDA,
         aliases: [
-          { name: "上田 麗奈", source: "manual", verified: true },
-          { name: "上田麗 奈", source: "manual", verified: false },
+          { name: "上田 麗奈", verified: true },
+          { name: "上田麗 奈", verified: false },
         ],
       }),
     ).toEqual(["上田 麗奈", "上田麗奈"]);

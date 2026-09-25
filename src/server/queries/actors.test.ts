@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { actorSeedSchema } from "@/contract";
 import type { StoreSlug } from "@/domain/types";
 import { audioCredits, audioWorks, storeListings } from "../db/schema";
 import {
-  actorSeedSchema,
   getActorBySlug,
   getActorStoreCoverage,
   listActorDictionary,

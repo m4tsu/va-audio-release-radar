@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PushSubscriptionInput } from "@/domain/types";
+import type { PushSubscriptionInput } from "@/contract";
 import {
   deletePushSubscription,
   getPushSubscription,

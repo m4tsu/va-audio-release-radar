@@ -13,10 +13,9 @@ import { submitInquiryFn } from "@/app/server-fns/inquiries";
 import {
   INQUIRY_BODY_MAX_LENGTH,
   INQUIRY_CONTACT_MAX_LENGTH,
-  INQUIRY_KINDS,
-  type InquiryKind,
   inquirySubmissionSchema,
-} from "@/domain/types";
+} from "@/contract";
+import { INQUIRY_KINDS, type InquiryKind } from "@/domain/types";
 
 /**
  * お問い合わせの入力と送信。

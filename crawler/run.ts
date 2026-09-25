@@ -1,12 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import {
-  INGEST_PROTOCOL_VERSION,
-  type IngestPayload,
-  isSingleWordFullName,
-  STORE_SLUGS,
-  type StoreSlug,
-} from "../src/domain/index.ts";
+import { INGEST_PROTOCOL_VERSION, type IngestPayload } from "../src/contract/index.ts";
+import { isSingleWordFullName, STORE_SLUGS, type StoreSlug } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
@@ -284,18 +279,7 @@ export async function loadCrawlActors(
   client: AdminApiClient,
   options: { neverCrawled?: boolean; withWorks?: boolean } = {},
 ): Promise<CrawlActor[]> {
-  const entries = await client.listActors(options);
-  return entries.map((entry) => ({
-    id: entry.id,
-    slug: entry.slug,
-    canonicalName: entry.canonicalName,
-    ...(entry.nameEn === undefined ? {} : { nameEn: entry.nameEn }),
-    aliases: entry.aliases.map((alias) => ({
-      name: alias.name,
-      source: "manual",
-      verified: alias.verified,
-    })),
-  }));
+  return client.listActors(options);
 }
 
 /**

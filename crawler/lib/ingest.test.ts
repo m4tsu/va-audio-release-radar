@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { INGEST_PROTOCOL_VERSION } from "../../src/domain/index.ts";
+import { INGEST_PROTOCOL_VERSION } from "../../src/contract/index.ts";
 import {
   AdminApiClient,
   AdminApiError,
@@ -71,17 +71,33 @@ describe("AdminApiClient", () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new TypeError("fetch failed"))
-      .mockResolvedValueOnce(jsonResponse({ actors: 1, aliases: 2 }));
+      .mockResolvedValueOnce(jsonResponse({ written: 1, skipped: 0 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await withFakeTimers(() =>
-      new AdminApiClient("http://x", "dev").upsertActors([
-        { id: "va_a", slug: "a", canonicalName: "あ", anilistStaffId: 1 },
+      new AdminApiClient("http://x", "dev").writeActorAttributes([
+        { voiceActorId: "va_a", attribute: "nameKana", source: "editorial", value: "あ" },
       ]),
     );
 
-    expect(result).toEqual({ actors: 1, aliases: 2 });
+    expect(result).toEqual({ written: 1, skipped: 0 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("actors の絞り込みは立てたものだけをクエリに載せる", async () => {
+    // 受け手は `=== "1"` で読むので、false を載せても絞り込みは外れない。載せないことで外す
+    const fetchMock = vi.fn(async () => jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new AdminApiClient("http://x", "dev");
+
+    await client.listActors();
+    await client.listActors({ neverCrawled: true, withWorks: false });
+
+    const urls = fetchMock.mock.calls.map((call) => (call as unknown as [string])[0]);
+    expect(urls).toEqual([
+      "http://x/api/admin/actors",
+      "http://x/api/admin/actors?never-crawled=1",
+    ]);
   });
 
   it("5xx もやり直す", async () => {

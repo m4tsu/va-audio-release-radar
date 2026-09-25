@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { pushSubscriptionSchema, pushUnsubscribeSchema } from "@/domain/types";
+import { pushSubscriptionSchema, pushUnsubscribeSchema } from "@/contract";
 
 /**
  * Web Push の購読の server function。フォロー一覧 (`/following`) の通知の区画が呼ぶ。

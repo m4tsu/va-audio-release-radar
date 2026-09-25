@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { PUSH_SUBSCRIPTION_MAX_ACTORS } from "@/domain/types";
+import { PUSH_SUBSCRIPTION_MAX_ACTORS } from "@/contract";
 import { type FollowedActor, useFollowStore } from "./follow-store";
 
 /**

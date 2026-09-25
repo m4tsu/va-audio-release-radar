@@ -1,11 +1,12 @@
 import { asc, getTableName, inArray, isNull, type SQL, sql } from "drizzle-orm";
-import { z } from "zod";
-import {
-  ATTRIBUTE_SOURCES,
-  type AttributeSource,
-  VOICE_ACTOR_ATTRIBUTES,
-  type VoiceActorAttribute,
-} from "@/domain/types";
+import type {
+  ActorAttributeSeed,
+  ActorKanaResult,
+  KanaTarget,
+  WriteActorAttributesResponse,
+  WriteActorKanaResponse,
+} from "@/contract";
+import type { AttributeSource, VoiceActorAttribute } from "@/domain/types";
 import { chunked } from "../db/chunked";
 import { voiceActorAttributes, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
@@ -18,22 +19,6 @@ import type { AppDb } from "../db/types";
  * どの値を表に出すかは読み取り側が属性ごとの優先順位で決める (この表は順位を持たない)
  */
 
-export const actorAttributeSeedSchema = z.object({
-  voiceActorId: z.string().min(1),
-  attribute: z.enum(VOICE_ACTOR_ATTRIBUTES),
-  source: z.enum(ATTRIBUTE_SOURCES),
-  value: z.string().min(1),
-});
-
-export type ActorAttributeSeed = z.infer<typeof actorAttributeSeedSchema>;
-
-export type WriteActorAttributesResult = {
-  /** 書いた行数 (新規と更新の合計) */
-  written: number;
-  /** 居ない声優を指していて書かなかった行数 */
-  skipped: number;
-};
-
 /**
  * 付加情報を書く。同じ 声優 × 属性 × 出どころ が既にあれば値と記録日時を更新する。
  *
@@ -44,7 +29,7 @@ export async function writeActorAttributes(
   db: AppDb,
   seeds: readonly ActorAttributeSeed[],
   now: string = new Date().toISOString(),
-): Promise<WriteActorAttributesResult> {
+): Promise<WriteActorAttributesResponse> {
   const known = await knownActorIds(db, seeds);
   let written = 0;
   let skipped = 0;
@@ -93,9 +78,6 @@ async function knownActorIds(
   return found;
 }
 
-/** かなを引く相手。日本語表記で引くので、名前と ID だけあればよい */
-export type KanaTarget = { id: string; canonicalName: string };
-
 /**
  * まだかなを引いていない声優。古い順に返す。
  *
@@ -111,25 +93,6 @@ export async function listActorsNeedingKana(db: AppDb, limit: number): Promise<K
     .limit(limit);
 }
 
-/** 1 人ぶんの取得結果。かなが取れなかった人も、引いたことを残すために送る */
-export const actorKanaResultSchema = z.object({
-  voiceActorId: z.string().min(1),
-  kana: z.string().min(1).optional(),
-  /** かなが取れたときだけ。記事なら wikipedia、Wikidata の項目なら wikidata */
-  source: z.enum(["wikipedia", "wikidata"]).optional(),
-});
-
-export type ActorKanaResult = z.infer<typeof actorKanaResultSchema>;
-
-export type WriteActorKanaResult = {
-  /** かなを書いた人数 */
-  written: number;
-  /** 引いたが取れなかった人数 */
-  withoutKana: number;
-  /** 台帳に居なくて何も書かなかった人数 */
-  skipped: number;
-};
-
 /**
  * 取得結果を台帳に入れる。かなが取れた人は付加情報の行を書き、
  * **取れなかった人も含めて全員に「引いた」印を付ける**。
@@ -140,7 +103,7 @@ export async function writeActorKana(
   db: AppDb,
   results: readonly ActorKanaResult[],
   now: string = new Date().toISOString(),
-): Promise<WriteActorKanaResult> {
+): Promise<WriteActorKanaResponse> {
   const known = await knownActorIds(
     db,
     results.map((result) => ({ voiceActorId: result.voiceActorId })),

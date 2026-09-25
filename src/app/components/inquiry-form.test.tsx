@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { InquiryForm } from "@/app/components/inquiry-form";
 import { renderWithLocale } from "@/app/test/render";
-import { INQUIRY_BODY_MAX_LENGTH, INQUIRY_CONTACT_MAX_LENGTH } from "@/domain/types";
+import { INQUIRY_BODY_MAX_LENGTH, INQUIRY_CONTACT_MAX_LENGTH } from "@/contract";
 
 const submitInquiryFn = vi.fn<(input: unknown) => Promise<unknown>>(async () => ({
   accepted: true,

@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { actorSeedSchema } from "@/contract";
 import type { AttributeSource } from "@/domain/types";
 import { voiceActorAttributes, voiceActors } from "../db/schema";
 import type { AppDb } from "../db/types";
 import { writeActorAttributes } from "./actor-attributes";
-import { actorSeedSchema, getActorBySlug, listActors, searchActors } from "./actors";
+import { getActorBySlug, listActors, searchActors } from "./actors";
 import { giveEachActorAWork, NOW, setupDb, UEDA } from "./test-fixtures";
 
 /**

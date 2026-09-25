@@ -3,9 +3,9 @@ import { parseArgs } from "node:util";
 import {
   INGEST_PROTOCOL_VERSION,
   type IngestPayload,
-  STORE_SLUGS,
-  type StoreSlug,
-} from "../src/domain/index.ts";
+  type IngestResponse,
+} from "../src/contract/index.ts";
+import { STORE_SLUGS, type StoreSlug } from "../src/domain/index.ts";
 import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
@@ -15,7 +15,6 @@ import {
   AdminApiError,
   failureReport,
   IngestProtocolMismatchError,
-  type IngestResponse,
 } from "./lib/ingest.ts";
 import { STORE_LABELS } from "./lib/labels.ts";
 

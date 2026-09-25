@@ -1,13 +1,12 @@
 import { and, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import type { IngestPayload, IngestResponse, RawWork } from "@/contract";
 import { categorize } from "@/domain/category";
 import { resolveCredit } from "@/domain/identity";
 import {
   type AgeRating,
   DEFAULT_ALLOWED_AGE_RATINGS,
-  type IngestPayload,
   isAgeRatingAllowed,
-  type RawWork,
   type StoreSlug,
 } from "@/domain/types";
 import { chunked } from "../db/chunked";
@@ -21,22 +20,6 @@ import { recordScreened } from "./screened";
  * 大きすぎると 1 回の応答が重くなる。30 作品なら作品・listing とも 1 回で収まる
  */
 const BATCH_SIZE = 50;
-
-export type IngestResult = {
-  /** 保存した作品数。下の 2 つの理由で捨てたぶんを除いた数 */
-  upserted: number;
-  /** 今回はじめて見た listing の数 */
-  new: number;
-  /** 声優を特定できなかった credit の数。管理画面の未解決キューに積まれる */
-  unmatched: number;
-  /** 許可していない年齢区分として捨てた作品数 (現状は R18) */
-  skippedByRating: number;
-  /**
-   * 対象声優が 1 人も出ていないとして捨てた作品数。
-   * 声優に紐付かない走行 (ストアの新着一覧) でだけ増える
-   */
-  skippedByNoTargetActor: number;
-};
 
 export type IngestOptions = {
   /**
@@ -65,9 +48,9 @@ export async function ingest(
   payload: IngestPayload,
   now: string,
   options: IngestOptions = {},
-): Promise<IngestResult> {
+): Promise<IngestResponse> {
   const { allowedAgeRatings = DEFAULT_ALLOWED_AGE_RATINGS } = options;
-  const result: IngestResult = {
+  const result: IngestResponse = {
     upserted: 0,
     new: 0,
     unmatched: 0,
@@ -371,7 +354,7 @@ function creditUpsert(
 async function recordRun(
   db: AppDb,
   payload: IngestPayload,
-  result: IngestResult,
+  result: IngestResponse,
   now: string,
 ): Promise<void> {
   const values = {

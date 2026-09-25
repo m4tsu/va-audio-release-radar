@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
+import { anilistIngestPayloadSchema } from "@/contract";
 import { requireBearer } from "@/server/auth";
 import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
 import { requireIngestProtocolVersion } from "@/server/protocol";
-import { anilistIngestPayloadSchema, ingestAniList } from "@/server/queries/anilist";
+import { ingestAniList } from "@/server/queries/anilist";
 import { summarizeIssues } from "@/server/validation";
 
 /**

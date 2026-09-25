@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { ingestPayloadSchema } from "@/domain/types";
+import { ingestPayloadSchema } from "@/contract";
 import { requireBearer } from "@/server/auth";
 import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";

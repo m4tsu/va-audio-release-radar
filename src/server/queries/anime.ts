@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
-import { z } from "zod";
+import type { AniListAnimeInput, AniListAppearanceInput } from "@/contract";
 import type { AnimeRole, AnimeSeason, WorkCategory } from "@/domain/types";
-import { ANIME_FORMATS, ANIME_ROLES, ANIME_SEASONS, seasonOrder } from "@/domain/types";
+import { seasonOrder } from "@/domain/types";
 import { chunked, SQL_IN_CHUNK_SIZE } from "../db/chunked";
 import { stripLikeWildcards } from "../db/like";
 import {
@@ -30,41 +30,13 @@ import { notAdultRated, onSaleSomewhere } from "./works";
 
 // --- 取り込み --------------------------------------------------------------
 
-/** 放送日。発売日 (`releaseDateSchema`) と同じ形で受け取る */
-const animeDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 形式で指定する");
-
-/** 取り込みが受け取る 1 作品。AniList の取り込み (`queries/anilist.ts`) が出演を付け替えて渡す */
-export const animeSeedSchema = z.object({
-  id: z.string().min(1),
-  slug: z.string().min(1),
-  titleNative: z.string().optional(),
-  titleRomaji: z.string().min(1),
-  titleEnglish: z.string().optional(),
-  seasonYear: z.number().int(),
-  season: z.enum(ANIME_SEASONS),
-  coverImageUrl: z.string().optional(),
-  coverImageColor: z.string().optional(),
-  format: z.enum(ANIME_FORMATS).optional(),
-  popularity: z.number().int().optional(),
-  // 年月日が揃った日付だけを受け取る。部分的な日付 (年だけ) は生成側で落としてある
-  startDate: animeDateSchema.optional(),
-  endDate: animeDateSchema.optional(),
-  synonyms: z.array(z.string().min(1)).optional(),
-  appearances: z
-    .array(
-      z.object({
-        voiceActorId: z.string().min(1),
-        characterId: z.string().min(1),
-        characterNameNative: z.string().optional(),
-        characterNameFull: z.string().optional(),
-        characterImageUrl: z.string().optional(),
-        role: z.enum(ANIME_ROLES),
-      }),
-    )
-    .min(1),
-});
-
-export type AnimeSeed = z.infer<typeof animeSeedSchema>;
+/**
+ * 取り込みが受け取る 1 作品。AniList の取り込み (`queries/anilist.ts`) が
+ * 出演を staff id から声優の ID に付け替えて渡す
+ */
+export type AnimeSeed = Omit<AniListAnimeInput, "appearances"> & {
+  appearances: Array<Omit<AniListAppearanceInput, "anilistStaffId"> & { voiceActorId: string }>;
+};
 
 export type AnimeIngestResult = {
   titles: number;

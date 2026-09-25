@@ -1,12 +1,16 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { INGEST_PROTOCOL_VERSION } from "@/domain/types";
+import {
+  type AniListIngestPayload,
+  anilistIngestPayloadSchema,
+  INGEST_PROTOCOL_VERSION,
+} from "@/contract";
 import { anilistIngestRuns, voiceActorAttributes, voiceActors } from "../db/schema";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { writeActorAttributes } from "./actor-attributes";
 import { getActorBySlug, upsertActors } from "./actors";
-import { type AniListIngestPayload, anilistIngestPayloadSchema, ingestAniList } from "./anilist";
+import { ingestAniList } from "./anilist";
 import { getAnimeBySlug } from "./anime";
 import { recordScreened, screenedStoreProductIds } from "./screened";
 import { NOW } from "./test-fixtures";

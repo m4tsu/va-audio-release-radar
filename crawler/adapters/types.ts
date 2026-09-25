@@ -1,4 +1,5 @@
-import type { RawWork, StoreSlug } from "../../src/domain/index.ts";
+import type { RawWork } from "../../src/contract/index.ts";
+import type { StoreSlug } from "../../src/domain/index.ts";
 
 /**
  * ストアごとの取得アダプタ。

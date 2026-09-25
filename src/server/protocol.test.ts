@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INGEST_PROTOCOL_VERSION } from "@/domain/types";
+import { INGEST_PROTOCOL_VERSION } from "@/contract";
 import { requireIngestProtocolVersion } from "./protocol";
 
 /**

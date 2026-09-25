@@ -1,10 +1,15 @@
 import { eq } from "drizzle-orm";
-import { INGEST_PROTOCOL_VERSION, type IngestPayload, type RawWork } from "@/domain/types";
+import {
+  type ActorSeed,
+  INGEST_PROTOCOL_VERSION,
+  type IngestPayload,
+  type RawWork,
+} from "@/contract";
 import { voiceActors } from "../db/schema";
 import { createMigratedTestDb } from "../db/test-db";
 import type { AppDb } from "../db/types";
 import { writeActorAttributes } from "./actor-attributes";
-import { type ActorSeed, upsertActors } from "./actors";
+import { upsertActors } from "./actors";
 import { upsertAnime } from "./anime";
 import { ingest } from "./ingest";
 

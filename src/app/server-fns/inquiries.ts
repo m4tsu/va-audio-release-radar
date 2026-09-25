@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { inquirySubmissionSchema } from "@/domain/types";
+import { inquirySubmissionSchema } from "@/contract";
 
 /**
  * お問い合わせ画面 (`/contact`) の server function。

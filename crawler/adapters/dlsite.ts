@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
-import { type AgeRating, isAgeRatingAllowed, type RawWork } from "../../src/domain/index.ts";
+import type { RawWork } from "../../src/contract/index.ts";
+import { type AgeRating, isAgeRatingAllowed } from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { buildCoverage } from "./coverage.ts";
 import { validateRawWorks } from "./raw-work.ts";

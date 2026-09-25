@@ -1,13 +1,19 @@
 import {
-  type AnimeFormat,
-  type AnimeRole,
-  type AnimeSeason,
-  type AttributeSource,
+  type ActorAttributeSeed,
+  type ActorDictionaryEntry,
+  type ActorKanaResult,
+  type AdminEndpoint,
+  type AdminQuery,
+  type AdminRequest,
+  type AdminResponse,
+  type AniListIngestPayload,
+  type Delisting,
   INGEST_PROTOCOL_VERSION,
   type IngestPayload,
+} from "../../src/contract/index.ts";
+import {
   type StoreSlug,
   VOICE_ACTOR_GENDERS,
-  type VoiceActorAttribute,
   type VoiceActorGender,
 } from "../../src/domain/index.ts";
 
@@ -26,162 +32,12 @@ const TIMEOUT_MS = 60_000;
  */
 const RETRY_DELAYS_MS = [0, 5_000, 30_000] as const;
 
-/** `POST /api/admin/ingest` の応答 (src/server/queries/ingest.ts の IngestResult と同じ形) */
-export type IngestResponse = {
-  upserted: number;
-  new: number;
-  unmatched: number;
-  skippedByRating: number;
-  /** 対象声優が 1 人も出ていないとして捨てた作品数 (新着一覧の走行だけ) */
-  skippedByNoTargetActor: number;
-};
-
-export type UpsertActorsResponse = {
-  actors: number;
-  aliases: number;
-  /**
-   * 辞書が増えたので捨てた「対象外」の判断の数。
-   * 次の日次は、捨てたぶんの詳細を引き直す (`src/server/queries/screened.ts`)
-   */
-  clearedScreened: number;
-};
-
-/** `GET /api/admin/actors` が返す 1 件。声優起点の走行が誰を調べるかを決める材料 */
-export type ActorDictionaryEntry = {
-  id: string;
-  slug: string;
-  canonicalName: string;
-  nameEn?: string;
-  aliases: Array<{ name: string; verified: boolean }>;
-};
-
-/** `POST /api/admin/anilist` に送る 1 回ぶん。検証そのものはサーバー側の zod に任せる */
-export type AniListIngestPayload = {
-  protocolVersion: number;
-  runId: string;
-  startedAt: string;
-  seasons: Array<{ year: number; season: AnimeSeason }>;
-  actors: Array<{
-    anilistStaffId: number;
-    nativeName: string;
-    fullName?: string;
-    gender?: VoiceActorGender;
-    imageUrl?: string;
-    latestSeason?: { year: number; season: AnimeSeason };
-  }>;
-  anime: Array<{
-    id: string;
-    slug: string;
-    titleNative?: string;
-    titleRomaji: string;
-    titleEnglish?: string;
-    seasonYear: number;
-    season: AnimeSeason;
-    coverImageUrl?: string;
-    coverImageColor?: string;
-    format?: AnimeFormat;
-    popularity?: number;
-    startDate?: string;
-    endDate?: string;
-    synonyms?: string[];
-    appearances: Array<{
-      anilistStaffId: number;
-      characterId: string;
-      characterNameNative?: string;
-      characterNameFull?: string;
-      characterImageUrl?: string;
-      role: AnimeRole;
-    }>;
-  }>;
-};
-
-/** `POST /api/admin/anilist` の応答。初めて見た声優は後続の走行が使う */
-export type AniListIngestResponse = {
-  runId: string;
-  actors: number;
-  newActors: Array<{
-    id: string;
-    slug: string;
-    canonicalName: string;
-    anilistStaffId: number;
-  }>;
-  skippedActors: number;
-  anime: number;
-  appearances: number;
-  newAppearances: number;
-  droppedAppearances: number;
-  synonyms: number;
-  clearedScreened: number;
-};
-
-/** `GET /api/admin/actor-kana` が返す 1 件 */
-export type KanaTarget = { id: string; canonicalName: string };
-
-/** `POST /api/admin/actor-kana` に送る 1 件。かなが取れなかった人は `kana` を省く */
-export type ActorKanaResult = {
-  voiceActorId: string;
-  kana?: string;
-  source?: "wikipedia" | "wikidata";
-};
-
-export type WriteActorKanaResponse = {
-  written: number;
-  withoutKana: number;
-  skipped: number;
-};
-
-/**
- * `POST /api/admin/delistings` に送る 1 件。
- *
- * 判定が付かなかった作品は送らない。`delisted: false` は「買える」という主張で、
- * 前に付いた取り下げを取り消してしまう
- */
-export type Delisting = {
-  storeSlug: StoreSlug;
-  storeProductId: string;
-  delisted: boolean;
-};
-
-export type RecordDelistingsResponse = {
-  delisted: number;
-  relisted: number;
-  unknown: number;
-};
-
-/** `POST /api/admin/actor-attributes` に送る 1 件 */
-export type ActorAttributeSeed = {
-  voiceActorId: string;
-  attribute: VoiceActorAttribute;
-  source: AttributeSource;
-  value: string;
-};
-
 /**
  * 走行が声優を指すのに要る最小限。誰を調べて、どの名前で検索するかだけを持つ。
- * 投入用の `ActorSeed` と分けてあるのは、走行が台帳から引くときに
- * staff id や性別を必要としないため (`GET /api/admin/actors` もそれらを返さない)
+ * 辞書 (`GET /api/admin/actors`) の 1 件と同じ形で、別名義を持たない声優は `aliases` を省ける
  */
-export type CrawlActor = {
-  id: string;
-  slug: string;
-  canonicalName: string;
-  /** ローマ字表記。空白入りの検索候補を作るかどうかの判定に使う */
-  nameEn?: string;
-  aliases?: Array<{ name: string; source: string; verified: boolean }>;
-};
-
-/**
- * シード投入 (`POST /api/admin/actors`) の 1 件。検証そのものはサーバー側の zod に任せる。
- *
- * かなと表示用ローマ字は持たない。読み取り側が見るのは付加情報の表なので、
- * 入れるのは `POST /api/admin/actor-attributes`
- */
-export type ActorSeed = CrawlActor & {
-  /** 声優を指す鍵。サーバー側の zod も必須にしている */
-  anilistStaffId: number;
-  /** 省くとサーバー側の zod が "unknown" を入れる */
-  gender?: VoiceActorGender;
-};
+export type CrawlActor = Omit<ActorDictionaryEntry, "aliases"> &
+  Partial<Pick<ActorDictionaryEntry, "aliases">>;
 
 /** 性別の日本語表記。クローラーの標準出力にだけ出る (画面には出さない) */
 const GENDER_LABELS: Record<VoiceActorGender, string> = {
@@ -280,10 +136,6 @@ export class AdminApiClient {
     this.#token = token;
   }
 
-  upsertActors(seeds: readonly ActorSeed[]): Promise<UpsertActorsResponse> {
-    return this.#send<UpsertActorsResponse>("POST", "/api/admin/actors", seeds);
-  }
-
   /**
    * 声優起点の走行が「誰を調べるか」を引く辞書。台帳は DB にしかないので、
    * リストをファイルで配らない。`neverCrawled` は一度も引いていない声優、
@@ -291,32 +143,32 @@ export class AdminApiClient {
    */
   async listActors(
     options: { neverCrawled?: boolean; withWorks?: boolean } = {},
-  ): Promise<ActorDictionaryEntry[]> {
-    const filters = [
-      ...(options.neverCrawled === true ? ["never-crawled=1"] : []),
-      ...(options.withWorks === true ? ["with-works=1"] : []),
-    ];
-    const query = filters.length === 0 ? "" : `?${filters.join("&")}`;
-    const entries = await this.#send<unknown>("GET", `/api/admin/actors${query}`);
+  ): Promise<AdminResponse<"GET /api/admin/actors">> {
+    const entries = await this.#send("GET /api/admin/actors", {
+      "never-crawled": options.neverCrawled,
+      "with-works": options.withWorks,
+    });
     if (!Array.isArray(entries)) throw new AdminApiError("actors が配列を返さなかった");
-    return entries as ActorDictionaryEntry[];
+    return entries;
   }
 
   /** AniList の取得 1 回ぶん。声優の ID と slug はサーバーが決めて応答で返す */
-  ingestAniList(payload: AniListIngestPayload): Promise<AniListIngestResponse> {
-    return this.#send<AniListIngestResponse>("POST", "/api/admin/anilist", payload);
+  ingestAniList(payload: AniListIngestPayload): Promise<AdminResponse<"POST /api/admin/anilist">> {
+    return this.#send("POST /api/admin/anilist", payload);
   }
 
   /** かなをまだ引いていない声優。古い順に返る */
-  async listActorsNeedingKana(limit: number): Promise<KanaTarget[]> {
-    const targets = await this.#send<unknown>("GET", `/api/admin/actor-kana?limit=${limit}`);
+  async listActorsNeedingKana(limit: number): Promise<AdminResponse<"GET /api/admin/actor-kana">> {
+    const targets = await this.#send("GET /api/admin/actor-kana", { limit });
     if (!Array.isArray(targets)) throw new AdminApiError("actor-kana が配列を返さなかった");
-    return targets as KanaTarget[];
+    return targets;
   }
 
   /** かなの取得結果。取れなかった人も送ると、引いた印だけが付く */
-  writeActorKana(results: readonly ActorKanaResult[]): Promise<WriteActorKanaResponse> {
-    return this.#send<WriteActorKanaResponse>("POST", "/api/admin/actor-kana", results);
+  writeActorKana(
+    results: readonly ActorKanaResult[],
+  ): Promise<AdminResponse<"POST /api/admin/actor-kana">> {
+    return this.#send("POST /api/admin/actor-kana", [...results]);
   }
 
   /**
@@ -325,19 +177,21 @@ export class AdminApiClient {
    * 声優起点の走行ではここを埋められない。ストアの検索結果には売っている作品しか
    * 出ないので、買えなくなった作品は検索から消える (`crawler/delist.ts`)
    */
-  recordDelistings(items: readonly Delisting[]): Promise<RecordDelistingsResponse> {
-    return this.#send<RecordDelistingsResponse>("POST", "/api/admin/delistings", items);
+  recordDelistings(
+    items: readonly Delisting[],
+  ): Promise<AdminResponse<"POST /api/admin/delistings">> {
+    return this.#send("POST /api/admin/delistings", [...items]);
   }
 
   /** 付加情報 (かな、表示用ローマ字) を出どころ付きで書く */
   writeActorAttributes(
     seeds: readonly ActorAttributeSeed[],
-  ): Promise<{ written: number; skipped: number }> {
-    return this.#send("POST", "/api/admin/actor-attributes", seeds);
+  ): Promise<AdminResponse<"POST /api/admin/actor-attributes">> {
+    return this.#send("POST /api/admin/actor-attributes", [...seeds]);
   }
 
-  ingest(payload: IngestPayload): Promise<IngestResponse> {
-    return this.#send<IngestResponse>("POST", "/api/admin/ingest", payload);
+  ingest(payload: IngestPayload): Promise<AdminResponse<"POST /api/admin/ingest">> {
+    return this.#send("POST /api/admin/ingest", payload);
   }
 
   /**
@@ -348,15 +202,31 @@ export class AdminApiClient {
    * 居なくても保存するので、混ぜると一覧の情報だけで保存してしまう
    */
   async knownIds(storeSlug: StoreSlug, includeScreened = false): Promise<Set<string>> {
-    const query = `store=${storeSlug}${includeScreened ? "&screened=1" : ""}`;
-    const ids = await this.#send<unknown>("GET", `/api/admin/known-ids?${query}`);
+    const ids = await this.#send("GET /api/admin/known-ids", {
+      store: storeSlug,
+      screened: includeScreened,
+    });
     if (!Array.isArray(ids)) throw new AdminApiError("known-ids が配列を返さなかった");
     return new Set(ids.filter((id): id is string => typeof id === "string"));
   }
 
-  async #send<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  /**
+   * 呼べるのは `AdminApi` にあるエンドポイントだけ。送る形と受け取る形もそこから決まるので、
+   * サーバーの検証と違う形をここで組むと型検査で落ちる
+   */
+  async #send<K extends AdminEndpoint>(
+    endpoint: K,
+    request: AdminRequest<K>,
+  ): Promise<AdminResponse<K>> {
+    const [method, route] = splitEndpoint(endpoint);
+    const path = method === "GET" ? `${route}${toQueryString(request as AdminQuery)}` : route;
     const url = `${this.#baseUrl}${path}`;
-    const response = await this.#sendWithRetry(method, url, path, body);
+    const response = await this.#sendWithRetry(
+      method,
+      url,
+      path,
+      method === "POST" ? request : undefined,
+    );
 
     const text = await response.text();
     if (!response.ok) {
@@ -367,7 +237,7 @@ export class AdminApiClient {
       throw new AdminApiError(detail);
     }
     try {
-      return JSON.parse(text) as T;
+      return JSON.parse(text) as AdminResponse<K>;
     } catch {
       throw new AdminApiError(`${method} ${path} の応答が JSON ではない: ${text.slice(0, 200)}`);
     }
@@ -410,6 +280,22 @@ export class AdminApiClient {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   }
+}
+
+function splitEndpoint(endpoint: AdminEndpoint): ["GET" | "POST", string] {
+  const [method, route] = endpoint.split(" ");
+  return [method === "GET" ? "GET" : "POST", route ?? ""];
+}
+
+/** 真偽は true のときだけ `=1` で載せる。受け手は `=== "1"` で読むので、false を載せても意味が無い */
+function toQueryString(query: AdminQuery): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === false) continue;
+    params.set(key, value === true ? "1" : String(value));
+  }
+  const text = params.toString();
+  return text === "" ? "" : `?${text}`;
 }
 
 function describe(error: unknown): string {

@@ -1,5 +1,6 @@
 import { desc } from "drizzle-orm";
-import type { Inquiry, InquirySubmission } from "@/domain/types";
+import type { InquirySubmission } from "@/contract";
+import type { Inquiry } from "@/domain/types";
 import { inquiries } from "../db/schema";
 import type { AppDb } from "../db/types";
 

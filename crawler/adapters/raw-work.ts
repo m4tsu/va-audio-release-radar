@@ -1,4 +1,4 @@
-import { type RawWork, rawWorkSchema } from "../../src/domain/index.ts";
+import { type RawWork, rawWorkSchema } from "../../src/contract/index.ts";
 import type { ParsedWorks } from "./types.ts";
 
 /**

@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
+import { delistingsRequestSchema } from "@/contract";
 import { requireBearer } from "@/server/auth";
 import { dataChangedHeaders } from "@/server/cache-policy";
 import { getDb } from "@/server/db/client";
-import { delistingSchema, recordDelistings } from "@/server/queries/delistings";
+import { recordDelistings } from "@/server/queries/delistings";
 import { summarizeIssues } from "@/server/validation";
 
 /**
@@ -14,8 +14,6 @@ import { summarizeIssues } from "@/server/validation";
  * (`docs/decisions/0008-no-price-no-availability.md`)。
  * ingest と同じ Bearer トークンを使う
  */
-
-const requestSchema = z.array(delistingSchema).min(1);
 
 export const Route = createFileRoute("/api/admin/delistings")({
   server: {
@@ -31,7 +29,7 @@ export const Route = createFileRoute("/api/admin/delistings")({
           return Response.json({ error: "JSON として読めない本文" }, { status: 400 });
         }
 
-        const parsed = requestSchema.safeParse(body);
+        const parsed = delistingsRequestSchema.safeParse(body);
         if (!parsed.success) {
           return Response.json(
             { error: "判定が不正", issues: summarizeIssues(parsed.error) },
