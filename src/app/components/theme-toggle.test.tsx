@@ -81,18 +81,6 @@ describe("ThemeToggle", () => {
     expect(screen.getByRole("button")).toHaveAccessibleName("Switch to dark theme");
   });
 
-  /**
-   * アイコンは CSS で出し分ける (ハイドレーションを待たずに正しい方を出すため)。
-   * 両方が DOM に居て、`dark:` バリアントで片方だけが見えることを確かめる
-   */
-  test("太陽と月の両方を描き、dark バリアントで出し分ける", () => {
-    const { container } = render(<ThemeToggle />);
-    const icons = [...container.querySelectorAll("svg")];
-    expect(icons).toHaveLength(2);
-    expect(icons[0]?.getAttribute("class")).toContain("dark:hidden");
-    expect(icons[1]?.getAttribute("class")).toContain("dark:block");
-  });
-
   test("localStorage が使えなくても描画も操作もできる", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("access denied");

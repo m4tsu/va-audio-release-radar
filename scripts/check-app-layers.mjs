@@ -9,6 +9,8 @@
 //   2. ルートが画面の状態や表示言語のフックを持たない
 //   3. ページに隣り合うテストがある
 //   4. 状態を持つ部品に隣り合うテストがある
+//   5. src/ と e2e/ のテストが見た目 (CSS の定義・class・計算済みスタイル) を確かめていない
+//      (規則は .claude/rules/testing.md)
 //
 // なぜこれを落とすか: ルートに画面が直書きされていると、画面の振る舞いを確かめる手段が
 // dev サーバーを起こす E2E しか無くなる。ページと部品に切り出してあれば jsdom で確かめられ、
@@ -54,6 +56,19 @@ const EXCLUDED_COMPONENTS = [`${COMPONENTS_DIR}/ui`];
 function isExcludedComponent(relative) {
   return EXCLUDED_COMPONENTS.some((prefix) => relative.startsWith(`${prefix}/`));
 }
+
+/**
+ * テストで見た目を確かめている印。どれも「書いた CSS がそのまま効くか」を見ていて、
+ * 落ちてもこのアプリの判断が壊れたことを知らせない
+ */
+const STYLE_ASSERTIONS = [
+  { pattern: /["'`][^"'`\n]*\.css["'`]/, what: "CSS ファイルを読んでいる" },
+  { pattern: /\bgetComputedStyle\b/, what: "計算済みスタイルを見ている" },
+  { pattern: /\.toHave(?:Style|CSS|Class)\s*\(/, what: "スタイルか class を見ている" },
+  { pattern: /\bgetAttribute\(\s*["']class["']\s*\)/, what: "class を見ている" },
+];
+
+const STYLE_CHECK_DIRS = ["src", "e2e"];
 
 function* walk(cwd, relative) {
   const absolute = path.join(cwd, relative);
@@ -176,6 +191,44 @@ export function findMissingComponentTests(cwd) {
   return findings;
 }
 
+/** CSS のパスは文字列で現れるので文字列は残し、コメントだけを落として行ごとに見る */
+export function findStyleAssertions(relative, text) {
+  const findings = [];
+  const lines = text
+    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "))
+    .split("\n");
+  for (const [index, line] of lines.entries()) {
+    const code = line.replace(/^\s*\/\/.*$/, "");
+    for (const { pattern, what } of STYLE_ASSERTIONS) {
+      if (!pattern.test(code)) continue;
+      findings.push({
+        file: relative,
+        line: index + 1,
+        label: "テストが見た目を確かめている",
+        excerpt: `${what}。このアプリの判断を確かめるテストに書き換えるか消すこと`,
+      });
+    }
+  }
+  return findings;
+}
+
+/** e2e/ は `*.spec.ts` と共通の道具のどちらにも確かめが入るので、ソースを全部見る */
+function isStyleCheckTarget(relative) {
+  return relative.startsWith("e2e/") ? relative.endsWith(".ts") : isTest(relative);
+}
+
+export function findStyleAssertionsIn(cwd) {
+  const findings = [];
+  for (const dir of STYLE_CHECK_DIRS) {
+    for (const relative of walk(cwd, dir)) {
+      if (!isStyleCheckTarget(relative)) continue;
+      const text = readFileSync(path.join(cwd, relative), "utf8");
+      findings.push(...findStyleAssertions(relative, text));
+    }
+  }
+  return findings;
+}
+
 export function run({ cwd = process.cwd() } = {}) {
   const findings = [];
 
@@ -184,7 +237,11 @@ export function run({ cwd = process.cwd() } = {}) {
     if (!DOCUMENT_ROUTES.has(relative)) findings.push(...findHtmlJsx(relative, text));
     findings.push(...findRouteHooks(relative, text));
   }
-  findings.push(...findMissingPageTests(cwd), ...findMissingComponentTests(cwd));
+  findings.push(
+    ...findMissingPageTests(cwd),
+    ...findMissingComponentTests(cwd),
+    ...findStyleAssertionsIn(cwd),
+  );
 
   if (findings.length === 0) {
     return { code: 0, findings, message: "画面の層の検査: 問題なし" };
@@ -199,6 +256,7 @@ export function run({ cwd = process.cwd() } = {}) {
       "",
       "規則は .claude/rules/frontend.md にある。ルートは loader と head だけを持ち、",
       "画面は src/app/pages/ に置いて隣にテストを書く。",
+      "テストで見た目を確かめない理由は .claude/rules/testing.md にある。",
     ].join("\n"),
   };
 }

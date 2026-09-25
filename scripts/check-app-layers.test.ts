@@ -11,6 +11,7 @@ import {
   findMissingComponentTests,
   findMissingPageTests,
   findRouteHooks,
+  findStyleAssertions,
   run,
   stripCommentsAndStrings,
 } from "./check-app-layers.mjs";
@@ -203,5 +204,52 @@ describe("stripCommentsAndStrings", () => {
 
   it("行コメントは落とす", () => {
     expect(stripCommentsAndStrings("const a = 1; // <div /> を移した")).not.toContain("<div");
+  });
+});
+
+describe("findStyleAssertions", () => {
+  it.each([
+    ['const css = readFileSync("../../index.css", "utf8");', "CSS ファイル"],
+    ["expect(getComputedStyle(el).color).toBe(x);", "計算済みスタイル"],
+    ['expect(el).toHaveStyle({ color: "red" });', "スタイルか class"],
+    ['await expect(link).toHaveCSS("color", x);', "スタイルか class"],
+    ["await expect(link).toHaveClass(/underline/);", "スタイルか class"],
+    ['expect(icon.getAttribute("class")).toContain("dark:hidden");', "class"],
+  ])("%s を拾う", (line, what) => {
+    const found = findStyleAssertions("src/app/components/x.test.tsx", `import x;\n${line}`);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.line).toBe(2);
+    expect(found[0]?.excerpt).toContain(what);
+  });
+
+  /** テーマの切り替えは、このアプリが html の class を変えるという判断そのもの */
+  it("html の .dark を見るテストは通す", () => {
+    const text = 'expect(document.documentElement.classList.contains("dark")).toBe(true);';
+    expect(findStyleAssertions("src/app/hooks/use-theme.test.ts", text)).toEqual([]);
+  });
+
+  it("コメントの中の語は拾わない", () => {
+    const text = "// src/index.css を読まない\n/**\n * getComputedStyle は使わない\n */\nconst a = 1;";
+    expect(findStyleAssertions("src/app/components/x.test.tsx", text)).toEqual([]);
+  });
+});
+
+describe("run の見た目の検査", () => {
+  it("src/ のテストと e2e/ が見た目を確かめていれば落とす", () => {
+    const cwd = makeRepo({
+      "src/app/components/x.test.tsx": 'expect(el).toHaveClass("a");',
+      "e2e/helpers.ts": 'await expect(link).toHaveCSS("color", x);',
+    });
+    const result = run({ cwd });
+    expect(result.code).toBe(1);
+    expect(result.findings.map((f) => f.file).sort()).toEqual([
+      "e2e/helpers.ts",
+      "src/app/components/x.test.tsx",
+    ]);
+  });
+
+  it("テストでないソースは見ない", () => {
+    const cwd = makeRepo({ "src/app/main.tsx": 'import "./index.css";' });
+    expect(run({ cwd }).code).toBe(0);
   });
 });

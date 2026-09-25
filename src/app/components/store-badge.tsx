@@ -15,7 +15,7 @@ export const STORE_LABELS: Record<StoreSlug, string> = {
  * 分けて読めるようにする。ストア同士も色相を分け、同じストアはどの画面でも同じ色になる。
  * 色の値は `src/index.css` のトークンが持ち、ライトとダークで明度が入れ替わる
  */
-export const STORE_TONES: Record<StoreSlug, string> = {
+const STORE_TONES: Record<StoreSlug, string> = {
   dlsite: "border-store-dlsite/40 bg-store-dlsite/10 text-store-dlsite",
   audible: "border-store-audible/40 bg-store-audible/10 text-store-audible",
   pokedora: "border-store-pokedora/40 bg-store-pokedora/10 text-store-pokedora",
