@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
   adjacentSeasons,
-  currentSeason,
   featuredSeason,
   parseSeasonSlug,
   seasonLabel,
@@ -59,48 +58,6 @@ describe("adjacentSeasons", () => {
   /** 一覧に無いシーズン (作品が 1 件も無い期) を直に開いたとき */
   test("並びに無いシーズンでは前後を出さない", () => {
     expect(adjacentSeasons(SEASONS, { seasonYear: 2025, season: "SUMMER" })).toEqual({});
-  });
-});
-
-describe("currentSeason", () => {
-  test("月からシーズンを決める", () => {
-    expect(currentSeason(new Date("2026-01-15T00:00:00Z"))).toEqual({
-      seasonYear: 2026,
-      season: "WINTER",
-    });
-    expect(currentSeason(new Date("2026-04-01T00:00:00Z"))).toEqual({
-      seasonYear: 2026,
-      season: "SPRING",
-    });
-    expect(currentSeason(new Date("2026-09-20T00:00:00Z"))).toEqual({
-      seasonYear: 2026,
-      season: "SUMMER",
-    });
-    expect(currentSeason(new Date("2026-12-31T00:00:00Z"))).toEqual({
-      seasonYear: 2026,
-      season: "FALL",
-    });
-  });
-
-  /** 動かす場所の時刻帯で結果が変わらないよう、日本時間の暦日で決める */
-  test("日本時間で日付が変わった時点で次のシーズンに移る", () => {
-    // 日本時間の 2026-10-01 00:00 (UTC では 9 月 30 日)
-    expect(currentSeason(new Date("2026-09-30T15:00:00Z"))).toEqual({
-      seasonYear: 2026,
-      season: "FALL",
-    });
-    expect(currentSeason(new Date("2026-09-30T14:59:59Z"))).toEqual({
-      seasonYear: 2026,
-      season: "SUMMER",
-    });
-  });
-
-  test("年をまたぐ", () => {
-    // 日本時間の 2027-01-01 00:00
-    expect(currentSeason(new Date("2026-12-31T15:00:00Z"))).toEqual({
-      seasonYear: 2027,
-      season: "WINTER",
-    });
   });
 });
 

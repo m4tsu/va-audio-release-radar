@@ -9,4 +9,5 @@ export * from "./actor-slug.ts";
 export * from "./category.ts";
 export * from "./identity.ts";
 export * from "./normalize.ts";
+export * from "./season.ts";
 export * from "./types.ts";

@@ -1,7 +1,14 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { ANIME_FORMATS, type AnimeFormat, type VoiceActorGender } from "../../src/domain/index.ts";
+import {
+  ANIME_FORMATS,
+  ANIME_SEASONS,
+  type AnimeFormat,
+  type AnimeSeason,
+  seasonAt,
+  type VoiceActorGender,
+} from "../../src/domain/index.ts";
 import { fetchText } from "../lib/fetch.ts";
 import { SNAPSHOT_DIR, safeFileName } from "../lib/paths.ts";
 
@@ -20,9 +27,11 @@ import { SNAPSHOT_DIR, safeFileName } from "../lib/paths.ts";
 const ENDPOINT = "https://graphql.anilist.co";
 const STORE = "anilist";
 
-export const ANILIST_SEASONS = ["WINTER", "SPRING", "SUMMER", "FALL"] as const;
-export type AniListSeason = (typeof ANILIST_SEASONS)[number];
+/** AniList の季節の並び。画面と同じ列挙を使う */
+const ANILIST_SEASONS = ANIME_SEASONS;
+type AniListSeason = AnimeSeason;
 
+/** AniList の問い合わせと取り込み API が使う形 (`year`)。画面側の `SeasonKey` とは項目名が違う */
 export type SeasonKey = { year: number; season: AniListSeason };
 
 /** "2026 SUMMER" のような人が読む表記 */
@@ -35,18 +44,12 @@ export function seasonOrder(key: SeasonKey): number {
   return key.year * 4 + ANILIST_SEASONS.indexOf(key.season);
 }
 
-/**
- * その日が属するシーズン。AniList の季節は 1-3 月 WINTER / 4-6 月 SPRING /
- * 7-9 月 SUMMER / 10-12 月 FALL
- */
+/** その日時が属するシーズン。判定の規則 (日本時間の暦日) は画面と共通の `seasonAt` が持つ */
 export function seasonOfDate(isoDate: string): SeasonKey {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) throw new Error(`日付として読めない: ${isoDate}`);
-  const year = date.getUTCFullYear();
-  const index = Math.floor(date.getUTCMonth() / 3);
-  const season = ANILIST_SEASONS[index];
-  if (season === undefined) throw new Error(`季節を決められない: ${isoDate}`);
-  return { year, season };
+  const { seasonYear, season } = seasonAt(date);
+  return { year: seasonYear, season };
 }
 
 /**
@@ -86,7 +89,8 @@ export function enumerateSeasons(from: SeasonKey, to: SeasonKey): SeasonKey[] {
 
 /**
  * シーズンの人気順 media と、その出演声優。
- * `node { id }` を外すと voiceActors が null になるので消さないこと (上のコメント参照)
+ * `node { id }` を外すと voiceActors が null になるので消さないこと (上のコメント参照)。
+ * `isAdult: false` は成人向けアニメを対象集合に入れないため。外さない
  */
 export const SEASON_PAGE_QUERY = `query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
   Page(page: $page, perPage: 50) {

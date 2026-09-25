@@ -567,7 +567,7 @@ function withinPeriod(now: string, sinceDays: number) {
 export type CrawlBaselines = Map<string, string>;
 
 function baselineKey(voiceActorId: string, storeSlug: StoreSlug): string {
-  return `${voiceActorId} ${storeSlug}`;
+  return `${voiceActorId}\u0000${storeSlug}`;
 }
 
 /**

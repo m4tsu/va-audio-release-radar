@@ -11,6 +11,7 @@ import {
   loadPokedoraDirectory,
   lookupActor,
 } from "./discovery/pokedora-directory.ts";
+import { asString } from "./lib/cli.ts";
 import {
   AdminApiClient,
   AdminApiError,
@@ -777,7 +778,9 @@ async function loadKnownIds(
 }
 
 /**
- * 取り終えた作品を既知集合に足す。
+ * 取り終えた作品を既知集合に足す。1 作品に十数名が出る BL ドラマ CD で、同じ詳細ページを
+ * 出演者の人数ぶん引き直さないため。credit は作品に紐づいて保存済みなので、2 人目以降で
+ * 詳細を飛ばしても出演者は落ちない。
  *
  * `--no-skip-known` を指定した走行では `knownIds` に集合そのものが無いので何もしない。
  * 「毎回すべて取り直す」という指定を、走行の途中から勝手に外さないため
@@ -790,10 +793,6 @@ export function markFetched(
   const known = knownIds.get(storeSlug);
   if (known === undefined) return;
   for (const work of works) known.add(work.storeProductId);
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 // 直接実行されたときだけ動かす (テストから import しても main が走らないようにするため)

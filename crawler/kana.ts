@@ -4,6 +4,7 @@ import type { ActorKanaResult, KanaTarget } from "../src/contract/index.ts";
 import type { ActorKanaRecord } from "./discovery/actor-kana.ts";
 import { fetchActorKana, stopReasonFor } from "./discovery/wikipedia-kana.ts";
 import { NO_KANA_REASON, refillActorKana } from "./discovery/wikipedia-kana-refill.ts";
+import { asString } from "./lib/cli.ts";
 import { AdminApiClient } from "./lib/ingest.ts";
 
 /**
@@ -195,10 +196,6 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   // 中断は失敗として返す。0 を返すと、締め出されたことに誰も気づかない
   return stopped ? 1 : 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 // 直接実行されたときだけ動かす (テストから import しても main が走らないようにするため)

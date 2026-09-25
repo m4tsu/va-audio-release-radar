@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import type { Delisting } from "../src/contract/index.ts";
 import { buildProductJsonUrl, isDelisted, parseProductJson } from "./adapters/dlsite.ts";
+import { asString } from "./lib/cli.ts";
 import { fetchText } from "./lib/fetch.ts";
 import { AdminApiClient } from "./lib/ingest.ts";
 
@@ -193,10 +194,6 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   return stopped ? 1 : 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 function nonNegativeInteger(

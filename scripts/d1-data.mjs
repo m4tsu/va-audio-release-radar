@@ -96,6 +96,10 @@ export function isExcludedRow(table, row, excludeStores) {
  * 全データ表の中身を INSERT 文にして返す。表は外部キーの親から順。
  * `onlyTables` を渡すとその表だけを書き出す (親の順序は保つ)。
  * 返り値の `counts` は表ごとの書き出した行数で、流し込んだ後の件数照合に使う
+ *
+ * @param {import("node:sqlite").DatabaseSync} db
+ * @param {{ excludeStores?: string[]; onlyTables?: string[] }} [options]
+ * @returns {{ sql: string; tables: string[]; counts: Record<string, number> }}
  */
 export function exportSql(db, { excludeStores = [], onlyTables } = {}) {
   const all = listDataTables(db);

@@ -18,12 +18,9 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: [
-            "src/domain/**/*.test.ts",
-            "src/server/**/*.test.ts",
-            "crawler/**/*.test.ts",
-            "scripts/**/*.test.ts",
-          ],
+          // src はディレクトリを列挙せず app 以外をすべて拾う。足したディレクトリのテストが黙って走らないのを防ぐ
+          include: ["src/**/*.test.ts", "crawler/**/*.test.ts", "scripts/**/*.test.ts"],
+          exclude: ["src/app/**", "**/node_modules/**"],
         },
       },
       {

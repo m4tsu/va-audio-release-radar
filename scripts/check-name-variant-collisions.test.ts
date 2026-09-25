@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-// @ts-expect-error -- 検査スクリプトは .mjs で型定義を持たない
 import { inspect } from "./check-name-variant-collisions.mjs";
 
 type Rows = {

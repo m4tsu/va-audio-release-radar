@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { crawlAniList, recentSeasons, seasonLabel } from "./discovery/anilist.ts";
 import { buildAniListPayloadsBySeason } from "./discovery/anilist-payload.ts";
+import { asString } from "./lib/cli.ts";
 import { AdminApiClient, AdminApiError, IngestProtocolMismatchError } from "./lib/ingest.ts";
 
 /**
@@ -17,9 +18,6 @@ import { AdminApiClient, AdminApiError, IngestProtocolMismatchError } from "./li
  * 初めて見た声優の slug は応答に入る。`--new-actors-out` を渡すとその一覧をファイルに書くので、
  * 続けて `node crawler/run.ts --only "$(cat <file>)"` に渡せば、その人だけを
  * 3 ストアで 1 回ずつ引ける (`docs/decisions/0007-daily-crawl-from-store-feeds.md` の「シーズンごと」)。
- *
- * 研究スパイク (`crawler/discovery/run.ts`) とは別物。あちらは実行日を固定して
- * 測定を再現するためのもので、この経路からは呼ばない
  */
 
 /** 対象シーズン数。12 シーズン = 3 年 (docs/decisions/0001-target-actors-from-anilist.md) */
@@ -228,10 +226,6 @@ export async function main(argv: readonly string[]): Promise<number> {
   // 取り込みが通ったら成功にする。警告は出したうえで 0 を返す。
   // 1 ページの取得に失敗しただけで失敗にすると、台帳には入ったのに後続の巡回が飛ぶ
   return 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 /** 1 以上の整数。指定が無ければ既定値、読めなければ undefined */

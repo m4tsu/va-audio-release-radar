@@ -10,6 +10,7 @@ import { audibleAdapter } from "./adapters/audible.ts";
 import { dlsiteAdapter } from "./adapters/dlsite.ts";
 import { pokedoraAdapter } from "./adapters/pokedora.ts";
 import type { FeedResult, SourceAdapter } from "./adapters/types.ts";
+import { asString } from "./lib/cli.ts";
 import {
   AdminApiClient,
   AdminApiError,
@@ -287,10 +288,6 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   return outcomes.some((outcome) => outcome.status === "error") ? 1 : 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 // 直接実行されたときだけ動かす (テストから import しても main が走らないようにするため)

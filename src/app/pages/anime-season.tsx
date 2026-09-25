@@ -12,9 +12,10 @@ import {
   isAnimeSort,
   sortSeasonAnime,
 } from "@/app/lib/anime-directory";
-import { type SeasonKey, seasonLabel, toSeasonSlug } from "@/app/lib/season";
+import { seasonLabel, toSeasonSlug } from "@/app/lib/season";
 import type { SeasonAnime } from "@/app/lib/view-types";
 import { useFollowStore } from "@/app/store/follow-store";
+import type { SeasonKey } from "@/domain/season";
 import type { AnimeSeason } from "@/domain/types";
 
 /**

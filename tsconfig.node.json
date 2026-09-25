@@ -5,6 +5,9 @@
     "lib": ["ES2023"],
     "types": ["node"],
     "skipLibCheck": true,
+    "strict": true,
+    // scripts/ のテストが import する .mjs の型を推論させる。.mjs 自体は検査しない
+    "allowJs": true,
 
     "module": "nodenext",
     "allowImportingTsExtensions": true,
@@ -17,5 +20,11 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts", "drizzle.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "drizzle.config.ts",
+    "scripts/**/*.test.ts"
+  ]
 }

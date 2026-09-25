@@ -5,8 +5,9 @@ import { AnimeSearch } from "@/app/components/anime-search";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
 import { useLocale, useT } from "@/app/i18n";
-import { type SeasonKey, seasonLabel, toSeasonSlug } from "@/app/lib/season";
+import { seasonLabel, toSeasonSlug } from "@/app/lib/season";
 import type { AnimeSeasonEntry, AnimeSummary } from "@/app/lib/view-types";
+import type { SeasonKey } from "@/domain/season";
 
 /**
  * アニメ導線の入口。放送中シーズンの抜粋、アニメ名の検索、出せる作品があるシーズンの索引。

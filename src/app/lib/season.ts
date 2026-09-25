@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, type Locale, translate } from "@/app/i18n";
+import { type SeasonKey, seasonAt } from "@/domain/season";
 import type { AnimeSeason } from "@/domain/types";
 import { ANIME_SEASONS, seasonOrder } from "@/domain/types";
 
@@ -48,32 +49,6 @@ export function parseSeasonSlug(
   return { seasonYear: year, season };
 }
 
-/** 年とシーズンだけを持つもの。前後を決めるのに要るのはこの 2 つだけ */
-export type SeasonKey = { seasonYear: number; season: AnimeSeason };
-
-/** 日本時間と UTC の差。日付からシーズンを決めるのに使う */
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-/**
- * その時点で放送中のシーズン。1〜3 月が冬、4〜6 月が春、7〜9 月が夏、10〜12 月が秋。
- *
- * 日本時間の暦日で決める。UTC のままだと 10 月 1 日の朝 9 時まで夏のままになる。
- * `getMonth()` のような時刻帯ごとに変わる読み方をしないのは、動かす場所
- * (Workers は UTC、手元は地域の時刻帯) で結果を変えないため
- */
-export function currentSeason(now: Date): SeasonKey {
-  const jst = new Date(now.getTime() + JST_OFFSET_MS);
-  return { seasonYear: jst.getUTCFullYear(), season: seasonOfMonth(jst.getUTCMonth()) };
-}
-
-/** 0 起点の月 (0 = 1 月) からシーズンを決める */
-function seasonOfMonth(month: number): AnimeSeason {
-  if (month < 3) return "WINTER";
-  if (month < 6) return "SPRING";
-  if (month < 9) return "SUMMER";
-  return "FALL";
-}
-
 /**
  * `/anime` の先頭に出すシーズン。放送中のシーズンを出し、そこに出せる作品が無ければ
  * 古い方向でいちばん新しいシーズンを出す。
@@ -85,7 +60,7 @@ function seasonOfMonth(month: number): AnimeSeason {
 export function featuredSeason(seasons: readonly SeasonKey[], now: Date): SeasonKey | undefined {
   // 引数の並び順に頼らない (`adjacentSeasons` と同じ理由)
   const sorted = [...seasons].sort((a, b) => seasonOrder(a) - seasonOrder(b));
-  const current = seasonOrder(currentSeason(now));
+  const current = seasonOrder(seasonAt(now));
   const picked = sorted.findLast((item) => seasonOrder(item) <= current) ?? sorted[0];
   return picked ? { seasonYear: picked.seasonYear, season: picked.season } : undefined;
 }
