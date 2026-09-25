@@ -1,15 +1,5 @@
-import { pathToFileURL } from "node:url";
-import { parseArgs } from "node:util";
-import { type FetchFailure, fetchText, rateLimitFor } from "../lib/fetch.ts";
-import { AdminApiClient } from "../lib/ingest.ts";
-import { writeJsonAtomic } from "../lib/json-file.ts";
-import {
-  type ActorKanaCache,
-  type ActorKanaRecord,
-  KANA_JSON,
-  pendingNames,
-  readKanaCache,
-} from "./actor-kana.ts";
+import { type FetchFailure, fetchText } from "../lib/fetch.ts";
+import type { ActorKanaRecord } from "./actor-kana.ts";
 import {
   articleTitles,
   articleUrl,
@@ -20,83 +10,22 @@ import {
 } from "./wikipedia-article.ts";
 
 /**
- * 日本語版 Wikipedia から対象声優のかなを取る (取得だけ。DB には書かない)。
- *
- *   INGEST_TOKEN=dev node crawler/discovery/wikipedia-kana.ts \
- *     --base-url http://localhost:5199 --limit 20
+ * 日本語版 Wikipedia から声優 1 人ぶんのかなを取る (取得だけ。DB には書かない)。
  *
  * 1 人につき `/wiki/<名前>` を引き、取れなければ `/wiki/<名前>_(声優)` で引き直す。
- * 5 秒間隔なので全員だと数時間かかる。既定で前回の続きから進み、取得済みの人は引き直さない。
- * 取れなかった人はかな無しのまま次へ進む。
+ * 誰を引くか・結果をどこへ送るかは呼び出し側 (`crawler/kana.ts`) が決める。
  *
  * サイトの制約 (robots.txt・UA・使ってよい URL) は `docs/stores/wikimedia.md`、
- * 取ってよい記事の条件は `docs/research/actor-kana-sources-2026-09-20.md`。
- * **台帳には入れない。**結果は `crawler/.cache/discovery/wikipedia-kana.json` に置くだけで、
- * 取得率や落ちた理由を数えるための道具 (測定は `docs/research/`)。
- * 台帳へ入れる定常の経路は `crawler/kana.ts` で、こちらは同じ `fetchActorKana` を呼ぶ
+ * 取ってよい記事の条件は `docs/research/actor-kana-sources-2026-09-20.md`
  */
 
 const STORE = "wikimedia";
 
-/** 何人ごとに進捗を出すか */
-const PROGRESS_EVERY = 20;
 /** 同じ失敗がこれだけ続いたら、相手の状態が変わったとみなして止める */
 const CONSECUTIVE_FAILURE_LIMIT = 10;
 const NOT_FOUND = 404;
 const FORBIDDEN = 403;
 const TOO_MANY_REQUESTS = 429;
-/**
- * 進捗の見込みに使う 1 人あたりの時間。間隔は `rateLimitFor()` が持つので、そこから読む。
- * 記事が無い人は `_(声優)` で 2 回引くため、実際はこの見込みより長くかかる
- */
-function estimatedMsPerActor(): number {
-  return rateLimitFor(articleUrl("上田麗奈")).intervalMs;
-}
-
-// --- 結果 ------------------------------------------------------------------
-
-export function summarizeRecords(records: readonly ActorKanaRecord[]): {
-  total: number;
-  ok: number;
-  rejected: number;
-  notFound: number;
-  failed: number;
-  bySource: Record<string, number>;
-  byReason: Record<string, number>;
-} {
-  const bySource: Record<string, number> = {};
-  const byReason: Record<string, number> = {};
-  let ok = 0;
-  let rejected = 0;
-  let notFound = 0;
-  let failed = 0;
-  for (const record of records) {
-    if (record.status === "ok") {
-      ok += 1;
-      const source = record.source ?? "unknown";
-      bySource[source] = (bySource[source] ?? 0) + 1;
-      continue;
-    }
-    if (record.status === "rejected") rejected += 1;
-    else if (record.status === "not-found") notFound += 1;
-    else failed += 1;
-    const reason = record.reason ?? "unknown";
-    byReason[reason] = (byReason[reason] ?? 0) + 1;
-  }
-  return { total: records.length, ok, rejected, notFound, failed, bySource, byReason };
-}
-
-// --- 入出力 ----------------------------------------------------------------
-
-/** 台帳から、引く相手の名前だけ取る */
-export async function loadCanonicalNames(client: AdminApiClient): Promise<string[]> {
-  const entries = await client.listActors();
-  return entries
-    .map((entry) => entry.canonicalName)
-    .filter((name) => typeof name === "string" && name !== "");
-}
-
-// --- 取得 ------------------------------------------------------------------
 
 /** 呼び出し側に止める理由を返す。403 / 429 と連続失敗は相手の状態が変わった合図 */
 export type StopReason = {
@@ -214,184 +143,4 @@ function failureRecord(
     reason: result.reason,
     fetchedAt,
   };
-}
-
-/** 取得でも解析でもない例外 (ディスク書き込みなど) を、失敗した 1 人として残す */
-function errorRecord(canonicalName: string, error: unknown): ActorKanaRecord {
-  return {
-    canonicalName,
-    status: "failed",
-    reason: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    fetchedAt: new Date().toISOString(),
-  };
-}
-
-export async function crawlActorKana(options: {
-  canonicalNames: readonly string[];
-  cache: ActorKanaCache;
-  outFile: string;
-  snapshot?: boolean;
-  onProgress?: (done: number, totalToFetch: number) => void;
-}): Promise<{ stop?: StopReason }> {
-  const { cache } = options;
-  let consecutiveFailures = 0;
-  let done = 0;
-
-  for (const canonicalName of options.canonicalNames) {
-    // 1 人の例外で数時間の走行を落とさない。記録して次の人へ進む
-    const record = await fetchActorKana(canonicalName, { snapshot: options.snapshot }).catch(
-      (error: unknown) => errorRecord(canonicalName, error),
-    );
-    cache.records.push(record);
-    cache.updatedAt = record.fetchedAt;
-    await writeJsonAtomic(options.outFile, cache);
-    done += 1;
-    options.onProgress?.(done, options.canonicalNames.length);
-
-    consecutiveFailures = record.status === "failed" ? consecutiveFailures + 1 : 0;
-    const stop = stopReasonFor(record, consecutiveFailures);
-    if (stop !== undefined) return { stop };
-  }
-
-  return {};
-}
-
-// --- CLI -------------------------------------------------------------------
-
-const USAGE = `使い方:
-  node crawler/discovery/wikipedia-kana.ts [オプション]
-
-オプション:
-  --base-url <URL> 台帳の場所。環境変数 INGEST_URL でも指定できる (INGEST_TOKEN も要る)
-  --out <path>     結果の置き場所 (既定 crawler/.cache/discovery/wikipedia-kana.json)
-  --limit <N>      この人数だけ引いて終わる (既定: 残り全員)
-  --restart        前回の結果を捨てて最初から引き直す (既定は続きから)
-  --retry-failed   前回 failed だった人を引き直す (記事が無い人・条件を満たさない人は引き直さない)
-  --snapshot       記事 HTML を .cache/snapshots に残す (1 件 1MB 超)
-`;
-
-const OPTION_SPEC = {
-  "base-url": { type: "string" },
-  out: { type: "string" },
-  limit: { type: "string" },
-  restart: { type: "boolean" },
-  "retry-failed": { type: "boolean" },
-  snapshot: { type: "boolean" },
-  help: { type: "boolean", short: "h" },
-} as const;
-
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.round(ms / 60_000);
-  return `${Math.floor(totalMinutes / 60)} 時間 ${totalMinutes % 60} 分`;
-}
-
-export async function main(argv: readonly string[]): Promise<number> {
-  let values: Record<string, string | boolean | undefined>;
-  try {
-    values = parseArgs({ args: [...argv], options: OPTION_SPEC, allowPositionals: false }).values;
-  } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`);
-    return 1;
-  }
-  if (values.help === true) {
-    process.stdout.write(USAGE);
-    return 0;
-  }
-
-  const baseUrl = asString(values["base-url"]) ?? process.env.INGEST_URL;
-  const token = process.env.INGEST_TOKEN;
-  if (baseUrl === undefined || baseUrl === "" || token === undefined || token === "") {
-    process.stderr.write(`--base-url (か INGEST_URL) と INGEST_TOKEN が要る\n\n${USAGE}`);
-    return 1;
-  }
-  const outFile = asString(values.out) ?? KANA_JSON;
-  const limitOption = asString(values.limit);
-  const limit = limitOption === undefined ? undefined : Number(limitOption);
-  if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
-    process.stderr.write(`--limit は 1 以上の整数を指定する: ${limitOption}\n`);
-    return 1;
-  }
-  // 既定はスナップショット無し。記事 1 件が 1MB 超あり、全員ぶん残すと数 GB になる。
-  // 判定に使った事実は結果の JSON に残るので、再現性はそちらで担保する
-  const snapshot = values.snapshot === true;
-  const startedAt = Date.now();
-
-  const canonicalNames = await loadCanonicalNames(new AdminApiClient(baseUrl, token));
-  process.stdout.write(`対象声優を台帳から読んだ: ${canonicalNames.length} 人\n`);
-
-  const existing = values.restart === true ? undefined : await readKanaCache(outFile);
-  const cache: ActorKanaCache = existing ?? {
-    startedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    records: [],
-  };
-  if (existing !== undefined) {
-    if (values["retry-failed"] === true) {
-      const before = cache.records.length;
-      cache.records = cache.records.filter((record) => record.status !== "failed");
-      process.stdout.write(`  前回の失敗 ${before - cache.records.length} 人を引き直す\n`);
-    }
-    process.stdout.write(`  続きから: 取得済み ${cache.records.length} 人を飛ばす\n`);
-  }
-
-  const pending = pendingNames(canonicalNames, cache.records, limit);
-
-  process.stdout.write(
-    `これから引く: ${pending.length} 人 (最短 ${formatDuration(pending.length * estimatedMsPerActor())})\n`,
-  );
-
-  const { stop } = await crawlActorKana({
-    canonicalNames: pending,
-    cache,
-    outFile,
-    snapshot,
-    onProgress: (done, totalToFetch) => {
-      if (done % PROGRESS_EVERY !== 0 && done !== totalToFetch) return;
-      const summary = summarizeRecords(cache.records);
-      const elapsed = Date.now() - startedAt;
-      const remaining = ((totalToFetch - done) * elapsed) / Math.max(done, 1);
-      process.stdout.write(
-        `[${done}/${totalToFetch}] 累計 ${summary.total}/${canonicalNames.length} ` +
-          `かな ${summary.ok} / 条件外 ${summary.rejected} / 記事なし ${summary.notFound} / ` +
-          `失敗 ${summary.failed} (経過 ${formatDuration(elapsed)} / 残り ${formatDuration(remaining)})\n`,
-      );
-    },
-  });
-
-  const summary = summarizeRecords(cache.records);
-  process.stdout.write("\n");
-  process.stdout.write(`結果: ${outFile}\n`);
-  process.stdout.write(`  対象 ${canonicalNames.length} 人中 ${summary.total} 人を処理\n`);
-  process.stdout.write(`  かなが取れた: ${summary.ok} ${JSON.stringify(summary.bySource)}\n`);
-  process.stdout.write(`  条件を満たさない: ${summary.rejected}\n`);
-  process.stdout.write(`  記事が無い: ${summary.notFound}\n`);
-  process.stdout.write(`  取得に失敗: ${summary.failed}\n`);
-  process.stdout.write(`  理由の内訳: ${JSON.stringify(summary.byReason)}\n`);
-  process.stdout.write(`  所要: ${formatDuration(Date.now() - startedAt)}\n`);
-
-  if (stop !== undefined) {
-    process.stderr.write(`\n中断しました (${stop.kind}): ${stop.detail}\n`);
-    process.stderr.write("もう一度実行すると続きから再開できます\n");
-    return 1;
-  }
-  return 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-// 直接実行されたときだけ動かす。テストから import しても走らないようにするため
-const isDirectRun =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (isDirectRun) {
-  main(process.argv.slice(2))
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 1;
-    });
 }

@@ -9,16 +9,15 @@
 // 依存追加はしない。Node 24 標準の node:sqlite (DatabaseSync) でローカル D1 の
 // sqlite ファイルを読み取り専用で開くだけ。書き込みは一切行わない。
 
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
+import { D1_STATE_DIR as DEFAULT_D1_STATE_DIR, findD1SqliteFile } from "./local-d1.mjs";
 
 const MIGRATION_FILE_RE = /^\d{4}_.*\.sql$/;
 
 const DEFAULT_MIGRATIONS_DIR = "migrations";
-// miniflare (wrangler --local) が D1 の sqlite を書き出す場所
-const DEFAULT_D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
 
 /**
  * 環境変数で上書きできるパスを解決する。テストでは実際の .wrangler や
@@ -36,23 +35,6 @@ export function listMigrationFiles(migrationsDir) {
   return readdirSync(migrationsDir)
     .filter((name) => MIGRATION_FILE_RE.test(name))
     .sort();
-}
-
-/**
- * ローカル D1 の sqlite ファイルを探す。miniflare は D1 バインディングごとに
- * ハッシュ化したファイル名の sqlite を state ディレクトリ以下に作るため、
- * ファイル名では特定できない。miniflare 自身の管理用ファイル (metadata.sqlite)
- * を除いた .sqlite の中から最終更新が一番新しいものを対象 DB とみなす。
- * 候補が無ければ「ローカル D1 がまだ存在しない」として null を返す。
- */
-export function findD1SqliteFile(d1StateDir) {
-  if (!existsSync(d1StateDir)) return null;
-  const candidates = readdirSync(d1StateDir)
-    .filter((name) => path.extname(name) === ".sqlite" && name !== "metadata.sqlite")
-    .map((name) => path.join(d1StateDir, name));
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  return candidates[0];
 }
 
 /**

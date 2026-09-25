@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { latestRunStartedAt, main } from "./d1-restore-local.mjs";
+import { main } from "./d1-restore-local.mjs";
+import { latestRunStartedAt } from "./local-d1.mjs";
 
 let tempDir: string | undefined;
 

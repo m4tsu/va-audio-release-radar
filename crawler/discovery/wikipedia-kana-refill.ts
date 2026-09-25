@@ -1,13 +1,5 @@
-import { pathToFileURL } from "node:url";
-import { parseArgs } from "node:util";
-import { type FetchResult, fetchText, rateLimitFor } from "../lib/fetch.ts";
-import { writeJsonAtomic } from "../lib/json-file.ts";
-import {
-  type ActorKanaCache,
-  type ActorKanaRecord,
-  KANA_JSON,
-  readKanaCache,
-} from "./actor-kana.ts";
+import { type FetchResult, fetchText } from "../lib/fetch.ts";
+import type { ActorKanaRecord } from "./actor-kana.ts";
 import { toStoredKana } from "./kana-text.ts";
 import { entityUrl, isEntityId, kanaClaims } from "./wikidata-entity.ts";
 import {
@@ -16,77 +8,28 @@ import {
   kanaFromArticle,
   parseArticle,
 } from "./wikipedia-article.ts";
-import { type StopReason, stopReasonFor } from "./wikipedia-kana.ts";
 
 /**
- * 「記事には辿り着いたが読みが書かれていなかった」人だけを引き直し、
+ * 「記事には辿り着いたが読みが書かれていなかった」人の記事を引き直し、
  * 記事の導入部と Wikidata から読みを埋める (取得だけ。DB には書かない)。
- *
- *   node crawler/discovery/wikipedia-kana-refill.ts --limit 5
  *
  * この人たちは `kanaFromArticle` の 3 条件 (記事名が一致する / 曖昧さ回避でない /
  * 声優のカテゴリを持つ) を通っており、**記事が本人のものであることが確認済み**で、
  * 足りないのは読みだけ。他の理由で落ちた人は、記事が本人のものかを機械で確かめられないので引かない。
- *
- * **台帳には入れない** (台帳へ入れるのは `crawler/kana.ts`。こちらは同じ `refillActorKana` を呼ぶ)。
- * 結果は `wikipedia-kana.ts` と同じ `crawler/.cache/discovery/wikipedia-kana.json` の
- * 同じ人の行を書き換える。読みが取れなかった人の理由は「読みが書かれていない」と別の文字列にするので、
- * もう一度実行しても同じ人を引き直さない。引けなかった人の行は書き換えないので、
- * もう一度実行すればその人から引き直す。
+ * どの人をここへ回すかは呼び出し側 (`crawler/kana.ts`) が `NO_KANA_REASON` で決める。
  *
  * サイトの制約 (robots.txt・UA・使ってよい URL) は `docs/stores/wikimedia.md`
  */
 
 const STORE = "wikimedia";
-/** 何人ごとに進捗を出すか */
-const PROGRESS_EVERY = 10;
 const NOT_FOUND = 404;
 
-/** 引き直す対象。`wikipedia-kana.ts` がこの理由で残した人だけを引く */
+/** 引き直す対象。`wikipedia-kana.ts` がこの理由で残した人だけを引き直す */
 export const NO_KANA_REASON = describeKanaRejection("no-kana");
-/** 引き直しても読みが無かった人。対象の理由と別の文字列にして、次の実行で引き直さない */
+/** 引き直しても読みが無かった人。対象の理由と別の文字列にして、導入部と Wikidata まで見たことを残す */
 export const REFILLED_NO_KANA_REASON = "読みが記事にも Wikidata にも無い";
 /** 導入部に読みが無く、Wikidata へ辿る項目 id も記事に無い人。項目 id が無ければ項目は引けない */
 export const NO_ENTITY_REASON = "読みが記事に無く、Wikidata の項目 id も記事に無い";
-
-/**
- * 進捗の見込みに使う 1 人あたりの時間。間隔は `rateLimitFor()` が持つので、そこから読む。
- * 導入部で取れなかった人は Wikidata も引くので、実際はこの見込みより長くかかる
- */
-function estimatedMsPerActor(): number {
-  return rateLimitFor(articleUrl("上田麗奈")).intervalMs;
-}
-
-// --- 対象の選び方 ----------------------------------------------------------
-
-/**
- * 引き直す人を、結果に並んでいる順に返す。`limit` を渡すとその人数で切る。
- *
- * 記事名を持たない行は引かない。どの記事で 3 条件を満たしたのかが分からず、
- * 名前から引き直すと本人の記事とは限らなくなる
- */
-export function refillTargets(
-  records: readonly ActorKanaRecord[],
-  limit?: number,
-): ActorKanaRecord[] {
-  const targets = records.filter(
-    (record) =>
-      record.status === "rejected" &&
-      record.reason === NO_KANA_REASON &&
-      record.title !== undefined,
-  );
-  return limit === undefined ? targets : targets.slice(0, limit);
-}
-
-/** 同じ人の行を置き換える。行が見つからないのは呼び出し側の取り違えなので投げる */
-export function replaceRecord(cache: ActorKanaCache, record: ActorKanaRecord): void {
-  const index = cache.records.findIndex((item) => item.canonicalName === record.canonicalName);
-  if (index < 0) throw new Error(`${record.canonicalName} の行が結果に無い`);
-  cache.records[index] = record;
-  cache.updatedAt = record.fetchedAt;
-}
-
-// --- 取得 ------------------------------------------------------------------
 
 function failureRecord(
   base: ActorKanaRecord,
@@ -210,195 +153,4 @@ export async function refillActorKana(
     }
   }
   return { ...base, reason: REFILLED_NO_KANA_REASON, fetchedAt };
-}
-
-/** 取得でも解析でもない例外 (ディスク書き込みなど) を、失敗した 1 人として残す */
-function errorRecord(target: ActorKanaRecord, error: unknown): ActorKanaRecord {
-  return {
-    canonicalName: target.canonicalName,
-    status: "failed",
-    ...(target.title === undefined ? {} : { title: target.title }),
-    reason: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    fetchedAt: new Date().toISOString(),
-  };
-}
-
-export async function refillActorKanaAll(options: {
-  targets: readonly ActorKanaRecord[];
-  cache: ActorKanaCache;
-  outFile: string;
-  snapshot?: boolean;
-  onProgress?: (done: readonly ActorKanaRecord[], total: number) => void;
-}): Promise<{ stop?: StopReason; done: ActorKanaRecord[] }> {
-  const done: ActorKanaRecord[] = [];
-  let consecutiveFailures = 0;
-
-  for (const target of options.targets) {
-    // 1 人の例外で走行を落とさない。記録して次の人へ進む
-    const record = await refillActorKana(target, { snapshot: options.snapshot }).catch(
-      (error: unknown) => errorRecord(target, error),
-    );
-    // 失敗は答えではないので、前回の行 (引き直しの対象) をそのまま残す。
-    // 書き換えると対象から外れ、もう一度実行しても引き直されない
-    if (record.status !== "failed") {
-      replaceRecord(options.cache, record);
-      await writeJsonAtomic(options.outFile, options.cache);
-    }
-    done.push(record);
-    options.onProgress?.(done, options.targets.length);
-
-    consecutiveFailures = record.status === "failed" ? consecutiveFailures + 1 : 0;
-    const stop = stopReasonFor(record, consecutiveFailures);
-    if (stop !== undefined) return { stop, done };
-  }
-  return { done };
-}
-
-// --- 結果 ------------------------------------------------------------------
-
-export function summarizeRefill(records: readonly ActorKanaRecord[]): {
-  total: number;
-  ok: number;
-  /** 引けずに次の実行へ持ち越した人。結果は書き換えていない */
-  failed: number;
-  bySource: Record<string, number>;
-  byReason: Record<string, number>;
-} {
-  const bySource: Record<string, number> = {};
-  const byReason: Record<string, number> = {};
-  let ok = 0;
-  let failed = 0;
-  for (const record of records) {
-    if (record.status === "ok") {
-      ok += 1;
-      const source = record.source ?? "unknown";
-      bySource[source] = (bySource[source] ?? 0) + 1;
-      continue;
-    }
-    if (record.status === "failed") failed += 1;
-    const reason = record.reason ?? "unknown";
-    byReason[reason] = (byReason[reason] ?? 0) + 1;
-  }
-  return { total: records.length, ok, failed, bySource, byReason };
-}
-
-// --- CLI -------------------------------------------------------------------
-
-const USAGE = `使い方:
-  node crawler/discovery/wikipedia-kana-refill.ts [オプション]
-
-前回の取得で「読みが書かれていない」で終わった人だけを引き直し、
-記事の導入部と Wikidata の P1814 から読みを埋める。結果は同じファイルの同じ行を書き換える。
-
-オプション:
-  --kana <path>    かなの取得結果 (既定 crawler/.cache/discovery/wikipedia-kana.json)
-  --limit <N>      この人数だけ引いて終わる (既定: 対象全員)
-  --snapshot       取った HTML を .cache/snapshots に残す (1 件 1MB 超)
-`;
-
-const OPTION_SPEC = {
-  kana: { type: "string" },
-  limit: { type: "string" },
-  snapshot: { type: "boolean" },
-  help: { type: "boolean", short: "h" },
-} as const;
-
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.round(ms / 60_000);
-  return `${Math.floor(totalMinutes / 60)} 時間 ${totalMinutes % 60} 分`;
-}
-
-export async function main(argv: readonly string[]): Promise<number> {
-  let values: Record<string, string | boolean | undefined>;
-  try {
-    values = parseArgs({ args: [...argv], options: OPTION_SPEC, allowPositionals: false }).values;
-  } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`);
-    return 1;
-  }
-  if (values.help === true) {
-    process.stdout.write(USAGE);
-    return 0;
-  }
-
-  const kanaFile = asString(values.kana) ?? KANA_JSON;
-  const limitOption = asString(values.limit);
-  const limit = limitOption === undefined ? undefined : Number(limitOption);
-  if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
-    process.stderr.write(`--limit は 1 以上の整数を指定する: ${limitOption}\n`);
-    return 1;
-  }
-  const snapshot = values.snapshot === true;
-  const startedAt = Date.now();
-
-  const cache = await readKanaCache(kanaFile);
-  if (cache === undefined) {
-    process.stderr.write(
-      `${kanaFile} が無い。先に node crawler/discovery/wikipedia-kana.ts で取得する\n`,
-    );
-    return 1;
-  }
-
-  const targets = refillTargets(cache.records, limit);
-  process.stdout.write(`結果: ${kanaFile} (${cache.records.length} 人)\n`);
-  process.stdout.write(
-    `「${NO_KANA_REASON}」で残っている人: ${refillTargets(cache.records).length} 人\n`,
-  );
-  process.stdout.write(
-    `これから引き直す: ${targets.length} 人 (最短 ${formatDuration(targets.length * estimatedMsPerActor())})\n`,
-  );
-  if (targets.length === 0) return 0;
-
-  const { stop, done } = await refillActorKanaAll({
-    targets,
-    cache,
-    outFile: kanaFile,
-    snapshot,
-    onProgress: (records, total) => {
-      const count = records.length;
-      if (count % PROGRESS_EVERY !== 0 && count !== total) return;
-      const summary = summarizeRefill(records);
-      const elapsed = Date.now() - startedAt;
-      const remaining = ((total - count) * elapsed) / Math.max(count, 1);
-      process.stdout.write(
-        `[${count}/${total}] かな ${summary.ok} ${JSON.stringify(summary.bySource)} ` +
-          `(経過 ${formatDuration(elapsed)} / 残り ${formatDuration(remaining)})\n`,
-      );
-    },
-  });
-
-  const summary = summarizeRefill(done);
-  process.stdout.write("\n");
-  process.stdout.write(`引き直した: ${summary.total} 人\n`);
-  process.stdout.write(`  かなが取れた: ${summary.ok} ${JSON.stringify(summary.bySource)}\n`);
-  process.stdout.write(`  取れなかった: ${summary.total - summary.ok}\n`);
-  process.stdout.write(`  うち引けずに次へ持ち越した: ${summary.failed}\n`);
-  process.stdout.write(`  理由の内訳: ${JSON.stringify(summary.byReason)}\n`);
-  process.stdout.write(`  所要: ${formatDuration(Date.now() - startedAt)}\n`);
-
-  if (stop !== undefined) {
-    process.stderr.write(`\n中断しました (${stop.kind}): ${stop.detail}\n`);
-    process.stderr.write("もう一度実行すると残りから再開できます\n");
-    return 1;
-  }
-  return 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-// 直接実行されたときだけ動かす。テストから import しても走らないようにするため
-const isDirectRun =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (isDirectRun) {
-  main(process.argv.slice(2))
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 1;
-    });
 }

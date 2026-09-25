@@ -5,7 +5,8 @@
 set -euo pipefail
 n=${1#\#}; wt=$2; branch=$3
 here=$(dirname "${BASH_SOURCE[0]}")
-main=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
+. "$here/../../issue-task/scripts/_lib.sh"
+main=$(main_root)
 cd "$main"
 
 git merge-base --is-ancestor "$branch" main 2>/dev/null \

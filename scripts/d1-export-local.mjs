@@ -18,7 +18,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { findD1SqliteFile } from "./check-migrations.mjs";
+import { D1_STATE_DIR, findD1SqliteFile } from "./local-d1.mjs";
 import {
   countIndexesByTable,
   estimateWriteRows,
@@ -36,7 +36,6 @@ export function readMigrationSql(dir) {
     .join("\n");
 }
 
-const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
 const DEFAULT_EXCLUDED_STORES = ["audible"];
 
 /** `deps` はテストから差し替えるためのもの。既定は手元の D1 を見る */

@@ -1,18 +1,15 @@
 import { readFileSync } from "node:fs";
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FetchResult } from "../lib/fetch.ts";
 import { FIXTURES_DIR } from "../lib/paths.ts";
-import type { ActorKanaCache, ActorKanaRecord } from "./actor-kana.ts";
-import { crawlActorKana, fetchActorKana, summarizeRecords } from "./wikipedia-kana.ts";
+import type { ActorKanaRecord } from "./actor-kana.ts";
+import { fetchActorKana, stopReasonFor } from "./wikipedia-kana.ts";
 
-// 引き直しと停止条件だけをネットワーク無しで確かめるための差し替え。
+// 引き直しをネットワーク無しで確かめるための差し替え。
 // 記事の解析そのものはフィクスチャ側のテスト (wikipedia-article.test.ts) が見ている
 vi.mock("../lib/fetch.ts", () => ({
   fetchText: vi.fn(),
-  rateLimitFor: () => ({ key: "ja.wikipedia.org", intervalMs: 5_000 }),
 }));
 const { fetchText } = await import("../lib/fetch.ts");
 const fetchTextMock = vi.mocked(fetchText);
@@ -29,27 +26,14 @@ function ng(status: number): FetchResult {
   return { ok: false, status, url: "https://ja.wikipedia.org/wiki/x", reason: `HTTP ${status}` };
 }
 
-function record(overrides: Partial<ActorKanaRecord> = {}): ActorKanaRecord {
+function failed(httpStatus: number): ActorKanaRecord {
   return {
     canonicalName: "上田麗奈",
-    status: "ok",
-    kana: "うえだれいな",
-    source: "furigana",
+    status: "failed",
+    httpStatus,
+    reason: `HTTP ${httpStatus}`,
     fetchedAt: "2026-09-20T00:00:00.000Z",
-    ...overrides,
   };
-}
-
-function emptyCache(): ActorKanaCache {
-  return {
-    startedAt: "2026-09-20T00:00:00.000Z",
-    updatedAt: "2026-09-20T00:00:00.000Z",
-    records: [],
-  };
-}
-
-async function outFile(): Promise<string> {
-  return path.join(await mkdtemp(path.join(tmpdir(), "wikipedia-kana-")), "kana.json");
 }
 
 beforeEach(() => {
@@ -120,106 +104,22 @@ describe("fetchActorKana", () => {
   });
 });
 
-describe("crawlActorKana", () => {
-  it("取れなかった人が居ても止まらず、結果を書き足していく", async () => {
-    fetchTextMock.mockResolvedValueOnce(ng(503));
-    fetchTextMock.mockResolvedValueOnce(ok(fixture("ueda-reina")));
-    const cache = emptyCache();
-    const file = await outFile();
-
-    const { stop } = await crawlActorKana({
-      canonicalNames: ["失敗する人", "上田麗奈"],
-      cache,
-      outFile: file,
-    });
-
-    expect(stop).toBeUndefined();
-    expect(cache.records.map((item) => item.status)).toEqual(["failed", "ok"]);
-    // 途中で落ちても続きから進めるよう、1 人ごとに書く
-    const written = JSON.parse(await readFile(file, "utf8")) as ActorKanaCache;
-    expect(written.records).toHaveLength(2);
+describe("stopReasonFor", () => {
+  it("403 はその場で止める (相手がこちらの取り方を拒んでいる)", () => {
+    expect(stopReasonFor(failed(403), 1)?.kind).toBe("forbidden");
   });
 
-  it("例外が出た人も失敗として記録し、次の人へ進む", async () => {
-    fetchTextMock.mockRejectedValueOnce(new Error("書き込みに失敗"));
-    fetchTextMock.mockResolvedValueOnce(ok(fixture("ueda-reina")));
-    const cache = emptyCache();
-
-    await crawlActorKana({
-      canonicalNames: ["例外が出る人", "上田麗奈"],
-      cache,
-      outFile: await outFile(),
-    });
-
-    expect(cache.records[0]).toMatchObject({ status: "failed", reason: "Error: 書き込みに失敗" });
-    expect(cache.records[1]).toMatchObject({ status: "ok" });
+  it("429 もその場で止める", () => {
+    expect(stopReasonFor(failed(429), 1)?.kind).toBe("rate-limited");
   });
 
-  it("403 はその場で止める (相手がこちらの取り方を拒んでいる)", async () => {
-    fetchTextMock.mockResolvedValueOnce(ng(403));
-    const cache = emptyCache();
-
-    const { stop } = await crawlActorKana({
-      canonicalNames: ["上田麗奈", "ゆかな"],
-      cache,
-      outFile: await outFile(),
-    });
-
-    expect(stop?.kind).toBe("forbidden");
-    expect(cache.records).toHaveLength(1);
+  it("その他の失敗は、続いたときだけ止める", () => {
+    expect(stopReasonFor(failed(503), 9)).toBeUndefined();
+    expect(stopReasonFor(failed(503), 10)?.kind).toBe("consecutive-failures");
   });
 
-  it("429 もその場で止める", async () => {
-    fetchTextMock.mockResolvedValueOnce(ng(429));
-    const cache = emptyCache();
-
-    const { stop } = await crawlActorKana({
-      canonicalNames: ["上田麗奈", "ゆかな"],
-      cache,
-      outFile: await outFile(),
-    });
-
-    expect(stop?.kind).toBe("rate-limited");
-  });
-
-  it("失敗が続いたら止める", async () => {
-    fetchTextMock.mockResolvedValue(ng(503));
-    const cache = emptyCache();
-    const names = Array.from({ length: 20 }, (_, index) => `失敗する人${index}`);
-
-    const { stop } = await crawlActorKana({
-      canonicalNames: names,
-      cache,
-      outFile: await outFile(),
-    });
-
-    expect(stop?.kind).toBe("consecutive-failures");
-    expect(cache.records.length).toBeLessThan(names.length);
-  });
-});
-
-describe("summarizeRecords", () => {
-  it("状態ごとの人数と、取得元・理由の内訳を数える", () => {
-    const summary = summarizeRecords([
-      record(),
-      record({ canonicalName: "ゆかな", source: "kana-name" }),
-      record({ canonicalName: "満島ひかり", status: "rejected", reason: "声優のカテゴリが無い" }),
-      record({ canonicalName: "天野聡美", status: "rejected", reason: "声優のカテゴリが無い" }),
-      record({ canonicalName: "居ない人", status: "not-found", reason: "記事が無い (HTTP 404)" }),
-      record({ canonicalName: "失敗した人", status: "failed", reason: "HTTP 503" }),
-    ]);
-    expect(summary).toEqual({
-      total: 6,
-      ok: 2,
-      rejected: 2,
-      notFound: 1,
-      failed: 1,
-      bySource: { furigana: 1, "kana-name": 1 },
-      byReason: {
-        声優のカテゴリが無い: 2,
-        "記事が無い (HTTP 404)": 1,
-        "HTTP 503": 1,
-      },
-    });
+  it("答えが出た人では止めない", () => {
+    const notFound: ActorKanaRecord = { ...failed(404), status: "not-found" };
+    expect(stopReasonFor(notFound, 10)).toBeUndefined();
   });
 });

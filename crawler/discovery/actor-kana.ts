@@ -1,16 +1,10 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { CACHE_DIR } from "../lib/paths.ts";
-
 /**
- * 取得した声優のかなの置き場所。
+ * 声優 1 人ぶんのかなの取得結果の形。
  *
  * 取得そのものは `wikipedia-kana.ts`、記事 HTML の解析は `wikipedia-article.ts`、
- * かなの文字列の形は `kana-text.ts`。台帳に入れる側はここだけを見るので、
- * 生成の側に取得の依存 (fetch / HTML 解析) が入らない
+ * かなの文字列の形は `kana-text.ts`。台帳へ送る側 (`crawler/kana.ts`) はこの型だけを見るので、
+ * 送る側の型に取得の依存 (fetch / HTML 解析) が入らない
  */
-
-export const KANA_JSON = path.join(CACHE_DIR, "discovery", "wikipedia-kana.json");
 
 /**
  * かなをどこから取ったか。
@@ -22,7 +16,7 @@ export type ActorKanaSource = "furigana" | "kana-name" | "lead" | "wikidata";
 
 /**
  * 1 人ぶんの結果。取れなかった人も理由付きで残す。
- * 「引いたが取れなかった」と「まだ引いていない」を区別できないと、再開のたびに引き直してしまう
+ * 記事が無い・条件を満たさないという答えと、取得の失敗を分けないと、答えの出た人に引いた印を付けられない
  */
 export type ActorKanaRecord = {
   canonicalName: string;
@@ -44,65 +38,3 @@ export type ActorKanaRecord = {
   httpStatus?: number;
   fetchedAt: string;
 };
-
-export type ActorKanaCache = {
-  startedAt: string;
-  updatedAt: string;
-  records: ActorKanaRecord[];
-};
-
-/** 取得済みのかな (canonicalName → かな)。出どころ付きで台帳へ送る側が読む */
-export function kanaByCanonicalName(records: readonly ActorKanaRecord[]): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const record of records) {
-    if (record.status === "ok" && record.kana !== undefined) {
-      map[record.canonicalName] = record.kana;
-    }
-  }
-  return map;
-}
-
-/**
- * 取得結果を読む。ファイルがまだ無ければ undefined (かな無しで生成できる)。
- *
- * 壊れた JSON と形の違う JSON は投げる。数時間かけた途中結果が壊れているのに
- * 黙って 0 人から引き直すと、気づかないまま同じ時間をもう一度使うことになる
- */
-export async function readKanaCache(
-  filePath: string = KANA_JSON,
-): Promise<ActorKanaCache | undefined> {
-  let text: string;
-  try {
-    text = await readFile(filePath, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw error;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new Error(
-      `${filePath} を JSON として読めない: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  const records = (parsed as { records?: unknown })?.records;
-  if (!Array.isArray(records)) throw new Error(`${filePath} に records 配列が無い`);
-  return parsed as ActorKanaCache;
-}
-
-/**
- * まだ引いていない人を、引く順に返す。`limit` を渡すとその人数で切る。
- *
- * 全員だと数時間かかるので、人数を区切った実行を何度も重ねて進める。
- * 取得済みの人 (取れなかった人も含む) を飛ばさないと、実行のたびに先頭から引き直してしまう
- */
-export function pendingNames(
-  canonicalNames: readonly string[],
-  records: readonly ActorKanaRecord[],
-  limit?: number,
-): string[] {
-  const done = new Set(records.map((record) => record.canonicalName));
-  const pending = canonicalNames.filter((name) => !done.has(name));
-  return limit === undefined ? pending : pending.slice(0, limit);
-}

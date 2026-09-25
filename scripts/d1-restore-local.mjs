@@ -19,10 +19,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { findD1SqliteFile } from "./check-migrations.mjs";
 import {
   countSql,
   formatCounts,
@@ -31,37 +29,13 @@ import {
   prepareImportSql,
   truncateSql,
 } from "./d1-data.mjs";
+import { D1_STATE_DIR, latestRunStartedAt, RECENT_RUN_MS, readLocalD1 } from "./local-d1.mjs";
 
-const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
-/** これより新しい取り込みの記録があれば、別のプロセスがクロール中とみなす */
-const RECENT_RUN_MS = 10 * 60 * 1000;
 /** まとめた SQL の置き場。git 管理外 */
 const STAGING_DIR = path.join("work", "d1-export");
 
 function wrangler(args, options = {}) {
   return execFileSync("npx", ["wrangler", ...args], { stdio: "pipe", encoding: "utf8", ...options });
-}
-
-/** 直近の取り込みの記録。表が無い (作り立て) なら null */
-export function latestRunStartedAt(db) {
-  const exists = db
-    .prepare("select 1 from sqlite_master where type = 'table' and name = 'crawl_runs'")
-    .get();
-  if (!exists) return null;
-  const row = db.prepare("select max(started_at) as at from crawl_runs").get();
-  return row?.at ?? null;
-}
-
-/** sqlite を読み取り専用で開いて関数を適用する。無ければ undefined */
-function readSqlite(d1StateDir, fn) {
-  const sqliteFile = findD1SqliteFile(d1StateDir);
-  if (!sqliteFile) return undefined;
-  const db = new DatabaseSync(sqliteFile, { readOnly: true });
-  try {
-    return fn(db);
-  } finally {
-    db.close();
-  }
 }
 
 /**
@@ -90,7 +64,7 @@ export function main(argv, deps = {}) {
     return 1;
   }
 
-  const latest = readSqlite(d1StateDir, latestRunStartedAt) ?? null;
+  const latest = readLocalD1(d1StateDir, latestRunStartedAt) ?? null;
   if (latest !== null && now - Date.parse(latest) < RECENT_RUN_MS) {
     error(`直近 (${latest}) に取り込みの記録がある。クロールが終わるまで待つ`);
     return 1;
@@ -98,7 +72,7 @@ export function main(argv, deps = {}) {
 
   run(["d1", "migrations", "apply", "DB", "--local"], { stdio: "inherit" });
 
-  const tables = readSqlite(d1StateDir, listDataTables);
+  const tables = readLocalD1(d1StateDir, listDataTables);
   if (tables === undefined) {
     error("マイグレーションを当てた後も手元の D1 が見つからない");
     return 1;

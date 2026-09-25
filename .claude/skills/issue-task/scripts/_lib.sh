@@ -13,29 +13,14 @@ main_root() {
 
 # miniflare が D1 を書き出すディレクトリ (repo root からの相対)
 D1_DIR=".wrangler/state/v3/d1"
-D1_OBJECT_DIR="$D1_DIR/miniflare-D1DatabaseObject"
+
+# このスクリプトを含む作業ツリーのルート。main 側にまだ無いスクリプトもこちらから呼べるようにする
+LIB_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 
 # ローカル D1 の crawl_runs.started_at の最大値を出す。無ければ空文字。
-# 読み取り専用で開くのでクロール中でも安全 (scripts/check-migrations.mjs と同じ方法)
+# sqlite の選び方と読み方は scripts/local-d1.mjs の 1 か所に置く
 last_crawl_started() {
-  local dir="$1/$D1_OBJECT_DIR"
-  [ -d "$dir" ] || return 0
-  node --no-warnings -e '
-    const { DatabaseSync } = require("node:sqlite");
-    const fs = require("node:fs");
-    const dir = process.argv[1];
-    const files = fs.readdirSync(dir).filter((n) => n.endsWith(".sqlite") && n !== "metadata.sqlite");
-    if (files.length === 0) process.exit(0);
-    const db = new DatabaseSync(`${dir}/${files[0]}`, { readOnly: true });
-    try {
-      const row = db.prepare("select max(started_at) as m from crawl_runs").get();
-      if (row?.m) process.stdout.write(String(row.m));
-    } catch {
-      // crawl_runs が無い = まだ何も取り込んでいない
-    } finally {
-      db.close();
-    }
-  ' "$dir"
+  node --no-warnings "$LIB_REPO_ROOT/scripts/local-d1.mjs" last-crawl "$1"
 }
 
 # 直近のクロールが n 分以内なら 0 以外で終わる。CLAUDE.md「ローカルの共有資源」の判定と同じ

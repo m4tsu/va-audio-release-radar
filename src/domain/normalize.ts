@@ -87,7 +87,7 @@ const KYUJITAI_VARIANTS: ReadonlyArray<readonly [string, string]> = [
   // 瀧 (U+7027) → 滝 (U+6EDD)。常用漢字表「滝(瀧)」。瀧本/滝本
   ["瀧", "滝"],
   // 龍 (U+9F8D) → 竜 (U+7ADC)。常用漢字表「竜(龍)」。龍之介/竜之介。
-  // 実データ 2,569 人では畳んでも衝突しないことを確認済み (scripts/check-name-variant-collisions.mjs)
+  // 対を足したら、別人が同じ鍵にならないかを `npm run db:check-name-variants` で確かめる
   ["龍", "竜"],
 ];
 

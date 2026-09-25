@@ -2,6 +2,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { asString } from "../lib/cli.ts";
 import { CACHE_DIR } from "../lib/paths.ts";
 import {
   hasTargetWorks,
@@ -25,7 +26,7 @@ import type { PokedoraTagRecord, PokedoraTagsCache } from "./pokedora-tags.ts";
  * - 取得対象の区分 (一般 / BL) が 0 件の声優。引いても必ず 0 件になる
  * - `httpStatus` / `fetchedAt` / 取得しない区分 (オトナ向け 2 つ) の件数。クロールが見ない
  *
- * 落とす前の記録は `.cache` に残る。調査 (`pokedora-intersect.ts`) はそちらを読む
+ * 落とす前の記録は `.cache` に残る
  */
 
 const DEFAULT_TAGS_JSON = path.join(CACHE_DIR, "discovery", "pokedora-tags.json");
@@ -160,10 +161,6 @@ export async function main(argv: readonly string[]): Promise<number> {
   await rename(temporary, outFile);
   process.stdout.write(`\n書き出した: ${outFile}\n`);
   return 0;
-}
-
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }
 
 // 直接実行されたときだけ動かす (テストから import しても main が走らないようにするため)

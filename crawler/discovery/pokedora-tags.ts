@@ -333,7 +333,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   const resume = values.resume === true;
   const retryFailed = values["retry-failed"] === true;
   // 既定はスナップショット無し。タグページは 1 件 80KB あり、全件残すと数百 MB になる。
-  // 必要な情報は JSON に落とすので、再現性はそちらで担保する (dlsite-sitemap.ts と同じ判断)
+  // 必要な情報は JSON に落とすので、再現性はそちらで担保する
   const snapshot = values.snapshot === true;
   const startedAt = Date.now();
 

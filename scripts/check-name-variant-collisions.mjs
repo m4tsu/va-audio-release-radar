@@ -9,13 +9,11 @@
 //
 //   node scripts/check-name-variant-collisions.mjs
 
-import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { nameVariantPairs, normalizeName } from "../src/domain/normalize.ts";
-
-const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1DatabaseObject");
+import { D1_STATE_DIR, findD1SqliteFile } from "./local-d1.mjs";
 
 /**
  * 異体字を畳む前の `normalizeName` (異体字の畳み込みを入れる前の実装をそのまま写したもの)。
@@ -26,16 +24,6 @@ const D1_STATE_DIR = path.join(".wrangler", "state", "v3", "d1", "miniflare-D1Da
 const SYMBOLS_TO_STRIP = /[\s・「」【】()（）,、.。/／\-‐ー?!]/g;
 function normalizeNameBefore(name) {
   return name.normalize("NFKC").replace(SYMBOLS_TO_STRIP, "").toLowerCase();
-}
-
-function findD1SqliteFile(d1StateDir) {
-  if (!existsSync(d1StateDir)) return null;
-  const candidates = readdirSync(d1StateDir)
-    .filter((name) => path.extname(name) === ".sqlite" && name !== "metadata.sqlite")
-    .map((name) => path.join(d1StateDir, name));
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-  return candidates[0];
 }
 
 /**
