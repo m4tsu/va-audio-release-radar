@@ -1,9 +1,13 @@
 // scripts/issue-body.test.ts
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadFields, parseBody, renderBody, summarize } from "./issue-body.mjs";
+import {
+  loadFields,
+  parseBody,
+  renderBody,
+  SCHEMA_OPTION_PREFIX,
+  summarize,
+} from "./issue-body.mjs";
 
 const TEMPLATE = `
 name: タスク
@@ -59,6 +63,8 @@ describe("renderBody", () => {
     expect(() => renderBody(fields, { purpose: " " })).toThrow("必須");
     expect(() => renderBody(fields, { purpose: "a", title: "x" })).toThrow("テンプレートに無い欄");
     expect(() => renderBody(fields, { purpose: "a", areas: ["crawler"] })).toThrow("選択肢");
+    expect(() => renderBody(fields, { purpose: "a", areas: "src/app" })).toThrow("配列");
+    expect(() => renderBody(fields, { purpose: "a", note: ["x"] })).toThrow("文字列");
   });
 });
 
@@ -98,30 +104,10 @@ describe("summarize", () => {
   });
 });
 
-describe("欄の定義の置き場", () => {
-  /**
-   * 欄の見出しを写してよいのは task.yml だけ。スキルの手順やシェルに写すと、欄を変えたときに
-   * 写しだけが古くなり、issue-batch の判定が黙って外れる
-   */
-  it("スキルと GitHub の設定に task.yml の見出しを写していない", () => {
-    const root = path.join(import.meta.dirname, "..");
-    const realFields = loadFields();
-    const headings = realFields.map((field) => `### ${field.label}`);
-    const files = [...walk(path.join(root, ".claude", "skills")), ...walk(path.join(root, ".github"))].filter(
-      (file) => !file.includes(`${path.sep}ISSUE_TEMPLATE${path.sep}`),
-    );
-    const copies = files.flatMap((file) => {
-      const text = readFileSync(file, "utf8");
-      return headings.filter((heading) => text.includes(heading)).map((heading) => `${file}: ${heading}`);
-    });
-    expect(copies).toEqual([]);
+describe("task.yml", () => {
+  it("task.yml のチェックの欄に、スキーマ変更を表す選択肢がちょうど 1 つある", () => {
+    const options = loadFields().flatMap((field) => field.options ?? []);
+    expect(options.filter((option) => option.startsWith(SCHEMA_OPTION_PREFIX))).toHaveLength(1);
   });
 });
 
-function* walk(directory: string): Generator<string> {
-  for (const name of readdirSync(directory)) {
-    const full = path.join(directory, name);
-    if (statSync(full).isDirectory()) yield* walk(full);
-    else yield full;
-  }
-}

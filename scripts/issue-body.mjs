@@ -1,8 +1,6 @@
 // scripts/issue-body.mjs
 //
 // issue の本文を .github/ISSUE_TEMPLATE/task.yml の欄の定義から作り、読む。
-// 欄の見出し・並び・選択肢の正は task.yml だけにする。スキルの文書やシェルに見出しを写すと、
-// 欄を変えたときに写しの片方だけが古くなり、issue-batch の並列の判定が黙って外れる。
 //
 //   node scripts/issue-body.mjs template             # 欄の id・見出し・必須・選択肢を出す
 //   node scripts/issue-body.mjs render < fields.json  # 欄の id をキーにした JSON から本文を作る
@@ -31,7 +29,7 @@ const NO_RESPONSE = "_No response_";
  * 「触る場所の見込み」のうち、同時に 1 つしか動かさない (スキーマ変更) 選択肢の見分け方。
  * migrations の連番と meta/_journal.json が並行する 2 つの変更で両立しないため
  */
-const SCHEMA_OPTION_PREFIX = "スキーマ";
+export const SCHEMA_OPTION_PREFIX = "スキーマ";
 
 /** 本文のどこに書かれていても依存とみなす書き方。欄を使わずに書かれた issue も拾うため */
 const DEPENDENCY = /(?:depends on|blocked by|依存)[^\n]*?#(\d+)|#(\d+)\s*に依存/gi;
@@ -62,7 +60,8 @@ export function loadFields(yamlText = readFileSync(TEMPLATE_PATH, "utf8")) {
 
 /**
  * 欄の id をキーにした値から本文を作る。テキストの欄は文字列、チェックの欄は選んだ選択肢の配列。
- * 知らない id、知らない選択肢、必須の欄の空は投げる。形の崩れた本文を作らせないため
+ * 知らない id、型の違う値、知らない選択肢、必須の欄の空は投げる。黙って空欄にすると、
+ * issue-batch がスキーマ変更の重なりや依存を読み落としたまま issue が作られるため
  *
  * @param {Field[]} fields
  * @param {Record<string, string | string[] | undefined>} values
@@ -75,7 +74,10 @@ export function renderBody(fields, values) {
   const sections = fields.map((field) => {
     const value = values[field.id];
     if (field.type === "checkboxes") {
-      const checked = Array.isArray(value) ? value : [];
+      if (value !== undefined && !(Array.isArray(value) && value.every((item) => typeof item === "string"))) {
+        throw new Error(`「${field.label}」は選択肢の文字列の配列で渡す`);
+      }
+      const checked = value ?? [];
       const invalid = checked.filter((label) => !field.options?.includes(label));
       if (invalid.length > 0) {
         throw new Error(`「${field.label}」に無い選択肢: ${invalid.join(", ")}`);
@@ -85,7 +87,10 @@ export function renderBody(fields, values) {
       );
       return `### ${field.label}\n\n${lines.join("\n")}`;
     }
-    const text = typeof value === "string" ? value.trim() : "";
+    if (value !== undefined && typeof value !== "string") {
+      throw new Error(`「${field.label}」は文字列で渡す`);
+    }
+    const text = (value ?? "").trim();
     if (text === "" && field.required) throw new Error(`必須の欄が空: ${field.label}`);
     return `### ${field.label}\n\n${text === "" ? NO_RESPONSE : text}`;
   });

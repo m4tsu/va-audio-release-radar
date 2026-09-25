@@ -20,6 +20,5 @@ else
 fi
 printf '%s' "$json" > "$run/issues.json"
 
-# 欄の読み方は task.yml を読む scripts/issue-body.mjs が持つ。見出しをここに写さない
 node --no-warnings "$root/scripts/issue-body.mjs" summarize "$run/issues.json"
 echo "RUN_DIR=$run"

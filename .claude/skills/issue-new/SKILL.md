@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 引数の説明を、`.github/ISSUE_TEMPLATE/task.yml` の欄が埋まった issue にする。
 `task.yml` は Web のフォームの定義で、`gh issue create` では通らないので、本文は `scripts/issue-body.mjs` が
-`task.yml` から作る。**欄の見出しを手で書かない。** 欄の正は `task.yml` だけで、issue-batch も同じスクリプトで読む。
+`task.yml` から作る。issue-batch も同じスクリプトで読む。
 
 ## 1. 照合
 

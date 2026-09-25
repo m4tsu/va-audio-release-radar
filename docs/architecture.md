@@ -56,8 +56,7 @@ crawler  ─────────────────→  src/contract  �
 ```
 
 - `src/domain` は React / DB / fetch / Zod を知らない純粋な型と関数
-- `src/contract` はコンポーネントの間を行き来する形 (Zod スキーマと応答の型) だけを持つ。
-  送る側と受ける側が同じ定義を import するので、片側だけ形を変えると型検査で落ちる
+- `src/contract` はコンポーネントの間を行き来する形 (Zod スキーマと応答の型) だけを持つ
 - `crawler` は `src/app` と `src/server` を import しない。Biome の `noRestrictedImports` で止める
 - `src/server` はクライアントバンドルに入らない。TanStack Start の import protection (`vite.config.ts`) で止める
 - 列挙の値配列 (`src/domain/types.ts`) を DB スキーマの enum にそのまま渡す。DB 側で選択肢を再定義しない
@@ -150,4 +149,3 @@ Worker の前のキャッシュに載せるのは誰が見ても同じ応答だ�
 
 - ログイン時のフォロー同期
 - 「取得の周期」の実行権の貸し出し。日次・週次・月次は動いている
-- 対象外の印を人が付ける経路。印を持つ表と、キューや解決し直しから外す側は入っているが、管理画面の操作がまだ無い
