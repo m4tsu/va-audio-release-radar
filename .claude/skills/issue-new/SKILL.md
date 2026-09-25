@@ -8,8 +8,8 @@ disable-model-invocation: true
 # issue-new
 
 引数の説明を、`.github/ISSUE_TEMPLATE/task.yml` の欄が埋まった issue にする。
-`task.yml` は Web のフォームの定義で、`gh issue create` では通らない。
-**欄の見出しと並びは 4 の型を写して自分で書く。** issue-batch はこの欄を読む。
+`task.yml` は Web のフォームの定義で、`gh issue create` では通らないので、本文は `scripts/issue-body.mjs` が
+`task.yml` から作る。**欄の見出しを手で書かない。** 欄の正は `task.yml` だけで、issue-batch も同じスクリプトで読む。
 
 ## 1. 照合
 
@@ -35,55 +35,37 @@ disable-model-invocation: true
 2 つ以上に分けるときは、分け方 (タイトルと依存) もその質問に含めて確かめる。
 聞く点が無ければ聞かない。
 
-## 4. 本文を書く
+## 4. 欄を埋める
 
-欄ごとに書く。見出しはテンプレートと同じ。
+欄の id・見出し・必須・選択肢を出す。
 
 ```
-### 目的
-<利用者に何が起きるか。1〜2 行>
-
-### 受け入れ条件
-- <画面や CLI で確かめられる形>
-
-### 範囲外
-- <この issue でやらないこと。関連 issue があれば番号>
-
-### 触る場所の見込み
-- [x] src/app (画面・ルート・i18n)
-- [ ] src/server (D1 クエリ・server-fns)
-- [ ] スキーマ (migrations / src/server/db/schema.ts)
-- [ ] crawler
-- [ ] docs
-
-### 依存
-depends on #12
+node --no-warnings scripts/issue-body.mjs template
 ```
+
+欄の id をキーにした JSON を組み立てる。テキストの欄は文字列、チェックの欄は選ぶ選択肢の文字列の配列
+(`template` が出したものをそのまま使う)。必須の欄を空にしたり、知らない id や選択肢を渡すと `render` が止まる。
 
 受け入れ条件は、Agent が実装の終わりを判定し、レビュアーが差分と照らす基準になる。
 「〜できる」より「〜すると〜が表示される」の形で書く。型や値やセレクタは書かない (コードが持つ)。
-
-このうち **2 つは issue-batch の `collect.sh` が正規表現で読む**ので、形を崩さない。
-崩すと並列の判定が静かに外れる。
-
-- `- [x] スキーマ (...)` のチェック → 同時に 1 つしか動かさない issue の判定
-- `depends on #N` (`blocked by #N` / `#N に依存` も可) → 依存の抽出
+依存は `depends on #12` の形で 1 行に 1 つ書く (`blocked by #N` / `#N に依存` も読む)。
+触る場所のチェックは、issue-batch がスキーマ変更を同時に 1 つに絞る判定と、並列にできるかの判定に使う。
 
 ## 5. 作る
 
 依存される側から順に作る (番号が決まらないと `depends on` が書けない)。
 
-本文はヒアドキュメントで標準入力に流す。**下書きをファイルに残さない。**
+JSON はヒアドキュメントで `render` に流し、成功したときだけ本文を `gh issue create` に渡す (パイプでつなぐと、`render` が止まっても空の本文で作られる)。**下書きをファイルに残さない。**
 
 ```
-gh issue create --title "<タイトル>" --label <p1|p2|p3>[,ready] --body-file - <<'BODY'
-### 目的
-...
-BODY
+body=$(node --no-warnings scripts/issue-body.mjs render <<'JSON'
+{ "purpose": "...", "acceptance": "- ...", "areas": ["crawler"], "deps": "depends on #12" }
+JSON
+) && gh issue create --title "<タイトル>" --label <p1|p2|p3>[,ready] --body "$body"
 ```
 
-- 引用符付きの `<<'BODY'` にする。本文の backtick・`$`・`#` がシェルに解釈されないため
-- 作成に失敗したら本文を書き直して送り直す。ファイルに退避しない
+- 引用符付きの `<<'JSON'` にする。本文の backtick・`$`・`#` がシェルに解釈されないため
+- `render` か作成に失敗したら JSON を直して送り直す。ファイルに退避しない
 - 優先度: `p1` 先に流す、`p2` 通常、`p3` 後回し。指定が無ければ `p2`
 - `ready` は受け入れ条件が埋まっていて依存が無い (または依存先が閉じている) ときだけ付ける。
   依存先が open のものは `ready` を付けず、依存先が閉じたときに付ける

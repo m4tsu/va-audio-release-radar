@@ -33,14 +33,15 @@ bash .claude/skills/issue-batch/scripts/collect.sh [番号...]
 各 issue の本文を読み、次を決めて `<RUN_DIR>/plan.md` に表で書く。
 列は issue / 優先度 / 状態 / スキーマ変更 / 依存 / Agent 名 / worktree / 備考。状態は 未着手 / 実行中 / マージ待ち / 入力待ち / 完了 / 失敗。
 
-本文が `.github/ISSUE_TEMPLATE/task.yml` の欄で書かれていれば欄を読む。欄が無い issue は本文全体から推測し、備考に「推測」と書く。
+欄の読み方は collect.sh が呼ぶ `scripts/issue-body.mjs` が `.github/ISSUE_TEMPLATE/task.yml` から決める。
+`schema=?` / `areas=?` は欄で書かれていない issue なので、本文全体から推測し、備考に「推測」と書く。
 
-- **質問**: 「受け入れ条件」が無い、または issue-task の「要件」で聞く条件に当てはまる点を全 issue ぶん集め、
+- **質問**: 受け入れ条件が無い、または issue-task の「要件」で聞く条件に当てはまる点を全 issue ぶん集め、
   `AskUserQuestion` で 1 回にまとめて聞く。Agent は途中でユーザーに質問できない。
   答えは `gh issue comment <N> --body` で issue に書く (Agent はコメントも読む)
-- **スキーマ変更**: 「触る場所の見込み」でスキーマにチェックがある issue (collect.sh の `schema=yes`)。同時に動かすのは 1 つまで
-- **依存と重なり**: 「依存」の欄 (collect.sh の `deps=`) に加え、「触る場所の見込み」が同じ `src/app` で
-  同じ画面を触ると見込むものは直列にする。並列にできるのは触る範囲が離れているものだけ
+- **スキーマ変更**: collect.sh の `schema=yes`。同時に動かすのは 1 つまで
+- **依存と重なり**: collect.sh の `deps=` に加え、`areas=` が同じ `src/app` で同じ画面を触ると見込むものは
+  直列にする。並列にできるのは触る範囲が離れているものだけ
 - **順序**: collect.sh の出力順 (p1 → p2 → p3 → ラベル無し、同じなら番号順)。起動はこの順で空きに入れる
 
 ## 4. 起動

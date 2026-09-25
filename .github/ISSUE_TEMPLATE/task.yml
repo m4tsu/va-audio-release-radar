@@ -1,5 +1,6 @@
-# issue-batch (.claude/skills/issue-batch/) が読む欄。見出しの文言を変えるときは
-# issue-new / issue-batch の SKILL.md と collect.sh も合わせる
+# issue の欄の定義はここだけに置く。issue-new が本文を作るのも issue-batch が読むのも、
+# このファイルを読む scripts/issue-body.mjs を通す。見出しを変えても他のファイルは直さなくてよい。
+# 同時に 1 つしか動かさない判定は「触る場所の見込み」の「スキーマ」で始まる選択肢で行う (issue-body.mjs)
 name: タスク
 description: 実装する作業の単位。issue-batch が ready ラベルのものを拾う
 body:
