@@ -228,9 +228,32 @@ describe("findStyleAssertions", () => {
     expect(findStyleAssertions("src/app/hooks/use-theme.test.ts", text)).toEqual([]);
   });
 
+  it("Vite の ?raw で CSS を読むのも拾う", () => {
+    const text = 'import css from "@/index.css?raw";';
+    expect(findStyleAssertions("src/app/components/x.test.tsx", text)).toHaveLength(1);
+  });
+
   it("コメントの中の語は拾わない", () => {
-    const text = "// src/index.css を読まない\n/**\n * getComputedStyle は使わない\n */\nconst a = 1;";
+    const text = [
+      "// src/index.css を読まない",
+      "const a = 1; // getComputedStyle は見ない",
+      "/**",
+      " * toHaveClass は使わない",
+      " */",
+    ].join("\n");
     expect(findStyleAssertions("src/app/components/x.test.tsx", text)).toEqual([]);
+  });
+
+  /** 文字列の `/*` をコメントの始まりとみなすと、次の `*\/` までを見落とす */
+  it("文字列の中の /* で後ろの行を見落とさない", () => {
+    const text = [
+      'test("/admin/* は noindex", async () => {',
+      '  await expect(link).toHaveCSS("color", x);',
+      "});",
+      "/** 閉じ */",
+    ].join("\n");
+    const found = findStyleAssertions("e2e/ssr.spec.ts", text);
+    expect(found.map((f) => f.line)).toEqual([2]);
   });
 });
 

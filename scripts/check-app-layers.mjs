@@ -62,7 +62,8 @@ function isExcludedComponent(relative) {
  * 落ちてもこのアプリの判断が壊れたことを知らせない
  */
 const STYLE_ASSERTIONS = [
-  { pattern: /["'`][^"'`\n]*\.css["'`]/, what: "CSS ファイルを読んでいる" },
+  // `?raw` は Vite で CSS を文字列として読む書き方
+  { pattern: /["'`][^"'`\n]*\.css(?:\?[^"'`\n]*)?["'`]/, what: "CSS ファイルを読んでいる" },
   { pattern: /\bgetComputedStyle\b/, what: "計算済みスタイルを見ている" },
   { pattern: /\.toHave(?:Style|CSS|Class)\s*\(/, what: "スタイルか class を見ている" },
   { pattern: /\bgetAttribute\(\s*["']class["']\s*\)/, what: "class を見ている" },
@@ -191,14 +192,49 @@ export function findMissingComponentTests(cwd) {
   return findings;
 }
 
-/** CSS のパスは文字列で現れるので文字列は残し、コメントだけを落として行ごとに見る */
+/**
+ * 文字列は残してコメントだけを空白にする。改行は残すので行番号は変わらない。
+ * 正規表現で落とすと `"/admin/*"` や `"**\/*.png"` の `/*` をコメントの始まりとみなし、
+ * 次の `*\/` までの確かめを見落とす。文字列の中かどうかを追いながら 1 文字ずつ読む
+ */
+export function stripComments(text) {
+  let out = "";
+  let quote = null;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (quote !== null) {
+      out += char;
+      if (char === "\\") {
+        out += text[i + 1] ?? "";
+        i++;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+      out += char;
+    } else if (char === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      out += "\n";
+    } else if (char === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      const stop = end === -1 ? text.length : end + 2;
+      out += text.slice(i, stop).replace(/[^\n]/g, " ");
+      i = stop - 1;
+    } else {
+      out += char;
+    }
+  }
+  return out;
+}
+
+/** CSS のパスは文字列で現れるので、文字列は残してコメントだけを落とし、行ごとに見る */
 export function findStyleAssertions(relative, text) {
   const findings = [];
-  const lines = text
-    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "))
-    .split("\n");
-  for (const [index, line] of lines.entries()) {
-    const code = line.replace(/^\s*\/\/.*$/, "");
+  const lines = stripComments(text).split("\n");
+  for (const [index, code] of lines.entries()) {
     for (const { pattern, what } of STYLE_ASSERTIONS) {
       if (!pattern.test(code)) continue;
       findings.push({
