@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createTranslator } from "@/app/i18n";
+import { siteImageMeta } from "@/app/lib/site-image";
 import { PrivacyPage } from "@/app/pages/privacy";
 import { fetchContactUrl, siteOriginForLoader } from "@/app/server-fns/site";
 
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/privacy")({
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
         { property: "og:url", content: canonical },
+        ...(loaderData ? siteImageMeta(loaderData.origin) : []),
       ],
       links: [{ rel: "canonical", href: canonical }],
     };

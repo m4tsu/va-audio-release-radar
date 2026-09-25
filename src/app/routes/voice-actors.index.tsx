@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createTranslator } from "@/app/i18n";
+import { siteImageMeta } from "@/app/lib/site-image";
 import { VoiceActorDirectoryPage } from "@/app/pages/voice-actor-directory";
 import { fetchAllActors } from "@/app/server-fns/actors";
 import { siteOriginForLoader } from "@/app/server-fns/site";
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/voice-actors/")({
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
         { property: "og:url", content: canonical },
+        ...(loaderData?.origin ? siteImageMeta(loaderData.origin) : []),
       ],
       links: [{ rel: "canonical", href: canonical }],
     };

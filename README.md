@@ -56,7 +56,8 @@ canonical / og:url / `sitemap.xml` のオリジンは `SITE_URL`。本番の値�
 node -e "const {generateKeyPairSync}=require('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});const pub=publicKey.export({format:'jwk'});const b=s=>Buffer.from(s,'base64url');console.log('VAPID_PUBLIC_KEY='+Buffer.concat([Buffer.from([4]),b(pub.x),b(pub.y)]).toString('base64url'));console.log('VAPID_PRIVATE_KEY='+privateKey.export({format:'jwk'}).d)"
 ```
 
-ホーム画面用のアイコン (`public/icons/`) は `public/favicon.svg` から `node scripts/generate-icons.mjs` で作る。
+ホーム画面用のアイコン (`public/icons/`) と、表紙画像を持たないページの og:image (`public/og-image.png`) は
+`public/favicon.svg` から `node scripts/generate-icons.mjs` で作る。
 
 ## コマンド
 

@@ -25,6 +25,34 @@ test("トップは JS を動かす前の HTML に新着が入っている", asyn
   expect(html).toMatch(/href="\/voice-actors\/e2e-alpha"/);
 });
 
+test("トップは title・description・canonical・og を SSR で返す", async ({ request, baseURL }) => {
+  const html = await (await request.get("/")).text();
+
+  expect(html).toContain(
+    "<title>Koetrail | 声優の音声作品 (ASMR・朗読・ボイスドラマ) をストア横断で追う</title>",
+  );
+  // 外枠 (__root.tsx) にも description があり、名前の同じ meta は 1 つに畳まれて出る
+  expect(html.match(/<meta name="description"/g)).toHaveLength(1);
+  expect(html).toContain('<meta property="og:type" content="website"/>');
+  expect(html).toContain(`<link rel="canonical" href="${baseURL}/"/>`);
+  expect(html).toContain(`<meta property="og:url" content="${baseURL}/"/>`);
+});
+
+/** SNS のクローラーは og:image を相対 URL では読まない。オリジンは baseURL (SITE_URL 未設定) */
+test("表紙画像を持たないページは共通の og:image を絶対 URL で返す", async ({
+  request,
+  baseURL,
+}) => {
+  for (const path of ["/", "/voice-actors", "/following", "/anime", "/terms", "/privacy"]) {
+    const html = await (await request.get(path)).text();
+    expect(html, path).toContain(`<meta property="og:image" content="${baseURL}/og-image.png"/>`);
+  }
+
+  const image = await request.get("/og-image.png");
+  expect(image.status()).toBe(200);
+  expect(image.headers()["content-type"]).toContain("image/png");
+});
+
 test("声優ページは title と本文と canonical を SSR で返す", async ({ request, baseURL }) => {
   const res = await request.get(`/voice-actors/${ACTOR_SLUG}`);
   expect(res.status()).toBe(200);

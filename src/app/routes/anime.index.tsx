@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createTranslator } from "@/app/i18n";
 import { featuredSeason } from "@/app/lib/season";
+import { siteImageMeta } from "@/app/lib/site-image";
 import { AnimeIndexPage } from "@/app/pages/anime-index";
 import { fetchAnimeSeasons, fetchSeasonAnime } from "@/app/server-fns/anime";
 import { siteOriginForLoader } from "@/app/server-fns/site";
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/anime/")({
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
         { property: "og:url", content: canonical },
+        ...(loaderData?.origin ? siteImageMeta(loaderData.origin) : []),
       ],
       links: [{ rel: "canonical", href: canonical }],
     };

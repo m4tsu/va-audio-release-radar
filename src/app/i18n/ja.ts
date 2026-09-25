@@ -158,6 +158,8 @@ export const ja = {
   },
 
   home: {
+    /** トップの title。description はサービスの説明 (`app.description`) をそのまま使う */
+    metaTitle: "{{app}} | 声優の音声作品 (ASMR・朗読・ボイスドラマ) をストア横断で追う",
     /** トップの h1 */
     heroTitle: "好きな声優の声が聴ける作品を見つける",
     latestTitle: "新着の音声作品",

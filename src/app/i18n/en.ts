@@ -129,6 +129,7 @@ export const en: Translations = {
   },
 
   home: {
+    metaTitle: "{{app}} | Follow voice actors' ASMR, audiobooks and audio dramas across stores",
     heroTitle: "Find the audio works your favorite voice actors are in",
     latestTitle: "New audio works",
     latestStoreTabsLabel: "Filter by store",
