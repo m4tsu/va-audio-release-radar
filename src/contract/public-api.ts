@@ -87,13 +87,6 @@ export const pushUnsubscribeSchema = z.object({
 // --- 操作の計測 ------------------------------------------------------------
 
 /**
- * 画面から数える操作 (`POST /api/event`)。`docs/product.md` の「製品」の分子になる。
- *
- * 持つのは操作の種類と、ストアの別・フォローを押した場所だけ。声優 ID やフォローの一覧を足すと、フォローの状態が
- * ブラウザの外に出る (`docs/decisions/0016-count-actions-in-analytics-engine.md`)。
- * 知らない項目が付いた本文は受け付けない (strict)。送る側の誤りで余計な値を保存しないため
- */
-/**
  * フォローボタンを置いている場所。フォローはどこで押しても数え、入口ごとの転換率は
  * 場所で絞り、その場所のページビューを分母にして出す
  */
@@ -105,6 +98,13 @@ export const FOLLOW_PLACEMENTS = [
 ] as const;
 export type FollowPlacement = (typeof FOLLOW_PLACEMENTS)[number];
 
+/**
+ * 画面から数える操作 (`POST /api/event`)。`docs/product.md` の「製品」の分子になる。
+ *
+ * 持つのは操作の種類と、ストアの別・フォローを押した場所だけ。声優 ID やフォローの一覧を足すと、フォローの状態が
+ * ブラウザの外に出る (`docs/decisions/0016-count-actions-in-analytics-engine.md`)。
+ * 知らない項目が付いた本文は受け付けない (strict)。送る側の誤りで余計な値を保存しないため
+ */
 export const usageEventSchema = z.discriminatedUnion("type", [
   /** フォローを付けた */
   z.strictObject({ type: z.literal("follow"), placement: z.enum(FOLLOW_PLACEMENTS) }),
