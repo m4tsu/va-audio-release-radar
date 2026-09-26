@@ -115,6 +115,7 @@ function CastCard({ member }: { member: AnimeCastMember }) {
                 .join(t("common.slashSeparator"))}
         </p>
         <FollowButton
+          placement="anime_page"
           actor={{
             voiceActorId: member.actor.id,
             slug: member.actor.slug,

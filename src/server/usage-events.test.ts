@@ -23,20 +23,23 @@ describe("webAnalyticsToken", () => {
 });
 
 describe("handleUsageEvent", () => {
-  it("操作の種類とストアだけを書く", async () => {
+  it("操作の種類と、ストア・フォローを押した場所だけを書く", async () => {
     const { dataset, points } = fakeDataset();
 
     const store = await handleUsageEvent(post('{"type":"store_click","store":"dlsite"}'), {
       enabled: true,
       dataset,
     });
-    const follow = await handleUsageEvent(post('{"type":"follow"}'), { enabled: true, dataset });
+    const follow = await handleUsageEvent(post('{"type":"follow","placement":"actor_directory"}'), {
+      enabled: true,
+      dataset,
+    });
 
     expect(store.status).toBe(204);
     expect(follow.status).toBe(204);
     expect(points).toEqual([
-      { blobs: ["store_click", "dlsite"], indexes: ["store_click"] },
-      { blobs: ["follow", ""], indexes: ["follow"] },
+      { blobs: ["store_click", "dlsite", ""], indexes: ["store_click"] },
+      { blobs: ["follow", "", "actor_directory"], indexes: ["follow"] },
     ]);
   });
 
@@ -44,10 +47,13 @@ describe("handleUsageEvent", () => {
   it("知らない項目が付いた本文は書かない", async () => {
     const { dataset, points } = fakeDataset();
 
-    const response = await handleUsageEvent(post('{"type":"follow","voiceActorId":"a1"}'), {
-      enabled: true,
-      dataset,
-    });
+    const response = await handleUsageEvent(
+      post('{"type":"follow","placement":"actor_page","voiceActorId":"a1"}'),
+      {
+        enabled: true,
+        dataset,
+      },
+    );
 
     expect(response.status).toBe(400);
     expect(points).toEqual([]);

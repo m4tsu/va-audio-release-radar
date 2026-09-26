@@ -435,8 +435,8 @@ describe("VoiceActorPage のフォロー", () => {
     expect(screen.getByRole("button", { name: "フォロー中" })).toBeInTheDocument();
   });
 
-  /** 転換率の分子。誰をフォローしたかは送らない */
-  test("フォローを押すと、声優を添えずに 1 回数える。外すときは数えない", async () => {
+  /** 声優ページ → フォローの転換率の分子は、この置き場所で絞って出す */
+  test("声優ページのフォローは、声優ページで押したものとして数える", async () => {
     const user = userEvent.setup();
     const events = captureUsageEvents();
     await readyFollowStore();
@@ -445,7 +445,7 @@ describe("VoiceActorPage のフォロー", () => {
     await user.click(screen.getByRole("button", { name: "フォロー" }));
     await user.click(screen.getByRole("button", { name: "フォロー中" }));
 
-    expect(await events.sent()).toEqual([{ type: "follow" }]);
+    expect(await events.sent()).toEqual([{ type: "follow", placement: "actor_page" }]);
   });
 
   /** 読み込みが済むまで押せると、直後に届いた保存済みの状態で操作が消える */

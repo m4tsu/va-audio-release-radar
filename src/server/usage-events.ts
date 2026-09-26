@@ -6,7 +6,7 @@ import { type UsageEvent, usageEventSchema } from "@/contract";
  * 分母のページビューは Cloudflare Web Analytics が数える。決定は
  * `docs/decisions/0016-count-actions-in-analytics-engine.md`
  *
- * 書く列は blob1 = 操作の種類、blob2 = ストア (ストアを持たない操作は空文字)。
+ * 書く列は blob1 = 操作の種類、blob2 = ストア、blob3 = フォローを押した場所 (持たない操作は空文字)。
  * IP アドレスや User-Agent は書かない。1 件がどのブラウザから来たかを後から辿れないようにするため
  */
 
@@ -24,7 +24,11 @@ const MAX_BODY_LENGTH = 256;
 
 export function usageEventDataPoint(event: UsageEvent): AnalyticsEngineDataPoint {
   return {
-    blobs: [event.type, event.type === "store_click" ? event.store : ""],
+    blobs: [
+      event.type,
+      event.type === "store_click" ? event.store : "",
+      event.type === "follow" ? event.placement : "",
+    ],
     // 標本化の単位。種類ごとに分けておくと、多い操作が少ない操作の標本を押し出さない
     indexes: [event.type],
   };

@@ -334,6 +334,7 @@ function ActorList({
               <StoreBadge key={slug} store={slug} className="hidden sm:inline-flex" />
             ))}
             <FollowButton
+              placement="actor_directory"
               actor={{
                 voiceActorId: actor.id,
                 slug: actor.slug,

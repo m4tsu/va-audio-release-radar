@@ -113,6 +113,7 @@ function SearchResults({
             </span>
           </Link>
           <FollowButton
+            placement="actor_search"
             actor={{
               voiceActorId: actor.id,
               slug: actor.slug,

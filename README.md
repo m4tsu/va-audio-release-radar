@@ -161,10 +161,10 @@ Free プランの D1 は 1 日に書ける行数に上限があり、索引へ�
 ```bash
 curl "https://api.cloudflare.com/client/v4/accounts/<アカウント ID>/analytics_engine/sql" \
   --header "Authorization: Bearer <API トークン>" \
-  --data "SELECT blob1 AS action, blob2 AS store, SUM(_sample_interval) AS count
+  --data "SELECT blob1 AS action, blob2 AS store, blob3 AS placement, SUM(_sample_interval) AS count
           FROM voice_actor_audio_release_radar_events
           WHERE timestamp > NOW() - INTERVAL '7' DAY
-          GROUP BY action, store"
+          GROUP BY action, store, placement"
 ```
 
 ## ディレクトリ構成
