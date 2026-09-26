@@ -332,6 +332,8 @@ export const ja = {
     audible: "Audible で聴く",
     pokedora: "ポケドラで聴く",
     missing: "リンクがありません。",
+    /** アフィリエイトリンクの広告表記 (`components/pr-label.tsx`)。両言語とも同じ語 */
+    pr: "PR",
   },
 
   /**

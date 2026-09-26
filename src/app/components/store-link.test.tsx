@@ -34,6 +34,58 @@ describe("StoreLink の送り先", () => {
   });
 });
 
+/**
+ * バリューコマースの利用規約が広告表記を求める。DLsite のアフィリエイトリンクも同じ区画に並ぶので揃える。
+ * 正規 URL に落ちたリンクは報酬が付かないので表記しない
+ */
+describe("StoreLink の広告表記", () => {
+  test("アフィリエイト URL へ送るときは、リンクより前に PR と出す", () => {
+    renderWithLocale(
+      <StoreLink
+        listing={workListing({
+          productUrl: PRODUCT_URL,
+          affiliateUrl: "https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/example/id/RJ1.html",
+        })}
+      />,
+    );
+
+    const label = screen.getByText("PR");
+    const link = screen.getByRole("link", { name: "DLsite で見る" });
+    expect(label.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("英語表示でも PR と出す", () => {
+    renderWithLocale(
+      <StoreLink
+        listing={workListing({
+          productUrl: PRODUCT_URL,
+          affiliateUrl: "https://dlaf.jp/home/dlaf/=/t/n/link/work/aid/example/id/RJ1.html",
+        })}
+      />,
+      "en",
+    );
+
+    expect(screen.getByText("PR")).toBeInTheDocument();
+  });
+
+  test("正規 URL へ送るリンクには出さない", () => {
+    renderWithLocale(
+      <StoreLink
+        listing={workListing({
+          productUrl: PRODUCT_URL,
+          affiliateUrl: "http://dlaf.jp/home/dlaf/=/t/n/link/work/aid/example/id/RJ1.html",
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "DLsite で見る" })).toHaveAttribute(
+      "href",
+      PRODUCT_URL,
+    );
+    expect(screen.queryByText("PR")).toBeNull();
+  });
+});
+
 describe("StoreLink の成果計測の画像", () => {
   const POKEDORA_URL = "https://pokedora.com/products/detail.php?product_id=101749";
   const BEACON_URL = "https://ad.jp.ap.valuecommerce.com/servlet/gifbanner?sid=1&pid=2";

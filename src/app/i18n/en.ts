@@ -257,6 +257,7 @@ export const en: Translations = {
     audible: "Listen on Audible",
     pokedora: "Listen on Pokedora",
     missing: "No link available.",
+    pr: "PR",
   },
 
   category: {

@@ -14,7 +14,7 @@ import { createTranslator, type Locale } from "@/app/i18n";
 
 /**
  * 利用規約とプライバシーポリシーに出す運営者の表記。両文書の本文はここから差し込む。
- * 特定商取引法に基づく表示を置かない理由は `docs/decisions/0019-no-tokushoho-notice.md`
+ * 特定商取引法に基づく表示を置かない理由は `docs/decisions/0019-operator-and-pr-label.md`
  */
 export const OPERATOR_NAME: Record<Locale, string> = {
   ja: `${createTranslator("ja")("app.name")}運営`,

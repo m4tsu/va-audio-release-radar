@@ -196,7 +196,7 @@ describe("WorkPage の Audible の無料体験", () => {
     const store = screen.getByRole("link", { name: "Audible で聴く" });
     expect(store).toHaveAttribute("href", "https://www.audible.co.jp/pd/B0ABC");
     // 同じ区画に入り、ストアへのリンクより後に並ぶ
-    expect(store.parentElement).toBe(trial.parentElement);
+    expect(store.parentElement).toContainElement(trial);
     expect(store.compareDocumentPosition(trial) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

@@ -34,10 +34,20 @@ describe("AudibleTrialLink", () => {
     expect(beacon).toHaveAttribute("border", "0");
   });
 
+  /** バリューコマースの利用規約が広告表記を求める */
+  test("リンクより前に PR と出す", () => {
+    renderWithLocale(<AudibleTrialLink link={LINK} />);
+
+    const label = screen.getByText("PR");
+    const link = screen.getByRole("link");
+    expect(label.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   test("URL が https でなければ出さない", () => {
     renderWithLocale(<AudibleTrialLink link={{ ...LINK, url: "http://example.com" }} />);
 
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByText("PR")).toBeNull();
   });
 });
 

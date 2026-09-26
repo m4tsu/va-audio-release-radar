@@ -1,4 +1,5 @@
 import { ExternalLink } from "lucide-react";
+import { PrLabel } from "@/app/components/pr-label";
 import { Button } from "@/app/components/ui/button";
 import { type TKey, useT } from "@/app/i18n";
 import { safeHttpsUrl } from "@/app/lib/safe-url";
@@ -20,6 +21,7 @@ const CALL_TO_ACTION = {
  * - アフィリエイトの広告コードが成果計測の画像を含むストアは、その画像をリンクの中に出す。
  *   画面には見えないが、描画した時点でブラウザから計測のサーバーへ通信が出る
  *   (プライバシーポリシーの外部通信の節、`src/app/legal/privacy.ts`)
+ * - アフィリエイト URL へ送るときだけ、リンクの前に広告表記を出す (`@/app/components/pr-label`)
  * - `rel` に `sponsored` を付けるのは報酬が発生しうるリンクだから。`nofollow` で
  *   評価を渡さず、`noopener` で遷移先から元タブを触れないようにする
  * - 押したらストアの別を添えて数える (`@/app/lib/usage-events`)。送客の指標の分子になる
@@ -38,7 +40,7 @@ export function StoreLink({ listing, className }: { listing: WorkListing; classN
     return <p className="text-muted-foreground text-sm">{t("storeLink.missing")}</p>;
   }
 
-  return (
+  const button = (
     <Button asChild className={className}>
       <a
         href={href}
@@ -55,5 +57,12 @@ export function StoreLink({ listing, className }: { listing: WorkListing; classN
         <ExternalLink aria-hidden="true" />
       </a>
     </Button>
+  );
+  if (!affiliateUrl) return button;
+  return (
+    <div className="space-y-1.5">
+      <PrLabel />
+      {button}
+    </div>
   );
 }
