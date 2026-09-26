@@ -28,6 +28,14 @@ on:
           - dlsite
           - audible
           - pokedora
+      shard:
+        # 全員を 1 ストアで引くとジョブ時間に収まらないときに、何回かに分けて投げるための入力。
+        # 人数ではなく声優 ID のハッシュで分ける (crawler/run.ts の shardActors)。
+        # 次の組は前の組が終わってから投げる。同じ concurrency グループの待ちは 1 つしか持てず、
+        # 待っている日次の走行を後から投げた走行が取り消すため
+        description: "対象を n 組に分けた i 番目だけを引く (i/n の形。空なら分けない)"
+        required: false
+        type: string
 
 # 前回の実行が終わる前に次を始めない。
 # 同じストアへ二重にアクセスすると、プロセスをまたぐレート制限が効かないため
@@ -64,10 +72,12 @@ jobs:
           INGEST_URL: ${{ secrets.INGEST_URL }}
           ONLY: ${{ inputs.only }}
           STORE: ${{ inputs.store }}
+          SHARD: ${{ inputs.shard }}
         run: |
           args=()
           if [ -n "$ONLY" ]; then args+=(--only "$ONLY"); fi
           if [ -n "$STORE" ] && [ "$STORE" != all ]; then args+=(--store "$STORE"); fi
+          if [ -n "$SHARD" ]; then args+=(--shard "$SHARD"); fi
           node crawler/run.ts --base-url "$INGEST_URL" "${args[@]}"
       - name: 取得した生データを残す
         # パーサーが壊れたときに再現できるよう、失敗しても必ず上げる
