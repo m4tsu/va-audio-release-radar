@@ -18,7 +18,7 @@
     "check:entrypoints": "node --no-warnings scripts/check-entrypoints.mjs",
     "check": "npm run check:migrations && npm run check:docs && npm run check:layers && npm run check:entrypoints && npm run typecheck && npm run lint && npm run test",
     "test:e2e": "playwright test",
-    "deploy": "npm run build && wrangler deploy --var SITE_URL:https://koetrail.com --var DLSITE_AFFILIATE_ID:do65m205lfao7 --var VALUECOMMERCE_SID:3782466 --var DATA_CACHE:1",
+    "deploy": "npm run build && wrangler deploy --var SITE_URL:https://koetrail.com --var DLSITE_AFFILIATE_ID:do65m205lfao7 --var VALUECOMMERCE_SID:3782466 --var DATA_CACHE:1 --var WEB_ANALYTICS_TOKEN:cc4c2aac70d0495fa0b491626835e5f3",
     "radar": "node crawler/cli.ts",
     "radar:crawl": "node crawler/run.ts",
     "radar:daily": "node crawler/daily.ts",
