@@ -199,8 +199,8 @@ API を使わない**。`/wiki/<記事名>` だけで必要な項目が取れる
 
   **Wikidata の P1814 は CC0 なので表示義務が無い。Wikipedia の記事から取った文字列には
   CC BY-SA の条件が付く。** このプロジェクトは「人名の読み 1 つ」を上の引用の言う "facts" として扱い、
-  かなを出す画面に出典とライセンスを添えない (`docs/product.md` の「外部サービスとの関係」、
-  [`docs/decisions/0006-actor-kana-from-wikipedia-ja.md`](../decisions/0006-actor-kana-from-wikipedia-ja.md))
+  かなを出す画面に出典とライセンスを添えない
+  ([`docs/decisions/0006-actor-kana-from-wikipedia-ja.md`](../decisions/0006-actor-kana-from-wikipedia-ja.md))
 
 ---
 
