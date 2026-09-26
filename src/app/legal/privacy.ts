@@ -1,4 +1,4 @@
-import type { LocalizedLegalDocument } from "./index";
+import { type LocalizedLegalDocument, OPERATOR_NAME } from "./index";
 
 /**
  * プライバシーポリシー。条の id と並びは両言語で同じにする (`legal.test.ts`)。
@@ -19,7 +19,7 @@ import type { LocalizedLegalDocument } from "./index";
  */
 export const privacy: LocalizedLegalDocument = {
   ja: {
-    effectiveDate: "2026-09-25",
+    effectiveDate: "2026-09-26",
     sections: [
       {
         id: "overview",
@@ -27,7 +27,7 @@ export const privacy: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: "Koetrail (以下「本サービス」) の運営者 (以下「運営者」) は、本サービスの利用者の情報を次のとおり扱います。",
+            text: `Koetrail (以下「本サービス」) を提供する ${OPERATOR_NAME.ja} (以下「運営者」) は、本サービスの利用者の情報を次のとおり扱います。`,
           },
           {
             type: "paragraph",
@@ -131,7 +131,7 @@ export const privacy: LocalizedLegalDocument = {
   },
 
   en: {
-    effectiveDate: "2026-09-25",
+    effectiveDate: "2026-09-26",
     sections: [
       {
         id: "overview",
@@ -139,7 +139,7 @@ export const privacy: LocalizedLegalDocument = {
         blocks: [
           {
             type: "paragraph",
-            text: 'The operator (the "Operator") of Koetrail (the "Service") handles information about Users of the Service as described below.',
+            text: `${OPERATOR_NAME.en} (the "Operator"), which provides Koetrail (the "Service"), handles information about Users of the Service as described below.`,
           },
           {
             type: "paragraph",

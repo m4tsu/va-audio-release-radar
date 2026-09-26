@@ -1,4 +1,4 @@
-import type { LocalizedLegalDocument } from "./index";
+import { type LocalizedLegalDocument, OPERATOR_NAME } from "./index";
 
 /**
  * 利用規約。条の id と並びは両言語で同じにする (`legal.test.ts`)。
@@ -7,7 +7,7 @@ import type { LocalizedLegalDocument } from "./index";
  */
 export const terms: LocalizedLegalDocument = {
   ja: {
-    effectiveDate: "2026-09-21",
+    effectiveDate: "2026-09-26",
     sections: [
       {
         id: "scope",
@@ -19,7 +19,7 @@ export const terms: LocalizedLegalDocument = {
           },
           {
             type: "paragraph",
-            text: "本サービスは、本サービスの運営者 (以下「運営者」) が個人として提供します。",
+            text: `本サービスは、${OPERATOR_NAME.ja} (以下「運営者」) が個人として提供します。`,
           },
         ],
       },
@@ -185,7 +185,7 @@ export const terms: LocalizedLegalDocument = {
   },
 
   en: {
-    effectiveDate: "2026-09-21",
+    effectiveDate: "2026-09-26",
     sections: [
       {
         id: "scope",
@@ -197,7 +197,7 @@ export const terms: LocalizedLegalDocument = {
           },
           {
             type: "paragraph",
-            text: 'The Service is provided by its operator (the "Operator") as an individual.',
+            text: `The Service is provided by an individual under the name ${OPERATOR_NAME.en} (the "Operator").`,
           },
         ],
       },

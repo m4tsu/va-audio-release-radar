@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { createTranslator, LOCALES } from "@/app/i18n";
-import type { LegalBlock, LegalDocument, LocalizedLegalDocument } from "./index";
+import {
+  type LegalBlock,
+  type LegalDocument,
+  type LocalizedLegalDocument,
+  OPERATOR_NAME,
+} from "./index";
 import { privacy } from "./privacy";
 import { terms } from "./terms";
 
@@ -58,6 +63,15 @@ describe.each(Object.entries(DOCUMENTS))("%s", (_name, document) => {
     for (const locale of LOCALES) {
       const name = createTranslator(locale)("app.name");
       expect(texts(document[locale]).some((text) => text.includes(name))).toBe(true);
+    }
+  });
+
+  /** 「運営者」とだけ書くと誰が運営しているか特定できない */
+  test("本文が運営者を表記で名指ししている", () => {
+    for (const locale of LOCALES) {
+      expect(texts(document[locale]).some((text) => text.includes(OPERATOR_NAME[locale]))).toBe(
+        true,
+      );
     }
   });
 

@@ -1,4 +1,4 @@
-import type { Locale } from "@/app/i18n";
+import { createTranslator, type Locale } from "@/app/i18n";
 
 /**
  * 利用規約・プライバシーポリシーの本文の形。
@@ -11,6 +11,15 @@ import type { Locale } from "@/app/i18n";
  * 文中でサービスの仕組みに触れるときは、リポジトリで確かめられることだけを書く
  * (何をブラウザに保存するか、何をサーバーへ送るか、画像をどこから読むか)。
  */
+
+/**
+ * 利用規約とプライバシーポリシーに出す運営者の表記。両文書の本文はここから差し込む。
+ * 特定商取引法に基づく表示を置かない理由は `docs/decisions/0019-no-tokushoho-notice.md`
+ */
+export const OPERATOR_NAME: Record<Locale, string> = {
+  ja: `${createTranslator("ja")("app.name")}運営`,
+  en: `${createTranslator("en")("app.name")} Team`,
+};
 
 export type LegalBlock =
   | { type: "paragraph"; text: string }

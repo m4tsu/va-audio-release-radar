@@ -8,7 +8,7 @@ describe("TermsPage", () => {
     renderWithLocale(<TermsPage contactUrl={null} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "利用規約" })).toBeInTheDocument();
-    expect(screen.getByText("制定日: 2026年9月21日")).toBeInTheDocument();
+    expect(screen.getByText("制定日: 2026年9月26日")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "第1条 (本規約の適用)" }),
     ).toBeInTheDocument();
