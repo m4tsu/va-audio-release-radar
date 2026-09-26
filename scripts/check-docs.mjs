@@ -7,11 +7,10 @@
 // 検査するもの:
 //   1. 禁止語彙 (タスク ID、節番号参照、会話の文脈を前提にした語)
 //   2. docs/ 配下の各 .md の先頭にある 3 行ヘッダ (読者 / 更新 / 削除)
-//   3. 文字数の上限 (docs/product.md、docs/architecture.md)
-//   4. docs/stores/ と docs/decisions/ の見出しの型、決定の状態行
-//   5. .md が指すリポジトリ内のファイルと `npm run` のスクリプトが実在するか。
+//   3. docs/product.md、docs/architecture.md、docs/stores/、docs/decisions/ の見出しの型と、決定の状態行
+//   4. .md が指すリポジトリ内のファイルと `npm run` のスクリプトが実在するか。
 //      文書とコメントが「<文書> の「見出し」」で指す見出しが実在するか
-//   6. README.md の「コマンド」が package.json の scripts を漏れなく載せているか
+//   5. README.md の「コマンド」が package.json の scripts を漏れなく載せているか
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -65,10 +64,34 @@ export const REQUIRED_HEADER_KEYS = ["読者:", "更新:", "削除:"];
 const HEADER_SEARCH_LINES = 12;
 
 /**
- * 文字数の上限。境界と範囲だけを書く文書が膨らんでいないかを見る。
- * 行数で測ると、既存の行の後ろに文をつなげるだけで上限をすり抜けられる
+ * docs/product.md と docs/architecture.md の h2 見出し。この順で、これ以外を置かない。
+ * 範囲外のもの (外部サイトの制約、進行、実装の事実) は新しい節として入り込むので、節を足すには
+ * ここを変える差分が要るようにして、.claude/rules/docs.md の判定表に照らす機会を作る。
+ * 大きさで測らないのは、上限の値に根拠が無く、上限に当たったときに言い回しを詰めて逃げられるため
  */
-export const CHAR_LIMITS = { "docs/product.md": 3500, "docs/architecture.md": 7500 };
+export const PRODUCT_HEADINGS = [
+  "製品",
+  "作らないもの",
+  "対象声優",
+  "対象作品",
+  "新着",
+  "通知",
+  "別名義",
+  "差別化の軸",
+];
+export const ARCHITECTURE_HEADINGS = [
+  "構成要素",
+  "取得の周期",
+  "通知の送信",
+  "依存方向",
+  "クローラーと Worker の契約",
+  "データの不変条件",
+  "外部アクセスの不変条件",
+  "画面と公開 API",
+  "秘匿値",
+  "ローカル環境",
+  "未実装",
+];
 
 /**
  * docs/stores/<store>.md の h2 見出し。この順で、これ以外を置かない。
@@ -155,14 +178,6 @@ export function findMissingHeader(relative, text) {
   return [{ file: relative, line: 1, label: "先頭ヘッダが無い", excerpt: missing.join(" ") }];
 }
 
-export function findOverLimit(relative, text) {
-  const limit = CHAR_LIMITS[relative];
-  if (limit === undefined) return [];
-  const count = [...text].length;
-  if (count <= limit) return [];
-  return [{ file: relative, line: 1, label: "文字数上限", excerpt: `${count} 文字 > ${limit} 文字` }];
-}
-
 function h2Headings(text) {
   return [...text.matchAll(/^## (.+)$/gm)].map((match) => match[1].trim());
 }
@@ -180,6 +195,12 @@ function headingFindings(relative, actual, expected) {
 }
 
 export function findShapeViolations(relative, text) {
+  if (relative === "docs/product.md") {
+    return headingFindings(relative, h2Headings(text), PRODUCT_HEADINGS);
+  }
+  if (relative === "docs/architecture.md") {
+    return headingFindings(relative, h2Headings(text), ARCHITECTURE_HEADINGS);
+  }
   if (/^docs\/stores\/(?!README\.md$)[^/]+\.md$/.test(relative)) {
     return headingFindings(relative, h2Headings(text), STORE_HEADINGS);
   }
@@ -310,7 +331,6 @@ export function run({ cwd = process.cwd() } = {}) {
     findings.push(
       ...findForbidden(relative, text),
       ...findMissingHeader(relative, text),
-      ...findOverLimit(relative, text),
       ...findShapeViolations(relative, text),
       ...findDanglingReferences(relative, text, { cwd, scripts }),
       ...findBrokenHeadingReferences(relative, text, { cwd }),

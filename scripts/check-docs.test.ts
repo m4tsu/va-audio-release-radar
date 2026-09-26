@@ -7,15 +7,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  CHAR_LIMITS,
+  ARCHITECTURE_HEADINGS,
   DECISION_HEADINGS,
   findBrokenHeadingReferences,
   findDanglingReferences,
   findForbidden,
   findMissingHeader,
-  findOverLimit,
   findShapeViolations,
   findUnlistedScripts,
+  PRODUCT_HEADINGS,
   run,
   STORE_HEADINGS,
 } from "./check-docs.mjs";
@@ -76,14 +76,6 @@ describe("findMissingHeader", () => {
   });
 });
 
-describe("findOverLimit", () => {
-  it("上限のある文書だけ文字数を見る。行を長くしても逃げられない", () => {
-    const oneLongLine = "あ".repeat(CHAR_LIMITS["docs/architecture.md"] + 1);
-    expect(findOverLimit("docs/architecture.md", oneLongLine)).toHaveLength(1);
-    expect(findOverLimit("docs/stores/dlsite.md", oneLongLine)).toEqual([]);
-  });
-});
-
 const STORE_BODY = `# 店\n\n${HEADER}${STORE_HEADINGS.map((h) => `## ${h}\n\n本文\n`).join("\n")}`;
 const DECISION_BODY = `# 決定\n\n${HEADER}状態: accepted (2026-09-20)\n\n${DECISION_HEADINGS.map((h) => `## ${h}\n\n本文\n`).join("\n")}`;
 
@@ -96,6 +88,17 @@ describe("findShapeViolations", () => {
   it("stores に型に無い見出し (使う URL など) があれば拾う", () => {
     const text = STORE_BODY.replace("## 既知の落とし穴", "## 使う URL\n\n本文\n\n## 既知の落とし穴");
     expect(findShapeViolations("docs/stores/x.md", text)).toHaveLength(1);
+  });
+
+  it("product と architecture に型に無い節 (外部サイトの制約など) があれば拾う", () => {
+    for (const [file, headings] of [
+      ["docs/product.md", PRODUCT_HEADINGS],
+      ["docs/architecture.md", ARCHITECTURE_HEADINGS],
+    ] as const) {
+      const body = `# 文書\n\n${HEADER}${headings.map((h) => `## ${h}\n\n本文\n`).join("\n")}`;
+      expect(findShapeViolations(file, body)).toEqual([]);
+      expect(findShapeViolations(file, `${body}\n## 外部サービスとの関係\n\n本文\n`)).toHaveLength(1);
+    }
   });
 
   it("決定の見出しと状態行を見る", () => {
